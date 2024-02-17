@@ -18,6 +18,7 @@ final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoader!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var manifestFilesLocator: MockManifestFilesLocator!
 
     private var subject: InstallService!
 
@@ -27,11 +28,13 @@ final class InstallServiceTests: TuistUnitTestCase {
         pluginService = MockPluginService()
         configLoader = MockConfigLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
+        manifestFilesLocator = MockManifestFilesLocator()
 
         subject = InstallService(
             pluginService: pluginService,
             configLoader: configLoader,
-            swiftPackageManagerController: swiftPackageManagerController
+            swiftPackageManagerController: swiftPackageManagerController,
+            manifestFilesLocator: manifestFilesLocator
         )
     }
 
@@ -41,6 +44,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         pluginService = nil
         configLoader = nil
         swiftPackageManagerController = nil
+        manifestFilesLocator = nil
 
         super.tearDown()
     }

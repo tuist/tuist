@@ -194,9 +194,16 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locatePackageManifest(at locatingPath: AbsolutePath) -> AbsolutePath? {
         guard let tuistDirectory = traverseAndLocateTuistDirectory(at: locatingPath) else { return nil }
-        let packageSwiftPath = tuistDirectory.parentDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName)
-        if fileHandler.exists(packageSwiftPath) { return packageSwiftPath }
-        return nil
+        let defaultPackageSwiftPath = tuistDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        let rootPackageSwiftPath = tuistDirectory.parentDirectory
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        if fileHandler.exists(defaultPackageSwiftPath) {
+            return defaultPackageSwiftPath
+        } else if fileHandler.exists(rootPackageSwiftPath) {
+            return rootPackageSwiftPath
+        } else {
+            return nil
+        }
     }
 
     // MARK: - Helpers

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
@@ -12,22 +13,26 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!
     private var rootDirectoryLocator: MockRootDirectoryLocator!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var manifestFilesLocator: MockManifestFilesLocator!
 
     override func setUpWithError() throws {
         super.setUp()
         rootDirectoryLocator = MockRootDirectoryLocator()
         cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        manifestFilesLocator = MockManifestFilesLocator()
 
         subject = CleanService(
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: rootDirectoryLocator,
-            cacheDirectoriesProvider: cacheDirectoriesProvider
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            manifestFilesLocator: manifestFilesLocator
         )
     }
 
     override func tearDown() {
         rootDirectoryLocator = nil
         cacheDirectoriesProvider = nil
+        manifestFilesLocator = nil
         subject = nil
         super.tearDown()
     }
@@ -50,9 +55,27 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_dependencies_cleans_dependencies() throws {
         // Given
+        let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
+
+        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        manifestFilesLocator.locatePackageManifestStub = localPaths[1].parentDirectory
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+
+        // When
+        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+
+        // Then
+        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
+        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
+    }
+
+    func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() throws {
+        // Given
         let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
 
         rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        manifestFilesLocator.locatePackageManifestStub = localPaths[0].parentDirectory
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
 
         // When
         try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
@@ -71,6 +94,8 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         let projectPath = try temporaryPath()
         rootDirectoryLocator.locateStub = projectPath
+        manifestFilesLocator.locatePackageManifestStub = projectPath
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
         let swiftPackageManagerBuildPath = projectPath.appending(
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
