@@ -1192,7 +1192,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let swiftSyntaxDynamicXCFramework = GraphDependency.testXCFramework(linking: .dynamic)
 
         let project = Project.test(targets: [target])
-        let graphTarget = GraphDependency.target(name: target.name, path: project.path)
 
         // Given: Value Graph
         let graph = Graph.test(
