@@ -326,4 +326,52 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
+
+    func test_map_when_a_target_has_objc_source_files() throws {
+        // Given
+        let sources: [SourceFile] = ["/ViewController.m"]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticLibrary, sources: sources, resources: resources)
+        project = Project.test(targets: [target], isExternal: true)
+
+        // Got
+        let (_, gotSideEffects) = try subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 2)
+        let generatedFiles = gotSideEffects.compactMap {
+            if case let .file(file) = $0 {
+                return file
+            } else {
+                return nil
+            }
+        }
+
+        let expectedBasePath = project.derivedSourcesPath(for: target)
+        XCTAssertEqual(
+            generatedFiles,
+            [
+                FileDescriptor(
+                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).h"),
+                    contents: ResourcesProjectMapper
+                        .objcHeaderFileContent(
+                            targetName: target.name,
+                            bundleName: "\(project.name)_\(target.name)",
+                            target: target
+                        )
+                        .data(using: .utf8)
+                ),
+                FileDescriptor(
+                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).m"),
+                    contents: ResourcesProjectMapper
+                        .objcImplementationFileContent(
+                            targetName: target.name,
+                            bundleName: "\(project.name)_\(target.name)",
+                            target: target
+                        )
+                        .data(using: .utf8)
+                ),
+            ]
+        )
+    }
 }

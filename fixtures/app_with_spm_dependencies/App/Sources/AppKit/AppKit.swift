@@ -7,12 +7,12 @@ import ComposableArchitecture
 import CrashReporter
 import GoogleSignIn
 import libzstd
+import NYTPhotoViewer
 import Realm
 import RealmSwift
 import Sentry
 import Yams
 import ZipArchive
-import NYTPhotoViewer
 
 public enum AppKit {
     public static func start() {
@@ -45,7 +45,7 @@ public enum AppKit {
 
         // Use libzstd
         _ = ZDICT_isError(0)
-        
+
         // Use NYTPhotoViewer
         _ = NYTPhotosOverlayView()
     }

@@ -1,6 +1,6 @@
 import Foundation
-import TuistGraph
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 extension Project {
@@ -40,7 +40,7 @@ extension Project {
             }
         }
     }
-    
+
     public func derivedSourcesPath(for target: Target) -> AbsolutePath {
         if isExternal {
             return path

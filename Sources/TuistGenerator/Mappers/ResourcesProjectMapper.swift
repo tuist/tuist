@@ -73,27 +73,32 @@ public class ResourcesProjectMapper: ProjectMapping {
             modifiedTarget.sources.append(sourceFile)
             sideEffects.append(sideEffect)
         }
-        
+
         if project.isExternal,
-            target.supportsSources,
-            target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
-            !target.resources.filter ({ $0.path.extension != "xcprivacy" }).isEmpty {
+           target.supportsSources,
+           target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
+           !target.resources.filter({ $0.path.extension != "xcprivacy" }).isEmpty
+        {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
             let headerHash = try headerData.map(contentHasher.hash)
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
-            
+
             if let headers = target.headers {
-                modifiedTarget.headers = Headers(public: headers.public, private: headers.private, project: headers.project + [headerFilePath])
+                modifiedTarget.headers = Headers(
+                    public: headers.public,
+                    private: headers.private,
+                    project: headers.project + [headerFilePath]
+                )
             }
 
             let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-            
+
             settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
-            
+
             sideEffects.append(headerSideEffect)
 
             let (resourceAccessorPath, resourceAccessorData) = synthesizedObjcImplementationFile(
@@ -134,7 +139,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         )
         return (filePath, content.data(using: .utf8))
     }
-    
+
     private func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
 
@@ -146,7 +151,11 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (filePath, content.data(using: .utf8))
     }
 
-    private func synthesizedObjcImplementationFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    private func synthesizedObjcImplementationFile(
+        bundleName: String,
+        target: Target,
+        project: Project
+    ) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "m")
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
@@ -244,26 +253,26 @@ public class ResourcesProjectMapper: ProjectMapping {
             """
         }
     }
-    
-    static func objcHeaderFileContent(targetName: String, bundleName: String, target: Target) -> String {
+
+    static func objcHeaderFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
         return """
         #import <Foundation/Foundation.h>
-        
+
         #if __cplusplus
         extern "C" {
         #endif
-        
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
-        
+
         #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
-        
+
         #if __cplusplus
         }
         #endif
         """
     }
 
-    static func objcImplementationFileContent(targetName: String, bundleName: String, target: Target) -> String {
+    static func objcImplementationFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"

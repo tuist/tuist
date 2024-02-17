@@ -1,11 +1,11 @@
 import Foundation
 import TuistAutomation
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistLoader
 import TuistSupport
-import TuistDependencies
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {
@@ -63,7 +63,7 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper(contentHasher: ContentHasher()))
-        
+
         // Support for resources in SPM packages
         mappers.append(ExternalResourcesProjectMapper())
 
