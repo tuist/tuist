@@ -46,12 +46,12 @@ final class InstallService {
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws {
-        logger.info("Resolving and fetching plugins.", metadata: .section)
+        logger.notice("Resolving and fetching plugins.", metadata: .section)
 
         let config = try configLoader.loadConfig(path: path)
         _ = try await pluginService.loadPlugins(using: config)
 
-        logger.info("Plugins resolved and fetched successfully.", metadata: .success)
+        logger.notice("Plugins resolved and fetched successfully.", metadata: .success)
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
@@ -64,11 +64,11 @@ final class InstallService {
         }
 
         if update {
-            logger.info("Updating dependencies.", metadata: .section)
+            logger.notice("Updating dependencies.", metadata: .section)
 
             try swiftPackageManagerController.update(at: path, printOutput: true)
         } else {
-            logger.info("Resolving and fetching dependencies.", metadata: .section)
+            logger.notice("Resolving and fetching dependencies.", metadata: .section)
 
             try swiftPackageManagerController.resolve(at: path, printOutput: true)
         }
