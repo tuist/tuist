@@ -5,7 +5,11 @@ extension FileManager {
         subdirectoriesResolvingSymbolicLinks(atNestedPath: nil, basePath: path)
     }
 
-    private func subdirectoriesResolvingSymbolicLinks(atNestedPath nestedPath: String?, basePath: String, visitedPaths: inout Set<String>) -> [String] {
+    private func subdirectoriesResolvingSymbolicLinks(
+        atNestedPath nestedPath: String?,
+        basePath: String,
+        visitedPaths: inout Set<String>
+    ) -> [String] {
         let currentLevelPath = nestedPath.map { NSString(string: basePath).appendingPathComponent($0) } ?? basePath
         let resolvedCurrentLevelPath = resolvingSymbolicLinks(path: currentLevelPath)
         let standardizedPath = NSString(string: resolvedCurrentLevelPath).standardizingPath
@@ -17,7 +21,7 @@ extension FileManager {
 
         // Mark this standardized path as visited
         visitedPaths.insert(standardizedPath)
-        
+
         guard let resolvedSubpathsFromCurrentRoot = try? subpathsOfDirectory(atPath: resolvedCurrentLevelPath)
         else {
             return []
@@ -31,7 +35,11 @@ extension FileManager {
             if isSymbolicLinkToDirectory(path: completeSubpath) {
                 resolvedSubpaths.append(relativeSubpath)
                 resolvedSubpaths.append(
-                    contentsOf: subdirectoriesResolvingSymbolicLinks(atNestedPath: relativeSubpath, basePath: basePath, visitedPaths: &visitedPaths)
+                    contentsOf: subdirectoriesResolvingSymbolicLinks(
+                        atNestedPath: relativeSubpath,
+                        basePath: basePath,
+                        visitedPaths: &visitedPaths
+                    )
                 )
             } else if isDirectory(path: completeSubpath) {
                 resolvedSubpaths.append(relativeSubpath)
@@ -40,7 +48,7 @@ extension FileManager {
 
         return resolvedSubpaths
     }
-    
+
     private func subdirectoriesResolvingSymbolicLinks(atNestedPath nestedPath: String?, basePath: String) -> [String] {
         var visitedPaths: Set<String> = .init()
         return subdirectoriesResolvingSymbolicLinks(atNestedPath: nestedPath, basePath: basePath, visitedPaths: &visitedPaths)
