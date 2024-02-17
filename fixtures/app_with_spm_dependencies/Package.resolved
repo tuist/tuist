@@ -73,6 +73,15 @@
       }
     },
     {
+      "identity" : "nytphotoviewer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/NYTPhotoViewer",
+      "state" : {
+        "branch" : "develop",
+        "revision" : "e4acd0988c43e3df0908fc463104e567098f9dfc"
+      }
+    },
+    {
       "identity" : "plcrashreporter",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/microsoft/PLCrashReporter.git",

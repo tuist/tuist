@@ -65,7 +65,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
-            let (filePath, data) = synthesizedFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -74,10 +74,50 @@ public class ResourcesProjectMapper: ProjectMapping {
             sideEffects.append(sideEffect)
         }
 
+        if project.isExternal,
+           target.supportsSources,
+           target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
+           !target.resources.filter({ $0.path.extension != "xcprivacy" }).isEmpty
+        {
+            let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
+
+            let headerHash = try headerData.map(contentHasher.hash)
+            let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
+            let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
+
+            let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
+            var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
+            settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+
+            sideEffects.append(headerSideEffect)
+
+            let (resourceAccessorPath, resourceAccessorData) = synthesizedObjcImplementationFile(
+                bundleName: bundleName,
+                target: target,
+                project: project
+            )
+            modifiedTarget.sources.append(
+                SourceFile(
+                    path: resourceAccessorPath,
+                    contentHash: try resourceAccessorData.map(contentHasher.hash)
+                )
+            )
+            sideEffects.append(
+                SideEffectDescriptor.file(
+                    FileDescriptor(
+                        path: resourceAccessorPath,
+                        contents: resourceAccessorData,
+                        state: .present
+                    )
+                )
+            )
+        }
+
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
@@ -89,6 +129,37 @@ public class ResourcesProjectMapper: ProjectMapping {
             target: target
         )
         return (filePath, content.data(using: .utf8))
+    }
+
+    private func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+        let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
+
+        let content: String = ResourcesProjectMapper.objcHeaderFileContent(
+            targetName: target.name,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            target: target
+        )
+        return (filePath, content.data(using: .utf8))
+    }
+
+    private func synthesizedObjcImplementationFile(
+        bundleName: String,
+        target: Target,
+        project: Project
+    ) -> (AbsolutePath, Data?) {
+        let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "m")
+
+        let content: String = ResourcesProjectMapper.objcImplementationFileContent(
+            targetName: target.name,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            target: target
+        )
+        return (filePath, content.data(using: .utf8))
+    }
+
+    private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
+        let filename = "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)"
+        return project.derivedSourcesPath(for: target).appending(component: filename)
     }
 
     // swiftlint:disable:next function_body_length
@@ -172,5 +243,33 @@ public class ResourcesProjectMapper: ProjectMapping {
 
             """
         }
+    }
+
+    static func objcHeaderFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+
+        #if __cplusplus
+        extern "C" {
+        #endif
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+
+        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+
+        #if __cplusplus
+        }
+        #endif
+        """
+    }
+
+    static func objcImplementationFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+        #import "TuistBundle+\(targetName).h"
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
+            return \(targetName)_SWIFTPM_MODULE_BUNDLE();
+        }
+        """
     }
 }
