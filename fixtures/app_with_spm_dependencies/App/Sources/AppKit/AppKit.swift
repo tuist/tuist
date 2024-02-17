@@ -7,6 +7,7 @@ import ComposableArchitecture
 import CrashReporter
 import GoogleSignIn
 import libzstd
+import NYTPhotoViewer
 import Realm
 import RealmSwift
 import Sentry
@@ -44,6 +45,9 @@ public enum AppKit {
 
         // Use libzstd
         _ = ZDICT_isError(0)
+
+        // Use NYTPhotoViewer
+        _ = NYTPhotosOverlayView()
     }
 }
 

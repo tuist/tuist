@@ -1,5 +1,7 @@
 import Foundation
+import TSCBasic
 import TuistGraph
+import TuistSupport
 
 extension Project {
     /// It returns the project targets sorted based on the target type and the dependencies between them.
@@ -36,6 +38,29 @@ extension Project {
             } else {
                 return first.name < second.name
             }
+        }
+    }
+
+    public func derivedSourcesPath(for target: Target) -> AbsolutePath {
+        if isExternal {
+            return path
+                // Leads to SPM's .build directory
+                .parentDirectory.parentDirectory
+                .appending(
+                    components: [
+                        Constants.DerivedDirectory.name,
+                        target.name,
+                        Constants.DerivedDirectory.sources,
+                    ]
+                )
+        } else {
+            return path
+                .appending(
+                    components: [
+                        Constants.DerivedDirectory.name,
+                        Constants.DerivedDirectory.sources,
+                    ]
+                )
         }
     }
 }
