@@ -1,5 +1,29 @@
 # Changelog
 
+## 4.2.5 - 2024-02-16
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix storing of artifacts in Tuist Cloud by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.4 - 2024-02-16
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix bug when compressing the artifacts to upload them to Tuist Cloud by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.2.3 - 2024-02-15
 
 ### Tuist
