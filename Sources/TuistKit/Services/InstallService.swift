@@ -12,17 +12,20 @@ final class InstallService {
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileHandler: FileHandling
+    private let manifestFilesLocator: ManifestFilesLocating
 
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.swiftPackageManagerController = swiftPackageManagerController
         self.fileHandler = fileHandler
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     func run(
@@ -55,22 +58,20 @@ final class InstallService {
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
-        let packageManifestPath = path.appending(
-            component: Constants.SwiftPackageManager.packageSwiftName
-        )
-
-        guard fileHandler.exists(packageManifestPath) else {
+        guard
+            let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: path)
+        else {
             return
         }
 
         if update {
             logger.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(at: path, printOutput: true)
+            try swiftPackageManagerController.update(at: packageManifestPath.parentDirectory, printOutput: true)
         } else {
             logger.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(at: path, printOutput: true)
+            try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, printOutput: true)
         }
     }
 }
