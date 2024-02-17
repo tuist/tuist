@@ -42,7 +42,7 @@ public enum TuistCleanCategory: CleanCategory {
     }
 
     public func directory(
-        rootDirectory: AbsolutePath?,
+        rootDirectory _: AbsolutePath?,
         packageDirectory: AbsolutePath?,
         cacheDirectory: AbsolutePath
     ) throws -> TSCBasic.AbsolutePath? {
@@ -103,7 +103,7 @@ final class CleanService {
                 packageDirectory: packageDirectory,
                 cacheDirectory: cacheDirectory
             ),
-               fileHandler.exists(directory)
+                fileHandler.exists(directory)
             {
                 try FileHandler.shared.delete(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)

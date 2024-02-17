@@ -510,7 +510,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertNotNil(packageManifestPath)
         XCTAssertEqual(paths.last, packageManifestPath)
     }
-    
+
     func test_locatePackageManifest() throws {
         // Given
         let paths = try createFiles([

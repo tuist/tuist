@@ -10,7 +10,6 @@ import TuistLoaderTesting
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
-import TuistLoaderTesting
 import XCTest
 
 @testable import TuistKit

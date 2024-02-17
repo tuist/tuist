@@ -90,8 +90,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         at path: AbsolutePath,
         plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph {
-        guard
-            let packagePath = manifestFilesLocator.locatePackageManifest(at: path)
+        guard let packagePath = manifestFilesLocator.locatePackageManifest(at: path)
         else {
             return .none
         }

@@ -68,7 +68,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
         XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
     }
-    
+
     func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() throws {
         // Given
         let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
@@ -94,7 +94,8 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         let projectPath = try temporaryPath()
         rootDirectoryLocator.locateStub = projectPath
-        manifestFilesLocator.locatePackageManifestStub = projectPath.appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        manifestFilesLocator.locatePackageManifestStub = projectPath
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
         let swiftPackageManagerBuildPath = projectPath.appending(
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
