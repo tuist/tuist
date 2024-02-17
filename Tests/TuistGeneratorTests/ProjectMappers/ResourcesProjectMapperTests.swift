@@ -330,14 +330,22 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_has_objc_source_files() throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
-        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: resources)
-        project = Project.test(targets: [target], isExternal: true)
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
 
         // Got
-        let (_, gotSideEffects) = try subject.map(project: project)
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
 
-        // Then: Side effects
+        // Then
+        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        XCTAssertEqual(
+            gotTarget.settings?.base["GCC_PREFIX_HEADER"],
+            .string(
+                "$(SRCROOT)/../../\(Constants.DerivedDirectory.name)/\(target.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
+            )
+        )
+        XCTAssertEqual(gotTarget.sources.count, 2)
         XCTAssertEqual(gotSideEffects.count, 2)
         let generatedFiles = gotSideEffects.compactMap {
             if case let .file(file) = $0 {

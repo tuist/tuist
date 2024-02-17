@@ -85,17 +85,8 @@ public class ResourcesProjectMapper: ProjectMapping {
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
 
-            if let headers = target.headers {
-                modifiedTarget.headers = Headers(
-                    public: headers.public,
-                    private: headers.private,
-                    project: headers.project + [headerFilePath]
-                )
-            }
-
             let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-
             settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
 

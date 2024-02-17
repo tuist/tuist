@@ -44,6 +44,7 @@ extension Project {
     public func derivedSourcesPath(for target: Target) -> AbsolutePath {
         if isExternal {
             return path
+                // Leads to SPM's .build directory
                 .parentDirectory.parentDirectory
                 .appending(
                     components: [
