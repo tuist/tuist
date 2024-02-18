@@ -118,8 +118,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
-        let filePath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
+        let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
 

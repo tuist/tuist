@@ -288,8 +288,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
     func test_generateStructure_addsDependenciesToADependenciesGroup() throws {
         // Given
         let xcodeProjPaths = try createFolders([
-            "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/AEXML/AEXML.xcodeproj",
-            "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/SwiftSyntax/SwiftSyntax.xcodeproj",
+            "/path/to/workspace/Tuist/.build/tuist-derived/AEXML/AEXML.xcodeproj",
+            "/path/to/workspace/Tuist/.build/tuist-derived/SwiftSyntax/SwiftSyntax.xcodeproj",
         ])
 
         let workspace = Workspace.test()
@@ -305,9 +305,9 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(structure.contents, [
             .virtualGroup(name: "Dependencies", contents: [
-                .project("/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/AEXML/AEXML.xcodeproj"),
+                .project("/path/to/workspace/Tuist/.build/tuist-derived/AEXML/AEXML.xcodeproj"),
                 .project(
-                    "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/SwiftSyntax/SwiftSyntax.xcodeproj"
+                    "/path/to/workspace/Tuist/.build/tuist-derived/SwiftSyntax/SwiftSyntax.xcodeproj"
                 ),
             ]),
         ])

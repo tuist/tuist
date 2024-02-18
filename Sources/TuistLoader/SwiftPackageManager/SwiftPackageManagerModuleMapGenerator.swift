@@ -73,6 +73,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             )
         }
 
+        if !FileHandler.shared.exists(generatedModuleMapPath.parentDirectory) {
+            try FileHandler.shared.createFolder(generatedModuleMapPath.parentDirectory)
+        }
+
         if FileHandler.shared.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
