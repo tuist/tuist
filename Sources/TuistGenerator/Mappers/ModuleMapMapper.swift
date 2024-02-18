@@ -57,7 +57,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         let projectPath: AbsolutePath
         let targetName: String
     }
-    
+
     private struct DependencyMetadata: Hashable {
         let moduleMapPath: AbsolutePath?
         let headerSearchPaths: [String]
@@ -160,7 +160,8 @@ public final class ModuleMapMapper: WorkspaceMapping {
         return (projectsByPath, targetsByName)
     }
 
-    /// Calculates the set of module maps to be linked to a given target and populates the `targetToDependenciesMetadata` dictionary.
+    /// Calculates the set of module maps to be linked to a given target and populates the `targetToDependenciesMetadata`
+    /// dictionary.
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToDependenciesMetadata` is also used as cache to avoid recomputing the set for already computed targets.
     private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
@@ -220,7 +221,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
             // direct dependency module map
             let dependencyModuleMapPath: AbsolutePath?
-            
+
             if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
                 let pathString = dependentProject.path.pathString
                 dependencyModuleMapPath = try AbsolutePath(
@@ -232,8 +233,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             } else {
                 dependencyModuleMapPath = nil
             }
-            
-            
+
             var headerSearchPaths: [String]
             switch dependentTarget.settings?.base[Self.headerSearchPaths] ?? .array([]) {
             case let .array(values):
@@ -241,7 +241,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             case let .string(value):
                 headerSearchPaths = [value]
             }
-            
+
             headerSearchPaths = headerSearchPaths.map {
                 let pathString = dependentProject.path.pathString
                 return (
@@ -259,7 +259,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             if let indirectDependencyMetadata = targetToDependenciesMetadata[dependentTargetID] {
                 dependenciesMetadata.formUnion(indirectDependencyMetadata)
             }
-            
+
             dependenciesMetadata.insert(
                 DependencyMetadata(
                     moduleMapPath: dependencyModuleMapPath,
@@ -277,8 +277,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
         let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
-        guard
-            !dependenciesHeaderSearchPaths.isEmpty 
+        guard !dependenciesHeaderSearchPaths.isEmpty
         else { return nil }
 
         var mappedHeaderSearchPaths: [String]
@@ -303,9 +302,8 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherSwiftFlags: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard
-            let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-                !dependenciesModuleMaps.isEmpty
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
         else { return nil }
 
         var mappedOtherSwiftFlags: [String]
@@ -331,9 +329,8 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherCFlags: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard
-            let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-            !dependenciesModuleMaps.isEmpty
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
         else { return nil }
 
         var mappedOtherCFlags: [String]
@@ -356,9 +353,8 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherLinkerFlags: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard
-            let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-            !dependenciesModuleMaps.isEmpty
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
         else { return nil }
 
         var mappedOtherLinkerFlags: [String]

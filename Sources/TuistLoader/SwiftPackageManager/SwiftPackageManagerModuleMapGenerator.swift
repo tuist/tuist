@@ -57,12 +57,16 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
-        
+
         if publicHeadersPath.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts") {
             generatedModuleMapPath = packageDirectory
                 .parentDirectory
                 .parentDirectory
-                .appending(components: Constants.DerivedDirectory.dependenciesDerivedDirectory, moduleName, "\(moduleName).modulemap")
+                .appending(
+                    components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    moduleName,
+                    "\(moduleName).modulemap"
+                )
         } else {
             generatedModuleMapPath = packageDirectory.appending(
                 components: Constants.DerivedDirectory.name, "\(moduleName).modulemap"

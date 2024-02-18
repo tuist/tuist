@@ -3,9 +3,9 @@ import TSCBasic
 import TSCUtility
 import TuistAutomation
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
-import TuistDependencies
 
 protocol WorkspaceMapperFactorying {
     /// Returns the default workspace mapper.
@@ -66,7 +66,7 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         mappers.append(
             LastUpgradeVersionWorkspaceMapper()
         )
-        
+
         mappers.append(ExternalDependencyPathWorkspaceMapper())
 
         return mappers

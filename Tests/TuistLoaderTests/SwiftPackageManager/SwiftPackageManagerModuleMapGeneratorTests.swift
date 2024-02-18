@@ -26,7 +26,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     func test_generate_when_umbrella_header() throws {
-        try test_generate(for: .header(moduleMapPath: "/Absolute/Public/Headers/Path/Module.modulemap"))
+        try test_generate(for: .header(moduleMapPath: "/Absolute/PackageDir/Derived/Module.modulemap"))
     }
 
     func test_generate_when_nested_umbrella_header() throws {
@@ -56,7 +56,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             case "/Absolute/Public/Headers/Path/module.modulemap":
                 return moduleMap == .custom("/Absolute/Public/Headers/Path/module.modulemap", umbrellaHeaderPath: nil)
             case "/Absolute/Public/Headers/Path/Module.h":
-                return moduleMap == .header(moduleMapPath: AbsolutePath("/Absolute/Public/Headers/Path/Module.modulemap"))
+                return moduleMap == .header(moduleMapPath: AbsolutePath("/Absolute/PackageDir/Derived/Module.modulemap"))
             case "/Absolute/Public/Headers/Path/Module/Module.h":
                 return moduleMap == .nestedHeader
             default:
@@ -98,11 +98,11 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 """
             }
             XCTAssertEqual(content, expectedContent)
-            XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
+            XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
         }
         let got = try subject.generate(
-            packageDirectory: "/Absolute/PackageDire",
+            packageDirectory: "/Absolute/PackageDir",
             moduleName: "Module",
             publicHeadersPath: "/Absolute/Public/Headers/Path"
         )

@@ -30,12 +30,13 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
             name: "A"
         )
-        
-        let externalProjectBasePath = try temporaryPath().appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
+
+        let externalProjectBasePath = try temporaryPath()
+            .appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
         let externalProjectPath = externalProjectBasePath.appending(
             components: [
                 "checkouts",
-                "ExternalDependency"
+                "ExternalDependency",
             ]
         )
         let externalProject = Project.test(
@@ -80,7 +81,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                             "ExternalDependency",
                             "ExternalDependency.xcodeproj",
                         ]
-                     ),
+                    ),
                     name: "ExternalDependency",
                     settings: Settings.test(
                         base: [

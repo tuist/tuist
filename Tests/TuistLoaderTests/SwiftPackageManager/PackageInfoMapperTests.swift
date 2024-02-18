@@ -1154,7 +1154,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
-                            "MODULEMAP_FILE": .string("$(SRCROOT)/Sources/Target1/include/Target1.modulemap"),
+                            "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
                         ]
@@ -1471,7 +1471,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["-fmodule-name=Dependency1"]),
                         ],
-                        moduleMap: "$(SRCROOT)/Sources/Dependency1/include/Dependency1.modulemap"
+                        moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
                     ),
                 ]
             )
