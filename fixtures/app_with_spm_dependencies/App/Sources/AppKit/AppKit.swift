@@ -13,9 +13,13 @@ import RealmSwift
 import Sentry
 import Yams
 import ZipArchive
+import FirebaseRemoteConfig
+import ComposableArchitecture
 
 public enum AppKit {
+    @MainActor 
     public static func start() {
+
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
 
@@ -48,6 +52,8 @@ public enum AppKit {
 
         // Use NYTPhotoViewer
         _ = NYTPhotosOverlayView()
+        
+        FirebaseManager.run()
     }
 }
 

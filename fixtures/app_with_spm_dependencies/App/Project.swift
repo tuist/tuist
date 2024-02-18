@@ -1,12 +1,14 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
+let appName = "AppWithDependencies"
+
 let project = Project(
-    name: "App",
+    name: appName,
     settings: .projectSettings,
     targets: [
         .target(
-            name: "App",
+            name: appName,
             destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
@@ -40,6 +42,9 @@ let project = Project(
                 .external(name: "AppCenterCrashes"),
                 .external(name: "libzstd"),
                 .external(name: "NYTPhotoViewer"),
+                .external(name: "FirebaseRemoteConfigSwift"),
+                .external(name: "FirebaseDatabase"),
+                .external(name: "FirebaseAuth"),
             ],
             settings: .targetSettings
         ),
@@ -69,5 +74,5 @@ let project = Project(
             ]
         ),
     ],
-    schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")
+    schemes: Scheme.allSchemes(for: [appName, "AppKit"], executable: appName)
 )
