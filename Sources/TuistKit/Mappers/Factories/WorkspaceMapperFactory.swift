@@ -67,7 +67,7 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
             LastUpgradeVersionWorkspaceMapper()
         )
 
-        mappers.append(ExternalDependencyPathWorkspaceMapper())
+//        mappers.append(ExternalDependencyPathWorkspaceMapper())
 
         return mappers
     }

@@ -8,9 +8,7 @@ public enum ModuleMap: Equatable {
     /// Custom modulemap file provided in SPM package
     case custom(AbsolutePath, umbrellaHeaderPath: AbsolutePath?)
     /// Umbrella header provided in SPM package
-    case header(moduleMapPath: AbsolutePath)
-    /// Nested umbrella header provided in SPM package
-    case nestedHeader
+    case header(AbsolutePath, moduleMapPath: AbsolutePath)
     /// No umbrella header provided in SPM package, define umbrella directory
     case directory(moduleMapPath: AbsolutePath, umbrellaDirectory: AbsolutePath)
 
@@ -18,11 +16,11 @@ public enum ModuleMap: Equatable {
         switch self {
         case let .custom(path, umbrellaHeaderPath: _):
             return path
-        case let .header(moduleMapPath: path):
+        case let .header(_, moduleMapPath: path):
             return path
         case let .directory(moduleMapPath: path, umbrellaDirectory: _):
             return path
-        case .none, .nestedHeader:
+        case .none:
             return nil
         }
     }
@@ -81,23 +79,24 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
             }
-            let moduleMapContent = """
-            framework module \(sanitizedModuleName) {
-              umbrella header "\(umbrellaHeaderPath.pathString)"
-
-              export *
-              module * { export * }
-            }
-            """
-            try FileHandler.shared.write(moduleMapContent, path: generatedModuleMapPath, atomically: true)
+            try FileHandler.shared.write(
+                umbrellaHeaderModuleMap(umbrellaHeaderPath: umbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
+                path: generatedModuleMapPath,
+                atomically: true
+            )
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
-            return .header(moduleMapPath: generatedModuleMapPath)
+            return .header(umbrellaHeaderPath, moduleMapPath: generatedModuleMapPath)
         } else if FileHandler.shared.exists(nestedUmbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
             }
+            try FileHandler.shared.write(
+                umbrellaHeaderModuleMap(umbrellaHeaderPath: nestedUmbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
+                path: generatedModuleMapPath,
+                atomically: true
+            )
             // If 'PublicHeadersDir/ModuleName/ModuleName.h' exists, then use it as the umbrella header.
-            return .nestedHeader
+            return .header(nestedUmbrellaHeaderPath, moduleMapPath: generatedModuleMapPath)
         } else if let customModuleMapPath {
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
@@ -134,5 +133,16 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         } else {
             return nil
         }
+    }
+
+    private func umbrellaHeaderModuleMap(umbrellaHeaderPath: AbsolutePath, sanitizedModuleName: String) -> String {
+        """
+        framework module \(sanitizedModuleName) {
+          umbrella header "\(umbrellaHeaderPath.pathString)"
+
+          export *
+          module * { export * }
+        }
+        """
     }
 }
