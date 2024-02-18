@@ -59,6 +59,8 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 return moduleMap == .header(moduleMapPath: AbsolutePath("/Absolute/PackageDir/Derived/Module.modulemap"))
             case "/Absolute/Public/Headers/Path/Module/Module.h":
                 return moduleMap == .nestedHeader
+            case "/Absolute/PackageDir/Derived":
+                return true
             default:
                 XCTFail("Unexpected exists call: \(path)")
                 return false
