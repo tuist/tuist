@@ -563,14 +563,12 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
 
-        var publicHeadersPath: AbsolutePath?
         var headers: ProjectDescription.Headers?
         var sources: SourceFilesList?
         var resources: ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
-            publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-            headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath!)
+            headers = try Headers.from(moduleMap: moduleMap)
         }
 
         if target.type.supportsSources {
@@ -907,7 +905,7 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMap: ModuleMap?, publicHeadersPath _: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap?) throws -> Self? {
         guard let moduleMap else { return nil }
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
