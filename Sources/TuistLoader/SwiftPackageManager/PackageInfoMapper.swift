@@ -544,7 +544,11 @@ extension ProjectDescription.Target {
                 }
             )
 
-            destinations = Set(Destination.allCases).intersection(packageDestinations)
+            if packageDestinations.isEmpty {
+                destinations = Set(Destination.allCases)
+            } else {
+                destinations = Set(Destination.allCases).intersection(packageDestinations)
+            }
         }
 
         if macroDependencies.contains(where: { dependency in
