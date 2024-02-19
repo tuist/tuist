@@ -171,12 +171,14 @@ extension RunAction {
     public static func test(
         configuration: ConfigurationName = .debug,
         executable: TargetReference? = nil,
-        arguments: Arguments? = nil
+        arguments: Arguments? = nil,
+        options: RunActionOptions = nil
     ) -> RunAction {
         RunAction(
             configuration: configuration,
             executable: executable,
-            arguments: arguments
+            arguments: arguments,
+            options: options
         )
     }
 }
