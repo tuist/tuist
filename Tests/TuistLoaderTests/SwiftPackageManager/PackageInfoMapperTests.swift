@@ -3219,7 +3219,6 @@ extension PackageInfoMapping {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-            destinations: destinations,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             macroDependencies: preprocessInfo.macroDependencies,
