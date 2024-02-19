@@ -55,6 +55,8 @@ public struct RunActionOptions: Equatable, Codable {
     /// - Parameters:
     ///     - language: language (e.g. "pl").
     ///
+    ///     - region: region (e.g. "US").
+    ///
     ///     - storeKitConfigurationPath: The path of the
     ///     [StoreKit configuration
     /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
