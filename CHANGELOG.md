@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.3.0 - 2024-02-19
+
+### Tuist
+
+#### Changed
+
+- Make Tuist/Package.swift a valid location for the SPM manifest [#5947](https://github.com/tuist/tuist/pull/5947) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix integration of AppCenter [#5935](https://github.com/tuist/tuist/pull/5935) by [@fortmarek](https://github.com/fortmarek)
+- Fix integration of SPM dependencies with resources [#5945](https://github.com/tuist/tuist/pull/5945) by [@fortmarek](https://github.com/fortmarek)
+- Fix DEFINES_MODULE warning [#5946](https://github.com/tuist/tuist/pull/5946) by [@fortmarek](https://github.com/fortmarek)
+- Fix failing tuist install when a package is removed [#5948](https://github.com/tuist/tuist/pull/5948) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.2.5 - 2024-02-16
 
 ### Tuist
