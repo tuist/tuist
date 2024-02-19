@@ -53,7 +53,7 @@ public struct RunActionOptions: Equatable, Codable {
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
-    ///     - language: language (e.g. "pl").
+    ///     - language: language (e.g. "en").
     ///
     ///     - region: region (e.g. "US").
     ///

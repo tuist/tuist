@@ -40,7 +40,7 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 ),
                 options: RunActionOptions(
-                    language: .init(identifier: "en"),
+                    language: "en",
                     region: "US",
                     storeKitConfigurationPath: nil,
                     simulatedLocation: nil,
@@ -89,7 +89,7 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 ),
                 options: RunActionOptions(
-                    language: .init(identifier: "en"),
+                    language: "en",
                     region: "US",
                     storeKitConfigurationPath: nil,
                     simulatedLocation: nil,
