@@ -37,7 +37,7 @@ jobs:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy --remote-only -c fly.canary.toml --build-arg RAILS_ENV=canary --wait-timeout 3600
+        run: flyctl deploy --remote-only -c fly.canary.toml --build-arg RAILS_ENV=canary --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
   acceptance-tests:
     name: Acceptance Tests
     runs-on: macos-13
@@ -81,6 +81,6 @@ jobs:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy --remote-only -c fly.toml --build-arg RAILS_ENV=production --wait-timeout 3600
+        run: flyctl deploy --remote-only -c fly.toml --build-arg RAILS_ENV=production --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
 
 

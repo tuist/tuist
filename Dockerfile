@@ -3,6 +3,7 @@
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version and Gemfile
 ARG RUBY_VERSION=3.3.0
 ARG RAILS_ENV=production
+ARG APP_REVISION=unknown
 FROM registry.docker.com/library/ruby:$RUBY_VERSION-slim as base
 
 # Rails app lives here
@@ -31,6 +32,8 @@ FROM base as build
 
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
+ARG APP_REVISION=unknown
+ENV APP_REVISION=${APP_REVISION}
 
 # Install packages needed to build gems and NPM packages
 RUN apt-get install --no-install-recommends -y build-essential git libpq-dev libvips pkg-config
@@ -56,6 +59,8 @@ FROM base
 
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
+ARG APP_REVISION=unknown
+ENV APP_REVISION=${APP_REVISION}
 
 # Install packages needed for deployment
 RUN apt-get install --no-install-recommends -y curl libvips postgresql-client && \
