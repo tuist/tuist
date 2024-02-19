@@ -172,7 +172,7 @@ extension RunAction {
         configuration: ConfigurationName = .debug,
         executable: TargetReference? = nil,
         arguments: Arguments? = nil,
-        options: RunActionOptions = nil
+        options: RunActionOptions = .options()
     ) -> RunAction {
         RunAction(
             configuration: configuration,
