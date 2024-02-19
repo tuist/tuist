@@ -41,25 +41,24 @@ extension Project {
         }
     }
 
-    public func derivedSourcesPath(for target: Target) -> AbsolutePath {
-        if isExternal {
+    public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
+        if isExternal,
+           path.pathString
+           .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
+        {
             return path
                 // Leads to SPM's .build directory
                 .parentDirectory.parentDirectory
                 .appending(
                     components: [
-                        Constants.DerivedDirectory.name,
+                        Constants.DerivedDirectory.dependenciesDerivedDirectory,
                         target.name,
-                        Constants.DerivedDirectory.sources,
                     ]
                 )
         } else {
             return path
                 .appending(
-                    components: [
-                        Constants.DerivedDirectory.name,
-                        Constants.DerivedDirectory.sources,
-                    ]
+                    component: Constants.DerivedDirectory.name
                 )
         }
     }

@@ -58,6 +58,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
         let targetName: String
     }
 
+    private struct DependencyMetadata: Hashable {
+        let moduleMapPath: AbsolutePath?
+        let headerSearchPaths: [String]
+    }
+
     public init() {}
 
     // swiftlint:disable function_body_length
@@ -68,14 +73,14 @@ public final class ModuleMapMapper: WorkspaceMapping {
             )
 
         let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
-        var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
+        var targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>] = [:]
         for project in workspace.projects {
             for target in project.targets {
                 try Self.dependenciesModuleMaps(
                     workspace: workspace,
                     project: project,
                     target: target,
-                    targetToModuleMaps: &targetToModuleMaps,
+                    targetToDependenciesMetadata: &targetToDependenciesMetadata,
                     projectsByPath: projectsByPath,
                     targetsByName: targetsByName
                 )
@@ -90,7 +95,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 let targetID = TargetID(projectPath: mappedProject.path, targetName: mappedTarget.name)
                 var mappedSettingsDictionary = mappedTarget.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || !(targetToModuleMaps[targetID]?.isEmpty ?? true) else { continue }
+                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true) else { continue }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
@@ -99,7 +104,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 if let updatedOtherSwiftFlags = Self.updatedOtherSwiftFlags(
                     targetID: targetID,
                     oldOtherSwiftFlags: mappedSettingsDictionary[Self.otherSwiftFlagsSetting],
-                    targetToModuleMaps: targetToModuleMaps
+                    targetToDependenciesMetadata: targetToDependenciesMetadata
                 ) {
                     mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = updatedOtherSwiftFlags
                 }
@@ -107,7 +112,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 if let updatedOtherCFlags = Self.updatedOtherCFlags(
                     targetID: targetID,
                     oldOtherCFlags: mappedSettingsDictionary[Self.otherCFlagsSetting],
-                    targetToModuleMaps: targetToModuleMaps
+                    targetToDependenciesMetadata: targetToDependenciesMetadata
                 ) {
                     mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
                 }
@@ -115,7 +120,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 if let updatedHeaderSearchPaths = Self.updatedHeaderSearchPaths(
                     targetID: targetID,
                     oldHeaderSearchPaths: mappedSettingsDictionary[Self.headerSearchPaths],
-                    targetToModuleMaps: targetToModuleMaps
+                    targetToDependenciesMetadata: targetToDependenciesMetadata
                 ) {
                     mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
                 }
@@ -123,7 +128,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 if let updatedOtherLinkerFlags = Self.updatedOtherLinkerFlags(
                     targetID: targetID,
                     oldOtherLinkerFlags: mappedSettingsDictionary[Self.otherLinkerFlagsSetting],
-                    targetToModuleMaps: targetToModuleMaps
+                    targetToDependenciesMetadata: targetToDependenciesMetadata
                 ) {
                     mappedSettingsDictionary[Self.otherLinkerFlagsSetting] = updatedOtherLinkerFlags
                 }
@@ -155,24 +160,25 @@ public final class ModuleMapMapper: WorkspaceMapping {
         return (projectsByPath, targetsByName)
     }
 
-    /// Calculates the set of module maps to be linked to a given target and populates the `targetToModuleMaps` dictionary.
+    /// Calculates the set of module maps to be linked to a given target and populates the `targetToDependenciesMetadata`
+    /// dictionary.
     /// Each target must link the module map of its direct and indirect dependencies.
-    /// The `targetToModuleMaps` is also used as cache to avoid recomputing the set for already computed targets.
+    /// The `targetToDependenciesMetadata` is also used as cache to avoid recomputing the set for already computed targets.
     private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
         workspace: WorkspaceWithProjects,
         project: Project,
         target: Target,
-        targetToModuleMaps: inout [TargetID: Set<AbsolutePath>],
+        targetToDependenciesMetadata: inout [TargetID: Set<DependencyMetadata>],
         projectsByPath: [AbsolutePath: Project],
         targetsByName: [String: Target]
     ) throws {
         let targetID = TargetID(projectPath: project.path, targetName: target.name)
-        if targetToModuleMaps[targetID] != nil {
+        if targetToDependenciesMetadata[targetID] != nil {
             // already computed
             return
         }
 
-        var dependenciesModuleMaps: Set<AbsolutePath> = []
+        var dependenciesMetadata: Set<DependencyMetadata> = []
         for dependency in target.dependencies {
             let dependentProject: Project
             let dependentTarget: Target
@@ -208,39 +214,71 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 workspace: workspace,
                 project: dependentProject,
                 target: dependentTarget,
-                targetToModuleMaps: &targetToModuleMaps,
+                targetToDependenciesMetadata: &targetToDependenciesMetadata,
                 projectsByPath: projectsByPath,
                 targetsByName: targetsByName
             )
 
             // direct dependency module map
+            let dependencyModuleMapPath: AbsolutePath?
+
             if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
                 let pathString = dependentProject.path.pathString
-                let dependencyModuleMapPath = try AbsolutePath(
+                dependencyModuleMapPath = try AbsolutePath(
                     validating: dependencyModuleMap
                         .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
                         .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
                         .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
                 )
-                dependenciesModuleMaps.insert(dependencyModuleMapPath)
+            } else {
+                dependencyModuleMapPath = nil
+            }
+
+            var headerSearchPaths: [String]
+            switch dependentTarget.settings?.base[Self.headerSearchPaths] ?? .array([]) {
+            case let .array(values):
+                headerSearchPaths = values
+            case let .string(value):
+                headerSearchPaths = [value]
+            }
+
+            headerSearchPaths = headerSearchPaths.map {
+                let pathString = dependentProject.path.pathString
+                return (
+                    try? AbsolutePath(
+                        validating: $0
+                            .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
+                            .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
+                            .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
+                    ).pathString
+                ) ?? $0
             }
 
             // indirect dependency module maps
             let dependentTargetID = TargetID(projectPath: dependentProject.path, targetName: dependentTarget.name)
-            if let indirectDependencyModuleMap = targetToModuleMaps[dependentTargetID] {
-                dependenciesModuleMaps.formUnion(indirectDependencyModuleMap)
+            if let indirectDependencyMetadata = targetToDependenciesMetadata[dependentTargetID] {
+                dependenciesMetadata.formUnion(indirectDependencyMetadata)
             }
+
+            dependenciesMetadata.insert(
+                DependencyMetadata(
+                    moduleMapPath: dependencyModuleMapPath,
+                    headerSearchPaths: headerSearchPaths
+                )
+            )
         }
 
-        targetToModuleMaps[targetID] = dependenciesModuleMaps
+        targetToDependenciesMetadata[targetID] = dependenciesMetadata
     }
 
     private static func updatedHeaderSearchPaths(
         targetID: TargetID,
         oldHeaderSearchPaths: SettingsDictionary.Value?,
-        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
+        guard !dependenciesHeaderSearchPaths.isEmpty
+        else { return nil }
 
         var mappedHeaderSearchPaths: [String]
         switch oldHeaderSearchPaths ?? .array(["$(inherited)"]) {
@@ -250,9 +288,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
             mappedHeaderSearchPaths = value.split(separator: " ").map(String.init)
         }
 
-        for moduleMap in dependenciesModuleMaps.sorted() {
+        for headerSearchPath in dependenciesHeaderSearchPaths.sorted() {
             mappedHeaderSearchPaths.append(
-                "$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath).appending(components: ".."))"
+                headerSearchPath
             )
         }
 
@@ -262,9 +300,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
     private static func updatedOtherSwiftFlags(
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,
-        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
+        else { return nil }
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
@@ -287,9 +327,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
     private static func updatedOtherCFlags(
         targetID: TargetID,
         oldOtherCFlags: SettingsDictionary.Value?,
-        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
+        else { return nil }
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {
@@ -309,9 +351,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
     private static func updatedOtherLinkerFlags(
         targetID: TargetID,
         oldOtherLinkerFlags: SettingsDictionary.Value?,
-        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
+              !dependenciesModuleMaps.isEmpty
+        else { return nil }
 
         var mappedOtherLinkerFlags: [String]
         switch oldOtherLinkerFlags ?? .array(["$(inherited)"]) {

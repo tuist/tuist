@@ -318,6 +318,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     result[target.name] = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
                 case .regular:
                     result[target.name] = try moduleMapGenerator.generate(
+                        packageDirectory: packageToFolder[packageInfo.key]!,
                         moduleName: target.name,
                         publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
                     )
@@ -562,14 +563,12 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
 
-        var publicHeadersPath: AbsolutePath?
         var headers: ProjectDescription.Headers?
         var sources: SourceFilesList?
         var resources: ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
-            publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-            headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath!)
+            headers = try Headers.from(moduleMap: moduleMap)
         }
 
         if target.type.supportsSources {
@@ -906,16 +905,11 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMap: ModuleMap?, publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap?) throws -> Self? {
         guard let moduleMap else { return nil }
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
-        case .nestedHeader:
-            let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
-                .filter { $0.extension == "h" }
-            let list: [FileListGlob] = publicHeaders.map { .glob(.path($0.pathString)) }
-            return .headers(public: .list(list))
         case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
             return .headers(
                 public: .list(
@@ -975,7 +969,7 @@ extension ProjectDescription.Settings {
                 guard let moduleMap = targetToModuleMap[dependency.target.name] else { return nil }
 
                 switch moduleMap {
-                case .none, .header, .nestedHeader:
+                case .none, .header:
                     return nil
                 case .directory, .custom:
                     return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
@@ -1023,7 +1017,7 @@ extension ProjectDescription.Settings {
                         value.split(separator: " ").map(String.init) + ["-fmodule-name=\(target.name)"]
                     )
                 }
-            case .none, .nestedHeader:
+            case .none:
                 break
             }
         }

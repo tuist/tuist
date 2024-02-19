@@ -44,6 +44,7 @@ public enum Constants {
         public static let moduleMaps = "ModuleMaps"
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
+        public static let dependenciesDerivedDirectory = "tuist-derived"
     }
 
     public enum AsyncQueue {

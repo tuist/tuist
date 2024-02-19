@@ -342,7 +342,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotTarget.settings?.base["GCC_PREFIX_HEADER"],
             .string(
-                "$(SRCROOT)/../../\(Constants.DerivedDirectory.name)/\(target.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
+                "$(SRCROOT)/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
             )
         )
         XCTAssertEqual(gotTarget.sources.count, 2)
@@ -355,7 +355,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             }
         }
 
-        let expectedBasePath = project.derivedSourcesPath(for: target)
+        let expectedBasePath = project.derivedDirectoryPath(for: target)
+            .appending(component: Constants.DerivedDirectory.sources)
         XCTAssertEqual(
             generatedFiles,
             [

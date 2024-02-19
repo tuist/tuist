@@ -26,11 +26,17 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     func test_generate_when_umbrella_header() throws {
-        try test_generate(for: .header(moduleMapPath: "/Absolute/Public/Headers/Path/Module.modulemap"))
+        try test_generate(for: .header(
+            "/Absolute/Public/Headers/Path/Module.h",
+            moduleMapPath: "/Absolute/PackageDir/Derived/Module.modulemap"
+        ))
     }
 
     func test_generate_when_nested_umbrella_header() throws {
-        try test_generate(for: .nestedHeader)
+        try test_generate(for: .header(
+            "/Absolute/Public/Headers/Path/Module/Module.h",
+            moduleMapPath: "/Absolute/PackageDir/Derived/Module.modulemap"
+        ))
     }
 
     private func test_generate(for moduleMap: ModuleMap) throws {
@@ -41,10 +47,12 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 return []
             case .custom:
                 return ["/Absolute/Public/Headers/Path/module.modulemap"]
-            case .header:
-                return ["/Absolute/Public/Headers/Path/Module.h"]
-            case .nestedHeader:
-                return ["/Absolute/Public/Headers/Path/Module/Module.h"]
+            case let .header(umbrellaHeaderPath, moduleMapPath: _):
+                if umbrellaHeaderPath.parentDirectory.basename == "Module" {
+                    return ["/Absolute/Public/Headers/Path/Module/Module.h"]
+                } else {
+                    return ["/Absolute/Public/Headers/Path/Module.h"]
+                }
             case .directory:
                 return ["/Absolute/Public/Headers/Path/AnotherHeader.h"]
             }
@@ -56,9 +64,17 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             case "/Absolute/Public/Headers/Path/module.modulemap":
                 return moduleMap == .custom("/Absolute/Public/Headers/Path/module.modulemap", umbrellaHeaderPath: nil)
             case "/Absolute/Public/Headers/Path/Module.h":
-                return moduleMap == .header(moduleMapPath: AbsolutePath("/Absolute/Public/Headers/Path/Module.modulemap"))
+                return moduleMap == .header(
+                    AbsolutePath("/Absolute/Public/Headers/Path/Module.h"),
+                    moduleMapPath: AbsolutePath("/Absolute/PackageDir/Derived/Module.modulemap")
+                )
             case "/Absolute/Public/Headers/Path/Module/Module.h":
-                return moduleMap == .nestedHeader
+                return moduleMap == .header(
+                    AbsolutePath("/Absolute/Public/Headers/Path/Module/Module.h"),
+                    moduleMapPath: AbsolutePath("/Absolute/PackageDir/Derived/Module.modulemap")
+                )
+            case "/Absolute/PackageDir/Derived":
+                return true
             default:
                 XCTFail("Unexpected exists call: \(path)")
                 return false
@@ -71,23 +87,26 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             case .none, .custom:
                 XCTFail("FileHandler.write should not be called")
                 return
-            case .header:
-                expectedContent = """
-                framework module Module {
-                  umbrella header "/Absolute/Public/Headers/Path/Module.h"
+            case let .header(umbrellaHeaderPath, moduleMapPath: _):
+                if umbrellaHeaderPath.parentDirectory.basename == "Module" {
+                    expectedContent = """
+                    framework module Module {
+                      umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
 
-                  export *
-                  module * { export * }
-                }
-                """
-            case .nestedHeader:
-                expectedContent = """
-                module Module {
-                    umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
-                    export *
-                }
+                      export *
+                      module * { export * }
+                    }
+                    """
+                } else {
+                    expectedContent = """
+                    framework module Module {
+                      umbrella header "/Absolute/Public/Headers/Path/Module.h"
 
-                """
+                      export *
+                      module * { export * }
+                    }
+                    """
+                }
             case .directory:
                 expectedContent = """
                 module Module {
@@ -98,13 +117,17 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 """
             }
             XCTAssertEqual(content, expectedContent)
-            XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
+            XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
         }
-        let got = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        let got = try subject.generate(
+            packageDirectory: "/Absolute/PackageDir",
+            moduleName: "Module",
+            publicHeadersPath: "/Absolute/Public/Headers/Path"
+        )
         XCTAssertEqual(got, moduleMap)
         switch moduleMap {
-        case .none, .custom, .nestedHeader:
+        case .none, .custom:
             XCTAssertFalse(writeCalled)
         case .directory, .header:
             XCTAssertTrue(writeCalled)
