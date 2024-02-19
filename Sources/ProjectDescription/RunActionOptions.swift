@@ -70,12 +70,14 @@ public struct RunActionOptions: Equatable, Codable {
 
     public static func options(
         language: SchemeLanguage? = nil,
+        region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) -> Self {
         self.init(
             language: language,
+            region: region,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
