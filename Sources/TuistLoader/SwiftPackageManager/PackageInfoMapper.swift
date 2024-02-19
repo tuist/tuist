@@ -538,7 +538,13 @@ extension ProjectDescription.Target {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else {
             // All packages implicitly support all platforms, we constrain this with the platforms defined in `Package.swift`
-            destinations = Set(Destination.allCases)
+            let packageDestinations: ProjectDescription.Destinations = Set(
+                try packageInfo.platforms.flatMap { platform -> ProjectDescription.Destinations in
+                    return try platform.destinations()
+                }
+            )
+
+            destinations = Set(Destination.allCases).intersection(packageDestinations)
         }
 
         if macroDependencies.contains(where: { dependency in
@@ -1071,7 +1077,7 @@ extension ProjectDescription.Settings {
 }
 
 extension ProjectDescription.PackagePlatform {
-    fileprivate func destinations() throws -> ProjectDescription.Destinations {
+    fileprivate func destinations() -> ProjectDescription.Destinations {
         switch self {
         case .iOS:
             return [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]

@@ -10,10 +10,7 @@ import PackageDescription
     let localPlugin = LocalHelper(name: "local")
     let remotePlugin = RemoteHelper(name: "remote")
 
-    let packageSettings = PackageSettings(
-        platforms: [.iOS, .macOS]
-    )
-
+    let packageSettings = PackageSettings()
 #endif
 
 let package = Package(

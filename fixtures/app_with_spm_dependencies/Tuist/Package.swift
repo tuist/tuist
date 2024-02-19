@@ -9,8 +9,7 @@ import PackageDescription
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
-        ],
-        platforms: [.iOS, .watchOS]
+        ]
     )
 
 #endif
