@@ -38,6 +38,13 @@ final class SchemeTests: XCTestCase {
                 arguments: Arguments(
                     environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
+                ),
+                options: RunActionOptions(
+                    language: "en",
+                    region: "US",
+                    storeKitConfigurationPath: nil,
+                    simulatedLocation: nil,
+                    enableGPUFrameCaptureMode: .autoEnabled
                 )
             )
         )
@@ -80,6 +87,13 @@ final class SchemeTests: XCTestCase {
                 arguments: Arguments(
                     environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
+                ),
+                options: RunActionOptions(
+                    language: "en",
+                    region: "US",
+                    storeKitConfigurationPath: nil,
+                    simulatedLocation: nil,
+                    enableGPUFrameCaptureMode: .autoEnabled
                 )
             )
         )
@@ -87,6 +101,8 @@ final class SchemeTests: XCTestCase {
         // Then
         XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
         XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
+        XCTAssertEqual(subject.runAction?.options.language, "en")
+        XCTAssertEqual(subject.runAction?.options.region, "US")
     }
 
     // MARK: - Helpers
