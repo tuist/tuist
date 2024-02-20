@@ -2,37 +2,30 @@ import ProjectDescription
 
 let project = Project(
     name: "App",
-    packages: [
-        .package(path: "Packages/PackageA"),
-    ],
     targets: [
         .target(
             name: "App",
             destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
-            infoPlist: "Support/Info.plist",
-            sources: ["Sources/**"],
-            resources: [
-                /* Path to resources can be defined here */
-                // "Resources/**"
-            ],
-            dependencies: [
-                .project(target: "FrameworkA", path: "Frameworks/FrameworkA"),
-                .package(product: "LibraryA"),
-                .package(product: "LibraryB"),
-            ]
+            infoPlist: .extendingDefault(
+                with: [
+                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                ]
+            ),
+            sources: ["App/Sources/**"],
+            resources: ["App/Resources/**"],
+            dependencies: []
         ),
         .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
-            infoPlist: "Support/Tests.plist",
-            sources: "Tests/**",
-            dependencies: [
-                .target(name: "App"),
-            ]
+            infoPlist: .default,
+            sources: ["App/Tests/**"],
+            resources: [],
+            dependencies: [.target(name: "App")]
         ),
     ]
 )

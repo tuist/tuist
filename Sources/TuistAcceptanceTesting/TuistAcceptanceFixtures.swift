@@ -33,7 +33,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithImplicitDependencies
     case iosAppWithIncompatibleXcode
     case iosAppWithLocalBinarySwiftPackage
-    case iosAppWithLocalSwiftPackage
+    case iosAppWithLocalVanillaSwiftPackage
     case iosAppWithMultiConfigs
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
@@ -127,8 +127,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_incompatible_xcode"
         case .iosAppWithLocalBinarySwiftPackage:
             return "ios_app_with_local_binary_swift_package"
-        case .iosAppWithLocalSwiftPackage:
-            return "ios_app_with_local_swift_package"
+        case .iosAppWithLocalVanillaSwiftPackage:
+            return "ios_app_with_local_vanilla_swift_package"
         case .iosAppWithMultiConfigs:
             return "ios_app_with_multi_configs"
         case .iosAppWithRemoteBinarySwiftPackage:

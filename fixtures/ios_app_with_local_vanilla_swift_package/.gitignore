@@ -4,7 +4,7 @@
 .AppleDouble
 .LSOverride
 
-# Icon must end with two
+# Icon must end with two 
 Icon
 
 # Thumbnails
@@ -64,7 +64,3 @@ DerivedData/
 
 ### Tuist derived files ###
 graph.dot
-Derived/
-
-### Tuist managed dependencies ###
-Tuist/Dependencies

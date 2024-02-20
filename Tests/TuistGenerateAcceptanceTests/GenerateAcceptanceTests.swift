@@ -240,7 +240,7 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
 
 final class GenerateAcceptanceTestiOSAppWithLocalSwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_local_swift_package() async throws {
-        try setUpFixture(.iosAppWithLocalSwiftPackage)
+        try setUpFixture(.iosAppWithLocalVanillaSwiftPackage)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
