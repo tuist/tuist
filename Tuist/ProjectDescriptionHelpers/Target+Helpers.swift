@@ -47,74 +47,16 @@ extension Target {
     }
 
     public static func module(
-        name: String,
-        product: Product = .staticFramework,
-        hasTests: Bool = true,
-        hasTesting: Bool = true,
-        hasIntegrationTests: Bool = false,
-        dependencies: [TargetDependency] = [],
-        testDependencies: [TargetDependency] = [],
-        testingDependencies: [TargetDependency] = [],
-        integrationTestsDependencies: [TargetDependency] = []
+        name _: String,
+        product _: Product = .staticFramework,
+        hasTests _: Bool = true,
+        hasTesting _: Bool = true,
+        hasIntegrationTests _: Bool = false,
+        dependencies _: [TargetDependency] = [],
+        testDependencies _: [TargetDependency] = [],
+        testingDependencies _: [TargetDependency] = [],
+        integrationTestsDependencies _: [TargetDependency] = []
     ) -> [Target] {
-        let isStaticProduct = product == .staticLibrary || product == .staticFramework
-
-        var targets: [Target] = [
-            .target(
-                name: name,
-                product: product,
-                dependencies: dependencies + (isStaticProduct ? [
-                    .external(name: "Mockable"),
-                ] : [])
-            ),
-        ]
-        var testTargets: [Target] = []
-        if hasTests {
-            testTargets.append(
-                .target(
-                    name: "\(name)Tests",
-                    product: .unitTests,
-                    dependencies: testDependencies + [
-                        .target(name: name),
-                        .external(name: "SwiftToolsSupport"),
-                        .external(name: "SystemPackage"),
-                    ]
-                        + (hasTesting ? [.target(name: "\(name)Testing")] : [])
-                        + (isStaticProduct ? [.external(name: "MockableTest")] : [])
-                )
-            )
-        }
-
-        if hasTesting {
-            targets.append(
-                .target(
-                    name: "\(name)Testing",
-                    product: product,
-                    dependencies: testingDependencies + [
-                        .target(name: name),
-                        .external(name: "SwiftToolsSupport"),
-                        .external(name: "SystemPackage"),
-                        .sdk(name: "XCTest", type: .framework, status: .optional),
-                    ]
-                )
-            )
-        }
-
-        if hasIntegrationTests {
-            testTargets.append(
-                .target(
-                    name: "\(name)IntegrationTests",
-                    product: .unitTests,
-                    dependencies: integrationTestsDependencies + [
-                        .target(name: name),
-                        .external(name: "SwiftToolsSupport"),
-                        .external(name: "SystemPackage"),
-                    ]
-                        + (hasTesting ? [.target(name: "\(name)Testing")] : [])
-                )
-            )
-        }
-
-        return targets + testTargets
+        return []
     }
 }
