@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Test
-        run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+        run: tuist test TuistUnitTests  --result-bundle-path /tmp/tuist/test
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
@@ -89,11 +89,10 @@ jobs:
       matrix:
         feature:
           [
-            'TuistAcceptanceTests',
-            'TuistBuildAcceptanceTests',
+            'tuistAcceptanceTests',
+            'TuistAutomationAcceptanceTests',
             'TuistDependenciesAcceptanceTests',
-            'TuistGenerateAcceptanceTests',
-            'TuistTestAcceptanceTests',
+            'TuistGeneratorAcceptanceTests'
           ]
     steps:
       - uses: actions/checkout@v4
