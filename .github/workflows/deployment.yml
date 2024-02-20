@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Test
-        run: tuist test TuistCloudAcceptanceTests --test-targets TuistCloudAcceptanceTests/TuistCloudAcceptanceTestWithIOSAppWithFrameworks
+        run: tuist test TuistCloudKitCanaryAcceptanceTests 
   production:
     environment:
       name: production
