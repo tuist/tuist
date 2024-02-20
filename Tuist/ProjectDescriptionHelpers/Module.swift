@@ -35,7 +35,7 @@ public enum Module: String, CaseIterable {
         var targets: [Target] = []
 
         if let acceptanceTestsTargetName {
-            targets.append(.target(
+            targets.append(target(
                 name: acceptanceTestsTargetName,
                 product: .unitTests,
                 dependencies: acceptanceTestDependencies
@@ -50,7 +50,7 @@ public enum Module: String, CaseIterable {
 
         if let unitTestsTargetName {
             targets.append(
-                .target(
+                target(
                     name: unitTestsTargetName,
                     product: .unitTests,
                     dependencies: unitTestDependencies
@@ -60,7 +60,7 @@ public enum Module: String, CaseIterable {
 
         if let integrationTestsTargetName {
             targets.append(
-                .target(
+                target(
                     name: integrationTestsTargetName,
                     product: .unitTests,
                     dependencies: integrationTestsDependencies
@@ -80,7 +80,7 @@ public enum Module: String, CaseIterable {
 
         if let testingTargetName {
             targets.append(
-                .target(
+                target(
                     name: testingTargetName,
                     product: product,
                     dependencies: testingDependencies
@@ -95,7 +95,7 @@ public enum Module: String, CaseIterable {
         let isStaticProduct = product == .staticLibrary || product == .staticFramework
 
         return [
-            .target(
+            target(
                 name: targetName,
                 product: product,
                 dependencies: dependencies + (isStaticProduct ? [
@@ -170,8 +170,8 @@ public enum Module: String, CaseIterable {
         let dependencies: [TargetDependency] = switch self {
         case .tuist, .automation, .dependencies, .generator:
             [
-                .target(name: "TuistAcceptanceTesting"),
-                .target(name: "TuistSupportTesting"),
+                .target(name: Module.acceptanceTesting.targetName),
+                .target(name: Module.support.testingTargetName!),
             ]
         default:
             []
@@ -183,18 +183,18 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] = switch self {
         case .acceptanceTesting:
             [
-                .target(name: "TuistKit"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCore"),
+                .target(name: Module.kit.targetName),
+                .target(name: Module.support.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.targetName),
                 .external(name: "XcodeProj"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),
             ]
         case .tuist:
             [
-                .target(name: "TuistKit"),
-                .target(name: "ProjectDescription"),
-                .target(name: "ProjectAutomation"),
+                .target(name: Module.kit.targetName),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.automation.targetName),
                 .external(name: "GraphViz"),
                 .external(name: "ArgumentParser"),
             ]
@@ -210,7 +210,7 @@ public enum Module: String, CaseIterable {
             []
         case .support:
             [
-                .target(name: "ProjectDescription"),
+                .target(name: Module.projectDescription.targetName),
                 .external(name: "AnyCodable"),
                 .external(name: "XcodeProj"),
                 .external(name: "KeychainAccess"),
@@ -221,40 +221,40 @@ public enum Module: String, CaseIterable {
             ]
         case .kit:
             [
-                .target(name: "TuistSupport"),
-                .target(name: "TuistGenerator"),
-                .target(name: "TuistAutomation"),
-                .target(name: "ProjectDescription"),
-                .target(name: "ProjectAutomation"),
-                .target(name: "TuistLoader"),
-                .target(name: "TuistScaffold"),
-                .target(name: "TuistDependencies"),
-                .target(name: "TuistMigration"),
-                .target(name: "TuistAsyncQueue"),
-                .target(name: "TuistAnalytics"),
-                .target(name: "TuistPlugin"),
-                .target(name: "TuistGraph"),
+                .target(name: Module.support.targetName),
+                .target(name: Module.generator.targetName),
+                .target(name: Module.automation.targetName),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.automation.targetName),
+                .target(name: Module.loader.targetName),
+                .target(name: Module.scaffold.targetName),
+                .target(name: Module.dependencies.targetName),
+                .target(name: Module.migration.targetName),
+                .target(name: Module.asyncQueue.targetName),
+                .target(name: Module.analytics.targetName),
+                .target(name: Module.plugin.targetName),
+                .target(name: Module.graph.targetName),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
             ]
         case .graph:
             [
-                .target(name: "TuistSupport"),
+                .target(name: Module.support.targetName),
                 .external(name: "AnyCodable"),
             ]
         case .core:
             [
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistGraph"),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.support.targetName),
+                .target(name: Module.graph.targetName),
                 .external(name: "XcodeProj"),
             ]
         case .generator:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "SwiftGenKit"),
                 .external(name: "PathKit"),
                 .external(name: "StencilSwiftKit"),
@@ -263,65 +263,65 @@ public enum Module: String, CaseIterable {
             ]
         case .scaffold:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "PathKit"),
                 .external(name: "StencilSwiftKit"),
             ]
         case .loader:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-                .target(name: "ProjectDescription"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
+                .target(name: Module.projectDescription.targetName),
                 .external(name: "XcodeProj"),
             ]
         case .asyncQueue:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "Queuer"),
                 .external(name: "XcodeProj"),
             ]
         case .plugin:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistLoader"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistScaffold"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.loader.targetName),
+                .target(name: Module.support.targetName),
+                .target(name: Module.scaffold.targetName),
             ]
         case .analytics:
             [
-                .target(name: "TuistAsyncQueue"),
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistLoader"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.asyncQueue.targetName),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.loader.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "AnyCodable"),
             ]
         case .migration:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "PathKit"),
                 .external(name: "XcodeProj"),
             ]
         case .dependencies:
             [
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
             ]
         case .automation:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.targetName),
                 .external(name: "XcodeProj"),
                 .external(name: "XcbeautifyLib"),
             ]
@@ -338,108 +338,108 @@ public enum Module: String, CaseIterable {
             []
         case .projectDescription:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistSupport"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.support.targetName),
             ]
         case .projectAutomation:
             []
         case .kit:
             [
-                .target(name: "TuistAutomation"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "ProjectDescription"),
-                .target(name: "ProjectAutomation"),
-                .target(name: "TuistLoaderTesting"),
-                .target(name: "TuistGeneratorTesting"),
-                .target(name: "TuistScaffoldTesting"),
-                .target(name: "TuistAutomationTesting"),
-                .target(name: "TuistMigrationTesting"),
-                .target(name: "TuistAsyncQueueTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistPlugin"),
-                .target(name: "TuistPluginTesting"),
+                .target(name: Module.automation.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.automation.targetName),
+                .target(name: Module.loader.testingTargetName!),
+                .target(name: Module.generator.testingTargetName!),
+                .target(name: Module.scaffold.testingTargetName!),
+                .target(name: Module.automation.testingTargetName!),
+                .target(name: Module.migration.testingTargetName!),
+                .target(name: Module.asyncQueue.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.plugin.targetName),
+                .target(name: Module.plugin.testingTargetName!),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
             ]
         case .graph:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistSupportTesting"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.support.targetName),
+                .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeProj"),
             ]
         case .core:
             [
-                .target(name: "TuistSupport"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .generator:
             [
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
             ]
         case .scaffold:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .loader:
             [
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
             ]
         case .asyncQueue:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
                 .external(name: "Queuer"),
             ]
         case .plugin:
             [
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistLoader"),
-                .target(name: "TuistLoaderTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistScaffoldTesting"),
-                .target(name: "TuistCoreTesting"),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.loader.targetName),
+                .target(name: Module.loader.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.support.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.scaffold.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
             ]
         case .analytics:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistCoreTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
             ]
         case .migration:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .dependencies:
             [
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistLoaderTesting"),
-                .target(name: "TuistSupportTesting"),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.loader.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
             ]
         case .automation:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         }
         dependencies = dependencies + sharedDependencies + [.target(name: targetName), .external(name: "MockableTest")]
@@ -461,70 +461,70 @@ public enum Module: String, CaseIterable {
             []
         case .support:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.graph.targetName),
             ]
         case .kit:
             []
         case .graph:
             [
-                .target(name: "TuistSupport"),
-                .target(name: "TuistSupportTesting"),
+                .target(name: Module.support.targetName),
+                .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeProj"),
             ]
         case .core:
             [
-                .target(name: "TuistSupport"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.targetName),
+                .target(name: Module.graph.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .generator:
             [
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
                 .external(name: "XcodeProj"),
             ]
         case .scaffold:
             [
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistGraph"),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.graph.targetName),
             ]
         case .loader:
             [
-                .target(name: "TuistCore"),
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistGraph"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.graph.targetName),
             ]
         case .asyncQueue:
             [
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .plugin:
             [
-                .target(name: "TuistGraph"),
+                .target(name: Module.graph.targetName),
             ]
         case .analytics:
             []
         case .migration:
             [
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .dependencies:
             [
-                .target(name: "TuistGraphTesting"),
-                .target(name: "ProjectDescription"),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.projectDescription.targetName),
             ]
         case .automation:
             [
-                .target(name: "TuistCore"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.core.targetName),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         }
         return dependencies + sharedDependencies + [
@@ -539,48 +539,48 @@ public enum Module: String, CaseIterable {
             []
         case .tuist:
             [
-                .target(name: "TuistGenerator"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistLoaderTesting"),
+                .target(name: Module.generator.targetName),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.support.targetName),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.loader.testingTargetName!),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "XcodeProj"),
             ]
         case .kit:
             [
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "ProjectDescription"),
-                .target(name: "ProjectAutomation"),
-                .target(name: "TuistLoaderTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.projectDescription.targetName),
+                .target(name: Module.automation.targetName),
+                .target(name: Module.loader.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
                 .external(name: "XcodeProj"),
             ]
         case .graph:
             []
         case .core:
             [
-                .target(name: "TuistSupportTesting"),
+                .target(name: Module.support.testingTargetName!),
             ]
         case .generator:
             [
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
                 .external(name: "XcodeProj"),
             ]
         case .scaffold:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .loader:
             [
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "ProjectDescription"),
+                .target(name: Module.graph.testingTargetName!),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.projectDescription.targetName),
             ]
         case .asyncQueue:
             []
@@ -590,16 +590,16 @@ public enum Module: String, CaseIterable {
             []
         case .migration:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         case .dependencies:
             []
         case .automation:
             [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.graph.testingTargetName!),
             ]
         }
         dependencies.append(contentsOf: sharedDependencies)
@@ -610,7 +610,47 @@ public enum Module: String, CaseIterable {
         return dependencies
     }
 
-    public var settings: Settings {
+    fileprivate func target(
+        name: String,
+        product: Product,
+        dependencies: [TargetDependency],
+        settings: Settings = .settings(
+            configurations: [
+                .debug(
+                    name: "Debug",
+                    settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
+                    xcconfig: nil
+                ),
+                .release(
+                    name: "Release",
+
+                    settings: [:],
+                    xcconfig: nil
+                ),
+            ]
+        )
+    ) -> Target {
+        let rootFolder: String
+        switch product {
+        case .unitTests:
+            rootFolder = "Tests"
+        default:
+            rootFolder = "Sources"
+        }
+        return .target(
+            name: name,
+            destinations: [.mac],
+            product: product,
+            bundleId: "io.tuist.\(name)",
+            deploymentTargets: .macOS("12.0"),
+            infoPlist: .default,
+            sources: ["\(rootFolder)/\(name)/**/*.swift"],
+            dependencies: dependencies,
+            settings: settings
+        )
+    }
+
+    fileprivate var settings: Settings {
         switch self {
         case .tuist:
             return .settings(
