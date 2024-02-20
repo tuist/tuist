@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.3.1 - 2024-02-20
+
+### Tuist
+
+#### Fixed
+
+- Add missing `region` parameter in static helper `RunActionOptions`.`options` [#5954](https://github.com/tuist/tuist/pull/5954) by [@mihaicris-adoreme](https://github.com/mihaicris-adoreme)
+- Fix integration of local packages with Objective C targets [#5957](https://github.com/tuist/tuist/pull/5957) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Changed
+
+- Improve error handling in the remote storage by [@pepicrft](https://github.com/pepicrft)
+- Increase Tuist Cloud requests' timeout limit by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.3.0 - 2024-02-19
 
 ### Tuist
