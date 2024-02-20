@@ -9,5 +9,9 @@ let package = Package(
     products: [.library(name: "LibraryA", targets: ["LibraryA"])],
     targets: [
         .target(name: "LibraryA"),
-    ]
+        .target(
+            name: "LibraryAProxy"
+        )
+    ],
+    cxxLanguageStandard: .cxx17
 )
