@@ -24,14 +24,19 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
 
     func test_map_returns_sideEffectsToDeleteDerivedDirectories() throws {
         // Given
-        let projectA = Project.test(path: "/projectA")
+        let projectPath = try temporaryPath()
+        let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
+        let projectA = Project.test(path: projectPath)
+        try fileHandler.createFolder(derivedDirectory)
+        try fileHandler.createFolder(derivedDirectory.appending(component: "InfoPlists"))
+        try fileHandler.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
 
         // When
         let (_, sideEffects) = try subject.map(project: projectA)
 
         // Then
         XCTAssertEqual(sideEffects, [
-            .directory(.init(path: projectA.path.appending(component: Constants.DerivedDirectory.name), state: .absent)),
+            .directory(.init(path: derivedDirectory.appending(component: "InfoPlists"), state: .absent)),
         ])
     }
 }
