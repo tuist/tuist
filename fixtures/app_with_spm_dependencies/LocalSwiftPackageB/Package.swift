@@ -8,10 +8,10 @@ let package = Package(
     defaultLocalization: "en",
     products: [.library(name: "LibraryA", targets: ["LibraryA"])],
     targets: [
-        .target(name: "LibraryA"),
+        .target(name: "LibraryA", dependencies: ["LibraryAProxy"]),
         .target(
             name: "LibraryAProxy"
-        )
+        ),
     ],
     cxxLanguageStandard: .cxx17
 )

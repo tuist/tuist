@@ -7,7 +7,7 @@ import TuistSupport
 public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
     private let fileHandler: FileHandling
-    
+
     public init(
         derivedDirectoryName: String = Constants.DerivedDirectory.name,
         fileHandler: FileHandling = FileHandler.shared
@@ -22,7 +22,11 @@ public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
         logger.debug("Transforming project \(project.name): Deleting /Derived directory")
 
         let derivedDirectoryPath = project.path.appending(component: derivedDirectoryName)
-        
+
+        if !fileHandler.exists(derivedDirectoryPath) {
+            return (project, [])
+        }
+
         let sideEffects: [SideEffectDescriptor] = try fileHandler.contentsOfDirectory(derivedDirectoryPath)
             .filter { $0.extension != "modulemap" }
             .map {
