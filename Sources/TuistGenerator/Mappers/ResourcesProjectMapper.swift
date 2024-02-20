@@ -118,8 +118,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
-        let filePath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
+        let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
 
@@ -159,7 +158,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
     private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
         let filename = "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)"
-        return project.derivedSourcesPath(for: target).appending(component: filename)
+        return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
 
     // swiftlint:disable:next function_body_length

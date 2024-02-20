@@ -16,7 +16,7 @@ import XCTest
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
-    private var rootDirectoryLocator: MockRootDirectoryLocator!
+    private var manifestFilesLocator: MockManifestFilesLocator!
     private var subject: PackageSettingsLoader!
 
     override func setUp() {
@@ -24,12 +24,12 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
 
         manifestLoader = MockManifestLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
-        rootDirectoryLocator = MockRootDirectoryLocator()
+        manifestFilesLocator = MockManifestFilesLocator()
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
             swiftPackageManagerController: swiftPackageManagerController,
-            rootDirectoryLocator: rootDirectoryLocator,
-            fileHandler: fileHandler
+            fileHandler: fileHandler,
+            manifestFilesLocator: MockManifestFilesLocator()
         )
     }
 

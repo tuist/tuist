@@ -752,7 +752,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
 
         let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
-        var buildFiles = try XCTUnwrap(resourceBuildPhase.files)
+        let buildFiles = try XCTUnwrap(resourceBuildPhase.files)
 
         for buildFile in buildFiles {
             // Explicitly exctracting the original path because it gets lost in translation for resource files

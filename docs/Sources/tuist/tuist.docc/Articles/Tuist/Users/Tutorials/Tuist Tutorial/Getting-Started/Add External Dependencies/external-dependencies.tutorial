@@ -7,7 +7,7 @@
 
     @Section(title: "Defining package dependencies") {
         @ContentAndMedia {
-            External dependencies are defined in a `Package.swift` manifest file in the root directory (i.e., the directory containing the `/Tuist` directory).
+            External dependencies are defined in a `Package.swift` manifest file in the `/Tuist` directory in the root of your project. You can also define your `Package.swift` directly in the root if you are working on an SPM package.
         }
 
         @Steps {

@@ -18,23 +18,23 @@ public protocol PackageSettingsLoading {
 public final class PackageSettingsLoader: PackageSettingsLoading {
     private let manifestLoader: ManifestLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let rootDirectoryLocator: RootDirectoryLocating
     private let fileHandler: FileHandling
+    private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.manifestLoader = manifestLoader
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.rootDirectoryLocator = rootDirectoryLocator
         self.fileHandler = fileHandler
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> TuistGraph.PackageSettings {
-        let path = rootDirectoryLocator.locate(from: path) ?? path
+        let path = manifestFilesLocator.locatePackageManifest(at: path)?.parentDirectory ?? path
         try manifestLoader.register(plugins: plugins)
         let manifest = try manifestLoader.loadPackageSettings(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)

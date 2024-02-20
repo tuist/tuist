@@ -58,6 +58,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
     private let packageSettingsLoader: PackageSettingsLoading
+    private let manifestFilesLocator: ManifestFilesLocating
 
     public convenience init(
         manifestLoader: ManifestLoading
@@ -73,13 +74,15 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared,
-        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader()
+        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader(),
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
         self.packageSettingsLoader = packageSettingsLoader
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     // swiftlint:disable:next function_body_length
@@ -87,15 +90,14 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         at path: AbsolutePath,
         plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph {
-        guard fileHandler.exists(
-            path.appending(component: Constants.SwiftPackageManager.packageSwiftName)
-        ) else {
+        guard let packagePath = manifestFilesLocator.locatePackageManifest(at: path)
+        else {
             return .none
         }
 
-        let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
+        let packageSettings = try packageSettingsLoader.loadPackageSettings(at: packagePath.parentDirectory, with: plugins)
 
-        let path = path.appending(
+        let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         let checkoutsFolder = path.appending(component: "checkouts")

@@ -30,7 +30,7 @@ let package = Package(
         .package(url: "https://github.com/microsoft/appcenter-sdk-apple", .upToNextMajor(from: "5.0.4")),
         // Has SWIFTPM_MODULE_BUNDLE
         .package(url: "https://github.com/tuist/NYTPhotoViewer", branch: "develop"),
-        .package(path: "LocalSwiftPackage"),
-        .package(path: "StringifyMacro"),
+        .package(path: "../LocalSwiftPackage"),
+        .package(path: "../StringifyMacro"),
     ]
 )

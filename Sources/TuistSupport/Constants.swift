@@ -8,7 +8,7 @@ public enum Constants {
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
-    public static let version = "4.2.5"
+    public static let version = "4.3.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
@@ -44,6 +44,7 @@ public enum Constants {
         public static let moduleMaps = "ModuleMaps"
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
+        public static let dependenciesDerivedDirectory = "tuist-derived"
     }
 
     public enum AsyncQueue {

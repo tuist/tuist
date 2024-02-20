@@ -6,7 +6,11 @@ import TuistLoader
 import TuistSupport
 
 public protocol CleanCategory: ExpressibleByArgument & CaseIterable {
-    func directory(rootDirectory: AbsolutePath?, cacheDirectory: AbsolutePath) throws -> AbsolutePath?
+    func directory(
+        rootDirectory: AbsolutePath?,
+        packageDirectory: AbsolutePath?,
+        cacheDirectory: AbsolutePath
+    ) throws -> AbsolutePath?
 }
 
 public enum TuistCleanCategory: CleanCategory {
@@ -37,12 +41,16 @@ public enum TuistCleanCategory: CleanCategory {
         }
     }
 
-    public func directory(rootDirectory: AbsolutePath?, cacheDirectory: AbsolutePath) throws -> TSCBasic.AbsolutePath? {
+    public func directory(
+        rootDirectory _: AbsolutePath?,
+        packageDirectory: AbsolutePath?,
+        cacheDirectory: AbsolutePath
+    ) throws -> TSCBasic.AbsolutePath? {
         switch self {
         case let .global(category):
             return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)
         case .dependencies:
-            return rootDirectory?.appending(
+            return packageDirectory?.appending(
                 component: Constants.SwiftPackageManager.packageBuildDirectoryName
             )
         }
@@ -53,21 +61,25 @@ final class CleanService {
     private let fileHandler: FileHandling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private let manifestFilesLocator: ManifestFilesLocating
     init(
         fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
-        cacheDirectoriesProvider: CacheDirectoriesProviding
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
+        manifestFilesLocator: ManifestFilesLocating
     ) {
         self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     public convenience init() {
         self.init(
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
-            cacheDirectoriesProvider: CacheDirectoriesProvider()
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
+            manifestFilesLocator: ManifestFilesLocator()
         )
     }
 
@@ -83,10 +95,15 @@ final class CleanService {
 
         let rootDirectory = rootDirectoryLocator.locate(from: resolvedPath)
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
-            if let directory = try category.directory(rootDirectory: rootDirectory, cacheDirectory: cacheDirectory),
-               fileHandler.exists(directory)
+            if let directory = try category.directory(
+                rootDirectory: rootDirectory,
+                packageDirectory: packageDirectory,
+                cacheDirectory: cacheDirectory
+            ),
+                fileHandler.exists(directory)
             {
                 try FileHandler.shared.delete(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
