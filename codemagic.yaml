@@ -99,6 +99,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 15.2
+      groups:
+        - tuist
     scripts:
       - name: Set environment variables
         script: | 
