@@ -130,6 +130,7 @@ class CacheService < ApplicationService
 
   sig { returns(String) }
   def fetch
+    check_if_plan_valid
     s3_client, bucket_name = S3ClientService.call
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(

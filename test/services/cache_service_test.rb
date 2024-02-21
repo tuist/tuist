@@ -320,7 +320,7 @@ class CacheServiceTest < ActiveSupport::TestCase
         cache_category: "builds",
         add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
       )
-        .object_exists?
+        .fetch
     end
   end
 
@@ -338,7 +338,7 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
     S3ClientService.expects(:call).returns(s3_client)
-    s3_client.expects(:get_object).returns(bucket_object)
+    Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
     ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(project)
 
     project.account.update(cache_upload_event_count: 8_500)
@@ -354,10 +354,10 @@ class CacheServiceTest < ActiveSupport::TestCase
       cache_category: "builds",
       add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
-      .object_exists?
+      .fetch
 
     # Then
-    assert_equal true, got
+    assert_equal "download url", got
   end
 
   test "object exists with using passed project when an organization's plan is enterprise" do
