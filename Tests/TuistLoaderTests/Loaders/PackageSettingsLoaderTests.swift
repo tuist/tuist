@@ -50,12 +50,6 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             TSCUtility.Version("5.4.9")
         }
 
-        manifestLoader.loadPackageSettingsStub = { _ in
-            PackageSettings(
-                platforms: [.iOS, .macOS]
-            )
-        }
-
         // When
         let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
@@ -72,8 +66,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
-            swiftToolsVersion: TSCUtility.Version("5.4.9"),
-            platforms: [.iOS, .macOS]
+            swiftToolsVersion: TSCUtility.Version("5.4.9")
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)

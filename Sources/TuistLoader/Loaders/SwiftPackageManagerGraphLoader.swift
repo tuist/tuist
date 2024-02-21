@@ -163,24 +163,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription
-            .Destinations = Set(packageSettings.platforms.flatMap { platform -> ProjectDescription.Destinations in
-                switch platform {
-                case .iOS:
-                    [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
-                case .macCatalyst:
-                    [.macCatalyst]
-                case .macOS:
-                    [.mac]
-                case .tvOS:
-                    [.appleTv]
-                case .watchOS:
-                    [.appleWatch]
-                case .visionOS:
-                    [.appleVision]
-                }
-            })
-
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
@@ -192,7 +174,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 targetSettings: packageSettings.targetSettings,
                 projectOptions: packageSettings.projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-                destinations: destinations,
                 targetToProducts: preprocessInfo.targetToProducts,
                 targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
                 macroDependencies: preprocessInfo.macroDependencies,
