@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.3.2 - 2024-02-21
+
+### Tuist
+
+#### Changed
+
+- Remove PackageSettings platforms property [#5953](https://github.com/tuist/tuist/pull/5953) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Improve retrying logic when interacting with the remote cache by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.3.1 - 2024-02-20
 
 ### Tuist
