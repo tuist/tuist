@@ -18,9 +18,6 @@ public struct PackageSettings: Equatable {
     /// Swift tools version of the parsed `Package.swift`
     public let swiftToolsVersion: Version
 
-    /// The custom set of `platforms` that are used by your project
-    public let platforms: Set<PackagePlatform>
-
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -32,14 +29,12 @@ public struct PackageSettings: Equatable {
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
-        swiftToolsVersion: Version,
-        platforms: Set<PackagePlatform>
+        swiftToolsVersion: Version
     ) {
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         self.swiftToolsVersion = swiftToolsVersion
-        self.platforms = platforms
     }
 }

@@ -20,15 +20,13 @@ extension TuistGraph.PackageSettings {
         let projectOptions: [String: TuistGraph.Project.Options] = manifest
             .projectOptions
             .mapValues { .from(manifest: $0) }
-        let platforms = try Set(manifest.platforms.map { try TuistGraph.PackagePlatform.from(manifest: $0) })
 
         return .init(
             productTypes: productTypes,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
-            swiftToolsVersion: swiftToolsVersion,
-            platforms: platforms
+            swiftToolsVersion: swiftToolsVersion
         )
     }
 }
