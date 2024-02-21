@@ -12,10 +12,11 @@ public enum SDKStatus: String, Codable {
 }
 
 public enum TargetDependency: Equatable, Hashable, Codable {
-    public enum PackageType: String, Equatable, Hashable, Codable {
+    public enum PackageType: Equatable, Hashable, Codable {
         case runtime
         case plugin
         case macro
+        case local(AbsolutePath)
     }
 
     case target(name: String, condition: PlatformCondition? = nil)

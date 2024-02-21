@@ -41,6 +41,8 @@ public enum TargetDependency: Codable, Hashable {
 
         /// A macro package represents a package that contains a Swift Macro.
         case macro
+        
+        case local(Path)
     }
 
     /// Dependency on another target within the same project

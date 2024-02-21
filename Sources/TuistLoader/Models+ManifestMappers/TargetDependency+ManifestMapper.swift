@@ -59,6 +59,14 @@ extension TuistGraph.TargetDependency {
             ]
         case let .package(product, type, condition):
             switch type {
+            case let .local(path):
+                return [
+                    .package(
+                        product: product,
+                        type: .local(try generatorPaths.resolve(path: path)),
+                        condition: condition?.asGraphCondition
+                    )
+                ]
             case .macro:
                 return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
             case .runtime:

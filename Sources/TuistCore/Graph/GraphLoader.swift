@@ -186,6 +186,16 @@ public final class GraphLoader: GraphLoading {
                 return try loadPackage(fromPath: path, productName: product, type: .runtime)
             case .plugin:
                 return try loadPackage(fromPath: path, productName: product, type: .plugin)
+            case let .local(path):
+                // A target from another project
+                try loadPackage(fromPath: <#T##AbsolutePath#>, productName: <#T##String#>, type: <#T##GraphDependency.PackageProductType#>)
+                try loadProject(path: path, cache: cache)
+                try loadTarget(
+                    path: projectPath,
+                    name: toTarget,
+                    cache: cache
+                )
+                return .target(name: toTarget, path: projectPath)
             }
         case .xctest:
             return try platforms.map { platform in

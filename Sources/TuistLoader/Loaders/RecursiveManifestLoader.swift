@@ -103,4 +103,39 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
         return paths.uniqued()
     }
+    
+    private func loadPackages(paths: [AbsolutePath]) throws -> LoadedProjects {
+        var cache = [AbsolutePath: ProjectDescription.Project]()
+
+        var paths = Set(paths)
+        while !paths.isEmpty {
+            paths.subtract(cache.keys)
+            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
+                try manifestLoader.loadPackage(at: $0)
+            }
+            var newDependenciesPaths = Set<AbsolutePath>()
+            for (path, project) in zip(paths, projects) {
+                cache[path] = project
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+            }
+            paths = newDependenciesPaths
+        }
+        return LoadedProjects(projects: cache)
+    }
+
+    private func packageDependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let paths: [AbsolutePath] = try project.targets.flatMap {
+            try $0.dependencies.compactMap {
+                switch $0 {
+                case let .project(target: _, path: projectPath, _):
+                    return try generatorPaths.resolve(path: projectPath)
+                default:
+                    return nil
+                }
+            }
+        }
+
+        return paths.uniqued()
+    }
 }

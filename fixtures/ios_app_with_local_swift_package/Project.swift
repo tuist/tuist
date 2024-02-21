@@ -15,7 +15,9 @@ let project = Project(
             ),
             sources: ["App/Sources/**"],
             resources: ["App/Resources/**"],
-            dependencies: []
+            dependencies: [
+                .package(target: "Framework", type: .local("LocalPackage")),
+            ]
         ),
         .target(
             name: "AppTests",
