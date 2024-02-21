@@ -8,8 +8,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         productTypes: [
             "Alamofire": .framework, // default is .staticFramework
-        ],
-        platforms: [.iOS]
+        ]
     )
 #endif
 

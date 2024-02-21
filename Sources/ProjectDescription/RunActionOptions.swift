@@ -53,7 +53,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
-    ///     - language: language (e.g. "pl").
+    ///     - language: language (e.g. "en").
+    ///
+    ///     - region: region (e.g. "US").
     ///
     ///     - storeKitConfigurationPath: The path of the
     ///     [StoreKit configuration
@@ -70,12 +72,14 @@ public struct RunActionOptions: Equatable, Codable {
 
     public static func options(
         language: SchemeLanguage? = nil,
+        region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) -> Self {
         self.init(
             language: language,
+            region: region,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
