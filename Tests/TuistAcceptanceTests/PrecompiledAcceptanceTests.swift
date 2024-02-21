@@ -28,7 +28,7 @@ final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptan
         try await run(BuildCommand.self, "App", "--platform", "iOS")
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
             framework: "Framework1",
-            architecture: "x86_64"
+            architecture: "arm64"
         )
         try XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",

@@ -537,7 +537,7 @@ final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
             "App.app",
             destination: "Debug-iphonesimulator",
             appClip: "AppClip1",
-            architecture: "x86_64"
+            architecture: "arm64"
         )
         try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
     }
