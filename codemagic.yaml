@@ -72,6 +72,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 15.2
+      groups:
+        - tuist
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
