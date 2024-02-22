@@ -29,6 +29,8 @@ let package = Package(
         .package(url: "https://github.com/microsoft/appcenter-sdk-apple", .upToNextMajor(from: "5.0.4")),
         // Has SWIFTPM_MODULE_BUNDLE
         .package(url: "https://github.com/tuist/NYTPhotoViewer", branch: "develop"),
+        .package(url: "https://github.com/Quick/Quick", exact: "7.4.0"),
+        .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
     ]

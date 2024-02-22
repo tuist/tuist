@@ -21,7 +21,7 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
             let targets = Dictionary(uniqueKeysWithValues: targets.compactMap { targetName, target -> (String, Target)? in
                 let project = graph.projects[projectPath]!
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
-                if orphanExternalTargets.contains(graphTarget) {
+                if orphanExternalTargets.contains(graphTarget) || target.destinations.isEmpty {
                     return nil
                 } else {
                     return (targetName, target)
