@@ -960,6 +960,9 @@ class Organization
     Elem = type_member { { fixed: ::Organization } }
 
     sig { returns(T::Array[::Organization]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Organization]) }
     def to_ary; end
   end
 
@@ -1051,6 +1054,9 @@ class Organization
     def target; end
 
     sig { returns(T::Array[::Organization]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Organization]) }
     def to_ary; end
   end
 
@@ -1059,6 +1065,9 @@ class Organization
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::Organization } }
+
+    sig { returns(T::Array[::Organization]) }
+    def to_a; end
 
     sig { returns(T::Array[::Organization]) }
     def to_ary; end

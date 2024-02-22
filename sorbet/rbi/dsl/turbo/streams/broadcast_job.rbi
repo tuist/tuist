@@ -6,8 +6,14 @@
 
 class Turbo::Streams::BroadcastJob
   class << self
-    sig { params(stream: T.untyped, rendering: T.untyped).returns(T.any(Turbo::Streams::BroadcastJob, FalseClass)) }
-    def perform_later(stream, **rendering); end
+    sig do
+      params(
+        stream: T.untyped,
+        rendering: T.untyped,
+        block: T.nilable(T.proc.params(job: Turbo::Streams::BroadcastJob).void)
+      ).returns(T.any(Turbo::Streams::BroadcastJob, FalseClass))
+    end
+    def perform_later(stream, **rendering, &block); end
 
     sig { params(stream: T.untyped, rendering: T.untyped).returns(T.untyped) }
     def perform_now(stream, **rendering); end

@@ -15,6 +15,15 @@ module GeneratedUrlHelpersModule
   def api_cache_exists_url(*args); end
 
   sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_complete_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_generate_url_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_start_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
   def api_cache_url(*args); end
 
   sig { params(args: T.untyped).returns(String) }
@@ -58,12 +67,6 @@ module GeneratedUrlHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def get_started_url(*args); end
-
-  sig { params(args: T.untyped).returns(String) }
-  def graphiql_rails_url(*args); end
-
-  sig { params(args: T.untyped).returns(String) }
-  def graphql_url(*args); end
 
   sig { params(args: T.untyped).returns(String) }
   def new_rails_conductor_inbound_email_source_url(*args); end
@@ -172,6 +175,9 @@ module GeneratedUrlHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def rails_storage_redirect_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def ready_url(*args); end
 
   sig { params(args: T.untyped).returns(String) }
   def root_url(*args); end

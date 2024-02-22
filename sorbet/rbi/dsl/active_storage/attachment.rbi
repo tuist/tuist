@@ -647,6 +647,9 @@ class ActiveStorage::Attachment
     Elem = type_member { { fixed: ::ActiveStorage::Attachment } }
 
     sig { returns(T::Array[::ActiveStorage::Attachment]) }
+    def to_a; end
+
+    sig { returns(T::Array[::ActiveStorage::Attachment]) }
     def to_ary; end
   end
 
@@ -738,6 +741,9 @@ class ActiveStorage::Attachment
     def target; end
 
     sig { returns(T::Array[::ActiveStorage::Attachment]) }
+    def to_a; end
+
+    sig { returns(T::Array[::ActiveStorage::Attachment]) }
     def to_ary; end
   end
 
@@ -746,6 +752,9 @@ class ActiveStorage::Attachment
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::ActiveStorage::Attachment } }
+
+    sig { returns(T::Array[::ActiveStorage::Attachment]) }
+    def to_a; end
 
     sig { returns(T::Array[::ActiveStorage::Attachment]) }
     def to_ary; end

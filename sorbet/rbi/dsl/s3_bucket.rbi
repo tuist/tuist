@@ -1158,6 +1158,9 @@ class S3Bucket
     Elem = type_member { { fixed: ::S3Bucket } }
 
     sig { returns(T::Array[::S3Bucket]) }
+    def to_a; end
+
+    sig { returns(T::Array[::S3Bucket]) }
     def to_ary; end
   end
 
@@ -1249,6 +1252,9 @@ class S3Bucket
     def target; end
 
     sig { returns(T::Array[::S3Bucket]) }
+    def to_a; end
+
+    sig { returns(T::Array[::S3Bucket]) }
     def to_ary; end
   end
 
@@ -1257,6 +1263,9 @@ class S3Bucket
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::S3Bucket } }
+
+    sig { returns(T::Array[::S3Bucket]) }
+    def to_a; end
 
     sig { returns(T::Array[::S3Bucket]) }
     def to_ary; end

@@ -6,8 +6,13 @@
 
 class ActionMailbox::RoutingJob
   class << self
-    sig { params(inbound_email: T.untyped).returns(T.any(ActionMailbox::RoutingJob, FalseClass)) }
-    def perform_later(inbound_email); end
+    sig do
+      params(
+        inbound_email: T.untyped,
+        block: T.nilable(T.proc.params(job: ActionMailbox::RoutingJob).void)
+      ).returns(T.any(ActionMailbox::RoutingJob, FalseClass))
+    end
+    def perform_later(inbound_email, &block); end
 
     sig { params(inbound_email: T.untyped).returns(T.untyped) }
     def perform_now(inbound_email); end

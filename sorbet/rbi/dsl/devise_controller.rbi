@@ -19,7 +19,6 @@ class DeviseController
     include ::Turbo::Streams::ActionHelper
     include ::ActionText::ContentHelper
     include ::ActionText::TagHelper
-    include ::ViteRails::TagHelpers
     include ::Stripe::JavascriptHelper
     include ::ActionController::Base::HelperMethods
     include ::ApplicationHelper

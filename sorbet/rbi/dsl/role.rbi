@@ -978,6 +978,9 @@ class Role
     Elem = type_member { { fixed: ::Role } }
 
     sig { returns(T::Array[::Role]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Role]) }
     def to_ary; end
   end
 
@@ -1069,6 +1072,9 @@ class Role
     def target; end
 
     sig { returns(T::Array[::Role]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Role]) }
     def to_ary; end
   end
 
@@ -1077,6 +1083,9 @@ class Role
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::Role } }
+
+    sig { returns(T::Array[::Role]) }
+    def to_a; end
 
     sig { returns(T::Array[::Role]) }
     def to_ary; end

@@ -9,8 +9,8 @@ module Aws::S3::Errors::Forbidden; end
 module Aws::S3::Errors::NotFound; end
 module CommandEventFetchService::Error::ProjectNotFoundById; end
 module CommandEventFetchService::Error::ProjectNotFoundByName; end
-module Devise::OmniauthCallbacksController; end
-module Devise::RegistrationsController; end
-module Devise::SessionsController; end
+# module Devise::OmniauthCallbacksController; end
+# module Devise::RegistrationsController; end
+# module Devise::SessionsController; end
 module Mocha::Mock; end
 module TestMailerPreview::TestMailer; end

@@ -1150,6 +1150,9 @@ class Invitation
     Elem = type_member { { fixed: ::Invitation } }
 
     sig { returns(T::Array[::Invitation]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Invitation]) }
     def to_ary; end
   end
 
@@ -1241,6 +1244,9 @@ class Invitation
     def target; end
 
     sig { returns(T::Array[::Invitation]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Invitation]) }
     def to_ary; end
   end
 
@@ -1249,6 +1255,9 @@ class Invitation
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::Invitation } }
+
+    sig { returns(T::Array[::Invitation]) }
+    def to_a; end
 
     sig { returns(T::Array[::Invitation]) }
     def to_ary; end

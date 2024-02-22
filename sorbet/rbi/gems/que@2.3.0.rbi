@@ -7,36 +7,36 @@
 # source://que//lib/que/active_job/extensions.rb#114
 module ActiveJob
   class << self
-    # source://activejob/7.1.1/lib/active_job/queue_adapter.rb#7
+    # source://activejob/7.1.3.2/lib/active_job/queue_adapter.rb#7
     def adapter_name(adapter); end
 
-    # source://activejob/7.1.1/lib/active_job/deprecator.rb#4
+    # source://activejob/7.1.3.2/lib/active_job/deprecator.rb#4
     def deprecator; end
 
-    # source://activejob/7.1.1/lib/active_job/gem_version.rb#5
+    # source://activejob/7.1.3.2/lib/active_job/gem_version.rb#5
     def gem_version; end
 
-    # source://activejob/7.1.1/lib/active_job/enqueuing.rb#16
+    # source://activejob/7.1.3.2/lib/active_job/enqueuing.rb#16
     def perform_all_later(*jobs); end
 
-    # source://activejob/7.1.1/lib/active_job.rb#53
+    # source://activejob/7.1.3.2/lib/active_job.rb#53
     def use_big_decimal_serializer; end
 
-    # source://activejob/7.1.1/lib/active_job.rb#53
+    # source://activejob/7.1.3.2/lib/active_job.rb#53
     def use_big_decimal_serializer=(_arg0); end
 
-    # source://activejob/7.1.1/lib/active_job.rb#61
+    # source://activejob/7.1.3.2/lib/active_job.rb#61
     def verbose_enqueue_logs; end
 
-    # source://activejob/7.1.1/lib/active_job.rb#61
+    # source://activejob/7.1.3.2/lib/active_job.rb#61
     def verbose_enqueue_logs=(_arg0); end
 
-    # source://activejob/7.1.1/lib/active_job/version.rb#7
+    # source://activejob/7.1.3.2/lib/active_job/version.rb#7
     def version; end
 
     private
 
-    # source://activejob/7.1.1/lib/active_job/instrumentation.rb#6
+    # source://activejob/7.1.3.2/lib/active_job/instrumentation.rb#6
     def instrument_enqueue_all(queue_adapter, jobs); end
   end
 end
@@ -44,7 +44,7 @@ end
 # source://que//lib/que/active_job/extensions.rb#115
 module ActiveJob::QueueAdapters
   class << self
-    # source://activejob/7.1.1/lib/active_job/queue_adapters.rb#137
+    # source://activejob/7.1.3.2/lib/active_job/queue_adapters.rb#137
     def lookup(name); end
   end
 end

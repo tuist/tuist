@@ -9,6 +9,7 @@ class ActiveStorage::Blob
   extend CommonRelationMethods
   extend GeneratedRelationMethods
   include GeneratedSecureTokenMethods
+  include GeneratedStoredAttributesMethods
 
   sig { returns(ActiveStorage::Attached::One) }
   def preview_image; end
@@ -695,11 +696,88 @@ class ActiveStorage::Blob
     def regenerate_key; end
   end
 
+  module GeneratedStoredAttributesMethods
+    sig { returns(T.untyped) }
+    def analyzed; end
+
+    sig { params(value: T.untyped).returns(T.untyped) }
+    def analyzed=(value); end
+
+    sig { returns(T.untyped) }
+    def analyzed_before_last_save; end
+
+    sig { returns(T.untyped) }
+    def analyzed_change; end
+
+    sig { returns(T::Boolean) }
+    def analyzed_changed?; end
+
+    sig { returns(T.untyped) }
+    def analyzed_was; end
+
+    sig { returns(T.untyped) }
+    def composed; end
+
+    sig { params(value: T.untyped).returns(T.untyped) }
+    def composed=(value); end
+
+    sig { returns(T.untyped) }
+    def composed_before_last_save; end
+
+    sig { returns(T.untyped) }
+    def composed_change; end
+
+    sig { returns(T::Boolean) }
+    def composed_changed?; end
+
+    sig { returns(T.untyped) }
+    def composed_was; end
+
+    sig { returns(T.untyped) }
+    def identified; end
+
+    sig { params(value: T.untyped).returns(T.untyped) }
+    def identified=(value); end
+
+    sig { returns(T.untyped) }
+    def identified_before_last_save; end
+
+    sig { returns(T.untyped) }
+    def identified_change; end
+
+    sig { returns(T::Boolean) }
+    def identified_changed?; end
+
+    sig { returns(T.untyped) }
+    def identified_was; end
+
+    sig { returns(T.untyped) }
+    def saved_change_to_analyzed; end
+
+    sig { returns(T::Boolean) }
+    def saved_change_to_analyzed?; end
+
+    sig { returns(T.untyped) }
+    def saved_change_to_composed; end
+
+    sig { returns(T::Boolean) }
+    def saved_change_to_composed?; end
+
+    sig { returns(T.untyped) }
+    def saved_change_to_identified; end
+
+    sig { returns(T::Boolean) }
+    def saved_change_to_identified?; end
+  end
+
   class PrivateAssociationRelation < ::ActiveRecord::AssociationRelation
     include CommonRelationMethods
     include GeneratedAssociationRelationMethods
 
     Elem = type_member { { fixed: ::ActiveStorage::Blob } }
+
+    sig { returns(T::Array[::ActiveStorage::Blob]) }
+    def to_a; end
 
     sig { returns(T::Array[::ActiveStorage::Blob]) }
     def to_ary; end
@@ -793,6 +871,9 @@ class ActiveStorage::Blob
     def target; end
 
     sig { returns(T::Array[::ActiveStorage::Blob]) }
+    def to_a; end
+
+    sig { returns(T::Array[::ActiveStorage::Blob]) }
     def to_ary; end
   end
 
@@ -801,6 +882,9 @@ class ActiveStorage::Blob
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::ActiveStorage::Blob } }
+
+    sig { returns(T::Array[::ActiveStorage::Blob]) }
+    def to_a; end
 
     sig { returns(T::Array[::ActiveStorage::Blob]) }
     def to_ary; end

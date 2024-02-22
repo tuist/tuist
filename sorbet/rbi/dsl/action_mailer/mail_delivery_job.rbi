@@ -13,10 +13,11 @@ class ActionMailer::MailDeliveryJob
         delivery_method: T.untyped,
         args: T.untyped,
         kwargs: T.untyped,
-        params: T.untyped
+        params: T.untyped,
+        block: T.nilable(T.proc.params(job: ActionMailer::MailDeliveryJob).void)
       ).returns(T.any(ActionMailer::MailDeliveryJob, FalseClass))
     end
-    def perform_later(mailer, mail_method, delivery_method, args:, kwargs: T.unsafe(nil), params: T.unsafe(nil)); end
+    def perform_later(mailer, mail_method, delivery_method, args:, kwargs: T.unsafe(nil), params: T.unsafe(nil), &block); end
 
     sig do
       params(

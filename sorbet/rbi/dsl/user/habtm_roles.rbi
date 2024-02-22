@@ -928,6 +928,9 @@ class User::HABTM_Roles
     Elem = type_member { { fixed: ::User::HABTM_Roles } }
 
     sig { returns(T::Array[::User::HABTM_Roles]) }
+    def to_a; end
+
+    sig { returns(T::Array[::User::HABTM_Roles]) }
     def to_ary; end
   end
 
@@ -1019,6 +1022,9 @@ class User::HABTM_Roles
     def target; end
 
     sig { returns(T::Array[::User::HABTM_Roles]) }
+    def to_a; end
+
+    sig { returns(T::Array[::User::HABTM_Roles]) }
     def to_ary; end
   end
 
@@ -1027,6 +1033,9 @@ class User::HABTM_Roles
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::User::HABTM_Roles } }
+
+    sig { returns(T::Array[::User::HABTM_Roles]) }
+    def to_a; end
 
     sig { returns(T::Array[::User::HABTM_Roles]) }
     def to_ary; end

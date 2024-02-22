@@ -25,8 +25,7 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "sorbet.enabled": true,
   "files.exclude": {
-    "**/node_modules": true,
-    "**/sorbet": true
+    "**/node_modules": true
   },
   "typescript.tsdk": "node_modules/typescript/lib",
   "search.exclude": {

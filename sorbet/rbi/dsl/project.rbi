@@ -1124,6 +1124,9 @@ class Project
     Elem = type_member { { fixed: ::Project } }
 
     sig { returns(T::Array[::Project]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Project]) }
     def to_ary; end
   end
 
@@ -1215,6 +1218,9 @@ class Project
     def target; end
 
     sig { returns(T::Array[::Project]) }
+    def to_a; end
+
+    sig { returns(T::Array[::Project]) }
     def to_ary; end
   end
 
@@ -1223,6 +1229,9 @@ class Project
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::Project } }
+
+    sig { returns(T::Array[::Project]) }
+    def to_a; end
 
     sig { returns(T::Array[::Project]) }
     def to_ary; end

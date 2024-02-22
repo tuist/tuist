@@ -1588,6 +1588,9 @@ class CommandEvent
     Elem = type_member { { fixed: ::CommandEvent } }
 
     sig { returns(T::Array[::CommandEvent]) }
+    def to_a; end
+
+    sig { returns(T::Array[::CommandEvent]) }
     def to_ary; end
   end
 
@@ -1679,6 +1682,9 @@ class CommandEvent
     def target; end
 
     sig { returns(T::Array[::CommandEvent]) }
+    def to_a; end
+
+    sig { returns(T::Array[::CommandEvent]) }
     def to_ary; end
   end
 
@@ -1687,6 +1693,9 @@ class CommandEvent
     include GeneratedRelationMethods
 
     Elem = type_member { { fixed: ::CommandEvent } }
+
+    sig { returns(T::Array[::CommandEvent]) }
+    def to_a; end
 
     sig { returns(T::Array[::CommandEvent]) }
     def to_ary; end

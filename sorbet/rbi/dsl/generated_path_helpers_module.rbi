@@ -15,6 +15,15 @@ module GeneratedPathHelpersModule
   def api_cache_exists_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_complete_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_generate_url_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def api_cache_multipart_start_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
   def api_cache_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
@@ -58,12 +67,6 @@ module GeneratedPathHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def get_started_path(*args); end
-
-  sig { params(args: T.untyped).returns(String) }
-  def graphiql_rails_path(*args); end
-
-  sig { params(args: T.untyped).returns(String) }
-  def graphql_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
   def new_rails_conductor_inbound_email_path(*args); end
@@ -172,6 +175,9 @@ module GeneratedPathHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def rails_storage_redirect_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def ready_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
   def root_path(*args); end

@@ -6,8 +6,14 @@
 
 class ActiveStorage::MirrorJob
   class << self
-    sig { params(key: T.untyped, checksum: T.untyped).returns(T.any(ActiveStorage::MirrorJob, FalseClass)) }
-    def perform_later(key, checksum:); end
+    sig do
+      params(
+        key: T.untyped,
+        checksum: T.untyped,
+        block: T.nilable(T.proc.params(job: ActiveStorage::MirrorJob).void)
+      ).returns(T.any(ActiveStorage::MirrorJob, FalseClass))
+    end
+    def perform_later(key, checksum:, &block); end
 
     sig { params(key: T.untyped, checksum: T.untyped).returns(T.untyped) }
     def perform_now(key, checksum:); end

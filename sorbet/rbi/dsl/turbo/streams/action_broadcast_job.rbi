@@ -11,12 +11,22 @@ class Turbo::Streams::ActionBroadcastJob
         stream: T.untyped,
         action: T.untyped,
         target: T.untyped,
-        rendering: T.untyped
+        attributes: T.untyped,
+        rendering: T.untyped,
+        block: T.nilable(T.proc.params(job: Turbo::Streams::ActionBroadcastJob).void)
       ).returns(T.any(Turbo::Streams::ActionBroadcastJob, FalseClass))
     end
-    def perform_later(stream, action:, target:, **rendering); end
+    def perform_later(stream, action:, target:, attributes: T.unsafe(nil), **rendering, &block); end
 
-    sig { params(stream: T.untyped, action: T.untyped, target: T.untyped, rendering: T.untyped).returns(T.untyped) }
-    def perform_now(stream, action:, target:, **rendering); end
+    sig do
+      params(
+        stream: T.untyped,
+        action: T.untyped,
+        target: T.untyped,
+        attributes: T.untyped,
+        rendering: T.untyped
+      ).returns(T.untyped)
+    end
+    def perform_now(stream, action:, target:, attributes: T.unsafe(nil), **rendering); end
   end
 end

@@ -141,24 +141,6 @@ class ActionController::Parameters
   sig { params(block: T.untyped).returns(ActionController::Parameters) }
   def select(&block); end
 
-  sig { returns(T.any(Symbol, T::Boolean)) }
-  def self.action_on_unpermitted_parameters; end
-
-  sig { params(obj: T.any(Symbol, T::Boolean)).void }
-  def self.action_on_unpermitted_parameters=(obj); end
-
-  sig { returns(T::Array[T.any(String, Symbol)]) }
-  def self.always_permitted_parameters; end
-
-  sig { params(obj: T::Array[T.any(String, Symbol)]).void }
-  def self.always_permitted_parameters=(obj); end
-
-  sig { returns(T::Boolean) }
-  def self.permit_all_parameters; end
-
-  sig { params(obj: T::Boolean).void }
-  def self.permit_all_parameters=(obj); end
-
   sig { params(keys: T.any(String, Symbol)).returns(ActionController::Parameters) }
   def slice!(*keys); end
 
@@ -199,6 +181,24 @@ class ActionController::Parameters
 
   sig { params(keys: T.any(String, Symbol)).returns(T.untyped) }
   def values_at(*keys); end
+
+  sig { returns(T.any(Symbol, T::Boolean)) }
+  def self.action_on_unpermitted_parameters; end
+
+  sig { params(obj: T.any(Symbol, T::Boolean)).void }
+  def self.action_on_unpermitted_parameters=(obj); end
+
+  sig { returns(T::Array[T.any(String, Symbol)]) }
+  def self.always_permitted_parameters; end
+
+  sig { params(obj: T::Array[T.any(String, Symbol)]).void }
+  def self.always_permitted_parameters=(obj); end
+
+  sig { returns(T::Boolean) }
+  def self.permit_all_parameters; end
+
+  sig { params(obj: T::Boolean).void }
+  def self.permit_all_parameters=(obj); end
 end
 
 module ActionController::RequestForgeryProtection
