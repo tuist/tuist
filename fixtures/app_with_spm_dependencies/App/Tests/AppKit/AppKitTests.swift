@@ -1,5 +1,5 @@
-import XCTest
 import Nimble
+import XCTest
 
 final class AppKitTests: XCTestCase {
     func testExample() {
