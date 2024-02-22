@@ -54,8 +54,8 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
-        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
+        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         if config.generationOptions.enforceExplicitDependencies {
             mappers.append(ExplicitDependencyGraphMapper())
         }

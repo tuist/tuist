@@ -44,6 +44,19 @@ let project = Project(
             settings: .targetSettings
         ),
         .target(
+            name: "AppKitTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.app.kit",
+            infoPlist: .default,
+            sources: "Tests/AppKit/**",
+            dependencies: [
+                .target(name: "AppKit"),
+                .external(name: "Nimble"),
+            ],
+            settings: .targetSettings
+        ),
+        .target(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,
