@@ -25,6 +25,7 @@ gem "httpx", "~> 1.2.0"
 gem 'sorbet-static-and-runtime'
 gem 'tapioca', require: false, :group => :development
 gem "turbo-rails", "~> 2.0"
+gem "rack-cors", "~> 2.0"
 
 # Authentication / Authorization
 gem "devise", "~> 4.8"
