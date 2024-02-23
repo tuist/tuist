@@ -89,6 +89,17 @@ public class GraphLinter: GraphLinting {
 
     private func lintDependencies(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+  
+        issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
+        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
+        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
+
+        return issues
+    }
+        
+    private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in
                 guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
@@ -98,15 +109,10 @@ public class GraphLinter: GraphLinting {
                 return lintDependency(from: fromTarget, to: toTarget)
             }
         }
-
-        issues.append(contentsOf: dependencyIssues)
-        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
-        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
-
-        return issues
+        return dependencyIssues
     }
+    
+    
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
         let fromPlatforms = from.target.supportedPlatforms
