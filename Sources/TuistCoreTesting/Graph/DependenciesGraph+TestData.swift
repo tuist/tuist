@@ -93,7 +93,7 @@ extension TuistCore.DependenciesGraph {
                     ),
                     .sdk(name: "WatchKit", type: .framework, status: .required, condition: .when([.watchos])),
                 ],
-                settings: Self.spmSettings(with: [
+                settings: Self.spmSettings(packageName: "Tuist", with: [
                     "HEADER_SEARCH_PATHS": [
                         "$(SRCROOT)/customPath/cSearchPath",
                         "$(SRCROOT)/customPath/cxxSearchPath",
@@ -122,7 +122,7 @@ extension TuistCore.DependenciesGraph {
                         path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
                     ),
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "TuistKit")
             ),
         ]
 
@@ -190,7 +190,7 @@ extension TuistCore.DependenciesGraph {
                         name: "ALibraryUtils"
                     ),
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "ALibrary")
             ),
             .target(
                 name: "ALibraryUtils",
@@ -203,7 +203,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "ALibraryUtils")
             ),
         ]
 
@@ -258,7 +258,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "AnotherLibrary")
             ),
         ]
 
@@ -321,7 +321,7 @@ extension TuistCore.DependenciesGraph {
                         condition: .when([.ios, .macos, .tvos, .watchos])
                     ),
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "Alamofire")
             ),
         ]
 
@@ -406,7 +406,7 @@ extension TuistCore.DependenciesGraph {
                     .sdk(name: "z", type: .library, status: .required),
                     .sdk(name: "StoreKit", type: .framework, status: .required),
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GoogleAppMeasurementTarget")
             ),
             .target(
                 name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -448,7 +448,7 @@ extension TuistCore.DependenciesGraph {
                     .sdk(name: "z", type: .library, status: .required),
                     .sdk(name: "StoreKit", type: .framework, status: .required),
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GoogleAppMeasurementWithoutAdIdSupportTarget")
             ),
         ]
 
@@ -527,7 +527,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GULAppDelegateSwizzler")
             ),
             .target(
                 name: "GULMethodSwizzler",
@@ -540,7 +540,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GULMethodSwizzler")
             ),
 
             .target(
@@ -554,7 +554,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/GULNSData/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GULNSData")
             ),
             .target(
                 name: "GULNetwork",
@@ -567,7 +567,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/GULNetwork/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "GULNetwork")
             ),
         ]
 
@@ -622,7 +622,7 @@ extension TuistCore.DependenciesGraph {
                 sources: [
                     "\(packageFolder.pathString)/Sources/nanopb/**",
                 ],
-                settings: Self.spmSettings()
+                settings: Self.spmSettings(packageName: "nanopb")
             ),
         ]
 
@@ -661,6 +661,7 @@ extension DependenciesGraph {
     }
 
     static func spmSettings(
+        packageName: String,
         baseSettings: Settings = .settings(),
         with customSettings: SettingsDictionary = [:],
         moduleMap: String? = nil
@@ -675,6 +676,7 @@ extension DependenciesGraph {
             "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
             "GCC_NO_COMMON_BLOCKS": "NO",
             "USE_HEADERMAP": "NO",
+            "OTHER_SWIFT_FLAGS": ["-package-name", packageName],
         ]
         var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
 

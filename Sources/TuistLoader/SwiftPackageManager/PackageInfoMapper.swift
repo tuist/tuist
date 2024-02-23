@@ -442,7 +442,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
         // Setting the -package-name Swift compiler flag
-        var baseSettings = baseSettings.with(base: [
+        let baseSettings = baseSettings.with(base: [
             "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", name],
         ])
 
