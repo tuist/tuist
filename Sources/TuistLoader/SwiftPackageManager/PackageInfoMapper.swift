@@ -442,18 +442,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
         // Setting the -package-name Swift compiler flag
-        targetSettings = targetSettings.mapValues { settings in
-            var settings = settings
-            settings["OTHER_SWIFT_FLAGS"] = switch settings["OTHER_SWIFT_FLAGS"] {
-            case let .array(items):
-                .array(items + ["-package-name", name])
-            case let .string(value):
-                "\(value) -package-name \(name)"
-            case .none:
-                .array(["-package-name", name])
-            }
-            return settings
-        }
+        var baseSettings = baseSettings.with(base: [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", name],
+        ])
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .compactMap { target -> ProjectDescription.Target? in
