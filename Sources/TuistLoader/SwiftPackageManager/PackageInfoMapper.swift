@@ -418,7 +418,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
-        let targetSettings = targetSettings.merging(
+        var targetSettings = targetSettings.merging(
             // Force enable testing search paths
             Dictionary(
                 uniqueKeysWithValues: [
@@ -441,6 +441,19 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
             }
         )
+        // Setting the -package-name Swift compiler flag
+        targetSettings = targetSettings.mapValues { settings in
+            var settings = settings
+            settings["OTHER_SWIFT_FLAGS"] = switch settings["OTHER_SWIFT_FLAGS"] {
+            case let .array(items):
+                .array(items + ["-package-name", name])
+            case let .string(value):
+                "\(value) -package-name \(name)"
+            case .none:
+                .array(["-package-name", name])
+            }
+            return settings
+        }
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .compactMap { target -> ProjectDescription.Target? in
