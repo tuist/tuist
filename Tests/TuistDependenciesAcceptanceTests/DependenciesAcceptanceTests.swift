@@ -11,6 +11,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
+        try await run(BuildCommand.self, "VisionOSApp")
         try await run(TestCommand.self, "AppKit")
     }
 }

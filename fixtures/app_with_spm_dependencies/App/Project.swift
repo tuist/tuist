@@ -57,6 +57,16 @@ let project = Project(
             settings: .targetSettings
         ),
         .target(
+            name: "VisionOSApp",
+            destinations: [.appleVision],
+            product: .app,
+            bundleId: "io.tuist.app.applevision",
+            sources: ["Sources/VisionOS/App/**"],
+            dependencies: [
+                .external(name: "Alamofire"),
+            ]
+        ),
+        .target(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,

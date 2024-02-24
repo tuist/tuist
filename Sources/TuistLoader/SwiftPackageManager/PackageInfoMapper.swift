@@ -541,18 +541,8 @@ extension ProjectDescription.Target {
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else {
-            // All packages implicitly support all platforms, we constrain this with the platforms defined in `Package.swift`
-            let packageDestinations: ProjectDescription.Destinations = Set(
-                try packageInfo.platforms.flatMap { platform -> ProjectDescription.Destinations in
-                    return try platform.destinations()
-                }
-            )
-
-            if packageDestinations.isEmpty {
-                destinations = Set(Destination.allCases)
-            } else {
-                destinations = Set(Destination.allCases).intersection(packageDestinations)
-            }
+            // All packages implicitly support all platforms
+            destinations = Set(Destination.allCases)
         }
 
         if macroDependencies.contains(where: { dependency in
