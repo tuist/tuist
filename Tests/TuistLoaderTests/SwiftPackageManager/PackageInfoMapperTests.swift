@@ -3278,6 +3278,7 @@ extension ProjectDescription.Target {
 
     fileprivate static func test(
         _ name: String,
+        packageName: String = "Package",
         basePath: AbsolutePath = "/",
         destinations: ProjectDescription.Destinations = [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign],
         product: ProjectDescription.Product = .staticFramework,
@@ -3318,7 +3319,12 @@ extension ProjectDescription.Target {
             resources: resources.isEmpty ? nil : .resources(resources),
             headers: headers,
             dependencies: dependencies,
-            settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
+            settings: DependenciesGraph.spmSettings(
+                packageName: packageName,
+                baseSettings: baseSettings,
+                with: customSettings,
+                moduleMap: moduleMap
+            )
         )
     }
 }
