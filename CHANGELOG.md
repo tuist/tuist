@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.3.4 - 2024-02-21
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 4.3.3 - 2024-02-21
+
+### Tuist
+
+#### Added
+
+- Migrate CI pipelines to Codemagic [#5913](https://github.com/tuist/tuist/pull/5913) by [@pepicrft](https://github.com/pepicrft)
+- Support visionOS from the default asset templates to synthesize resources [#5963](https://github.com/tuist/tuist/pull/5963) by [@Ethan-IS](https://github.com/Ethan-IS)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Override existing artifacts in the cache that are invalid by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.3.2 - 2024-02-21
 
 ### Tuist

@@ -3,14 +3,14 @@
 rm -rf prebuild
 tuist generate --no-open
 
-TEMP_DIR="/tmp/tuist-framework-2-fixture"
+TEMP_DIR=/private$(mktemp -d)
 IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 MAC_OS_DIR="$TEMP_DIR/Build/Products/Debug"
 
-rm -rf $TEMP_DIR
-mkdir -p $TEMP_DIR
+echo $TEMP_DIR
+trap "rm -rf $TEMP_DIR" EXIT # Ensures it gets deleted
 
-xcrun xcodebuild build -scheme Framework2-iOS -workspace Framework2.xcworkspace -sdk iphonesimulator -destination "platform=iOS Simulator,name=iPhone 14 Pro,OS=latest" -derivedDataPath $TEMP_DIR ONLY_ACTIVE_ARCH=NO
+xcrun xcodebuild build -scheme Framework2-iOS -workspace Framework2.xcworkspace -destination generic/platform=iOS -destination generic/platform=iOS\ Simulator -derivedDataPath $TEMP_DIR ONLY_ACTIVE_ARCH=NO
 xcrun xcodebuild build -scheme Framework2-macOS -workspace Framework2.xcworkspace -derivedDataPath $TEMP_DIR
 
 mkdir -p prebuilt/iOS/Framework2.framework

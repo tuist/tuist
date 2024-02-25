@@ -418,7 +418,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
-        let targetSettings = targetSettings.merging(
+        var targetSettings = targetSettings.merging(
             // Force enable testing search paths
             Dictionary(
                 uniqueKeysWithValues: [
@@ -441,6 +441,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
             }
         )
+        // Setting the -package-name Swift compiler flag
+        let baseSettings = baseSettings.with(base: [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", name],
+        ])
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .compactMap { target -> ProjectDescription.Target? in
