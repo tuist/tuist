@@ -28,7 +28,7 @@ extension Settings {
     public static func test(
         base: SettingsDictionary = [:],
         baseDebug: SettingsDictionary = [:],
-        configurations: [BuildConfiguration: Configuration?] = [:]
+        configurations: BuildConfigurationDictionary = [:]
     ) -> Settings {
         Settings(
             base: base,

@@ -28,7 +28,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // however is not needed for other products such as static libraries.
     public var infoPlist: InfoPlist?
     public var entitlements: Entitlements?
-    public var settings: Settings?
+    public var settings: TuistGraph.Settings?
     public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
     public var resources: [ResourceFileElement]

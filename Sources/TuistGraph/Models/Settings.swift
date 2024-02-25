@@ -95,6 +95,8 @@ extension DefaultSettings {
     }
 }
 
+public typealias BuildConfigurationDictionary = Dictionary<BuildConfiguration, TuistGraph.Configuration?>
+
 public struct Settings: Equatable, Codable {
     public static let `default` = Settings(
         configurations: [.release: nil, .debug: nil],
@@ -106,7 +108,7 @@ public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
     /// Base settings applied only for configurations of `variant == .debug`
     public let baseDebug: SettingsDictionary
-    public let configurations: [BuildConfiguration: Configuration?]
+    public let configurations: BuildConfigurationDictionary
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
@@ -114,7 +116,7 @@ public struct Settings: Equatable, Codable {
     public init(
         base: SettingsDictionary = [:],
         baseDebug: SettingsDictionary = [:],
-        configurations: [BuildConfiguration: Configuration?],
+        configurations: BuildConfigurationDictionary,
         defaultSettings: DefaultSettings = .recommended
     ) {
         self.base = base
@@ -156,7 +158,7 @@ extension Settings {
     }
 }
 
-extension [BuildConfiguration: Configuration?] {
+extension BuildConfigurationDictionary {
     public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
         sorted(by: { first, second -> Bool in first.key < second.key })
     }

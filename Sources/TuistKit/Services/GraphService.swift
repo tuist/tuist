@@ -216,8 +216,10 @@ extension ProjectAutomation.Target {
         return ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
+            bundleId: target.bundleId,
             sources: target.sources.map(\.path.pathString),
             resources: target.resources.map(\.path.pathString),
+            settings: ProjectAutomation.Settings.from(target.settings),
             dependencies: dependencies
         )
     }
@@ -286,5 +288,92 @@ extension ProjectAutomation.Scheme {
         }
 
         return ProjectAutomation.Scheme(name: scheme.name, testActionTargets: testTargets)
+    }
+}
+
+extension ProjectAutomation.Settings {
+    fileprivate static func from(_ settings: TuistGraph.Settings?) -> ProjectAutomation.Settings {
+        ProjectAutomation.Settings(
+            configurations: BuildConfigurationDictionary.from(settings?.configurations)
+        )
+    }
+}
+
+extension ProjectAutomation.BuildConfigurationDictionary {
+    fileprivate static func from(_ buildConfigurationDictionary: TuistGraph.BuildConfigurationDictionary?) -> ProjectAutomation.BuildConfigurationDictionary {
+        guard let buildConfigurationDictionary else {
+            return [:]
+        }
+        
+        var dict = ProjectAutomation.BuildConfigurationDictionary()
+
+        buildConfigurationDictionary.forEach { key, value in
+            if let configuration = value {
+                if let conf: ProjectAutomation.Configuration = ProjectAutomation.Configuration.from(
+                    configuration: configuration,
+                    buildConfiguration: key
+                ), !dict.values.contains(conf) {
+                    dict[.from(key)] = conf
+                }
+            }
+        }
+
+        return dict
+    }
+}
+
+extension ProjectAutomation.Configuration {
+    fileprivate static func from(configuration: TuistGraph.Configuration, buildConfiguration: TuistGraph.BuildConfiguration) -> ProjectAutomation.Configuration? {
+        ProjectAutomation.Configuration(
+            name: buildConfiguration.name,
+            variant: ProjectAutomation.BuildConfiguration.Variant.from(buildConfiguration.variant)
+        )
+    }
+}
+
+extension ProjectAutomation.BuildConfiguration {
+    fileprivate static func from(_ buildConfiguration: TuistGraph.BuildConfiguration) -> ProjectAutomation.BuildConfiguration {
+        BuildConfiguration(
+            name: buildConfiguration.name,
+            variant: .from(buildConfiguration.variant)
+        )
+    }
+}
+
+extension ProjectAutomation.BuildConfiguration.Variant {
+    fileprivate static func from(_ variant: TuistGraph.BuildConfiguration.Variant) -> ProjectAutomation.BuildConfiguration.Variant {
+        ProjectAutomation.BuildConfiguration.Variant(
+            variant: variant
+        )
+    }
+}
+
+extension ProjectAutomation.BuildConfiguration.Variant {
+    fileprivate static func from(_ variant: TuistGraph.BuildConfiguration.Variant) -> ProjectAutomation.Configuration.Variant {
+        ProjectAutomation.Configuration.Variant(
+            variant: variant
+        )
+    }
+}
+
+extension ProjectAutomation.BuildConfiguration.Variant {
+    init(variant: TuistGraph.BuildConfiguration.Variant) {
+        switch variant {
+        case .debug:
+            self = .debug
+        case .release:
+            self = .release
+        }
+    }
+}
+
+extension ProjectAutomation.Configuration.Variant {
+    init(variant: TuistGraph.BuildConfiguration.Variant) {
+        switch variant {
+        case .debug:
+            self = .debug
+        case .release:
+            self = .release
+        }
     }
 }
