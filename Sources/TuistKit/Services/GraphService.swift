@@ -300,7 +300,9 @@ extension ProjectAutomation.Settings {
 }
 
 extension ProjectAutomation.BuildConfigurationDictionary {
-    fileprivate static func from(_ buildConfigurationDictionary: TuistGraph.BuildConfigurationDictionary?) -> ProjectAutomation.BuildConfigurationDictionary {
+    fileprivate static func from(
+        _ buildConfigurationDictionary: TuistGraph.BuildConfigurationDictionary?
+    ) -> ProjectAutomation.BuildConfigurationDictionary {
         guard let buildConfigurationDictionary else {
             return [:]
         }
@@ -308,9 +310,8 @@ extension ProjectAutomation.BuildConfigurationDictionary {
         var dict = ProjectAutomation.BuildConfigurationDictionary()
 
         buildConfigurationDictionary.forEach { key, value in
-            if let configuration = value {
-                if let conf: ProjectAutomation.Configuration = ProjectAutomation.Configuration.from(
-                    configuration: configuration,
+            if let _ = value {
+                if let conf = ProjectAutomation.Configuration.from(
                     buildConfiguration: key
                 ), !dict.values.contains(conf) {
                     dict[.from(key)] = conf
@@ -323,7 +324,9 @@ extension ProjectAutomation.BuildConfigurationDictionary {
 }
 
 extension ProjectAutomation.Configuration {
-    fileprivate static func from(configuration: TuistGraph.Configuration, buildConfiguration: TuistGraph.BuildConfiguration) -> ProjectAutomation.Configuration? {
+    fileprivate static func from(
+        buildConfiguration: TuistGraph.BuildConfiguration
+    ) -> ProjectAutomation.Configuration? {
         ProjectAutomation.Configuration(
             name: buildConfiguration.name,
             variant: ProjectAutomation.BuildConfiguration.Variant.from(buildConfiguration.variant)
@@ -332,7 +335,9 @@ extension ProjectAutomation.Configuration {
 }
 
 extension ProjectAutomation.BuildConfiguration {
-    fileprivate static func from(_ buildConfiguration: TuistGraph.BuildConfiguration) -> ProjectAutomation.BuildConfiguration {
+    fileprivate static func from(
+        _ buildConfiguration: TuistGraph.BuildConfiguration
+    ) -> ProjectAutomation.BuildConfiguration {
         BuildConfiguration(
             name: buildConfiguration.name,
             variant: .from(buildConfiguration.variant)
@@ -341,7 +346,9 @@ extension ProjectAutomation.BuildConfiguration {
 }
 
 extension ProjectAutomation.BuildConfiguration.Variant {
-    fileprivate static func from(_ variant: TuistGraph.BuildConfiguration.Variant) -> ProjectAutomation.BuildConfiguration.Variant {
+    fileprivate static func from(
+        _ variant: TuistGraph.BuildConfiguration.Variant
+    ) -> ProjectAutomation.BuildConfiguration.Variant {
         ProjectAutomation.BuildConfiguration.Variant(
             variant: variant
         )
@@ -349,7 +356,9 @@ extension ProjectAutomation.BuildConfiguration.Variant {
 }
 
 extension ProjectAutomation.BuildConfiguration.Variant {
-    fileprivate static func from(_ variant: TuistGraph.BuildConfiguration.Variant) -> ProjectAutomation.Configuration.Variant {
+    fileprivate static func from(
+        _ variant: TuistGraph.BuildConfiguration.Variant
+    ) -> ProjectAutomation.Configuration.Variant {
         ProjectAutomation.Configuration.Variant(
             variant: variant
         )
