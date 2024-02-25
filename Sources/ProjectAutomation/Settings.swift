@@ -2,7 +2,7 @@ import Foundation
 
 // A group of settings configurations.
 
-public typealias BuildConfigurationDictionary = Dictionary<ProjectAutomation.BuildConfiguration, ProjectAutomation.Configuration>
+public typealias BuildConfigurationDictionary = [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration]
 
 public struct Settings: Equatable, Codable {
     /// A dictionary with build settings that are inherited from all the configurations.

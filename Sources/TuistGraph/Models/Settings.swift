@@ -95,7 +95,7 @@ extension DefaultSettings {
     }
 }
 
-public typealias BuildConfigurationDictionary = Dictionary<BuildConfiguration, TuistGraph.Configuration?>
+public typealias BuildConfigurationDictionary = [BuildConfiguration: TuistGraph.Configuration?]
 
 public struct Settings: Equatable, Codable {
     public static let `default` = Settings(

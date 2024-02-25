@@ -418,7 +418,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
-        var targetSettings = targetSettings.merging(
+        let targetSettings = targetSettings.merging(
             // Force enable testing search paths
             Dictionary(
                 uniqueKeysWithValues: [

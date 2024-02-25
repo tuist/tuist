@@ -306,15 +306,15 @@ extension ProjectAutomation.BuildConfigurationDictionary {
         guard let buildConfigurationDictionary else {
             return [:]
         }
-        
+
         var dict = ProjectAutomation.BuildConfigurationDictionary()
 
-        buildConfigurationDictionary.forEach { key, value in
-            if let _ = value {
+        for dictionary in buildConfigurationDictionary {
+            if let _ = dictionary.value {
                 if let conf = ProjectAutomation.Configuration.from(
-                    buildConfiguration: key
+                    buildConfiguration: dictionary.key
                 ), !dict.values.contains(conf) {
-                    dict[.from(key)] = conf
+                    dict[.from(dictionary.key)] = conf
                 }
             }
         }
