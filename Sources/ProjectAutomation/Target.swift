@@ -18,10 +18,10 @@ public struct Target: Codable, Equatable {
     public let resources: [String]
 
     /// The target’s settings.
-    public let settings: ProjectAutomation.Settings
+    public let settings: Settings
 
     /// The target’s dependencies.
-    public let dependencies: [ProjectAutomation.TargetDependency]
+    public let dependencies: [TargetDependency]
 
     public init(
         name: String,
@@ -29,8 +29,8 @@ public struct Target: Codable, Equatable {
         bundleId: String,
         sources: [String],
         resources: [String],
-        settings: ProjectAutomation.Settings,
-        dependencies: [ProjectAutomation.TargetDependency]
+        settings: Settings,
+        dependencies: [TargetDependency]
     ) {
         self.name = name
         self.product = product
