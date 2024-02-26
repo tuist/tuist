@@ -162,14 +162,13 @@ public extension ProjectAutomation.BuildConfigurationDictionary {
 
         var dict = ProjectAutomation.BuildConfigurationDictionary()
 
-        for dictionary in buildConfigurationDictionary {
-            if let _ = dictionary.value {
-                if let conf = ProjectAutomation.Configuration.from(
-                    buildConfiguration: dictionary.key
-                ), !dict.values.contains(conf) {
-                    dict[.from(dictionary.key)] = conf
-                }
-            }
+        buildConfigurationDictionary.forEach { buildConfiguration, configuration in
+            let item = ProjectAutomation.BuildConfiguration.from(
+                buildConfiguration
+            )
+            dict[item] = ProjectAutomation.Configuration.from(
+                configuration
+            )
         }
 
         return dict
@@ -178,12 +177,44 @@ public extension ProjectAutomation.BuildConfigurationDictionary {
 
 extension ProjectAutomation.Configuration {
     static func from(
-        buildConfiguration: TuistGraph.BuildConfiguration
+        _ configuration: TuistGraph.Configuration?
     ) -> ProjectAutomation.Configuration? {
-        ProjectAutomation.Configuration(
-            name: buildConfiguration.name,
-            variant: ProjectAutomation.BuildConfiguration.Variant.from(buildConfiguration.variant)
+        guard let configuration else {
+            return nil
+        }
+
+        return ProjectAutomation.Configuration(
+            settings: ProjectAutomation.SettingsDictionary.from(
+                configuration.settings
+            )
         )
+    }
+}
+
+extension ProjectAutomation.SettingValue {
+    static func from(
+        _ value: TuistGraph.SettingValue
+    ) -> ProjectAutomation.SettingValue {
+        switch value {
+        case .string(let string):
+            return ProjectAutomation.SettingValue(string: string)
+        case .array(let array):
+            return ProjectAutomation.SettingValue(array: array)
+        }
+    }
+}
+
+extension ProjectAutomation.SettingsDictionary {
+    static func from(
+        _ settings: TuistGraph.SettingsDictionary
+    ) -> ProjectAutomation.SettingsDictionary {
+        var dict = ProjectAutomation.SettingsDictionary()
+        settings.forEach { key, value in
+            dict[key] = ProjectAutomation.SettingValue.from(
+                value
+            )
+        }
+        return dict
     }
 }
 
@@ -193,7 +224,9 @@ extension ProjectAutomation.BuildConfiguration {
     ) -> ProjectAutomation.BuildConfiguration {
         BuildConfiguration(
             name: buildConfiguration.name,
-            variant: .from(buildConfiguration.variant)
+            variant: ProjectAutomation.BuildConfiguration.Variant.from(
+                buildConfiguration.variant
+            )
         )
     }
 }
@@ -209,27 +242,6 @@ extension ProjectAutomation.BuildConfiguration.Variant {
 }
 
 extension ProjectAutomation.BuildConfiguration.Variant {
-    static func from(
-        _ variant: TuistGraph.BuildConfiguration.Variant
-    ) -> ProjectAutomation.Configuration.Variant {
-        ProjectAutomation.Configuration.Variant(
-            variant: variant
-        )
-    }
-}
-
-extension ProjectAutomation.BuildConfiguration.Variant {
-    init(variant: TuistGraph.BuildConfiguration.Variant) {
-        switch variant {
-        case .debug:
-            self = .debug
-        case .release:
-            self = .release
-        }
-    }
-}
-
-extension ProjectAutomation.Configuration.Variant {
     init(variant: TuistGraph.BuildConfiguration.Variant) {
         switch variant {
         case .debug:

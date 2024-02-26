@@ -2,27 +2,15 @@ import Foundation
 
 // MARK: - Configuration
 
-// A the build settings of a target. It is initialized with either the `.debug` or `.release`
+// A the build Configuration of a target.
 
-public struct Configuration: Equatable, Codable, Comparable {
-    public enum Variant: String, Codable {
-        case debug
-        case release
-    }
-
-    public var name: String
-    public var variant: Variant
+public struct Configuration: Equatable, Codable {
+    let settings: SettingsDictionary
 
     public init(
-        name: String,
-        variant: Configuration.Variant
+        settings: SettingsDictionary
     ) {
-        self.name = name
-        self.variant = variant
-    }
-
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.name < rhs.name
+        self.settings = settings
     }
 }
 
@@ -43,5 +31,20 @@ public struct BuildConfiguration: Equatable, Codable, Hashable {
     ) {
         self.name = name
         self.variant = variant
+    }
+}
+
+public typealias SettingsDictionary = [String: SettingValue]
+
+public enum SettingValue: Equatable, Codable {
+    case string(value: String)
+    case array(value: [String])
+
+    public init(string: String) {
+        self = .string(value: string)
+    }
+
+    public init(array: [String]) {
+        self = .array(value: array)
     }
 }
