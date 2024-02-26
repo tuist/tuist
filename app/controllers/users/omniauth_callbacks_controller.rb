@@ -4,11 +4,17 @@
 module Users
   class OmniauthCallbacksController < Devise::OmniauthCallbacksController
     def okta
-      find_or_create_and_redirect_user
+      email = auth_data["info"]["email"]
+      provider = :okta
+      id_in_provider = auth_data["uid"]
+      find_or_create_and_redirect_user(provider: provider, id_in_provider: id_in_provider, email: email)
     end
 
     def github
-      find_or_create_and_redirect_user
+      email = auth_data["info"]["email"]
+      provider = :github
+      id_in_provider = auth_data["uid"]
+      find_or_create_and_redirect_user(provider: provider, id_in_provider: id_in_provider, email: email)
     end
 
     def failure
@@ -19,8 +25,8 @@ module Users
       AuthController.new.after_auth_path(session, resource, root_path, stored_location_for(:user))
     end
 
-    def find_or_create_and_redirect_user
-      @user = UserCreateService.call(email: auth_email, skip_confirmation: true)
+    def find_or_create_and_redirect_user(provider:, id_in_provider:, email:)
+      @user = UserCreateService.call(email: email, id_in_provider: id_in_provider, provider: provider)
       if @user.persisted?
         sign_in_and_redirect(@user, event: :authentication)
       else
@@ -28,10 +34,6 @@ module Users
         session["devise.oauth.data"] = data
         redirect_to(new_user_registration_url)
       end
-    end
-
-    def auth_email
-      auth_data["info"]["email"]
     end
 
     def auth_data

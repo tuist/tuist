@@ -412,6 +412,37 @@ ALTER SEQUENCE public.invitations_id_seq OWNED BY public.invitations.id;
 
 
 --
+-- Name: oauth2_identities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth2_identities (
+    id bigint NOT NULL,
+    provider integer DEFAULT 0 NOT NULL,
+    user_id bigint NOT NULL,
+    id_in_provider character varying NOT NULL
+);
+
+
+--
+-- Name: oauth2_identities_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.oauth2_identities_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: oauth2_identities_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.oauth2_identities_id_seq OWNED BY public.oauth2_identities.id;
+
+
+--
 -- Name: organizations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -726,6 +757,13 @@ ALTER TABLE ONLY public.invitations ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: oauth2_identities id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth2_identities ALTER COLUMN id SET DEFAULT nextval('public.oauth2_identities_id_seq'::regclass);
+
+
+--
 -- Name: organizations id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -805,6 +843,14 @@ ALTER TABLE ONLY public.command_events
 
 ALTER TABLE ONLY public.invitations
     ADD CONSTRAINT invitations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: oauth2_identities oauth2_identities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth2_identities
+    ADD CONSTRAINT oauth2_identities_pkey PRIMARY KEY (id);
 
 
 --
@@ -888,6 +934,13 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: idx_on_provider_id_in_provider_user_id_1ddc3fbf56; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_provider_id_in_provider_user_id_1ddc3fbf56 ON public.oauth2_identities USING btree (provider, id_in_provider, user_id);
+
+
+--
 -- Name: index_accounts_on_customer_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -955,6 +1008,20 @@ CREATE INDEX index_invitations_on_organization_id ON public.invitations USING bt
 --
 
 CREATE UNIQUE INDEX index_invitations_on_token ON public.invitations USING btree (token);
+
+
+--
+-- Name: index_oauth2_identities_on_provider_and_id_in_provider; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_oauth2_identities_on_provider_and_id_in_provider ON public.oauth2_identities USING btree (provider, id_in_provider);
+
+
+--
+-- Name: index_oauth2_identities_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_oauth2_identities_on_user_id ON public.oauth2_identities USING btree (user_id);
 
 
 --
@@ -1178,6 +1245,7 @@ ALTER TABLE ONLY public.que_scheduler_audit_enqueued
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20240223151045'),
 ('20240108223110'),
 ('20240108084302'),
 ('20231113224031'),
