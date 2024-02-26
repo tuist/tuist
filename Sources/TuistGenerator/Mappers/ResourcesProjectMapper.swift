@@ -266,8 +266,15 @@ public class ResourcesProjectMapper: ProjectMapping {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            return \(targetName)_SWIFTPM_MODULE_BUNDLE();
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
+            NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(targetName)_\(
+                targetName
+            ).bundle"];
+
+            NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
+
+            return bundle;
         }
         """
     }

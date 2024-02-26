@@ -40,6 +40,7 @@ let project = Project(
                 .external(name: "AppCenterCrashes"),
                 .external(name: "libzstd"),
                 .external(name: "NYTPhotoViewer"),
+                .external(name: "SVProgressHUD"),
             ],
             settings: .targetSettings
         ),
