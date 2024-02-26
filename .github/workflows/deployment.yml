@@ -66,7 +66,12 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Test
-        run: tuist test TuistCloudKitCanaryAcceptanceTests
+        run: tuist test TuistCloudKitCanaryAcceptanceTests --result-bundle-path /tmp/tuist/test-result-bundle
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-result-bundle
+          path: /tmp/tuist/test-result-bundle/
   production:
     environment:
       name: production
