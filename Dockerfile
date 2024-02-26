@@ -4,6 +4,7 @@
 ARG RUBY_VERSION=3.3.0
 ARG RAILS_ENV=production
 ARG APP_REVISION=unknown
+ARG TUIST_VERSION=""
 FROM registry.docker.com/library/ruby:$RUBY_VERSION-slim as base
 
 # Rails app lives here
@@ -18,6 +19,7 @@ ENV RAILS_ENV=${RAILS_ENV} \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development"
+ENV TUIST_VERSION=${TUIST_VERSION}
 
 # Install JavaScript dependencies
 ARG NODE_VERSION=18.18.0
@@ -34,6 +36,8 @@ ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
 ARG APP_REVISION=unknown
 ENV APP_REVISION=${APP_REVISION}
+ARG TUIST_VERSION=""
+ENV TUIST_VERSION=${TUIST_VERSION}
 
 # Install packages needed to build gems and NPM packages
 RUN apt-get install --no-install-recommends -y build-essential git libpq-dev libvips pkg-config
@@ -61,6 +65,8 @@ ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
 ARG APP_REVISION=unknown
 ENV APP_REVISION=${APP_REVISION}
+ARG TUIST_VERSION=""
+ENV TUIST_VERSION=${TUIST_VERSION}
 
 # Install packages needed for deployment
 RUN apt-get install --no-install-recommends -y curl libvips postgresql-client && \

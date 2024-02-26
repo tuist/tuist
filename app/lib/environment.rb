@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Environment
+  Version = Struct.new(:major, :date, keyword_init: true)
+
   TRUTHY_VALUES = %w[1 true TRUE yes YES].freeze
   FALSY_VALUES = %w[0 false FALSE no NO].freeze
 
@@ -33,7 +35,10 @@ module Environment
       FALSY_VALUES.any? { |v| v == value.to_s }
     end
 
-    def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults,
+    def fetch(*args,
+      env: ENV,
+      credentials: Rails.application.credentials,
+      defaults: Rails.application.config.defaults,
       with_prefix: true)
       env_variable_key = args.join('_').upcase.to_s
       env_variable_key = "TUIST_#{env_variable_key}" if with_prefix
@@ -53,6 +58,17 @@ module Environment
     end
 
     # Getters
+
+    def version
+      env_version = fetch(:version)
+      if env_version.present?
+        major, yy, mm, dd = version_string.split('.')
+        date = Date.strptime("#{yy}.#{mm}.#{dd}", "%y.%m.%d")
+        Environment::Version.new(major: major, date: date)
+      else
+        Version.new(major: "1", date: Date.today)
+      end
+    end
 
     def better_stack_api_key
       fetch(:better_stack, :api_key)

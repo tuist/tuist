@@ -1,81 +1,45 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Custom version for the release (ex. x.x.x), if not specified, next minor.
-        required: false
   schedule:
     # Every Monday at 11:00
     - cron: '0 10 * * 1'
 
-env:
-  REGISTRY: ghcr.io
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
 
 jobs:
-  pre-release:
-    name: Release preparation
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      version: ${{ steps.semvers.outputs.version }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
-      commit_hash: ${{ steps.auto-commit-action.outputs.commit_hash }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: "Get Previous tag"
-        id: previoustag
-        uses: "WyriHaximus/github-action-get-previous-tag@v1"
-      - name: "Get next minor version"
-        if: ${{ github.event.inputs.version == '' }}
-        id: calculated_semvers
-        uses: "WyriHaximus/github-action-next-semvers@v1"
-        with:
-          version: ${{ steps.previoustag.outputs.tag }}
-      - name: "Set version"
-        run: echo '::set-output name=version::${{ steps.calculated_semvers.outputs.minor }}${{ github.event.inputs.version }}'
-        id: semvers
-      - name: Update version
-        run: |
-          sed -i 's/CURRENT = ".*"/CURRENT = \"${{ steps.semvers.outputs.version }}"/' app/version.rb
-      # - name: "Build Changelog"
-      #   id: changelog
-      #   uses: mikepenz/release-changelog-builder-action@v2
-      #   with:
-      #     configuration: ".github/changelog-configuration.json"
-      #     toTag: "main"
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # - name: Update Changelog
-      #   uses: stefanzweifel/changelog-updater-action@v1
-      #   with:
-      #     latest-version: ${{ steps.semvers.outputs.version }}
-      #     release-notes: ${{ steps.changelog.outputs.changelog }}
-      # - name: Commit
-      #   id: auto-commit-action
-      #   uses: stefanzweifel/git-auto-commit-action@v4
-      #   with:
-      #     commit_message: "[Release] Tuist ${{ steps.semvers.outputs.version }}"
-  build_and_push:
-    needs: pre-release
-    name: Build Docker image
+  release:
+    name: Release
     runs-on: 'ubuntu-latest'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4
-      - name: Log in to the Container registry
-        uses: docker/login-action@b4bedf8053341df3b5a9f9e0f2cf4e79e27360c6
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
         with:
-          registry: ${{ env.REGISTRY }}
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+      - name: 'Get version'
+        id: version
+        run: |
+          version=$(./script/generate_version.rb)
+          echo "::set-output name=version::$version"
+      - name: "Generate Changelog"
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          owner: "tuist"
+          repo: "cloud"
+          configuration: ".github/changelog-configuration.json"
+          toTag: "main"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
@@ -83,26 +47,26 @@ jobs:
         with:
           context: .
           push: true
-          build-args: "RAILS_ENV=production"
-          tags: ${{env.REGISTRY}}/tuist/tuist:latest,${{env.REGISTRY}}/tuist/tuist:${{ needs.pre-release.outputs.version }}
+          build-args: "RAILS_ENV=production,TUIST_VERSION=${{ steps.version.outputs.version }}"
+          tags: ghcr.io/tuist/cloud:latest,ghcr.io/tuist/cloud:${{ steps.version.outputs.version }}
           labels: "tuist"
+          github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          annotations: "org.opencontainers.image.description=\"${{ steps.changelog.outputs.changelog }}\""
+      - name: Commit
+        id: auto-commit-action
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_options: '--allow-empty'
+          skip_dirty_check: true
+          commit_message: "[Release] Tuist ${{ steps.version.outputs.version }}"
+      - name: Create GitHub Release on tuist/cloud
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          repository: tuist/cloud
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          target_commitish: ${{ steps.auto-commit-action.outputs.commit_hash }}
+          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
 
-  publish:
-    name: Publish GitHub Release
-    runs-on: ubuntu-latest
-    needs: [pre-release, build_and_push]
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: ${{ needs.pre-release.outputs.commit_hash }}
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        name: ${{ needs.pre-release.outputs.version }}
-        tag_name: ${{ needs.pre-release.outputs.version }}
-        body: New release ${{ needs.pre-release.outputs.version }}
-        # body: ${{ needs.pre-release.outputs.changelog }}
-        target_commitish: ${{ needs.pre-release.outputs.commit_hash }}
