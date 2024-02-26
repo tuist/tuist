@@ -23,7 +23,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
-                VersionCommand.self,
             ]
         )
     }
