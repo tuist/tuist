@@ -5,14 +5,16 @@ import Foundation
 public typealias BuildConfigurationDictionary = [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration]
 
 public struct Settings: Equatable, Codable {
-    /// A dictionary with build settings that are inherited from all the configurations.
-    public var configurations: [String]
+    public var configurations: [ProjectAutomation.Configuration]
 
     public init(
-        configurations: BuildConfigurationDictionary
+        configurations: ProjectAutomation.BuildConfigurationDictionary
     ) {
-        self.configurations = configurations.keys.map { buildConfiguration in
-            buildConfiguration.name
+        self.configurations = configurations.map { _, configuration in
+            ProjectAutomation.Configuration(
+                name: configuration.name,
+                variant: configuration.variant
+            )
         }.sorted()
     }
 }
