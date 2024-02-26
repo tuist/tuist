@@ -34,5 +34,8 @@
     "sorbet/**": true
   },
   "rubyLsp.rubyVersionManager": "custom",
-  "rubyLsp.customRubyCommand": "eval \"$(mise env -s zsh)\""
+  "rubyLsp.customRubyCommand": "eval \"$(mise env -s zsh)\"",
+  "[erb]": {
+    "editor.defaultFormatter": "aliariff.vscode-erb-beautify"
+  }
 }
