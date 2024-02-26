@@ -1151,7 +1151,7 @@ extension ProjectDescription.Product {
 }
 
 extension ProjectDescription.SettingsDictionary {
-    fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+    public static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
         settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
@@ -1164,7 +1164,7 @@ extension ProjectDescription.SettingsDictionary {
 }
 
 extension ProjectDescription.Settings {
-    fileprivate static func from(
+    public static func from(
         settings: TuistGraph.Settings,
         adding: ProjectDescription.SettingsDictionary,
         packageFolder: AbsolutePath
@@ -1182,7 +1182,7 @@ extension ProjectDescription.Settings {
 }
 
 extension ProjectDescription.Configuration {
-    fileprivate static func from(
+    public static func from(
         buildConfiguration: BuildConfiguration,
         configuration: TuistGraph.Configuration?,
         packageFolder: AbsolutePath
