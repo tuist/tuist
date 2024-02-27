@@ -62,9 +62,7 @@ RUN SECRET_KEY_BASE_DUMMY=1 SECRET_KEY_BASE=1 ./bin/rails assets:precompile
 FROM base
 
 # Set the description
-ARG DESCRIPTION=""
 LABEL org.opencontainers.image.title="Tuist Cloud"
-LABEL org.opencontainers.image.description=$DESCRIPTION
 LABEL org.opencontainers.image.vendor="Tuist GmbH"
 
 ARG RAILS_ENV=production

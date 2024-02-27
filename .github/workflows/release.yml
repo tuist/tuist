@@ -54,21 +54,21 @@ jobs:
             latest=true
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
-      - name: Single-line changelog
-        id: single_line_changelog
-        run: |
-          changelog="${{ steps.changelog.outputs.changelog }}"
-          single_line_changelog=$(echo "$changelog" | tr '\n' ' ' | sed 's/ *$/\\n/')
-          echo $single_line_changelog
-          echo "single_line_changelog=$single_line_changelog" >> $GITHUB_OUTPUT
+          labels: |
+            org.opencontainers.image.title=Tuist Cloud
+            org.opencontainers.image.vendor=Tuist GmbH
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",DESCRIPTION=\"${{ steps.single_line_changelog.outputs.single_line_changelog }}\",RAILS_ENV=production"
+          build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",RAILS_ENV=production"
           tags: ${{ steps.meta.outputs.tags }}
           github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        id: commit
+        with:
+          commit_message: Release ${{ steps.version.outputs.version }}
       - name: Create GitHub Release on tuist/cloud
         uses: softprops/action-gh-release@v1
         with:
@@ -78,4 +78,5 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
           token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          target_commitish: ${{ steps.commit.outputs.commit_hash }}
 
