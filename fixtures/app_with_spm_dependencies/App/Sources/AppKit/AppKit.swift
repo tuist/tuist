@@ -11,6 +11,7 @@ import NYTPhotoViewer
 import Realm
 import RealmSwift
 import Sentry
+import SVProgressHUD
 import Yams
 import ZipArchive
 
@@ -48,6 +49,9 @@ public enum AppKit {
 
         // Use NYTPhotoViewer
         _ = NYTPhotosOverlayView()
+
+        // Use SVProgressHUD
+        SVProgressHUD.show()
     }
 }
 
