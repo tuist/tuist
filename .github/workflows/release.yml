@@ -49,7 +49,7 @@ jobs:
         with:
           context: .
           push: true
-          build-args: "RAILS_ENV=production,TUIST_VERSION=${{ steps.version.outputs.version }}"
+          build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",RAILS_ENV=production"
           tags: ghcr.io/tuist/cloud:latest,ghcr.io/tuist/cloud:${{ steps.version.outputs.version }}
           labels: "tuist"
           github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
