@@ -61,10 +61,11 @@ jobs:
             latest=true
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
+          sep-labels: <br/>
           labels: |
-            org.opencontainers.image.title=Tuist Cloud
-            org.opencontainers.image.description=${{ steps.single_line_changelog.outputs.single_line_changelog }}
-            org.opencontainers.image.vendor=Tuist GmbH
+            org.opencontainers.image.title=Tuist Cloud<br/>
+            org.opencontainers.image.description=${{ steps.single_line_changelog.outputs.single_line_changelog }}<br/>
+            org.opencontainers.image.vendor=Tuist GmbH<br/>
       # - name: Build and push
       #   uses: docker/build-push-action@v5
       #   with:
