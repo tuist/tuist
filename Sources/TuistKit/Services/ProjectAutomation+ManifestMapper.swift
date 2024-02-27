@@ -162,7 +162,7 @@ extension [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration
 
         var dict = [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?]()
 
-        buildConfigurationDictionary.forEach { buildConfiguration, configuration in
+        for (buildConfiguration, configuration) in buildConfigurationDictionary {
             let item = ProjectAutomation.BuildConfiguration.from(
                 buildConfiguration
             )
@@ -209,7 +209,7 @@ extension ProjectAutomation.SettingsDictionary {
         _ settings: TuistGraph.SettingsDictionary
     ) -> ProjectAutomation.SettingsDictionary {
         var dict = ProjectAutomation.SettingsDictionary()
-        settings.forEach { key, value in
+        for (key, value) in settings {
             dict[key] = ProjectAutomation.SettingValue.from(
                 value
             )
