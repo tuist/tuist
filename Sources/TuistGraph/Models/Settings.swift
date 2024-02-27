@@ -106,7 +106,7 @@ public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
     /// Base settings applied only for configurations of `variant == .debug`
     public let baseDebug: SettingsDictionary
-    public let configurations: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?]
+    public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
     // MARK: - Init
@@ -114,7 +114,7 @@ public struct Settings: Equatable, Codable {
     public init(
         base: SettingsDictionary = [:],
         baseDebug: SettingsDictionary = [:],
-        configurations: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?],
+        configurations: [BuildConfiguration: Configuration?],
         defaultSettings: DefaultSettings = .recommended
     ) {
         self.base = base
@@ -156,7 +156,7 @@ extension Settings {
     }
 }
 
-extension [TuistGraph.BuildConfiguration: TuistGraph.Configuration?] {
+extension [BuildConfiguration: Configuration?] {
     public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
         sorted(by: { first, second -> Bool in first.key < second.key })
     }

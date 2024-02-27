@@ -154,7 +154,7 @@ extension ProjectAutomation.Settings {
 
 extension [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
     public static func from(
-        _ buildConfigurationDictionary: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?]?
+        _ buildConfigurationDictionary: [BuildConfiguration: Configuration?]?
     ) -> [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
         guard let buildConfigurationDictionary else {
             return [:]
