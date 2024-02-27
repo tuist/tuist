@@ -150,8 +150,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_")
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -262,12 +261,17 @@ public class ResourcesProjectMapper: ProjectMapping {
         """
     }
 
-    static func objcImplementationFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
+    static func objcImplementationFileContent(targetName: String, bundleName: String) -> String {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            return \(targetName)_SWIFTPM_MODULE_BUNDLE();
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
+            NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
+
+            NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
+
+            return bundle;
         }
         """
     }

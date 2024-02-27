@@ -375,8 +375,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                     contents: ResourcesProjectMapper
                         .objcImplementationFileContent(
                             targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)",
-                            target: target
+                            bundleName: "\(project.name)_\(target.name)"
                         )
                         .data(using: .utf8)
                 ),
