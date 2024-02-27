@@ -61,6 +61,12 @@ RUN SECRET_KEY_BASE_DUMMY=1 SECRET_KEY_BASE=1 ./bin/rails assets:precompile
 # Final stage for app image
 FROM base
 
+# Set the description
+COPY README.md /tmp/CHANGELOG.md
+LABEL org.opencontainers.image.title="Tuist Cloud"
+LABEL org.opencontainers.image.description="$(cat /tmp/CHANGELOG.md)"
+LABEL org.opencontainers.image.vendor="Tuist GmbH"
+
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
 ARG APP_REVISION=unknown
