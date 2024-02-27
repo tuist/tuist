@@ -61,6 +61,5 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
-          target_commitish: ${{ steps.auto-commit-action.outputs.commit_hash }}
           token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
 
