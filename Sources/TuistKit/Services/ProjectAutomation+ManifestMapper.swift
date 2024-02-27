@@ -196,9 +196,9 @@ extension ProjectAutomation.SettingValue {
         _ value: TuistGraph.SettingValue
     ) -> ProjectAutomation.SettingValue {
         switch value {
-        case .string(let string):
+        case let .string(string):
             return ProjectAutomation.SettingValue(string: string)
-        case .array(let array):
+        case let .array(array):
             return ProjectAutomation.SettingValue(array: array)
         }
     }

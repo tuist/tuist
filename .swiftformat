@@ -7,12 +7,10 @@
 --disable hoistAwait
 --disable hoistTry
 --disable redundantReturn
---disable hoistPatternLet
 --disable preferForLoop
 
 --swiftversion 5.9
 --minversion 0.53.0
-
 
 # format options
 
