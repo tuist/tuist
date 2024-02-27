@@ -4,6 +4,7 @@ on:
   schedule:
     # Every Monday at 11:00
     - cron: '0 10 * * 1'
+  workflow_dispatch: {}
 
 permissions:
   contents: write
