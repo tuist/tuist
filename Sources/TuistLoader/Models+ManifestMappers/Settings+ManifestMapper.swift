@@ -12,7 +12,7 @@ extension TuistGraph.Settings {
     static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> TuistGraph.Settings {
         let base = manifest.base.mapValues(TuistGraph.SettingValue.from)
         let configurations = try manifest.configurations
-            .reduce([BuildConfiguration: Configuration?]()) { acc, val in
+            .reduce([TuistGraph.BuildConfiguration: TuistGraph.Configuration?]()) { acc, val in
                 var result = acc
                 let variant = TuistGraph.BuildConfiguration.from(manifest: val)
                 result[variant] = try TuistGraph.Configuration.from(manifest: val, generatorPaths: generatorPaths)
