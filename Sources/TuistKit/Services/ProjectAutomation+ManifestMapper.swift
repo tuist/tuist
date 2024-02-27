@@ -1,7 +1,7 @@
 import Foundation
 import ProjectAutomation
-import TuistGraph
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 extension ProjectAutomation.Graph {
@@ -130,7 +130,7 @@ extension ProjectAutomation.Target {
 }
 
 extension ProjectAutomation.Scheme {
-    fileprivate static func from(_ scheme: TuistGraph.Scheme) -> ProjectAutomation.Scheme {
+    static func from(_ scheme: TuistGraph.Scheme) -> ProjectAutomation.Scheme {
         var testTargets = [String]()
         if let testAction = scheme.testAction {
             for testTarget in testAction.targets {
@@ -142,8 +142,8 @@ extension ProjectAutomation.Scheme {
     }
 }
 
-public extension ProjectAutomation.Settings {
-    static func from(_ settings: TuistGraph.Settings?) -> ProjectAutomation.Settings {
+extension ProjectAutomation.Settings {
+    public static func from(_ settings: TuistGraph.Settings?) -> ProjectAutomation.Settings {
         ProjectAutomation.Settings(
             configurations: ProjectAutomation.BuildConfigurationDictionary.from(
                 settings?.configurations
@@ -152,8 +152,8 @@ public extension ProjectAutomation.Settings {
     }
 }
 
-public extension ProjectAutomation.BuildConfigurationDictionary {
-    static func from(
+extension ProjectAutomation.BuildConfigurationDictionary {
+    public static func from(
         _ buildConfigurationDictionary: TuistGraph.BuildConfigurationDictionary?
     ) -> ProjectAutomation.BuildConfigurationDictionary {
         guard let buildConfigurationDictionary else {
@@ -242,7 +242,7 @@ extension ProjectAutomation.BuildConfiguration.Variant {
 }
 
 extension ProjectAutomation.BuildConfiguration.Variant {
-    init(variant: TuistGraph.BuildConfiguration.Variant) {
+    private init(variant: TuistGraph.BuildConfiguration.Variant) {
         switch variant {
         case .debug:
             self = .debug
