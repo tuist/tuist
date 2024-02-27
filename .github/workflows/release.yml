@@ -56,24 +56,24 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.title=Tuist Cloud
-            org.opencontainers.image.description=${{ steps.changelog.outputs.changelog }}
+            org.opencontainers.image.description="${{ steps.changelog.outputs.changelog }}"
             org.opencontainers.image.vendor=Tuist GmbH
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",RAILS_ENV=production"
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
-      - name: Create GitHub Release on tuist/cloud
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: false
-          repository: tuist/cloud
-          name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ steps.version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+      # - name: Build and push
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     push: true
+      #     build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",RAILS_ENV=production"
+      #     tags: ${{ steps.meta.outputs.tags }}
+      #     labels: ${{ steps.meta.outputs.labels }}
+      #     github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+      # - name: Create GitHub Release on tuist/cloud
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     draft: false
+      #     repository: tuist/cloud
+      #     name: ${{ steps.version.outputs.version }}
+      #     tag_name: ${{ steps.version.outputs.version }}
+      #     body: ${{ steps.changelog.outputs.changelog }}
+      #     token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
 
