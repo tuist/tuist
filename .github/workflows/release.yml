@@ -44,6 +44,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Single-line changelog
+        id: single_line_changelog
+        run: |
+          changelog="${{ steps.changelog.outputs.changelog }}"
+          single_line_changelog=$(echo "$changelog" | tr '\n' ' ')
+          single_line_changelog="${single_line_changelog// /\\n}"
+          echo "::set-output name=single_line_changelog::$single_line_changelog"
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -56,7 +63,7 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.title=Tuist Cloud
-            org.opencontainers.image.description=\"${{ steps.changelog.outputs.changelog }}\"
+            org.opencontainers.image.description=${{ steps.single_line_changelog.outputs.single_line_changelog }}
             org.opencontainers.image.vendor=Tuist GmbH
       # - name: Build and push
       #   uses: docker/build-push-action@v5
