@@ -145,22 +145,22 @@ extension ProjectAutomation.Scheme {
 extension ProjectAutomation.Settings {
     public static func from(_ settings: TuistGraph.Settings?) -> ProjectAutomation.Settings {
         ProjectAutomation.Settings(
-            configurations: ProjectAutomation.BuildConfigurationDictionary.from(
+            configurations: [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?].from(
                 settings?.configurations
             )
         )
     }
 }
 
-extension ProjectAutomation.BuildConfigurationDictionary {
+extension [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
     public static func from(
-        _ buildConfigurationDictionary: TuistGraph.BuildConfigurationDictionary?
-    ) -> ProjectAutomation.BuildConfigurationDictionary {
+        _ buildConfigurationDictionary: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?]?
+    ) -> [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
         guard let buildConfigurationDictionary else {
             return [:]
         }
 
-        var dict = ProjectAutomation.BuildConfigurationDictionary()
+        var dict = [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?]()
 
         buildConfigurationDictionary.forEach { buildConfiguration, configuration in
             let item = ProjectAutomation.BuildConfiguration.from(

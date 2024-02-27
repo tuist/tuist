@@ -15,7 +15,7 @@ final class SettingsTests: XCTestCase {
 
     func testXcconfigs() {
         // Given
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             BuildConfiguration(name: "D", variant: .debug): Configuration(
                 settings: [:],
                 xcconfig: try! AbsolutePath(validating: "/D")
@@ -34,7 +34,7 @@ final class SettingsTests: XCTestCase {
 
     func testSortedByBuildConfigurationName() {
         // Given
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             BuildConfiguration(name: "D", variant: .debug): emptyConfiguration(),
             .release("C"): nil,
             .debug("A"): nil,
@@ -51,7 +51,7 @@ final class SettingsTests: XCTestCase {
     func testDefaultDebugConfigurationWhenDefaultExists() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
             .debug("A"): nil,
             .release("B"): nil,
@@ -69,7 +69,7 @@ final class SettingsTests: XCTestCase {
     func testDefaultDebugConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
             .debug("A"): nil,
             .release("B"): nil,
@@ -85,7 +85,7 @@ final class SettingsTests: XCTestCase {
 
     func testDefaultDebugConfigurationWhenNoDebugConfigurationsExist() {
         // Given
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
             .release("B"): nil,
         ]
@@ -101,7 +101,7 @@ final class SettingsTests: XCTestCase {
     func testDefaultReleaseConfigurationWhenDefaultExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
             .debug("A"): nil,
             .release("B"): nil,
@@ -119,7 +119,7 @@ final class SettingsTests: XCTestCase {
     func testDefaultReleaseConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
             .debug("A"): nil,
             .release("B"): nil,
@@ -135,7 +135,7 @@ final class SettingsTests: XCTestCase {
 
     func testDefaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
         // Given
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .debug("A"): nil,
             .debug("B"): nil,
         ]

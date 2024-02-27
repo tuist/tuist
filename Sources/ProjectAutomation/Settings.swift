@@ -2,13 +2,11 @@ import Foundation
 
 // A group of settings configurations.
 
-public typealias BuildConfigurationDictionary = [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?]
-
 public struct Settings: Equatable, Codable {
-    public var configurations: BuildConfigurationDictionary
+    public var configurations: [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?]
 
     public init(
-        configurations: ProjectAutomation.BuildConfigurationDictionary
+        configurations: [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?]
     ) {
         self.configurations = configurations
     }

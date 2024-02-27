@@ -28,7 +28,7 @@ extension Settings {
     public static func test(
         base: SettingsDictionary = [:],
         baseDebug: SettingsDictionary = [:],
-        configurations: BuildConfigurationDictionary = [:]
+        configurations: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?] = [:]
     ) -> Settings {
         Settings(
             base: base,

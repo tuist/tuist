@@ -841,7 +841,7 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_missingProjectConfigurationsFromDependencyProjects() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let customConfigurations: BuildConfigurationDictionary = [
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
             .debug("Debug"): nil,
             .debug("Testing"): nil,
             .release("Beta"): nil,
@@ -905,7 +905,7 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let customConfigurations: BuildConfigurationDictionary = [
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
             .debug("Debug"): nil,
             .debug("Testing"): nil,
             .release("Beta"): nil,
@@ -927,7 +927,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             settings: Settings(configurations: customConfigurations)
         )
 
-        let mismatchingConfigurations: BuildConfigurationDictionary = [
+        let mismatchingConfigurations: [BuildConfiguration: Configuration?] = [
             .release("Debug"): nil,
             .release("Testing"): nil,
             .release("Beta"): nil,
@@ -983,7 +983,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Given
         let path: AbsolutePath = "/project"
-        let customConfigurations: BuildConfigurationDictionary = [
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
             .debug("Debug"): nil,
             .release("Beta"): nil,
             .release("Release"): nil,
@@ -1004,7 +1004,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             settings: Settings(configurations: customConfigurations)
         )
 
-        let additionalConfigurations: BuildConfigurationDictionary = [
+        let additionalConfigurations: [BuildConfiguration: Configuration?] = [
             .debug("Debug"): nil,
             .debug("Testing"): nil,
             .release("Beta"): nil,

@@ -806,7 +806,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
 
         // CustomDebug, CustomRelease, Debug, Release
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .debug: Configuration(
                 settings: ["Debug": "Debug"],
                 xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")
@@ -838,7 +838,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
-        let configurations: BuildConfigurationDictionary = [
+        let configurations: [BuildConfiguration: Configuration?] = [
             .debug: Configuration(
                 settings: ["Debug": "Debug"],
                 xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")
