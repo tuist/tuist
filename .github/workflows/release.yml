@@ -37,6 +37,7 @@ jobs:
           repo: "cloud"
           configuration: ".github/changelog-configuration.json"
           toTag: "main"
+          outputFile: README.md
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -52,14 +53,6 @@ jobs:
           tags: ghcr.io/tuist/cloud:latest,ghcr.io/tuist/cloud:${{ steps.version.outputs.version }}
           labels: "tuist"
           github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
-          annotations: "org.opencontainers.image.description=\"${{ steps.changelog.outputs.changelog }}\""
-      - name: Commit
-        id: auto-commit-action
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_options: '--allow-empty'
-          skip_dirty_check: true
-          commit_message: "[Release] Tuist ${{ steps.version.outputs.version }}"
       - name: Create GitHub Release on tuist/cloud
         uses: softprops/action-gh-release@v1
         with:
