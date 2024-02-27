@@ -25,10 +25,6 @@
                 > Note: If you have used the Swift Package Manager before, the Project.swift file is the equivalent to the Package.swift.
             }
 
-            @Step {
-                To create a SwiftUI project, you can specify the SwiftUI template.
-                @Code(name: "console", file: "tuist-init-swiftui.txt", previousFile: "make-directory.txt")
-            }
         }
     }
 
