@@ -48,8 +48,7 @@ jobs:
         id: single_line_changelog
         run: |
           changelog="${{ steps.changelog.outputs.changelog }}"
-          single_line_changelog=$(echo "$changelog" | tr '\n' ' ')
-          single_line_changelog="${single_line_changelog// /\\n}"
+          single_line_changelog=$(echo "$changelog" | tr '\n' ' ' | sed 's/ *$/\\n/')
           echo $single_line_changelog
           echo "single_line_changelog=$single_line_changelog" >> $GITHUB_OUTPUT
       - name: Image metadata
