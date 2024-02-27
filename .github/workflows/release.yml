@@ -50,7 +50,8 @@ jobs:
           changelog="${{ steps.changelog.outputs.changelog }}"
           single_line_changelog=$(echo "$changelog" | tr '\n' ' ')
           single_line_changelog="${single_line_changelog// /\\n}"
-          echo "::set-output name=single_line_changelog::$single_line_changelog"
+          echo $single_line_changelog
+          echo "single_line_changelog=$single_line_changelog" >> $GITHUB_OUTPUT
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
