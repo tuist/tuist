@@ -51,7 +51,22 @@
         
         #### Okta
 
-        You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta, and set the following environment variables:
+        You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+        
+        - **App integration name:** Tuist Cloud
+        - **Grant type:** Enable "Authorization Code" for "Client acting on behalf of a user"
+        - **Sign-in redirect URL:** `{url}/users/auth/github/callback` where `url` is the public URL your service is accessed through.
+        - **Assignments:** This configuration will depend on your security team requirements.
+
+        If you'd like Tuist Cloud to detect when a user is removed from the application, you'll have to configure an [event hook](https://help.okta.com/en-us/content/topics/automation-hooks/event-hooks-main.htm). In your Okta organization, go to **Workflow > Event Hooks** and create a new event hook with the following data:
+
+        - **Name:**  Notify memberhip removal to Tuist Cloud
+        - **URL:** `{url}/webhooks/okta` where `url` is the public URL your service is accessed through.
+        - **Authentication field:** `Authorization`
+        - **Authentication secret:** A token that Tuist Cloud uses to validate the webhooks.
+        - **Subscribe to events** Include "User unassigned from app"
+        
+        Once the app is created you'll need to set the following environment variables:
 
         | Environment variable | Description | Required | Default | Example |
         | --- | --- | --- | --- | --- |
@@ -61,8 +76,9 @@
         | `TUIST_OKTA_AUTHORIZE_URL` | The authorize URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/authorize` | |
         | `TUIST_OKTA_TOKEN_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/token` | |
         | `TUIST_OKTA_USER_INFO_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/userinfo` | |
-
+        | `TUIST_OKTA_EVENT_HOOK_SECRET` | A secret to validat event hooks delivered by Okta | No | |
     }
+    event_hook_secret
     
 
     @Section(title: "Storage") {
