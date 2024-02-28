@@ -166,7 +166,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
-                packageInfos: packageInfoDictionary,
                 path: packageInfo.folder,
                 productTypes: packageSettings.productTypes,
                 baseSettings: packageSettings.baseSettings,

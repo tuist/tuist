@@ -126,7 +126,6 @@ public protocol PackageInfoMapping {
     /// - Returns: Mapped project
     func map(
         packageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo],
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
@@ -191,7 +190,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
         }
-
+        
         let targetToProducts: [String: Set<PackageInfo.Product>] = packageInfos.values.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.products {
                 var targetsToProcess = Set(product.targets)
@@ -216,7 +215,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
         }
-
+        
+        
         var externalDependencies: [String: [ProjectDescription.TargetDependency]] = .init()
         externalDependencies = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
@@ -248,6 +248,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
                 }
             }
+
 
         return .init(
             productToExternalDependencies: externalDependencies
@@ -304,83 +305,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
     
     public func map(packageInfo: PackageInfo, path: AbsolutePath) throws -> ProjectDescription.Project? {
-        try map(packageInfo: packageInfo, packageInfos: [:], path: path, productTypes: [:], baseSettings: .default, targetSettings: [:], projectOptions: nil, packageToProject: [:], swiftToolsVersion: nil)
+        try map(packageInfo: packageInfo, path: path, productTypes: [:], baseSettings: .default, targetSettings: [:], projectOptions: nil, packageToProject: [:], swiftToolsVersion: nil)
     }
-    
-//    public func map(
-//        packageInfo: PackageInfo,
-//        path: AbsolutePath
-//    ) throws -> ProjectDescription.Project? {
-//        // Setting the -package-name Swift compiler flag
-//        let baseSettings = Settings.default.with(base: [
-//            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name],
-//        ])
-//        
-//        var targetToProducts: [String: Set<PackageInfo.Product>] = [:]
-//        for product in packageInfo.products {
-//            var targetsToProcess = Set(product.targets)
-//            while !targetsToProcess.isEmpty {
-//                let target = targetsToProcess.removeFirst()
-//                let alreadyProcessed = targetToProducts[target]?.contains(product) ?? false
-//                guard !alreadyProcessed else {
-//                    continue
-//                }
-//                targetToProducts[target, default: []].insert(product)
-//                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
-//                for dependency in dependencies {
-//                    switch dependency {
-//                    case let .target(name, _):
-//                        targetsToProcess.insert(name)
-//                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
-//                        targetsToProcess.insert(name)
-//                    case .byName, .product:
-//                        continue
-//                    }
-//                }
-//            }
-//        }
-//
-//        let targets: [ProjectDescription.Target] = try packageInfo.targets
-//            .compactMap { target -> ProjectDescription.Target? in
-//                return try ProjectDescription.Target.from(
-//                    target: target,
-//                    products: targetToProducts[target.name] ?? [],
-//                    packageInfo: packageInfo,
-//                    path: path,
-//                    packageFolder: path,
-//                    packageToProject: [:],
-//                    productTypes: [:],
-//                    baseSettings: baseSettings,
-//                    targetSettings: .init(),
-//                    targetToResolvedDependencies: [:],
-//                    macroDependencies: Set()
-//                )
-//            }
-//
-//        guard !targets.isEmpty else {
-//            return nil
-//        }
-//
-//        let options: ProjectDescription.Project.Options = .options(
-//            disableSynthesizedResourceAccessors: true
-//        )
-//
-//        return ProjectDescription.Project(
-//            name: packageInfo.name,
-//            options: options,
-//            settings: packageInfo.projectSettings(
-//                swiftToolsVersion: Version(5, 9, 0),
-//                buildConfigs: baseSettings.configurations.map { key, _ in key }
-//            ),
-//            targets: targets,
-//            resourceSynthesizers: .default
-//        )
-//    }
 
     // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo],
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
@@ -1275,28 +1205,10 @@ extension PackageInfo.Target {
 }
 
 extension PackageInfoMapper {
-    public enum ResolvedDependency: Equatable, Hashable {
+    public enum ResolvedDependency: Equatable {
         case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
         case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
         case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
-
-        public func hash(into hasher: inout Hasher) {
-            switch self {
-            case let .target(name, condition):
-                hasher.combine("target")
-                hasher.combine(name)
-                hasher.combine(condition)
-            case let .xcframework(path, condition):
-                hasher.combine("package")
-                hasher.combine(path)
-                hasher.combine(condition)
-            case let .externalTarget(package, target, condition):
-                hasher.combine("externalTarget")
-                hasher.combine(package)
-                hasher.combine(target)
-                hasher.combine(condition)
-            }
-        }
 
         fileprivate var condition: ProjectDescription.PlatformCondition? {
             switch self {
@@ -1318,55 +1230,6 @@ extension PackageInfoMapper {
             }
         }
 
-        fileprivate static func from(
-            dependencies: [PackageInfo.Target.Dependency],
-            packageInfo: PackageInfo,
-            packageInfos: [String: PackageInfo],
-            idToPackage: [String: String],
-            targetDependencyToFramework: [String: Path]
-        ) throws -> [ResolvedDependency] {
-            try dependencies.flatMap { dependency -> [Self] in
-                switch dependency {
-                case let .target(name, condition):
-                    return Self.fromTarget(
-                        name: name,
-                        targetDependencyToFramework: targetDependencyToFramework,
-                        condition: condition
-                    )
-                case let .product(name, package, _, condition):
-                    return try Self.fromProduct(
-                        package: idToPackage[package.lowercased()] ?? package,
-                        product: name,
-                        packageInfos: packageInfos,
-                        targetDependencyToFramework: targetDependencyToFramework,
-                        condition: condition
-                    )
-                case let .byName(name, condition):
-                    if packageInfo.targets.contains(where: { $0.name == name }) {
-                        return Self.fromTarget(
-                            name: name,
-                            targetDependencyToFramework: targetDependencyToFramework,
-                            condition: condition
-                        )
-                    } else {
-                        guard let packageNameAndInfo = packageInfos
-                            .first(where: { $0.value.products.contains { $0.name == name } })
-                        else {
-                            throw PackageInfoMapperError.unknownByNameDependency(name)
-                        }
-
-                        return try Self.fromProduct(
-                            package: packageNameAndInfo.key,
-                            product: name,
-                            packageInfos: packageInfos,
-                            targetDependencyToFramework: targetDependencyToFramework,
-                            condition: condition
-                        )
-                    }
-                }
-            }
-        }
-
         fileprivate static func fromTarget(
             name: String,
             targetDependencyToFramework: [String: Path],
@@ -1379,35 +1242,6 @@ extension PackageInfoMapper {
                     return [.xcframework(path: framework, condition: condition)]
                 } else {
                     return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
-                }
-            } catch {
-                return []
-            }
-        }
-
-        private static func fromProduct(
-            package: String,
-            product: String,
-            packageInfos: [String: PackageInfo],
-            targetDependencyToFramework: [String: Path],
-            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
-        ) throws -> [Self] {
-            guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
-                throw PackageInfoMapperError.unknownProductDependency(product, package)
-            }
-            do {
-                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
-
-                return packageProduct.targets.map { name in
-                    if let framework = targetDependencyToFramework[name] {
-                        return .xcframework(path: framework, condition: condition)
-                    } else {
-                        return .externalTarget(
-                            package: package,
-                            target: PackageInfoMapper.sanitize(targetName: name),
-                            condition: condition
-                        )
-                    }
                 }
             } catch {
                 return []
