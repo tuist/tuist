@@ -86,7 +86,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
     // swiftlint:disable:next large_tuple
     public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
-        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
+//        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
@@ -100,7 +100,10 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             path: path
         )
 
-        let allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let allManifests = try recursiveManifestLoader.loadWorkspace(
+            at: path,
+            externalDependencies: dependenciesGraph.externalDependencies
+        )
         let (workspaceModels, manifestProjects) = (
             try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects

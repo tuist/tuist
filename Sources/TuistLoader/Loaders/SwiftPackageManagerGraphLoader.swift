@@ -167,17 +167,11 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 packageInfos: packageInfoDictionary,
-                name: packageInfo.name,
                 path: packageInfo.folder,
                 productTypes: packageSettings.productTypes,
                 baseSettings: packageSettings.baseSettings,
                 targetSettings: packageSettings.targetSettings,
                 projectOptions: packageSettings.projectOptions[packageInfo.name],
-                minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-                targetToProducts: preprocessInfo.targetToProducts,
-                targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
-                macroDependencies: preprocessInfo.macroDependencies,
-                targetToModuleMap: preprocessInfo.targetToModuleMap,
                 packageToProject: packageToProject,
                 swiftToolsVersion: packageSettings.swiftToolsVersion
             )

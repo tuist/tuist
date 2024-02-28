@@ -6,7 +6,7 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
+    func loadWorkspace(at path: AbsolutePath, externalDependencies: [String: [TuistGraph.TargetDependency]]) throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
@@ -31,7 +31,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath, externalDependencies: [String: [TuistGraph.TargetDependency]]) throws -> LoadedWorkspace {
         let loadedWorkspace: ProjectDescription.Workspace?
         do {
             loadedWorkspace = try manifestLoader.loadWorkspace(at: path)
@@ -50,8 +50,20 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }.filter {
             manifestLoader.manifests(at: $0).contains(.project)
         }
+        
+        let packagePaths = try projectSearchPaths.map {
+            try generatorPaths.resolve(path: $0)
+        }.flatMap {
+            fileHandler.glob($0, glob: "")
+        }.filter {
+            fileHandler.isFolder($0)
+        }.filter {
+            manifestLoader.manifests(at: $0).contains(.package)
+        }
+        
+        let packageProjects = try loadPackageProjects(paths: packagePaths)
 
-        let projects = try loadProjects(paths: projectPaths)
+        let projects = LoadedProjects(projects: try loadProjects(paths: projectPaths).projects.merging(packageProjects.projects, uniquingKeysWith: { _, newValue in newValue }))
         let workspace: ProjectDescription.Workspace
         if let loadedWorkspace {
             workspace = loadedWorkspace
@@ -68,6 +80,26 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     }
 
     // MARK: - Private
+    
+    private func loadPackageProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
+        var cache = [AbsolutePath: ProjectDescription.Project]()
+
+        var paths = Set(paths)
+        while !paths.isEmpty {
+            paths.subtract(cache.keys)
+            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
+                let packageInfo = try manifestLoader.loadPackage(at: $0)
+                return try PackageInfoMapper().map(packageInfo: packageInfo, path: $0)!
+            }
+            var newDependenciesPaths = Set<AbsolutePath>()
+            for (path, project) in zip(paths, projects) {
+                cache[path] = project
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+            }
+            paths = newDependenciesPaths
+        }
+        return LoadedProjects(projects: cache)
+    }
 
     private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
