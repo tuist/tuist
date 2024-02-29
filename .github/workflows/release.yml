@@ -56,6 +56,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=Tuist Cloud
             org.opencontainers.image.vendor=Tuist GmbH
+            org.opencontainers.image.source=https://github.com/tuist/cloud-on-premise
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
