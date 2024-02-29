@@ -37,11 +37,6 @@ jobs:
           repo: "cloud"
           configuration: ".github/changelog-configuration.json"
           toTag: "main"
-      - name: Update Changelog
-        uses: stefanzweifel/changelog-updater-action@v1
-        with:
-          latest-version: ${{ steps.version.outputs.version }}
-          release-notes: ${{ steps.changelog.outputs.changelog }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
