@@ -125,8 +125,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         let content: String = try ResourcesProjectMapper.fileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target,
-            project: project
+            target: target
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -162,11 +161,8 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName: String, bundleName: String, target: Target, project: Project) throws -> String {
+    static func fileContent(targetName: String, bundleName: String, target: Target) throws -> String {
         if !target.supportsResources {
-            let derivedDataPath = try DerivedDataLocator().locate(for: project.path)
-            let buildConfiguration = project.settings.defaultDebugBuildConfiguration()!
-
             return """
             // swiftlint:disable all
             // swift-format-ignore-file
@@ -192,10 +188,29 @@ public class ResourcesProjectMapper: ProjectMapping {
                 ]
 
                 if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-                    let bundleURL = URL(fileURLWithPath: "\(derivedDataPath)")
-                        .appendingPathComponent("Build")
+                    let baseURL = Bundle(for: BundleFinder.self).bundleURL
+                    
+                    let targetURL = baseURL
+                        // arm64
+                        .deletingLastPathComponent()
+                        // Objects-normal
+                        .deletingLastPathComponent()
+                        // {FrameworkName}.build
+                        .deletingLastPathComponent()
+                    
+                    let targetName = targetURL.lastPathComponent
+                    
+                    let strippedURL = targetURL
+                        // {BuildConfigurationName}-{PlatformName}
+                        .deletingLastPathComponent()
+                        // {FrameworkName}.build
+                        .deletingLastPathComponent()
+                        // Intermediates.noindex
+                        .deletingLastPathComponent()
+                        
+                    let bundleURL = strippedURL
                         .appendingPathComponent("Products")
-                        .appendingPathComponent("\(buildConfiguration.name)-iphoneos")
+                        .appendingPathComponent(targetName)
 
                     candidates.append(bundleURL)
                 }
