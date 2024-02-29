@@ -34,7 +34,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsSpecific(
-            try subject.loadTemplate(at: temporaryPath),
+            try subject.loadTemplate(at: temporaryPath, plugins: .none),
             ManifestLoaderError.manifestNotFound(temporaryPath)
         )
     }
@@ -53,7 +53,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.loadTemplate(at: temporaryPath)
+        let got = try subject.loadTemplate(at: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(got, TuistGraph.Template(

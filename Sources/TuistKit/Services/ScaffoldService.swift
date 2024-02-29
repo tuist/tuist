@@ -66,7 +66,7 @@ final class ScaffoldService {
             template: templateName
         )
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
@@ -92,8 +92,7 @@ final class ScaffoldService {
             templateDirectories: templateDirectories,
             template: templateName
         )
-
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         let parsedAttributes = try parseAttributes(
             requiredTemplateOptions: requiredTemplateOptions,
