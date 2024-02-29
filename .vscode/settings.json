@@ -20,6 +20,7 @@
   },
   "[ruby]": {
     "editor.formatOnSave": true,
+    "editor.defaultFormatter": "Shopify.ruby-lsp",
   },
   "rubyLsp.formatter": "auto",
   "editor.defaultFormatter": "esbenp.prettier-vscode",

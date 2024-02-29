@@ -43,6 +43,8 @@ Rails.application.routes.draw do
   get "/auth/cli/success", to: "auth#cli_success"
   get "/auth", to: "auth#authenticate"
   post '/webhooks/stripe', to: 'webhooks#stripe'
+  get '/webhooks/okta', to: 'webhooks#okta_verify'
+  post '/webhooks/okta', to: 'webhooks#okta'
   resources :projects, path: '/:account_name', param: :project_name, only: [:show]
   get "/get-started", to: "application#get_started"
 

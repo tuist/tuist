@@ -163,6 +163,10 @@ module Environment
       fetch(:okta, :user_info_url)
     end
 
+    def okta_event_hook_secret
+      fetch(:okta, :event_hook_secret)
+    end
+
     def attio_api_key
       fetch(:attio, :api_key)
     end
@@ -212,7 +216,7 @@ module Environment
     end
 
     def okta_configured?
-      okta_site.present? && okta_client_id.present? && okta_client_secret.present?
+      okta_site.present? && okta_client_id.present? && okta_client_secret.present? && okta_event_hook_secret.present?
     end
 
     def github_configured?
