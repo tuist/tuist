@@ -372,6 +372,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetName.replacingOccurrences(of: ".", with: "_")
     }
 
+    // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,
