@@ -47,7 +47,8 @@ public protocol SwiftPackageManagerGraphLoading {
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
     /// dependencies.
     func load(
-        at path: AbsolutePath,
+        packagePath: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
         plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph
 }
@@ -57,46 +58,25 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
-    private let packageSettingsLoader: PackageSettingsLoading
-    private let manifestFilesLocator: ManifestFilesLocating
 
-    public convenience init(
-        manifestLoader: ManifestLoading
-    ) {
-        self.init(
-            manifestLoader: manifestLoader,
-            packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader)
-        )
-    }
-
-    init(
+    public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileHandler: FileHandling = FileHandler.shared,
-        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader(),
-        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
-        self.packageSettingsLoader = packageSettingsLoader
-        self.manifestFilesLocator = manifestFilesLocator
     }
 
     // swiftlint:disable:next function_body_length
     public func load(
-        at path: AbsolutePath,
-        plugins: Plugins
+        packagePath: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        plugins _: Plugins
     ) throws -> TuistCore.DependenciesGraph {
-        guard let packagePath = manifestFilesLocator.locatePackageManifest(at: path)
-        else {
-            return .none
-        }
-
-        let packageSettings = try packageSettingsLoader.loadPackageSettings(at: packagePath.parentDirectory, with: plugins)
-
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
@@ -156,7 +136,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             ($0.name, $0.targetToArtifactPaths)
         })
 
-        let preprocessInfo = try packageInfoMapper.preprocess(
+        let externalDependencies = try packageInfoMapper.resolveExternalDependencies(
             packageInfos: packageInfoDictionary,
             idToPackage: idToPackage,
             packageToFolder: packageToFolder,
@@ -167,18 +147,15 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 path: packageInfo.folder,
-                productTypes: packageSettings.productTypes,
-                baseSettings: packageSettings.baseSettings,
-                targetSettings: packageSettings.targetSettings,
-                projectOptions: packageSettings.projectOptions[packageInfo.name],
-                packageToProject: packageToProject,
-                swiftToolsVersion: packageSettings.swiftToolsVersion
+                packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                packageSettings: packageSettings,
+                packageToProject: packageToProject
             )
             result[.path(packageInfo.folder.pathString)] = manifest
         }
 
         return DependenciesGraph(
-            externalDependencies: preprocessInfo.productToExternalDependencies,
+            externalDependencies: externalDependencies,
             externalProjects: externalProjects
         )
     }

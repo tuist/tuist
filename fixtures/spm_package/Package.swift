@@ -10,7 +10,8 @@ let package = Package(
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "MyPackage",
-            targets: ["MyPackage"]),
+            targets: ["MyPackage"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
@@ -21,7 +22,7 @@ let package = Package(
         .executableTarget(
             name: "MyCLI",
             dependencies: [
-                "MyPackage"
+                "MyPackage",
             ]
         ),
         .target(
@@ -32,6 +33,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MyPackageTests",
-            dependencies: ["MyPackage"]),
+            dependencies: ["MyPackage"]
+        ),
     ]
 )
