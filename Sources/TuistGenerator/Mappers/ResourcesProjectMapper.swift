@@ -65,7 +65,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
-            let (filePath, data) = try synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -117,12 +117,12 @@ public class ResourcesProjectMapper: ProjectMapping {
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) throws -> (AbsolutePath, Data?) {
+    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
 
-        let content: String = try ResourcesProjectMapper.fileContent(
+        let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
             target: target
@@ -161,7 +161,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName: String, bundleName: String, target: Target) throws -> String {
+    static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
         if !target.supportsResources {
             return """
             // swiftlint:disable all
