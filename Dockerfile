@@ -64,6 +64,7 @@ FROM base
 # Set the description
 LABEL org.opencontainers.image.title="Tuist Cloud"
 LABEL org.opencontainers.image.vendor="Tuist GmbH"
+LABEL org.opencontainers.image.source=https://github.com/tuist/cloud-on-premise
 
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
