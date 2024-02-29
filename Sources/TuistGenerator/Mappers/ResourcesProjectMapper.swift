@@ -65,7 +65,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
-            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = try synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -117,15 +117,16 @@ public class ResourcesProjectMapper: ProjectMapping {
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) throws -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
 
-        let content: String = ResourcesProjectMapper.fileContent(
+        let content: String = try ResourcesProjectMapper.fileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target
+            target: target,
+            project: project
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -161,8 +162,11 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
+    static func fileContent(targetName: String, bundleName: String, target: Target, project: Project) throws -> String {
         if !target.supportsResources {
+            let derivedDataPath = try DerivedDataLocator().locate(for: project.path)
+            let buildConfiguration = project.settings.defaultDebugBuildConfiguration()!
+            
             return """
             // swiftlint:disable all
             // swift-format-ignore-file
@@ -181,12 +185,21 @@ public class ResourcesProjectMapper: ProjectMapping {
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
 
-                let candidates = [
+                var candidates = [
                     Bundle.main.resourceURL,
                     Bundle(for: BundleFinder.self).resourceURL,
                     Bundle.main.bundleURL,
                 ]
 
+                if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+                    let bundleURL = URL(fileURLWithPath: "\(derivedDataPath)")
+                        .appendingPathComponent("Build")
+                        .appendingPathComponent("Products")
+                        .appendingPathComponent("\(buildConfiguration.name)-iphoneos")
+
+                    candidates.append(bundleURL)
+                }
+                
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                     if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
