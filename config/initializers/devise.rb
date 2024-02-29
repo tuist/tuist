@@ -314,7 +314,7 @@ Devise.setup do |config|
   github_oauth_id = Environment.github_oauth_id
   github_oauth_secret = Environment.github_oauth_secret
 
-  if !Environment.self_hosted? || (!github_oauth_id.nil? && !github_oauth_secret.nil?)
+  if Environment.github_configured?
     # When set to false, does not sign a user in automatically after their password is
     # changed. Defaults to true, so a user is signed in automatically after changing a password.
     # config.sign_in_after_change_password = true
@@ -324,6 +324,16 @@ Devise.setup do |config|
       github_oauth_id,
       github_oauth_secret,
       scope: "read:user,user:email",
+    )
+  end
+
+  if Environment.google_oauth_configured?
+    config.omniauth(
+      :google_oauth2,
+      Environment.google_oauth_client_id,
+      Environment.google_oauth_client_secret,
+      prompt: 'consent',
+      strategy_class: OmniAuth::Strategies::GoogleOauth2,
     )
   end
 

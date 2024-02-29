@@ -17,6 +17,13 @@ module Users
       find_or_create_and_redirect_user(provider: provider, id_in_provider: id_in_provider, email: email)
     end
 
+    def google_oauth2
+      email = auth_data["info"]["email"]
+      provider = :google
+      id_in_provider = auth_data["uid"]
+      find_or_create_and_redirect_user(provider: provider, id_in_provider: id_in_provider, email: email)
+    end
+
     def failure
       redirect_to(root_path)
     end

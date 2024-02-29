@@ -42,7 +42,6 @@ jobs:
         with:
           latest-version: ${{ steps.version.outputs.version }}
           release-notes: ${{ steps.changelog.outputs.changelog }}
-          path-to-changelog: README.md
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -54,7 +53,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/tuist/cloud
+            ghcr.io/tuist/cloud-on-premise
           flavor: |
             latest=true
           tags: |
@@ -74,11 +73,11 @@ jobs:
         id: commit
         with:
           commit_message: Release ${{ steps.version.outputs.version }}
-      - name: Create GitHub Release on tuist/cloud
+      - name: Create GitHub Release on tuist/cloud-on-premise
         uses: softprops/action-gh-release@v1
         with:
           draft: false
-          repository: tuist/cloud
+          repository: tuist/cloud-on-premise
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}

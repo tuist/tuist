@@ -27,6 +27,9 @@ gem 'tapioca', require: false, :group => :development
 gem "turbo-rails", "~> 2.0"
 gem "rack-cors", "~> 2.0"
 gem "browser", "~> 5.3"
+gem "stimulus-rails", "~> 1.3"
+gem "importmap-rails", "~> 2.0"
+gem "omniauth-google-oauth2", "~> 1.1"
 
 # Authentication / Authorization
 gem "devise", "~> 4.8"
@@ -65,7 +68,3 @@ group :test do
   gem "capybara", ">= 3.26"
   gem "mocha", "~> 2.1.0"
 end
-
-gem "stimulus-rails", "~> 1.3"
-
-gem "importmap-rails", "~> 2.0"

@@ -25,8 +25,12 @@ class User < ApplicationRecord
     omniauth_providers << :github
   end
 
-  if Environment.self_hosted? && Environment.okta_configured?
+  if Environment.okta_configured?
     omniauth_providers << :okta
+  end
+
+  if Environment.google_oauth_configured?
+    omniauth_providers << :google_oauth2
   end
 
   devise :database_authenticatable,

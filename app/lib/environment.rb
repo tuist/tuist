@@ -139,6 +139,14 @@ module Environment
       fetch(:github, :oauth_secret)
     end
 
+    def google_oauth_client_id
+      fetch(:google, :oauth_client_id)
+    end
+
+    def google_oauth_client_secret
+      fetch(:google, :oauth_client_secret)
+    end
+
     def okta_site
       fetch(:okta, :site)
     end
@@ -221,6 +229,10 @@ module Environment
 
     def github_configured?
       github_oauth_id.present? && github_oauth_secret.present?
+    end
+
+    def google_oauth_configured?
+      google_oauth_client_id.present? && google_oauth_client_secret.present?
     end
 
     def s3_configured?
