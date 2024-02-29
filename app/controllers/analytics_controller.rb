@@ -14,9 +14,9 @@ class AnalyticsController < ApplicationController
         user: current_user,
         start_date: start_date,
       ),
-      cache_warm: CommandAverageService.call(
+      cache: CommandAverageService.call(
         project_id: project_id,
-        command_name: "cache warm",
+        command_name: "cache",
         user: current_user,
         start_date: start_date,
       ),
@@ -41,9 +41,9 @@ class AnalyticsController < ApplicationController
         user: current_user,
         start_date: start_date,
       ),
-      cache_warm: CacheHitRateAverageService.call(
+      cache: CacheHitRateAverageService.call(
         project_id: project_id,
-        command_name: "cache warm",
+        command_name: "cache",
         user: current_user,
         start_date: start_date,
       ),

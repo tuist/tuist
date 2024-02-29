@@ -91,8 +91,8 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
 
   test "returns average for the last thirty days for a subcommand" do
     # Given
-    create_command_event(name: "cache", subcommand: "warm", duration: 20, created_at: Time.new(2022, 0o3, 30))
-    create_command_event(name: "cache", subcommand: "warm", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "cache", duration: 20, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "cache", duration: 10, created_at: Time.new(2022, 0o3, 30))
     create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 0o3, 30))
     create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 0o3, 30))
     create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 0o3, 0o5))
@@ -100,7 +100,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
     # When
     got = CommandAverageService.call(
       project_id: @project.id,
-      command_name: "cache warm",
+      command_name: "cache",
       user: @user,
     )
 

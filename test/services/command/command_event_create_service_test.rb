@@ -37,7 +37,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
     assert_equal true, got.is_ci
   end
 
-  test "creates a cache warm command event for a given project" do
+  test "creates a cache command event for a given project" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     account = user.account
@@ -49,8 +49,8 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
       user: user,
       project: nil,
       name: "cache",
-      subcommand: "warm",
-      command_arguments: ["cache", "warm"],
+      subcommand: nil,
+      command_arguments: ["cache"],
       duration: 120,
       client_id: "client id",
       tuist_version: "3.1.0",
