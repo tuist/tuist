@@ -8,6 +8,9 @@ import TSCUtility
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
 public struct PackageInfo: Hashable {
+    /// The name of the package.
+    public let name: String
+
     /// The products declared in the manifest.
     public let products: [Product]
 
@@ -27,9 +30,6 @@ public struct PackageInfo: Hashable {
     public let swiftLanguageVersions: [TSCUtility.Version]?
 
     // Ignored fields
-
-    /// The name of the package.
-    public let name: String
 
     // /// The tools version declared in the manifest.
     // let toolsVersion: ToolsVersion

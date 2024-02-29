@@ -48,8 +48,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings,
-        plugins: Plugins
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -74,8 +73,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings,
-        plugins _: Plugins
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -128,7 +126,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             )
         }
 
-        let idToPackage: [String: String] = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.name) })
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
@@ -138,7 +135,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 
         let externalDependencies = try packageInfoMapper.resolveExternalDependencies(
             packageInfos: packageInfoDictionary,
-            idToPackage: idToPackage,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )

@@ -9,11 +9,6 @@ import TuistSupport
 
 // MARK: - PackageInfo Mapper Errors
 
-public enum PackageType {
-    case local
-    case external(artifactPaths: [String: AbsolutePath])
-}
-
 enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when the default path folder is not present.
     case defaultPathNotFound(AbsolutePath, String, [String])
@@ -92,6 +87,11 @@ enum PackageInfoMapperError: FatalError, Equatable {
     }
 }
 
+public enum PackageType {
+    case local
+    case external(artifactPaths: [String: AbsolutePath])
+}
+
 // MARK: - PackageInfo Mapper
 
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
@@ -101,7 +101,6 @@ public protocol PackageInfoMapping {
     /// - Returns: Mapped project
     func resolveExternalDependencies(
         packageInfos: [String: PackageInfo],
-        idToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]]
     ) throws -> [String: [ProjectDescription.TargetDependency]]
@@ -134,13 +133,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
-    ///   - idToPackage: Mapping from an identifier to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         packageInfos: [String: PackageInfo],
-        idToPackage _: [String: String],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]]
     ) throws -> [String: [ProjectDescription.TargetDependency]] {

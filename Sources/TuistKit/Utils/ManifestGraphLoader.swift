@@ -111,8 +111,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             dependenciesGraph = try converter.convert(
                 manifest: try swiftPackageManagerGraphLoader.load(
                     packagePath: packagePath,
-                    packageSettings: loadedPackageSettings,
-                    plugins: plugins
+                    packageSettings: loadedPackageSettings
                 ),
                 path: path
             )
