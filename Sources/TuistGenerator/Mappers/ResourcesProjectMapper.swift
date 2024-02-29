@@ -166,7 +166,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         if !target.supportsResources {
             let derivedDataPath = try DerivedDataLocator().locate(for: project.path)
             let buildConfiguration = project.settings.defaultDebugBuildConfiguration()!
-            
+
             return """
             // swiftlint:disable all
             // swift-format-ignore-file
@@ -199,7 +199,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
                     candidates.append(bundleURL)
                 }
-                
+
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                     if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
