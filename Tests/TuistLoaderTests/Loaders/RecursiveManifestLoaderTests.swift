@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import ProjectDescription
 import TSCBasic
 import TuistSupport
@@ -11,8 +12,10 @@ import XCTest
 final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private var path: AbsolutePath!
     private var manifestLoader: MockManifestLoader!
+    private var packageInfoMapper: MockPackageInfoMapping!
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
+    private var packageManifests: [AbsolutePath: PackageInfo] = [:]
 
     private var subject: RecursiveManifestLoader!
 
@@ -25,15 +28,18 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         }
 
         manifestLoader = createManifestLoader()
+        packageInfoMapper = MockPackageInfoMapping()
         subject = RecursiveManifestLoader(
             manifestLoader: manifestLoader,
-            fileHandler: fileHandler
+            fileHandler: fileHandler,
+            packageInfoMapper: packageInfoMapper
         )
     }
 
     override func tearDown() {
         path = nil
         manifestLoader = nil
+        packageInfoMapper = nil
         subject = nil
         super.tearDown()
     }
@@ -312,6 +318,33 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
+    func test_loadSPM_Package() throws {
+        // Given
+        let packageA = createPackage(name: "PackageA")
+        try stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageToProject: .any
+        )
+        .willReturn(
+            .test(name: "PackageA")
+        )
+
+        // When
+        let manifests = try subject.loadWorkspace(
+            at: path.appending(try RelativePath(validating: "Some/Path/A")),
+            packageSettings: .test()
+        )
+
+        // Then
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/Path/A": .test(name: "PackageA"),
+        ])
+    }
+
     // MARK: - Helpers
 
     private func createProject(
@@ -322,6 +355,12 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             Target.test(name: $0.key, dependencies: $0.value)
         }
         return .test(name: name, targets: targets)
+    }
+
+    private func createPackage(
+        name: String
+    ) -> PackageInfo {
+        return .test(name: name)
     }
 
     private func withRelativePaths(_ projects: [AbsolutePath: Project]) -> [String: Project] {
@@ -366,6 +405,17 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         workspaceManifests[manifestPath.parentDirectory] = manifest
     }
 
+    private func stub(
+        manifest: PackageInfo,
+        at relativePath: RelativePath
+    ) throws {
+        let manifestPath = path
+            .appending(relativePath)
+            .appending(component: Manifest.package.fileName(path.appending(relativePath)))
+        try fileHandler.touch(manifestPath)
+        packageManifests[manifestPath.parentDirectory] = manifest
+    }
+
     private func createManifestLoader() -> MockManifestLoader {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { [unowned self] path in
@@ -382,6 +432,13 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             return manifest
         }
 
+        manifestLoader.loadPackageStub = { [unowned self] path in
+            guard let manifest = packageManifests[path] else {
+                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+            }
+            return manifest
+        }
+
         manifestLoader.manifestsAtStub = { [unowned self] path in
             var manifests = Set<Manifest>()
             if let _ = projectManifests[path] {
@@ -389,6 +446,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             }
             if let _ = workspaceManifests[path] {
                 manifests.insert(.workspace)
+            }
+            if let _ = packageManifests[path] {
+                manifests.insert(.package)
             }
             return manifests
         }

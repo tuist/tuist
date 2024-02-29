@@ -25,13 +25,16 @@ public struct LoadedWorkspace {
 public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
+    private let packageInfoMapper: PackageInfoMapping
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        packageInfoMapper: PackageInfoMapping = PackageInfoMapper()
     ) {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
+        self.packageInfoMapper = packageInfoMapper
     }
 
     public func loadWorkspace(
@@ -103,7 +106,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             paths.subtract(cache.keys)
             let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
                 let packageInfo = try manifestLoader.loadPackage(at: $0)
-                return try PackageInfoMapper().map(
+                return try packageInfoMapper.map(
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,

@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import ProjectDescription
 import TSCBasic
 import TSCUtility
@@ -94,6 +95,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
 // MARK: - PackageInfo Mapper
 
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
+@Mockable
 public protocol PackageInfoMapping {
     /// Resolves external SwiftPackageManager dependencies.
     /// - Returns: Mapped project
