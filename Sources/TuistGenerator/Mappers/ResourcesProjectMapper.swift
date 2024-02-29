@@ -189,7 +189,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
                 if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
                     let baseURL = Bundle(for: BundleFinder.self).bundleURL
-                    
+
                     let targetURL = baseURL
                         // arm64
                         .deletingLastPathComponent()
@@ -197,9 +197,9 @@ public class ResourcesProjectMapper: ProjectMapping {
                         .deletingLastPathComponent()
                         // {FrameworkName}.build
                         .deletingLastPathComponent()
-                    
+
                     let targetName = targetURL.lastPathComponent
-                    
+
                     let strippedURL = targetURL
                         // {BuildConfigurationName}-{PlatformName}
                         .deletingLastPathComponent()
@@ -207,7 +207,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                         .deletingLastPathComponent()
                         // Intermediates.noindex
                         .deletingLastPathComponent()
-                        
+
                     let bundleURL = strippedURL
                         .appendingPathComponent("Products")
                         .appendingPathComponent(targetName)

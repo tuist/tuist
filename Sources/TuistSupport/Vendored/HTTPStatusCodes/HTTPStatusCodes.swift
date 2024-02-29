@@ -6,7 +6,8 @@
 //
 import Foundation
 
-/// HTTP status codes as per the [IANA HTTP status code registry](http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml).
+/// HTTP status codes as per the [IANA HTTP status code
+/// registry](http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml).
 ///
 /// Last updated: Fri, 21 Sep 2018 16:10:10 GMT
 ///
@@ -276,7 +277,8 @@ import Foundation
     ///
     /// **Category**: Internet Information Services
     ///
-    /// - seealso: [Error message when you try to log on to Exchange 2007 by using Outlook Web Access: "440 Login Timeout"](http://support.microsoft.com/kb/941201/en-us)
+    /// - seealso: [Error message when you try to log on to Exchange 2007 by using Outlook Web Access: "440 Login
+    /// Timeout"](http://support.microsoft.com/kb/941201/en-us)
     @objc(HTTPStatusCodeIISLoginTimeout)
     case iisLoginTimeout = 440
 
@@ -299,7 +301,8 @@ import Foundation
 
     /// Blocked by Windows Parental Controls: 450
     ///
-    /// A Microsoft extension. This error is given when Windows Parental Controls are turned on and are blocking access to the given webpage.
+    /// A Microsoft extension. This error is given when Windows Parental Controls are turned on and are blocking access to the
+    /// given webpage.
     case blockedByWindowsParentalControls = 450
 
     /// Unavailable For Legal Reasons: 451
@@ -323,16 +326,19 @@ import Foundation
 
     /// nginx HTTP To HTTPS: 497
     ///
-    /// An expansion of the 400 Bad Request response code, used when the client has made a HTTP request to a port listening for HTTPS requests.
+    /// An expansion of the 400 Bad Request response code, used when the client has made a HTTP request to a port listening for
+    /// HTTPS requests.
     ///
     /// **Category**: nginx
     case nginxHTTPToHTTPS = 497
 
     /// Token Expired: 498
     ///
-    /// Returned by [ArcGIS for Server](https://en.wikipedia.org/wiki/ArcGIS_Server). A code of 498 indicates an expired or otherwise invalid token.
+    /// Returned by [ArcGIS for Server](https://en.wikipedia.org/wiki/ArcGIS_Server). A code of 498 indicates an expired or
+    /// otherwise invalid token.
     ///
-    /// - seealso: [Using token-based authentication](http://help.arcgis.com/en/arcgisserver/10.0/apis/soap/index.htm#Using_token_authentication.htm)
+    /// - seealso: [Using token-based
+    /// authentication](http://help.arcgis.com/en/arcgisserver/10.0/apis/soap/index.htm#Using_token_authentication.htm)
     case tokenExpired = 498
 
     /// nginx Client Closed Request: 499
@@ -390,7 +396,8 @@ import Foundation
 
     /// Bandwidth Limit Exceeded: 509
     ///
-    /// The server has exceeded the bandwidth specified by the server administrator; this is often used by shared hosting providers to limit the bandwidth of customers.
+    /// The server has exceeded the bandwidth specified by the server administrator; this is often used by shared hosting
+    /// providers to limit the bandwidth of customers.
     ///
     /// - seealso: <https://documentation.cpanel.net/display/CKB/HTTP+Error+Codes+and+Quick+Fixes#HTTPErrorCodesandQuickFixes-509BandwidthLimitExceeded>
     case bandwidthLimitExceeded = 509
@@ -407,11 +414,13 @@ import Foundation
 
     /// Site is frozen: 530
     ///
-    /// Used by the [Pantheon](https://en.wikipedia.org/wiki/Pantheon_(software)) web platform to indicate a site that has been frozen due to inactivity.
+    /// Used by the [Pantheon](https://en.wikipedia.org/wiki/Pantheon_(software)) web platform to indicate a site that has been
+    /// frozen due to inactivity.
     case siteIsFrozen = 530
 
     /// Network Connect Timeout Error: 599
     ///
-    /// This status code is not specified in any RFCs, but is used by some HTTP proxies to signal a network connect timeout behind the proxy to a client in front of the proxy.
+    /// This status code is not specified in any RFCs, but is used by some HTTP proxies to signal a network connect timeout behind
+    /// the proxy to a client in front of the proxy.
     case networkConnectTimeoutError = 599
 }

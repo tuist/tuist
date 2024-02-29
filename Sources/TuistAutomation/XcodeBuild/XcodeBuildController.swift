@@ -5,7 +5,6 @@ import TuistCore
 import TuistSupport
 
 public final class XcodeBuildController: XcodeBuildControlling {
-
     // MARK: - Attributes
 
     /// Matches lines of the forms:
@@ -19,7 +18,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let environment: Environmenting
-    
+
     public convenience init() {
         self.init(formatter: Formatter(), environment: Environment.shared)
     }
@@ -71,9 +70,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         case nil:
             break
         }
-        
+
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
@@ -129,12 +128,12 @@ public final class XcodeBuildController: XcodeBuildControlling {
         }
 
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         // Result bundle path
-        if let resultBundlePath = resultBundlePath {
+        if let resultBundlePath {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
@@ -186,10 +185,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: ["-archivePath", archivePath.pathString])
 
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
-        
+
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
@@ -204,7 +203,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: arguments.flatMap(\.xcodebuildArguments))
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        
+
         return try run(command: command)
     }
 
@@ -228,10 +227,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         command.append(contentsOf: ["-scheme", scheme])
 
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
-        
+
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
 
@@ -251,7 +250,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             var currentTarget: String?
 
             let flushTarget = { () in
-                if let currentTarget = currentTarget {
+                if let currentTarget {
                     let buildSettings = XcodeBuildSettings(
                         currentSettings,
                         target: currentTarget,
@@ -291,7 +290,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     fileprivate func run(command: [String]) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         return System.shared.publisher(command)
             .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
