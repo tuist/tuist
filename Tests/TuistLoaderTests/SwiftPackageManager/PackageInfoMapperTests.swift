@@ -47,7 +47,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            idToPackage: [:],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
@@ -110,7 +109,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            idToPackage: ["package2_different_name": "Package2"],
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
                 "Package2": basePath.appending(component: "Package2"),
@@ -183,7 +181,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            idToPackage: [:],
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
@@ -241,7 +238,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            idToPackage: [:],
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
             ],
@@ -314,7 +310,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            idToPackage: [:],
             packageToFolder: [
                 "Package_1": basePath.appending(component: "Package_1"),
                 "Package_2": basePath.appending(component: "Package_2"),
