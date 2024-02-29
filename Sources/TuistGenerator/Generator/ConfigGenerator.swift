@@ -57,10 +57,10 @@ final class ConfigGenerator: ConfigGenerating {
         )
         pbxproj.add(object: configurationList)
 
-        try project.settings.configurations.sortedByBuildConfigurationName().forEach {
+        for item in project.settings.configurations.sortedByBuildConfigurationName() {
             try generateProjectSettingsFor(
-                buildConfiguration: $0.key,
-                configuration: $0.value,
+                buildConfiguration: item.key,
+                configuration: item.value,
                 project: project,
                 fileElements: fileElements,
                 pbxproj: pbxproj,
@@ -104,12 +104,12 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
-        try orderedConfigurations.forEach {
+        for orderedConfiguration in orderedConfigurations {
             try generateTargetSettingsFor(
                 target: target,
                 project: project,
-                buildConfiguration: $0.key,
-                configuration: $0.value,
+                buildConfiguration: orderedConfiguration.key,
+                configuration: orderedConfiguration.value,
                 fileElements: fileElements,
                 graphTraverser: graphTraverser,
                 pbxproj: pbxproj,
@@ -315,23 +315,11 @@ final class ConfigGenerator: ConfigGenerating {
         graphTraverser: GraphTraversing,
         projectPath: AbsolutePath
     ) -> SettingsDictionary {
-        let targets = graphTraverser.allSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
-        if targets.isEmpty { return [:] }
+        let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
         var settings: SettingsDictionary = [:]
-        settings["OTHER_SWIFT_FLAGS"] = .array(targets.flatMap { target in
-            let macroExecutables = graphTraverser.directSwiftMacroExecutables(path: target.path, name: target.target.name)
-            return macroExecutables.flatMap { macroExecutable in
-                switch macroExecutable {
-                case let .product(_, productName, _):
-                    return [
-                        "-load-plugin-executable",
-                        "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)",
-                    ]
-                default:
-                    return []
-                }
-            }
-        })
+        if pluginExecutables.isEmpty { return settings }
+        let swiftCompilerFlags = pluginExecutables.flatMap { ["-load-plugin-executable", $0] }
+        settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
         return settings
     }
 

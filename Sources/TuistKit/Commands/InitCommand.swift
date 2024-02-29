@@ -30,14 +30,14 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the project will be generated (Default: Current directory)",
+        help: "The path to the folder where the project will be generated. (Default: Current directory)",
         completion: .directory
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. If it's not passed (Default: Name of the directory)"
+        help: "The name of the project. (Default: Name of the current directory)"
     )
     var name: String?
 
@@ -59,13 +59,13 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
         name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
         template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
-        try InitCommand.requiredTemplateOptions.forEach { option in
+        for option in InitCommand.requiredTemplateOptions {
             requiredTemplateOptions[option.name] = try container.decode(
                 Option<String>.self,
                 forKey: .required(option.name)
             ).wrappedValue
         }
-        try InitCommand.optionalTemplateOptions.forEach { option in
+        for option in InitCommand.optionalTemplateOptions {
             optionalTemplateOptions[option.name] = try container.decode(
                 Option<String?>.self,
                 forKey: .optional(option.name)

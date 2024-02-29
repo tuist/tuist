@@ -16,7 +16,7 @@ final class PluginAcceptanceTestTuistPlugin: TuistAcceptanceTestCase {
 final class PluginAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
         try setUpFixture(.appWithPlugins)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }

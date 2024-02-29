@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "StaticFramework",
     targets: [
-        Target(
+        .target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework",
             infoPlist: "Support/Info.plist",
@@ -15,9 +15,9 @@ let project = Project(
                 .sdk(name: "c++", type: .library),
             ]
         ),
-        Target(
+        .target(
             name: "StaticFrameworkTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.StaticFrameworkTests",
             infoPlist: "Support/Tests.plist",

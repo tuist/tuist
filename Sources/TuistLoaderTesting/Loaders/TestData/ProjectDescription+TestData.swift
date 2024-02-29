@@ -61,7 +61,7 @@ extension Project {
 extension Target {
     public static func test(
         name: String = "Target",
-        platform: Platform = .iOS,
+        destinations: Destinations = .iOS,
         product: Product = .framework,
         productName: String? = nil,
         bundleId: String = "com.some.bundle.id",
@@ -76,9 +76,9 @@ extension Target {
         coreDataModels: [CoreDataModel] = [],
         environment: [String: String] = [:]
     ) -> Target {
-        Target(
+        .target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: product,
             productName: productName,
             bundleId: bundleId,
@@ -129,7 +129,7 @@ extension Scheme {
         testAction: TestAction? = nil,
         runAction: RunAction? = nil
     ) -> Scheme {
-        Scheme(
+        .scheme(
             name: name,
             shared: shared,
             buildAction: buildAction,
@@ -141,7 +141,7 @@ extension Scheme {
 
 extension BuildAction {
     public static func test(targets: [TargetReference] = []) -> BuildAction {
-        BuildAction(
+        .buildAction(
             targets: targets,
             preActions: [ExecutionAction.test()],
             postActions: [ExecutionAction.test()]
@@ -171,12 +171,14 @@ extension RunAction {
     public static func test(
         configuration: ConfigurationName = .debug,
         executable: TargetReference? = nil,
-        arguments: Arguments? = nil
+        arguments: Arguments? = nil,
+        options: RunActionOptions = .options()
     ) -> RunAction {
         RunAction(
             configuration: configuration,
             executable: executable,
-            arguments: arguments
+            arguments: arguments,
+            options: options
         )
     }
 }
@@ -185,7 +187,7 @@ extension ExecutionAction {
     public static func test(
         title: String = "Test Script",
         scriptText: String = "echo Test",
-        target: TargetReference? = TargetReference(projectPath: nil, target: "Target")
+        target: TargetReference? = .target("Target")
     ) -> ExecutionAction {
         ExecutionAction(
             title: title,
@@ -207,14 +209,14 @@ extension Arguments {
     }
 }
 
-extension Dependencies {
-    public static func test(carthageDependencies: CarthageDependencies? = nil) -> Dependencies {
-        Dependencies(carthage: carthageDependencies)
-    }
-}
-
 extension Plugin {
     public static func test(name: String = "Plugin") -> Plugin {
         Plugin(name: name)
+    }
+}
+
+extension PackageSettings {
+    public static func test() -> PackageSettings {
+        PackageSettings()
     }
 }

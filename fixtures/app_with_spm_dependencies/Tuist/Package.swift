@@ -1,19 +1,38 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
+#if TUIST
+    import ProjectDescription
+    import ProjectDescriptionHelpers
+
+    let packageSettings = PackageSettings(
+        baseSettings: .targetSettings,
+        projectOptions: [
+            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
+        ]
+    )
+
+#endif
+
 let package = Package(
     name: "PackageName",
     dependencies: [
-        .package(url: "https://github.com/Alamofire/Alamofire", from: "5.8.0"),
-        .package(url: "https://github.com/facebook/facebook-ios-sdk", from: "16.1.3"),
-        .package(url: "https://github.com/firebase/firebase-ios-sdk", from: "10.15.0"),
+        .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
         .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "1.5.0")),
-        .package(url: "https://github.com/iterable/swift-sdk", from: "6.4.15"),
-        .package(url: "https://github.com/Trendyol/ios-components", revision: "c9260bfe203a16a278eca5542c98455eece98aa4"),
-        .package(url: "https://github.com/stripe/stripe-ios", from: "23.12.0"),
-        .package(path: "../../../LocalSwiftPackage"),
-        .package(url: "https://github.com/groue/GRDB.swift", from: "6.16.0"),
-        .package(path: "../../../StringifyMacro"),
-        .package(url: "https://github.com/auth0/Auth0.swift", from: "2.5.0"),
+        .package(url: "https://github.com/ZipArchive/ZipArchive", .upToNextMajor(from: "2.5.5")),
+        .package(url: "https://github.com/jpsim/Yams", .upToNextMajor(from: "5.0.6")),
+        .package(url: "https://github.com/google/GoogleSignIn-iOS", .upToNextMajor(from: "7.0.0")),
+        .package(url: "https://github.com/getsentry/sentry-cocoa", .upToNextMajor(from: "8.20.0")),
+        .package(url: "https://github.com/realm/realm-swift", .upToNextMajor(from: "10.46.0")),
+        .package(url: "https://github.com/CocoaLumberjack/CocoaLumberjack", .upToNextMajor(from: "3.8.4")),
+        .package(url: "https://github.com/facebook/zstd", exact: "1.5.5"),
+        .package(url: "https://github.com/microsoft/appcenter-sdk-apple", .upToNextMajor(from: "5.0.4")),
+        // Has SWIFTPM_MODULE_BUNDLE
+        .package(url: "https://github.com/tuist/NYTPhotoViewer", branch: "develop"),
+        .package(url: "https://github.com/Quick/Quick", exact: "7.4.0"),
+        .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
+        .package(url: "https://github.com/SVProgressHUD/SVProgressHUD", exact: "2.3.1"),
+        .package(path: "../LocalSwiftPackage"),
+        .package(path: "../StringifyMacro"),
     ]
 )

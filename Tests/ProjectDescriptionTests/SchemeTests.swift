@@ -10,16 +10,16 @@ final class SchemeTests: XCTestCase {
 
     func test_codable() throws {
         // Given
-        let subject = Scheme(
+        let subject: Scheme = .scheme(
             name: "scheme",
             shared: true,
-            buildAction: BuildAction(
+            buildAction: .buildAction(
                 targets: [.init(projectPath: nil, target: "target")],
                 preActions: mockExecutionAction("build_action"),
                 postActions: mockExecutionAction("build_action")
             ),
             testAction: TestAction.targets(
-                [TestableTarget(target: .init(projectPath: nil, target: "target"))],
+                [.testableTarget(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environmentVariables: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
@@ -38,6 +38,13 @@ final class SchemeTests: XCTestCase {
                 arguments: Arguments(
                     environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
+                ),
+                options: RunActionOptions(
+                    language: "en",
+                    region: "US",
+                    storeKitConfigurationPath: nil,
+                    simulatedLocation: nil,
+                    enableGPUFrameCaptureMode: .autoEnabled
                 )
             )
         )
@@ -52,16 +59,16 @@ final class SchemeTests: XCTestCase {
 
     func test_defaultConfigurationNames() throws {
         // Given / When
-        let subject = Scheme(
+        let subject: Scheme = .scheme(
             name: "scheme",
             shared: true,
-            buildAction: BuildAction(
-                targets: [.init(projectPath: nil, target: "target")],
+            buildAction: .buildAction(
+                targets: [.target("target")],
                 preActions: mockExecutionAction("build_action"),
                 postActions: mockExecutionAction("build_action")
             ),
             testAction: TestAction.targets(
-                [.init(target: .init(projectPath: nil, target: "target"))],
+                [.testableTarget(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environmentVariables: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
@@ -80,6 +87,13 @@ final class SchemeTests: XCTestCase {
                 arguments: Arguments(
                     environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
+                ),
+                options: RunActionOptions(
+                    language: "en",
+                    region: "US",
+                    storeKitConfigurationPath: nil,
+                    simulatedLocation: nil,
+                    enableGPUFrameCaptureMode: .autoEnabled
                 )
             )
         )
@@ -87,13 +101,15 @@ final class SchemeTests: XCTestCase {
         // Then
         XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
         XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
+        XCTAssertEqual(subject.runAction?.options.language, "en")
+        XCTAssertEqual(subject.runAction?.options.region, "US")
     }
 
     // MARK: - Helpers
 
     private func mockExecutionAction(_ actionName: String) -> [ExecutionAction] {
         [
-            ExecutionAction(
+            .executionAction(
                 title: "Run Script",
                 scriptText: "echo \(actionName)",
                 target: TargetReference(

@@ -8,6 +8,8 @@ import TuistSupport
 /// This is used to render markdown inside the workspace.
 final class TuistWorkspaceRenderMarkdownReadmeMapper: WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        logger.debug("Transforming workspace \(workspace.workspace.name): Including .xcodesample.plist")
+
         let tuistGeneratedFileDescriptor = FileDescriptor(
             path: workspace
                 .workspace

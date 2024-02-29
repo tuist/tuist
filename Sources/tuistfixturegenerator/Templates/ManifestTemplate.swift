@@ -27,9 +27,9 @@ class ManifestTemplate {
     """
 
     private let targetTemplate = """
-            Target(
+            .target(
                 name: "{TargetName}",
-                platform: .iOS,
+                destinations: .iOS,
                 product: .framework,
                 bundleId: "io.tuist.{TargetName}",
                 infoPlist: .default,

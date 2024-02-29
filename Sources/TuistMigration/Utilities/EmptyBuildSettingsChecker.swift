@@ -57,8 +57,8 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
         let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
-            config.buildSettings.forEach { key, _ in
-                logger.info("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
+            for (key, _) in config.buildSettings {
+                logger.notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
             }
             return config.name
         }

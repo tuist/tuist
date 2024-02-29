@@ -7,7 +7,6 @@ import TuistGenerator
 import TuistGraph
 import TuistLoader
 import TuistPlugin
-import TuistSigning
 import TuistSupport
 
 public protocol Generating {
@@ -24,7 +23,6 @@ public class Generator: Generating {
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
-    private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let configLoader: ConfigLoading
     private let manifestGraphLoader: ManifestGraphLoading
@@ -82,7 +80,11 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
+        logger.notice("Loading and constructing the graph", metadata: .section)
+        logger.notice("It might take a while if the cache is empty")
+
         let (graph, sideEffectDescriptors, issues) = try await manifestGraphLoader.load(path: path)
+
         lintingIssues.append(contentsOf: issues)
         return (graph, sideEffectDescriptors)
     }
@@ -102,7 +104,6 @@ public class Generator: Generating {
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
-        lintingIssues.append(contentsOf: try signingInteractor.install(graphTraverser: graphTraverser))
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,
             workspaceName: workspaceName,

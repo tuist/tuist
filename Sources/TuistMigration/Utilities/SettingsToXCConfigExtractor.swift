@@ -50,7 +50,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
-            logger.info("The list of configurations is empty. Exiting...")
+            logger.notice("The list of configurations is empty. Exiting...")
             return
         }
 
@@ -71,13 +71,13 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         var buildSettingsLines: [String] = []
 
         // Common build settings
-        commonBuildSettings.forEach { setting in
+        for setting in commonBuildSettings {
             let value = buildConfigurations.first!.buildSettings[setting]!
             commonBuildSettingsLines.append("\(setting)=\(flattenedValue(from: value))")
         }
 
         // Per-configuration build settings
-        buildConfigurations.forEach { configuration in
+        for configuration in buildConfigurations {
             configuration.buildSettings.forEach { key, value in
                 if commonBuildSettings.contains(key) { return }
                 buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(flattenedValue(from: value))")
@@ -92,7 +92,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
-        logger.info("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
+        logger.notice("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {

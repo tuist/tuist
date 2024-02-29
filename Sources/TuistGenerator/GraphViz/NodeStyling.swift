@@ -64,6 +64,8 @@ extension GraphDependency {
         graphTraverser: GraphTraversing
     ) -> NodeStyleAttributes? {
         switch self {
+        case .macro:
+            return .init(fillColorName: .gray, shape: .diamond)
         case .sdk:
             return .init(fillColorName: .violet, shape: .rectangle)
         case .framework:

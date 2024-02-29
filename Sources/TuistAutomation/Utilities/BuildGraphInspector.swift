@@ -72,9 +72,16 @@ public final class BuildGraphInspector: BuildGraphInspecting {
     ) -> [XcodeBuildArgument] {
         var arguments = [XcodeBuildArgument]()
 
+        let configurations: [BuildConfiguration: Configuration?]
+        if let targetConfigurations = target.settings?.configurations, !targetConfigurations.isEmpty {
+            configurations = targetConfigurations
+        } else {
+            configurations = project.settings.configurations
+        }
+
         // Configuration
         if let configuration {
-            if (target.settings ?? project.settings)?.configurations.first(where: { $0.key.name == configuration }) != nil {
+            if configurations.contains(where: { $0.key.name == configuration }) {
                 arguments.append(.configuration(configuration))
             } else {
                 logger

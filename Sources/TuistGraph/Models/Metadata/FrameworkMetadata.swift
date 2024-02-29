@@ -9,7 +9,6 @@ public struct FrameworkMetadata: Equatable {
     public var bcsymbolmapPaths: [AbsolutePath]
     public var linking: BinaryLinking
     public var architectures: [BinaryArchitecture]
-    public var isCarthage: Bool
     public var status: FrameworkStatus
 
     public init(
@@ -19,7 +18,6 @@ public struct FrameworkMetadata: Equatable {
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        isCarthage: Bool,
         status: FrameworkStatus
     ) {
         self.path = path
@@ -28,7 +26,6 @@ public struct FrameworkMetadata: Equatable {
         self.bcsymbolmapPaths = bcsymbolmapPaths
         self.linking = linking
         self.architectures = architectures
-        self.isCarthage = isCarthage
         self.status = status
     }
 }

@@ -2,13 +2,13 @@ import Foundation
 import TSCBasic
 
 /// It represents th Info.plist contained in an .xcframework bundle.
-public struct XCFrameworkInfoPlist: Codable, Equatable {
+public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case libraries = "AvailableLibraries"
     }
 
     /// It represents a library inside an .xcframework
-    public struct Library: Codable, Equatable {
+    public struct Library: Codable, Hashable, Equatable {
         private enum CodingKeys: String, CodingKey {
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
@@ -17,7 +17,7 @@ public struct XCFrameworkInfoPlist: Codable, Equatable {
         }
 
         /// It represents the library's platform.
-        public enum Platform: String, Codable {
+        public enum Platform: String, Hashable, Codable {
             case ios
         }
 

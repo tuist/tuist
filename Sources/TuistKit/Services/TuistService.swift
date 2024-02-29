@@ -40,10 +40,20 @@ final class TuistService: NSObject {
         }
 
         let config = try configLoader.loadConfig(path: path)
-        let pluginExecutables = try pluginService.remotePluginPaths(using: config)
+
+        var pluginPaths = try pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)
+
+        if let pluginPath: String = ProcessInfo.processInfo.environment["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {
+            let absolutePath = try AbsolutePath(validating: pluginPath)
+            logger.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
+            pluginPaths.append(absolutePath)
+        }
+
+        let pluginExecutables = try pluginPaths
             .flatMap(FileHandler.shared.contentsOfDirectory)
             .filter { $0.basename.hasPrefix("tuist-") }
+
         if let pluginCommand = pluginExecutables.first(where: { $0.basename == commandName }) {
             arguments[0] = pluginCommand.pathString
         } else if System.shared.commandExists(commandName) {
@@ -57,9 +67,6 @@ final class TuistService: NSObject {
             verbose: Environment.shared.isVerbose,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
-                Constants.EnvironmentVariables.forceConfigCacheDirectory: Environment.shared.tuistConfigVariables[
-                    Constants.EnvironmentVariables.forceConfigCacheDirectory
-                ] ?? "",
             ].merging(System.shared.env) { tuistEnv, _ in tuistEnv }
         )
     }

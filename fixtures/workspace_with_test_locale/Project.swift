@@ -13,7 +13,7 @@ let project = Project(
     targets: [
         .init(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app"
         ),

@@ -26,10 +26,10 @@ class Generator {
             projects: projects
         )
 
-        try projects.forEach {
+        for project in projects {
             try initProject(
                 at: rootPath,
-                name: $0
+                name: project
             )
         }
     }
@@ -61,8 +61,8 @@ class Generator {
         try fileSystem.createDirectory(projectPath)
         try initProjectManifest(at: projectPath, name: name, targets: targets)
 
-        try targets.forEach {
-            try initTarget(at: projectPath, name: $0)
+        for target in targets {
+            try initTarget(at: projectPath, name: target)
         }
     }
 
@@ -94,9 +94,9 @@ class Generator {
         let sourcesPath = path.appending(component: "Sources")
 
         try fileSystem.createDirectory(sourcesPath)
-        try (1 ... config.sources).forEach {
-            let sourceName = "Source\($0).swift"
-            let source = sourceTemplate.generate(frameworkName: targetName, number: $0)
+        for item in 1 ... config.sources {
+            let sourceName = "Source\(item).swift"
+            let source = sourceTemplate.generate(frameworkName: targetName, number: item)
             try fileSystem.writeFileContents(
                 sourcesPath.appending(component: sourceName),
                 bytes: ByteString(encodingAsUTF8: source)

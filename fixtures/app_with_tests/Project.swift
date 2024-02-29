@@ -4,18 +4,18 @@ let project = Project(
     name: "App",
     organizationName: "tuist.io",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: [.iPhone],
             product: .app,
             bundleId: "io.tuist.app",
-            deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
+            deploymentTargets: .iOS("13.0"),
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: .default,
@@ -24,17 +24,17 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "tvOSFramework",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .framework,
             bundleId: "io.tuist.tvOSFramework",
             infoPlist: .default,
             sources: "Targets/tvOSFramework/Sources/**"
         ),
-        Target(
+        .target(
             name: "tvOSFrameworkTests",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .unitTests,
             bundleId: "io.tuist.tvOSFrameworkTests",
             infoPlist: .default,
@@ -43,12 +43,12 @@ let project = Project(
                 .target(name: "tvOSFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
             settings: .settings(
@@ -58,12 +58,12 @@ let project = Project(
                 ]
             )
         ),
-        Target(
+        .target(
             name: "MacFrameworkTests",
-            platform: .macOS,
+            destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [

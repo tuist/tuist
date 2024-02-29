@@ -1,44 +1,57 @@
 import Alamofire
+import AppCenter
+import AppCenterAnalytics
+import AppCenterCrashes
+import CocoaLumberjackSwift
 import ComposableArchitecture
-import FBSDKCoreKit
-import FirebaseAnalytics
-import FirebaseCore
-import FirebaseCrashlytics
-import FirebaseDatabase
-import FirebaseFirestore
-import GRDB
-import IterableSDK
-import Stripe
-import TYStatusBarView
+import CrashReporter
+import GoogleSignIn
+import libzstd
+import NYTPhotoViewer
+import Realm
+import RealmSwift
+import Sentry
+import SVProgressHUD
+import Yams
+import ZipArchive
 
 public enum AppKit {
     public static func start() {
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
 
-        // Use Facebook to make sure it links fine
-        Settings.shared.isAdvertiserTrackingEnabled = true
+        // Use ComposableArchitecture to make sure it links fine
+        _ = EmptyReducer<Never, Never>()
 
-        // Use FirebaseAnalytics to make sure it links fine
-        Analytics.logEvent("Event", parameters: [:])
+        // Use ZipArchive
+        _ = SSZipArchive.createZipFile(atPath: #file + "/ss.zip", withFilesAtPaths: [])
 
-        // Use FirebaseDatabase to make sure it links fine
-        Database.database(app: FirebaseApp.app()!).reference().setValue("value")
+        // Use Yams
+        _ = YAMLEncoder()
 
-        // Use FirebaseCrashlytics to make sure it links fine
-        _ = Crashlytics.crashlytics()
+        // Use GoogleSignIn
+        _ = GIDSignIn.sharedInstance.hasPreviousSignIn()
 
-        // Use FirebaseFirestore to make sure it links fine
-        _ = Firestore.firestore()
+        // Use Sentry
+        SentrySDK.startSession()
 
-        // Use Stripe to make sure it links fine
-        _ = STPAPIClient.shared
+        // Use CocoaLumberjack
+        _ = DDOSLogger.sharedInstance
 
-        // Use IterableSDK to make sure it links fine
-        _ = IterableSDK.IterableAPI.sdkVersion
+        // Use Realm
+        _ = Realm.Configuration()
 
-        // Use GRDB to make sure it links fine
-        try? DatabasePool(path: NSTemporaryDirectory().appending("db.sqlite")).erase()
+        // Use AppCenter
+        AppCenter.start(withAppSecret: "{Your App Secret}", services: [Analytics.self, Crashes.self])
+
+        // Use libzstd
+        _ = ZDICT_isError(0)
+
+        // Use NYTPhotoViewer
+        _ = NYTPhotosOverlayView()
+
+        // Use SVProgressHUD
+        SVProgressHUD.show()
     }
 }
 

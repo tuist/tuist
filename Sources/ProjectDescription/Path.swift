@@ -16,7 +16,7 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public var callerPath: String?
 
     /// Default PathType is `.relativeToManifest`
-    public init(_ path: String) {
+    public static func path(_ path: String) -> Self {
         self.init(path, type: .relativeToManifest)
     }
 

@@ -31,15 +31,9 @@ extension TuistGraph.Config {
             cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
 
-        var cache: TuistGraph.Cache?
-        if let manifestCache = manifest.cache {
-            cache = try TuistGraph.Cache.from(manifest: manifestCache, generatorPaths: generatorPaths)
-        }
-
         return TuistGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
             cloud: cloud,
-            cache: cache,
             swiftVersion: swiftVersion,
             plugins: plugins,
             generationOptions: generationOptions,

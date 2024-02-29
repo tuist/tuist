@@ -37,24 +37,23 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        targetsAndDependencies.forEach { target, targetDependencies in
+        for (target, targetDependencies) in targetsAndDependencies {
             var leftNode = GraphViz.Node(target.target.name)
 
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
-            targetDependencies
-                .forEach { dependency in
-                    var rightNode = GraphViz.Node(dependency.name)
-                    rightNode.applyAttributes(
-                        attributes: dependency.styleAttributes(
-                            graphTraverser: graphTraverser
-                        )
+            for dependency in targetDependencies {
+                var rightNode = GraphViz.Node(dependency.name)
+                rightNode.applyAttributes(
+                    attributes: dependency.styleAttributes(
+                        graphTraverser: graphTraverser
                     )
-                    nodes.append(rightNode)
-                    let edge = GraphViz.Edge(from: leftNode, to: rightNode)
-                    dependencies.append(edge)
-                }
+                )
+                nodes.append(rightNode)
+                let edge = GraphViz.Edge(from: leftNode, to: rightNode)
+                dependencies.append(edge)
+            }
         }
 
         let sortedNodes = Set(nodes).sorted { $0.id < $1.id }
@@ -77,19 +76,11 @@ extension GraphDependency {
             bcsymbolmapPaths: _,
             linking: _,
             architectures: _,
-            isCarthage: _,
             status: _
         ):
             return path.basenameWithoutExt
-        case let .xcframework(
-            path: path,
-            infoPlist: _,
-            primaryBinaryPath: _,
-            linking: _,
-            mergeable: _,
-            status: _
-        ):
-            return path.basenameWithoutExt
+        case let .xcframework(xcframework):
+            return xcframework.path.basenameWithoutExt
         case let .library(
             path: path,
             publicHeaders: _,
@@ -109,6 +100,8 @@ extension GraphDependency {
             source: _
         ):
             return String(name.split(separator: ".").first ?? "")
+        case let .macro(path):
+            return path.basename
         }
     }
 }

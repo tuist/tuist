@@ -203,7 +203,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
-        try Product.allCases.filter(\.testsBundle).forEach { product in
+        for product in Product.allCases.filter(\.testsBundle) {
             // Given
 
             var dependencies: Set<GraphDependencyReference> = []
@@ -975,9 +975,8 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
         // Given
-        let projectSettings = Settings.default
         let app = Target.test(name: "app", platform: .iOS, product: .app)
-        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
         let project = Project.test(targets: [app, macroFramework, macroExecutable])
 
@@ -1015,17 +1014,21 @@ final class LinkGeneratorTests: XCTestCase {
             .pbxTarget
             .buildPhases
             .compactMap { $0 as? PBXShellScriptBuildPhase }
-            .first(where: { $0.name() == "Copy Swift Macro executable into /Macros" })
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
         XCTAssertNotNil(buildPhase)
 
         let expectedScript =
-            "cp \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" \"$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)\""
+            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
         XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
-        XCTAssertTrue(buildPhase?.inputPaths.contains("$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)") == true)
+        XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertTrue(
             buildPhase?.outputPaths
-                .contains("$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)") == true
+                .contains("$BUILD_DIR/Debug-iphonesimulator/\(macroExecutable.productName)") == true
+        )
+        XCTAssertTrue(
+            buildPhase?.outputPaths
+                .contains("$BUILD_DIR/Debug-iphoneos/\(macroExecutable.productName)") == true
         )
     }
 
@@ -1059,8 +1062,8 @@ final class LinkGeneratorTests: XCTestCase {
 
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
         let projectFileElements = ProjectFileElements()
-        targets.forEach {
-            projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
+        for target in targets {
+            projectFileElements.products[target.name] = PBXFileReference(path: target.productNameWithExtension)
         }
 
         return projectFileElements
@@ -1071,11 +1074,11 @@ final class LinkGeneratorTests: XCTestCase {
         projectPath: AbsolutePath
     ) -> ProjectFileElements {
         let projectFileElements = ProjectFileElements()
-        dependencies.forEach { dependency in
+        for dependency in dependencies {
             switch dependency {
-            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, linking: _, mergeable: _, _):
-                projectFileElements.elements[path] = PBXFileReference(
-                    path: path.relative(to: projectPath).pathString
+            case let .xcframework(xcframework):
+                projectFileElements.elements[xcframework.path] = PBXFileReference(
+                    path: xcframework.path.relative(to: projectPath).pathString
                 )
             default:
                 fatalError("Scenarios not handled in this test stub")

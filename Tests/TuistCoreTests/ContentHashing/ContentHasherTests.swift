@@ -118,8 +118,8 @@ final class ContentHasherTests: TuistUnitTestCase {
     }
 
     private func writeFiles(to folder: AbsolutePath, files: [String: String]) throws {
-        try files.forEach {
-            try mockFileHandler.write($0.value, path: folder.appending(component: $0.key), atomically: true)
+        for file in files {
+            try mockFileHandler.write(file.value, path: folder.appending(component: file.key), atomically: true)
         }
     }
 }

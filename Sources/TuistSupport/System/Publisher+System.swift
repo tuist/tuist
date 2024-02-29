@@ -16,7 +16,7 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
             case let .standardError(error):
                 logger.error("\(error)")
             case let .standardOutput(output):
-                logger.info("\(output)")
+                logger.notice("\(output)")
             }
         })
         .eraseToAnyPublisher()

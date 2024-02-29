@@ -70,7 +70,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 primaryBinaryPath: binaryPath,
                 linking: linking,
                 mergeable: false,
-                status: .required
+                status: .required,
+                macroPath: nil
             )
         }
 
@@ -81,12 +82,15 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             .xcframework(
-                path: xcframeworkPath,
-                infoPlist: infoPlist,
-                primaryBinaryPath: binaryPath,
-                linking: linking,
-                mergeable: false,
-                status: .required
+                GraphDependency.XCFramework(
+                    path: xcframeworkPath,
+                    infoPlist: infoPlist,
+                    primaryBinaryPath: binaryPath,
+                    linking: linking,
+                    mergeable: false,
+                    status: .required,
+                    macroPath: nil
+                )
             )
         )
     }

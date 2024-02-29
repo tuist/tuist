@@ -62,6 +62,7 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath?
+    func files(in path: AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<AbsolutePath>
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
@@ -158,27 +159,22 @@ public class FileHandler: FileHandling {
 
     public func exists(_ path: AbsolutePath) -> Bool {
         let exists = fileManager.fileExists(atPath: path.pathString)
-        logger.debug("Checking if \(path) exists... \(exists)")
         return exists
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
-        logger.debug("Copying file from \(from) to \(to)")
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func move(from: AbsolutePath, to: AbsolutePath) throws {
-        logger.debug("Moving file from \(from) to \(to)")
         try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func readFile(_ at: AbsolutePath) throws -> Data {
-        logger.debug("Reading contents of file at path \(at)")
         return try Data(contentsOf: at.url)
     }
 
     public func readTextFile(_ at: AbsolutePath) throws -> String {
-        logger.debug("Reading contents of text file at path \(at)")
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
             return content
@@ -188,7 +184,6 @@ public class FileHandler: FileHandling {
     }
 
     public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
-        logger.debug("Reading contents of plist file at path \(at)")
         guard let data = fileManager.contents(atPath: at.pathString) else {
             throw FileHandlerError.fileNotFound(at)
         }
@@ -196,19 +191,16 @@ public class FileHandler: FileHandling {
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
-        logger.debug("Creating a link from \(atPath) to \(toPath)")
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
     public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
-        logger.debug("Writing contents to file \(path) atomically \(atomically)")
         do {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
     }
 
     public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath? {
-        logger.debug("Traversing \(from) to locate \(path)")
         let extendedPath = from.appending(try RelativePath(validating: path))
         if exists(extendedPath) {
             return extendedPath
@@ -217,6 +209,46 @@ public class FileHandler: FileHandling {
         } else {
             return nil
         }
+    }
+
+    public func files(
+        in path: AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<AbsolutePath> {
+        var results = Set<AbsolutePath>()
+
+        let enumerator = fileManager.enumerator(
+            at: path.url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
+
+        func filter(candidateURL: URL) -> Bool {
+            if let extensionFilter {
+                guard extensionFilter.contains(candidateURL.pathExtension) else {
+                    return false
+                }
+            }
+            if let nameFilter {
+                guard nameFilter.contains(candidateURL.lastPathComponent) else {
+                    return false
+                }
+            }
+            return true
+        }
+
+        while let candidateURL = enumerator?.nextObject() as? Foundation.URL {
+            guard filter(candidateURL: candidateURL) else {
+                continue
+            }
+            // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
+            let url = candidateURL.resolvingSymlinksInPath()
+            let absolutePath = AbsolutePath(stringLiteral: url.path)
+            results.insert(absolutePath)
+        }
+
+        return results
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
@@ -228,7 +260,6 @@ public class FileHandler: FileHandling {
     }
 
     public func createFolder(_ path: AbsolutePath) throws {
-        logger.debug("Creating folder at path \(path)")
         try fileManager.createDirectory(
             at: path.url,
             withIntermediateDirectories: true,
@@ -237,14 +268,12 @@ public class FileHandler: FileHandling {
     }
 
     public func delete(_ path: AbsolutePath) throws {
-        logger.debug("Deleting item at path \(path)")
         if exists(path) {
             try fileManager.removeItem(atPath: path.pathString)
         }
     }
 
     public func touch(_ path: AbsolutePath) throws {
-        logger.debug("Touching \(path)")
         try fileManager.createDirectory(
             at: path.removingLastComponent().url,
             withIntermediateDirectories: true,
@@ -260,8 +289,6 @@ public class FileHandler: FileHandling {
     }
 
     public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
-        logger.debug("Traversing \(from) to locate \(path)")
-
         let configPath = from.appending(component: path)
 
         let root = try! AbsolutePath(validating: "/") // swiftlint:disable:this force_try

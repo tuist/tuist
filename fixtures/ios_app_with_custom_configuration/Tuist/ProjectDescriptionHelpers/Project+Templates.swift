@@ -62,12 +62,12 @@ extension Target {
         dependencies: [TargetDependency],
         resources: ResourceFileElements? = nil
     ) -> Target {
-        Target(
+        .target(
             name: name,
-            platform: .iOS,
+            destinations: [.iPhone],
             product: product,
             bundleId: "tuist.io.\(name)",
-            deploymentTarget: .deploymentTarget,
+            deploymentTargets: .iOS("11.0"),
             infoPlist: .default,
             sources: ["Sources/**"],
             resources: resources,
@@ -78,23 +78,14 @@ extension Target {
     public static func test(
         name: String
     ) -> Target {
-        Target(
+        .target(
             name: "\(name)Tests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "tuist.io..\(name)Tests",
             infoPlist: .default,
             sources: ["Tests/**"],
             dependencies: [.target(name: "\(name)")]
-        )
-    }
-}
-
-extension DeploymentTarget {
-    static var deploymentTarget: DeploymentTarget {
-        .iOS(
-            targetVersion: "11.0",
-            devices: [.iphone]
         )
     }
 }
@@ -105,16 +96,14 @@ extension Scheme {
         mainTargetName: String,
         testTargetName: String
     ) -> Scheme {
-        let main = TargetReference(
-            projectPath: nil,
-            target: mainTargetName
+        let main: TargetReference = .target(
+            mainTargetName
         )
-        let test = TargetReference(
-            projectPath: nil,
-            target: testTargetName
+        let test: TargetReference = .target(
+            testTargetName
         )
 
-        return Scheme(
+        return .scheme(
             name: name,
             shared: true,
             buildAction: .buildAction(targets: [
@@ -122,7 +111,7 @@ extension Scheme {
             ]),
             testAction: .targets(
                 [
-                    TestableTarget(target: test),
+                    .testableTarget(target: test),
                 ],
                 configuration: "debug"
             ),

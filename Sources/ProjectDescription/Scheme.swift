@@ -35,7 +35,7 @@ public struct Scheme: Equatable, Codable {
     ///   - archiveAction: Action that runs the project archive.
     ///   - profileAction: Action that profiles the project.
     ///   - analyzeAction: Action that analyze the project.
-    public init(
+    public static func scheme(
         name: String,
         shared: Bool = true,
         hidden: Bool = false,
@@ -45,15 +45,17 @@ public struct Scheme: Equatable, Codable {
         archiveAction: ArchiveAction? = nil,
         profileAction: ProfileAction? = nil,
         analyzeAction: AnalyzeAction? = nil
-    ) {
-        self.name = name
-        self.shared = shared
-        self.hidden = hidden
-        self.buildAction = buildAction
-        self.testAction = testAction
-        self.runAction = runAction
-        self.archiveAction = archiveAction
-        self.profileAction = profileAction
-        self.analyzeAction = analyzeAction
+    ) -> Self {
+        self.init(
+            name: name,
+            shared: shared,
+            hidden: hidden,
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: runAction,
+            archiveAction: archiveAction,
+            profileAction: profileAction,
+            analyzeAction: analyzeAction
+        )
     }
 }

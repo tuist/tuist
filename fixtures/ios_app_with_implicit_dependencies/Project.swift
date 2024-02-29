@@ -4,7 +4,7 @@ let project = Project(
     name: "App",
     organizationName: "tuist.io",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -15,21 +15,21 @@ let project = Project(
                 .target(name: "FrameworkB"),
             ]
         ),
-        Target(
+        .target(
             name: "FrameworkA",
             destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.FrameworkA",
             sources: ["Targets/FrameworkA/Sources/**"]
         ),
-        Target(
+        .target(
             name: "FrameworkB",
             destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.FrameworkB",
             sources: ["Targets/FrameworkB/Sources/**"]
         ),
-        Target(
+        .target(
             name: "FrameworkC",
             destinations: .iOS,
             product: .framework,

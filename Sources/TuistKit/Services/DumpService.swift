@@ -37,10 +37,10 @@ final class DumpService {
             encoded = try manifestLoader.loadConfig(at: projectPath.appending(component: Constants.tuistDirectoryName))
         case .template:
             encoded = try manifestLoader.loadTemplate(at: projectPath)
-        case .dependencies:
-            encoded = try manifestLoader.loadDependencies(at: projectPath)
         case .plugin:
             encoded = try manifestLoader.loadPlugin(at: projectPath)
+        case .package:
+            encoded = try manifestLoader.loadPackageSettings(at: projectPath)
         }
 
         let json: JSON = try encoded.toJSON()
@@ -53,6 +53,6 @@ enum DumpableManifest: String, CaseIterable {
     case workspace
     case config
     case template
-    case dependencies
     case plugin
+    case package
 }

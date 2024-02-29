@@ -70,7 +70,7 @@ public final class CredentialsStore: CredentialsStoring {
 
     public func delete(serverURL: URL) throws {
         let keychain = keychain(serverURL: serverURL)
-        try keychain.allKeys().forEach { account in
+        for account in keychain.allKeys() {
             try keychain.remove(account)
         }
     }

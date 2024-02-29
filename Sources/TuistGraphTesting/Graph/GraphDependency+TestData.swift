@@ -13,7 +13,6 @@ extension GraphDependency {
         bcsymbolmapPaths: [AbsolutePath] = [],
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.armv7],
-        isCarthage: Bool = false,
         status: FrameworkStatus = .required
     ) -> GraphDependency {
         GraphDependency.framework(
@@ -23,9 +22,14 @@ extension GraphDependency {
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage,
             status: status
         )
+    }
+
+    public static func testMacro(
+        path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "macro"))
+    ) -> GraphDependency {
+        .macro(path: path)
     }
 
     public static func testXCFramework(
@@ -34,15 +38,19 @@ extension GraphDependency {
         primaryBinaryPath: AbsolutePath = AbsolutePath.root
             .appending(try! RelativePath(validating: "Test.xcframework/Test")),
         linking: BinaryLinking = .dynamic,
-        status: FrameworkStatus = .required
+        status: FrameworkStatus = .required,
+        macroPath: AbsolutePath? = nil
     ) -> GraphDependency {
         .xcframework(
-            path: path,
-            infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
-            linking: linking,
-            mergeable: false,
-            status: status
+            GraphDependency.XCFramework(
+                path: path,
+                infoPlist: infoPlist,
+                primaryBinaryPath: primaryBinaryPath,
+                linking: linking,
+                mergeable: false,
+                status: status,
+                macroPath: macroPath
+            )
         )
     }
 
@@ -84,6 +92,10 @@ extension GraphDependency {
             architectures: architectures,
             swiftModuleMap: swiftModuleMap
         )
+    }
+
+    public static func testBundle(path: AbsolutePath = .root.appending(component: "test.bundle")) -> GraphDependency {
+        .bundle(path: path)
     }
 
     public static func testPackageProduct(

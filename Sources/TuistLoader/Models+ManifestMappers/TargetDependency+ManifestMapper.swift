@@ -66,9 +66,6 @@ extension TuistGraph.TargetDependency {
             case .plugin:
                 return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
             }
-        case let .packagePlugin(product, condition):
-            logger.warning(".packagePlugin is deprecated. Use .package(product:, type: .plugin) instead.")
-            return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
         case let .sdk(name, type, status, condition):
             return [
                 .sdk(

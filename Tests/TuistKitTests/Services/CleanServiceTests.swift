@@ -1,6 +1,8 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
@@ -9,104 +11,101 @@ import XCTest
 
 final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!
+    private var rootDirectoryLocator: MockRootDirectoryLocator!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var manifestFilesLocator: MockManifestFilesLocator!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
-        let mockCacheDirectoriesProvider = try! MockCacheDirectoriesProvider()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        rootDirectoryLocator = MockRootDirectoryLocator()
+        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        manifestFilesLocator = MockManifestFilesLocator()
 
         subject = CleanService(
-            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
+            fileHandler: FileHandler.shared,
+            rootDirectoryLocator: rootDirectoryLocator,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            manifestFilesLocator: manifestFilesLocator
         )
     }
 
     override func tearDown() {
+        rootDirectoryLocator = nil
+        cacheDirectoriesProvider = nil
+        manifestFilesLocator = nil
         subject = nil
         super.tearDown()
     }
 
     func test_run_with_category_cleans_category() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache"])
-        let cachePath = cachePaths[0]
-        for path in cachePaths {
-            let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
-            XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
-        }
+        let cachePaths = try createFolders(["tuist/Manifests", "tuist/ProjectDescriptionHelpers"])
+
+        let cachePath = cachePaths[0].parentDirectory.parentDirectory
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
+        rootDirectoryLocator.locateStub = cachePath
 
         // When
-        try subject.run(categories: [.global(.builds), .global(.tests)], path: nil)
+        try subject.run(categories: [TuistCleanCategory.global(.manifests)], path: nil)
 
         // Then
-        let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
-        XCTAssertFalse(buildsExists, "Cache folder at path \(cachePaths[1]) should have been deleted by the test.")
-        let manifestsExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
-        XCTAssertTrue(
-            manifestsExists,
-            "Cache folder at path \(cachePaths[2].pathString) should not have been deleted by the test."
-        )
-        let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
-        XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
+        XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
+        XCTAssertTrue(FileHandler.shared.exists(cachePaths[1]))
+    }
+
+    func test_run_with_dependencies_cleans_dependencies() throws {
+        // Given
+        let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
+
+        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        manifestFilesLocator.locatePackageManifestStub = localPaths[1].parentDirectory
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+
+        // When
+        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+
+        // Then
+        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
+        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
+    }
+
+    func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() throws {
+        // Given
+        let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
+
+        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        manifestFilesLocator.locatePackageManifestStub = localPaths[0].parentDirectory
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+
+        // When
+        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+
+        // Then
+        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
+        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
     }
 
     func test_run_without_category_cleans_all() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache"])
-        let cachePath = cachePaths[0]
-        for path in cachePaths {
-            let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
-            XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
-        }
+        let cachePaths = try createFolders(["tuist/Manifests"])
+        let cachePath = cachePaths[0].parentDirectory.parentDirectory
+
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
+
         let projectPath = try temporaryPath()
-        let dependenciesPath = projectPath.appending(
-            components:
-            Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.name
+        rootDirectoryLocator.locateStub = projectPath
+        manifestFilesLocator.locatePackageManifestStub = projectPath
+            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        let swiftPackageManagerBuildPath = projectPath.appending(
+            components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        let lockfilesPath = projectPath.appending(
-            components:
-            Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.lockfilesDirectoryName
-        )
-        let carthageDependenciesPath = projectPath.appending(
-            components: Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.name,
-            Constants.DependenciesDirectory.carthageDirectoryName
-        )
-        let spmDependenciesPath = projectPath.appending(
-            components: Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.name,
-            Constants.DependenciesDirectory.carthageDirectoryName
-        )
-        try fileHandler.createFolder(dependenciesPath)
-        try fileHandler.createFolder(lockfilesPath)
-        try fileHandler.createFolder(carthageDependenciesPath)
-        try fileHandler.createFolder(spmDependenciesPath)
+        try fileHandler.createFolder(swiftPackageManagerBuildPath)
 
         // When
-        try subject.run(categories: CleanCategory.allCases, path: nil)
+        try subject.run(categories: TuistCleanCategory.allCases, path: nil)
 
         // Then
-        let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
-        XCTAssertFalse(buildsExists, "Cache folder at path \(cachePaths[1]) should have been deleted by the test.")
-        let manifestsExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
-        XCTAssertFalse(manifestsExists, "Cache folder at path \(cachePaths[2].pathString) should have been deleted by the test.")
-        let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
-        XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: lockfilesPath.pathString),
-            "Cache folder at path \(lockfilesPath) should not have been deleted by the test."
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: carthageDependenciesPath.pathString),
-            "Cache folder at path \(carthageDependenciesPath) should have been deleted by the test."
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: spmDependenciesPath.pathString),
-            "Cache folder at path \(spmDependenciesPath) should have been deleted by the test."
-        )
+        XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
+        XCTAssertFalse(FileHandler.shared.exists(swiftPackageManagerBuildPath))
     }
 }

@@ -1,10 +1,10 @@
 import Foundation
 import TuistAutomation
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistLoader
-import TuistSigning
 import TuistSupport
 
 /// The protocol describes an interface for getting project mappers.
@@ -76,9 +76,6 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
-
-        // Signing
-        mappers.append(SigningMapper())
 
         return mappers
     }

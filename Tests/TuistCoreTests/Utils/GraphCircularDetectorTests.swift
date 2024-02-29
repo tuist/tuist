@@ -179,8 +179,8 @@ final class GraphCircularDetectorTests: XCTestCase {
             var nodes = (0 ..< 1000).map { node("\($0)") }.shuffled()
 
             while let node = nodes.popLast() {
-                nodes.forEach {
-                    subject.start(from: $0, to: node)
+                for item in nodes {
+                    subject.start(from: item, to: node)
                 }
             }
 

@@ -75,6 +75,163 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.name, "tuist")
     }
 
+    func test_loadPackage() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            platforms: [.iOS, .watchOS]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            products: [
+                .executable(name: "tuist", targets: ["tuist"]),
+            ],
+            dependencies: [],
+            targets: [
+                .target(
+                    name: "tuist",
+                    dependencies: []
+                ),
+            ]
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackage(at: manifestPath.parentDirectory)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .test(
+                products: [
+                    PackageInfo.Product(name: "tuist", type: .executable, targets: ["tuist"]),
+                ],
+                targets: [
+                    PackageInfo.Target(
+                        name: "tuist",
+                        path: nil,
+                        url: nil,
+                        sources: nil,
+                        resources: [],
+                        exclude: [],
+                        dependencies: [],
+                        publicHeadersPath: nil,
+                        type: .regular,
+                        settings: [],
+                        checksum: nil,
+                        packageAccess: true
+                    ),
+                ]
+            )
+        )
+    }
+
+    func test_loadPackageSettings() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            targetSettings: ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: [
+                .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
+            ]
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackageSettings(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                targetSettings: [
+                    "TargetA": [
+                        "OTHER_LDFLAGS": "-ObjC",
+                    ],
+                ]
+            )
+        )
+    }
+
+    func test_loadPackageSettings_without_package_settings() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackageSettings(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init()
+        )
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -175,7 +332,9 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
-        try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
+        let configPath = temporaryPath.appending(component: "Config.swift")
+        try fileHandler.touch(configPath)
+        let data = try fileHandler.readFile(configPath)
 
         // When
         XCTAssertThrowsError(
@@ -185,6 +344,7 @@ final class ManifestLoaderTests: TuistTestCase {
                 error as? ManifestLoaderError,
                 .manifestLoadingFailed(
                     path: temporaryPath.appending(component: "Config.swift"),
+                    data: data,
                     context: """
                     The encoded data for the manifest is corrupted.
                     The given data was not valid JSON.

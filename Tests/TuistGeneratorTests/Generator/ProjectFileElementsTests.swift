@@ -13,19 +13,22 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     var subject: ProjectFileElements!
     var groups: ProjectGroups!
     var pbxproj: PBXProj!
+    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
+        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
 
-        subject = ProjectFileElements()
+        subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
 
     override func tearDown() {
+        cacheDirectoriesProvider = nil
         pbxproj = nil
         groups = nil
         subject = nil
@@ -247,9 +250,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
@@ -298,9 +301,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
@@ -349,9 +352,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
@@ -792,7 +795,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.compiled.flattenedChildren, [
+        XCTAssertEqual(groups.frameworks.flattenedChildren, [
             "ARKit.framework",
         ])
 
@@ -814,14 +817,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try temporaryPath().appending(component: CacheCategory.builds.directoryName)
-            .appending(component: "Test.framework")
+        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
             path: frameworkPath,
             binaryPath: binaryPath,
-            isCarthage: false,
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
@@ -841,7 +842,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.compiled.flattenedChildren, [
+        XCTAssertEqual(groups.frameworks.flattenedChildren, [
             "Test.framework",
         ])
 

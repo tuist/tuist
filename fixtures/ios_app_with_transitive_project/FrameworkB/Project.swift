@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "FrameworkB",
     targets: [
-        Target(
+        .target(
             name: "FrameworkB-iOS",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             productName: "FrameworkB",
             bundleId: "io.tuist.FrameworkB",
@@ -15,9 +15,9 @@ let project = Project(
                 .project(target: "FrameworkC-iOS", path: "../FrameworkC"),
             ]
         ),
-        Target(
+        .target(
             name: "FrameworkB-macOS",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             productName: "FrameworkB",
             bundleId: "io.tuist.FrameworkB",

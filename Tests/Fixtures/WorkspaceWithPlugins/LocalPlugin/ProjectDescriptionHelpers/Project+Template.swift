@@ -2,9 +2,9 @@ import ProjectDescription
 
 extension Target {
     public static func app(name: String, dependencies: [TargetDependency] = []) -> Target {
-        Target(
+        .target(
             name: name,
-            platform: .iOS,
+            destinations: [.iPhone, .iPad],
             product: .app,
             bundleId: .bundleId(for: name),
             infoPlist: .default,
@@ -15,9 +15,9 @@ extension Target {
     }
 
     public static func framework(name: String, dependencies: [TargetDependency] = []) -> Target {
-        Target(
+        .target(
             name: name,
-            platform: .iOS,
+            destinations: [.iPhone, .iPad],
             product: .framework,
             bundleId: .bundleId(for: name),
             infoPlist: .default,

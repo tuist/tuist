@@ -210,7 +210,7 @@ public class GraphLinter: GraphLinting {
             }
 
             return appClips.flatMap { appClip -> [LintingIssue] in
-                lint(appClip: appClip, parentApp: app)
+                lint(appClip: appClip.graphTarget, parentApp: app)
             }
         }
 
@@ -233,15 +233,16 @@ public class GraphLinter: GraphLinting {
                 .filter { $0.target.product == .watch2App }
 
             return watchApps.flatMap { watchApp -> [LintingIssue] in
-                let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
+                let watchAppTarget = watchApp.graphTarget
+                let watchAppIssues = lint(watchApp: watchAppTarget, parentApp: app)
                 let watchExtensions = graphTraverser.directLocalTargetDependencies(
-                    path: watchApp.path,
-                    name: watchApp.target.name
+                    path: watchAppTarget.path,
+                    name: watchAppTarget.target.name
                 )
                 .filter { $0.target.product == .watch2Extension }
 
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
-                    lint(watchExtension: watchExtension, parentWatchApp: watchApp)
+                    lint(watchExtension: watchExtension.graphTarget, parentWatchApp: watchAppTarget)
                 }
                 return watchAppIssues + watchExtensionIssues
             }

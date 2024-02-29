@@ -1,3 +1,4 @@
+import MockableTest
 import ProjectDescription
 import TSCBasic
 import TuistCore
@@ -21,7 +22,7 @@ final class PluginServiceTests: TuistUnitTestCase {
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
-    private var fileUnarchiver: MockFileUnarchiver!
+    private var fileUnarchiver: MockFileUnarchiving!
     private var fileClient: MockFileClient!
 
     override func setUp() {
@@ -33,10 +34,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
         cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-        cacheDirectoryProviderFactory.cacheDirectoriesStub = { _ in mockCacheDirectoriesProvider }
-        fileUnarchiver = MockFileUnarchiver()
-        let fileArchivingFactory = MockFileArchivingFactory()
-        fileArchivingFactory.stubbedMakeFileUnarchiverResult = fileUnarchiver
+        cacheDirectoryProviderFactory.cacheDirectoriesStub = { mockCacheDirectoriesProvider }
+        fileUnarchiver = MockFileUnarchiving()
+        let fileArchivingFactory = MockFileArchivingFactorying()
+        given(fileArchivingFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)
         fileClient = MockFileClient()
         subject = PluginService(
             manifestLoader: manifestLoader,
@@ -79,11 +80,11 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), directory: "Sub/Subfolder", releaseUrl: nil),
             ]
         )
-        let pluginADirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let pluginADirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginAFingerprint)
-        let pluginBDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let pluginBDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginBFingerprint)
-        let pluginCDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let pluginCDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginCFingerprint)
         try fileHandler.touch(
             pluginBDirectory.appending(components: PluginServiceConstants.release)
@@ -143,13 +144,13 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
             invokedClonePath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
                 .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
         XCTAssertEqual(invokedCheckoutID, pluginGitSha)
         XCTAssertEqual(
             invokedCheckoutPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
                 .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
@@ -184,13 +185,13 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
             invokedClonePath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
                 .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
         XCTAssertEqual(invokedCheckoutID, pluginGitTag)
         XCTAssertEqual(
             invokedCheckoutPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
                 .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
@@ -206,13 +207,13 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         )
 
-        let pluginDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let pluginDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
         let temporaryDirectory = try temporaryPath()
         cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
         try fileHandler.touch(
             pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.DependenciesDirectory.packageSwiftName)
+                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
         )
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)
@@ -255,7 +256,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
 
@@ -321,7 +322,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
@@ -391,7 +392,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+        let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
@@ -428,7 +429,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),

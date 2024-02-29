@@ -16,10 +16,11 @@ open class TuistAcceptanceTestCase: XCTestCase {
     public var xcodeprojPath: AbsolutePath!
     public var workspacePath: AbsolutePath!
     public var fixturePath: AbsolutePath!
-    public var derivedDataPath: AbsolutePath!
+    public var derivedDataPath: AbsolutePath { derivedDataDirectory.path }
     public var environment: MockEnvironment!
     public var sourceRootPath: AbsolutePath!
 
+    private var derivedDataDirectory: TemporaryDirectory!
     private var fixtureTemporaryDirectory: TemporaryDirectory!
 
     override open func setUp() {
@@ -29,7 +30,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
             LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)
         }
 
-        derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
+        derivedDataDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
         fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
 
         sourceRootPath = try! AbsolutePath(
@@ -52,7 +53,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         workspacePath = nil
         fixturePath = nil
         fixtureTemporaryDirectory = nil
-        derivedDataPath = nil
+        derivedDataDirectory = nil
 
         try await super.tearDown()
     }

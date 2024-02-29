@@ -4,7 +4,6 @@ import TuistCore
 import TuistDependencies
 import TuistGenerator
 import TuistGraph
-import TuistSigning
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.
@@ -55,8 +54,8 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
-        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
+        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         if config.generationOptions.enforceExplicitDependencies {
             mappers.append(ExplicitDependencyGraphMapper())
         }

@@ -2,6 +2,40 @@ import Foundation
 import TSCBasic
 
 public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
+    public struct XCFramework: Hashable, CustomStringConvertible, Comparable, Codable {
+        public let path: AbsolutePath
+        public let infoPlist: XCFrameworkInfoPlist
+        public let primaryBinaryPath: AbsolutePath
+        public let linking: BinaryLinking
+        public let mergeable: Bool
+        public let status: FrameworkStatus
+
+        public init(
+            path: AbsolutePath,
+            infoPlist: XCFrameworkInfoPlist,
+            primaryBinaryPath: AbsolutePath,
+            linking: BinaryLinking,
+            mergeable: Bool,
+            status: FrameworkStatus,
+            macroPath _: AbsolutePath?
+        ) {
+            self.path = path
+            self.infoPlist = infoPlist
+            self.primaryBinaryPath = primaryBinaryPath
+            self.linking = linking
+            self.mergeable = mergeable
+            self.status = status
+        }
+
+        public var description: String {
+            "xcframework '\(path.basename)'"
+        }
+
+        public static func < (lhs: GraphDependency.XCFramework, rhs: GraphDependency.XCFramework) -> Bool {
+            lhs.description < rhs.description
+        }
+    }
+
     public enum PackageProductType: String, Hashable, CustomStringConvertible, Comparable, Codable {
         public var description: String {
             rawValue
@@ -16,15 +50,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
-    /// A dependency that represents a pre-compiled .xcframework.
-    case xcframework(
-        path: AbsolutePath,
-        infoPlist: XCFrameworkInfoPlist,
-        primaryBinaryPath: AbsolutePath,
-        linking: BinaryLinking,
-        mergeable: Bool,
-        status: FrameworkStatus
-    )
+    case xcframework(GraphDependency.XCFramework)
 
     /// A dependency that represents a pre-compiled framework.
     case framework(
@@ -34,7 +60,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        isCarthage: Bool,
         status: FrameworkStatus
     )
 
@@ -46,6 +71,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         architectures: [BinaryArchitecture],
         swiftModuleMap: AbsolutePath?
     )
+
+    /// A macOS executable that represents a macro
+    case macro(path: AbsolutePath)
 
     /// A dependency that represents a pre-compiled bundle.
     case bundle(path: AbsolutePath)
@@ -61,10 +89,11 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .xcframework(path, _, _, _, _, _):
-            hasher.combine("xcframework")
+        case let .macro(path):
             hasher.combine(path)
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .xcframework(xcframework):
+            hasher.combine(xcframework)
+        case let .framework(path, _, _, _, _, _, _):
             hasher.combine("framework")
             hasher.combine(path)
         case let .library(path, _, _, _, _):
@@ -93,6 +122,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var isTarget: Bool {
         switch self {
+        case .macro: return false
         case .xcframework: return false
         case .framework: return false
         case .library: return false
@@ -108,8 +138,10 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isStaticPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
+        case .macro: return false
+        case let .xcframework(xcframework):
+            return xcframework.linking == .static
+        case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
         case .packageProduct: return false
@@ -123,8 +155,10 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isDynamicPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
+        case .macro: return false
+        case let .xcframework(xcframework):
+            return xcframework.linking == .dynamic
+        case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
@@ -135,10 +169,52 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var isPrecompiled: Bool {
         switch self {
+        case .macro: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return true
         case .bundle: return true
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        }
+    }
+
+    public var isLinkable: Bool {
+        switch self {
+        case .macro: return false
+        case .xcframework: return true
+        case .framework: return true
+        case .library: return true
+        case .bundle: return false
+        case .packageProduct: return true
+        case .target: return true
+        case .sdk: return true
+        }
+    }
+
+    public var isPrecompiledMacro: Bool {
+        switch self {
+        case .macro: return true
+        case .xcframework: return false
+        case .framework: return false
+        case .library: return false
+        case .bundle: return false
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        }
+    }
+
+    public var isPrecompiledDynamicAndLinkable: Bool {
+        switch self {
+        case .macro: return false
+        case let .xcframework(xcframework):
+            return xcframework.linking == .dynamic
+        case let .framework(_, _, _, _, linking, _, _),
+             let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
+            return linking == .dynamic
+        case .bundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -160,6 +236,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var description: String {
         switch self {
+        case .macro:
+            return "macro '\(name)'"
         case .xcframework:
             return "xcframework '\(name)'"
         case .framework:
@@ -179,9 +257,11 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var name: String {
         switch self {
-        case let .xcframework(path, _, _, _, _, _):
+        case let .macro(path):
             return path.basename
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .xcframework(xcframework):
+            return xcframework.path.basename
+        case let .framework(path, _, _, _, _, _, _):
             return path.basename
         case let .library(path, _, _, _, _):
             return path.basename

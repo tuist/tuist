@@ -4,9 +4,9 @@ let project = Project(
     name: "App",
     options: .options(disableShowEnvironmentVarsInScriptPhases: true),
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: "Info.plist",

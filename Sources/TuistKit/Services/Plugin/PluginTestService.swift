@@ -23,9 +23,9 @@ final class PluginTestService {
                 "--build-tests"
             )
         }
-        testProducts.forEach {
+        for testProduct in testProducts {
             testCommand += [
-                "--test-product", $0,
+                "--test-product", testProduct,
             ]
         }
         try System.shared.runAndPrint(testCommand)

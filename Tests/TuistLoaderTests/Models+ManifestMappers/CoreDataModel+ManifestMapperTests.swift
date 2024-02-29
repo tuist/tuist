@@ -15,7 +15,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
-        let manifest = ProjectDescription.CoreDataModel(
+        let manifest = ProjectDescription.CoreDataModel.coreDataModel(
             "model.xcdatamodeld",
             currentVersion: "1"
         )
@@ -38,12 +38,15 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
         try createVersionFile(xcVersion: xcVersionDataString(), temporaryPath: temporaryPath)
 
-        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
+        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // When
         let model = try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
 
-        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel("model.xcdatamodeld", currentVersion: "83")
+        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel(
+            "model.xcdatamodeld",
+            currentVersion: "83"
+        )
 
         // Then
         XCTAssertTrue(try coreDataModel(
@@ -69,7 +72,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
+        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // Then
         XCTAssertThrowsError(
@@ -83,7 +86,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         // When
-        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
+        let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         XCTAssertEqual(
             try TuistGraph.CoreDataModel.from(

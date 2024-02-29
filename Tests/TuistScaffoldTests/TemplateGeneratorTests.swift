@@ -71,9 +71,9 @@ final class TemplateGeneratorTests: TuistTestCase {
             template: template,
             to: destinationPath,
             attributes: [
-                "name": "Test_Name",
-                "aName": "test",
-                "bName": "nested_dir",
+                "name": .string("Test_Name"),
+                "aName": .string("test"),
+                "bName": .string("nested_dir"),
             ]
         )
 
@@ -111,8 +111,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 
@@ -150,17 +150,17 @@ final class TemplateGeneratorTests: TuistTestCase {
             template: template,
             to: destinationPath,
             attributes: [
-                "name": name,
-                "contentName": contentName,
-                "directoryName": directoryName,
-                "fileName": fileName,
-                "filePath": filePath,
+                "name": .string(name),
+                "contentName": .string(contentName),
+                "directoryName": .string(directoryName),
+                "fileName": .string(fileName),
+                "filePath": .string(filePath),
             ]
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 
@@ -193,12 +193,12 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": name]
+            attributes: ["name": .string(name)]
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 
@@ -221,7 +221,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then
@@ -262,7 +262,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then
@@ -296,7 +296,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then

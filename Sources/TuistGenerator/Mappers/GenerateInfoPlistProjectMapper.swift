@@ -35,6 +35,8 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        logger.debug("Transforming project \(project.name): Synthesizing Info.plist")
+
         let results = try project.targets
             .reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
                 let (updatedTarget, sideEffects) = try map(target: target, project: project)
@@ -68,8 +70,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
             options: 0
         )
 
-        let infoPlistPath = project.path
-            .appending(component: derivedDirectoryName)
+        let infoPlistPath = project.derivedDirectoryPath(for: target)
             .appending(component: infoPlistsDirectoryName)
             .appending(component: "\(target.name)-Info.plist")
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: infoPlistPath, contents: data))

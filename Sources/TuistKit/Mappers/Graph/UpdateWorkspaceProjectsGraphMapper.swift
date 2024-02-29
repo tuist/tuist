@@ -8,6 +8,8 @@ public final class UpdateWorkspaceProjectsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        logger.debug("Transforming graph \(graph.name): Aligning workspace projects with the graph's")
+
         var graph = graph
         let graphProjects = Set(graph.projects.map(\.key))
         let workspaceProjects = Set(graph.workspace.projects).intersection(graphProjects)

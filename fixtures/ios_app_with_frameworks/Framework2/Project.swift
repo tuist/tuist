@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "Framework2",
     targets: [
-        Target(
+        .target(
             name: "Framework2-iOS",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             productName: "Framework2",
             bundleId: "io.tuist.Framework2",
@@ -20,9 +20,9 @@ let project = Project(
                 .project(target: "Framework3", path: "../Framework3"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework2-macOS",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             productName: "Framework2",
             bundleId: "io.tuist.Framework2",
@@ -35,9 +35,9 @@ let project = Project(
             ),
             dependencies: []
         ),
-        Target(
+        .target(
             name: "Framework2Tests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.Framework2Tests",
             infoPlist: "Config/Framework2Tests-Info.plist",

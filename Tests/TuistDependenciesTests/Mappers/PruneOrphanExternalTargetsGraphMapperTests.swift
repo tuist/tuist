@@ -5,7 +5,6 @@ import TuistGraphTesting
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
 final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
@@ -28,11 +27,21 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
         let directPackageProduct = Target.test(name: "DirectPackage", destinations: [.iPhone], product: .app)
         let transitivePackageProduct = Target.test(name: "TransitivePackage", destinations: [.iPhone], product: .app)
+        let transitivePackageProductWithNoDestinations = Target.test(
+            name: "TransitivePackageWithNoDestination",
+            destinations: [],
+            product: .app
+        )
         let packageDevProduct = Target.test(name: "DevPackage", destinations: [.iPhone], product: .app)
         let packageProject = Project.test(
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
-            targets: [directPackageProduct, transitivePackageProduct, packageDevProduct],
+            targets: [
+                directPackageProduct,
+                transitivePackageProduct,
+                transitivePackageProductWithNoDestinations,
+                packageDevProduct,
+            ],
             isExternal: true
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
@@ -40,7 +49,10 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
             name: transitivePackageProduct.name,
             path: packageProject.path
         )
-        let packageDevProductDependency = GraphDependency.target(name: packageDevProduct.name, path: packageProject.path)
+        let transitivePackageProductWithNoDestinationsDependency = GraphDependency.target(
+            name: transitivePackageProductWithNoDestinations.name,
+            path: packageProject.path
+        )
 
         let graph = Graph.test(
             path: project.path,
@@ -50,11 +62,15 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
             ], packageProject.path: [
                 directPackageProduct.name: directPackageProduct,
                 transitivePackageProduct.name: transitivePackageProduct,
+                transitivePackageProductWithNoDestinations.name: transitivePackageProductWithNoDestinations,
                 packageDevProduct.name: packageDevProduct,
             ]],
             dependencies: [
                 appDependency: Set([directPackageProductDependency]),
-                directPackageProductDependency: Set([transitivePackageProductDependency]),
+                directPackageProductDependency: Set([
+                    transitivePackageProductDependency,
+                    transitivePackageProductWithNoDestinationsDependency,
+                ]),
             ]
         )
 
@@ -66,5 +82,6 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         XCTAssertNotNil(gotGraph.targets[packageProject.path]?[directPackageProduct.name])
         XCTAssertNotNil(gotGraph.targets[packageProject.path]?[transitivePackageProduct.name])
         XCTAssertNil(gotGraph.targets[packageProject.path]?[packageDevProduct.name])
+        XCTAssertNil(gotGraph.targets[packageProject.path]?[transitivePackageProductWithNoDestinations.name])
     }
 }

@@ -3,6 +3,7 @@ import TSCBasic
 import TSCUtility
 import TuistAutomation
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 
@@ -65,6 +66,8 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         mappers.append(
             LastUpgradeVersionWorkspaceMapper()
         )
+
+        mappers.append(ExternalDependencyPathWorkspaceMapper())
 
         return mappers
     }

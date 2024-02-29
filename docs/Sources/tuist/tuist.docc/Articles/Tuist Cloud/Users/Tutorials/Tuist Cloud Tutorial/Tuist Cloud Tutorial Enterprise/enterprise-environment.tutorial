@@ -1,0 +1,111 @@
+@Tutorial(time: 15) {
+    @Intro(title: "Environment configuration") {
+        In this chapter you'll learn how to configure Tuist Cloud through environment variables.       
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
+    }
+    
+    @Section(title: "Environment variables") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        After ensuring the system-level requirements are met, it's time to set up the production environment.
+        
+        The configuration of Tuist Cloud is done using **environment variables**, which must be present in the service's operating environment. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist Cloud handles these variables with utmost care, ensuring they are never displayed in logs.
+        
+        > Note: The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+    }
+    
+    @Section(title: "Base configuration") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        Below is a table listing the environment variables essential for the base configuration:
+        
+        | Environment variable | Description | Required | Default | Example |
+        | --- | --- | --- | --- | --- |
+        | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+        | `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
+        | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+        | `TUIST_SECRET_KEY_PASSWORD` | The key to use to encrypt a password when storing it | No | `$TUIST_SECRET_KEY_BASE` | |
+        | `TUIST_SECRET_KEY_TOKENS` | The key to use to encrypt tokens when storing them (e.g. token for a confirmation email) | No | `$TUIST_SECRET_KEY_BASE` | |        
+    }
+    
+    @Section(title: "Authentication") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the Tuist Cloud's operating environment. Missing variables will result in Tuist Cloud bypassing that provider.
+
+        > Note: For integrations with IdPs not currently supported, please reach out to us at [cloud@tuist.io](mailto:cloud@tuist.io).
+        
+        #### GitHub
+        
+        We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the Tuist Cloud environment. Absent variables will cause Tuist Cloud to overlook the GitHub authentication. To properly set up the GitHub app:
+        - In the GitHub app's general settings:
+            - Copy the `Client ID` and set it as `TUIST_GITHUB_OAUTH_ID`
+            - Create and copy a new `client secret` and set it as `TUIST_GITHUB_OAUTH_SECRET`
+            - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
+        - In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
+
+        | Environment variable | Description | Required | Default | Example |
+        | --- | --- | --- | --- | --- |
+        | `TUIST_GITHUB_OAUTH_ID` | The client ID of the application | Yes | | `Iv1.a629723000043722` |
+        | `TUIST_GITHUB_OAUTH_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+        
+        #### Google
+
+        You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to [create a new credential](https://console.cloud.google.com/apis/credentials?project=tuist-cloud-staging) of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it "Tuist Cloud", and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
+
+        > Note: You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+
+        #### Okta
+
+        You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+        
+        - **App integration name:** Tuist Cloud
+        - **Grant type:** Enable "Authorization Code" for "Client acting on behalf of a user"
+        - **Sign-in redirect URL:** `{url}/users/auth/github/callback` where `url` is the public URL your service is accessed through.
+        - **Assignments:** This configuration will depend on your security team requirements.
+
+        If you'd like Tuist Cloud to detect when a user is removed from the application, you'll have to configure an [event hook](https://help.okta.com/en-us/content/topics/automation-hooks/event-hooks-main.htm). In your Okta organization, go to **Workflow > Event Hooks** and create a new event hook with the following data:
+
+        - **Name:**  Notify memberhip removal to Tuist Cloud
+        - **URL:** `{url}/webhooks/okta` where `url` is the public URL your service is accessed through.
+        - **Authentication field:** `Authorization`
+        - **Authentication secret:** A token that Tuist Cloud uses to validate the webhooks.
+        - **Subscribe to events** Include "User unassigned from app"
+        
+        Once the app is created you'll need to set the following environment variables:
+
+        | Environment variable | Description | Required | Default | Example |
+        | --- | --- | --- | --- | --- |
+        | `TUIST_OKTA_SITE` | The URL of your Okta organization | Yes | | `https://your-org.okta.com` |
+        | `TUIST_OKTA_CLIENT_ID` | The client ID to authenticate against Okta | Yes | | |
+        | `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes | | |
+        | `TUIST_OKTA_AUTHORIZE_URL` | The authorize URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/authorize` | |
+        | `TUIST_OKTA_TOKEN_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/token` | |
+        | `TUIST_OKTA_USER_INFO_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/userinfo` | |
+        | `TUIST_OKTA_EVENT_HOOK_SECRET` | A secret to validat event hooks delivered by Okta | No | |
+    }
+    event_hook_secret
+    
+
+    @Section(title: "Storage") {
+        @ContentAndMedia(layout: "horizontal") {}
+                
+        Tuist Cloud needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist Cloud to operate effectively.
+
+        #### S3-Compliant storages
+
+        | Environment variable | Description | Required | Default | Example |
+        | --- | --- | --- | --- | --- |
+        | TUIST_S3_ACCESS_KEY_ID | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
+        | TUIST_S3_SECRET_ACCESS_KEY | The access key secret | Yes | | `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` |
+        | TUIST_S3_BUCKET_NAME | Name of the bucket | Yes | | `my-bucket` |
+        | TUIST_S3_REGION | The bucket's region | No | `eu-west-1` | `us-east-1` |
+        | TUIST_S3_ENDPOINT | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
+
+        For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `TUIST_S3_ACCESS_KEY_ID` and `TUIST_S3_SECRET_ACCESS_KEY` pair. The `TUIST_S3_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+    }
+    
+
+    
+    
+}

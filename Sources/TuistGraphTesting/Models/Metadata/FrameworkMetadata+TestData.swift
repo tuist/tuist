@@ -11,7 +11,6 @@ extension FrameworkMetadata {
         bcsymbolmapPaths: [AbsolutePath] = [],
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.arm64],
-        isCarthage: Bool = false,
         status: FrameworkStatus = .required
     ) -> FrameworkMetadata {
         FrameworkMetadata(
@@ -21,7 +20,6 @@ extension FrameworkMetadata {
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage,
             status: status
         )
     }

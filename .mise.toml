@@ -1,7 +1,7 @@
 [tools]
-tuist = "3.39.0"
+tuist = "4.4.0"
 swiftlint = "0.54.0"
-swiftformat = "0.52.10"
+swiftformat = "0.53.0"
 
 [plugins]
 python = 'https://github.com/asdf-community/asdf-tuist'

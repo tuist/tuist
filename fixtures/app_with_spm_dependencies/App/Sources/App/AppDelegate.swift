@@ -32,7 +32,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.makeKeyAndVisible()
 
         let singleFile = StylesResources.bundle.url(forResource: "jsonFile", withExtension: "json")
-        guard let singleFile else {
+        guard singleFile != nil else {
             fatalError("singleFile is missing")
         }
 

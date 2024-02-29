@@ -29,7 +29,7 @@ enum PluginServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingRemotePlugins(plugins):
-            return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running tuist fetch."
+            return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running 'tuist install'."
         case let .invalidURL(url):
             return "Invalid URL for the plugin's Github repository: \(url)."
         }
@@ -237,10 +237,10 @@ public final class PluginService: PluginServicing {
     private func pluginCacheDirectory(
         url: String,
         gitId: String,
-        config: Config
+        config _: Config
     ) throws -> AbsolutePath {
-        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
-        let cacheDirectory = cacheDirectories.cacheDirectory(for: .plugins)
+        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories()
+        let cacheDirectory = try cacheDirectories.tuistCacheDirectory(for: .plugins)
         let fingerprint = "\(url)-\(gitId)".md5
         return cacheDirectory
             .appending(component: fingerprint)
@@ -271,7 +271,7 @@ public final class PluginService: PluginServicing {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared
-            .exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
+            .exists(pluginRepositoryDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName))
         else { return }
 
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
@@ -308,10 +308,10 @@ public final class PluginService: PluginServicing {
                 try? fileUnarchiver.delete()
             }
             try FileHandler.shared.createFolder(pluginReleaseDirectory)
-            try unarchivedContents.forEach {
+            for unarchivedContent in unarchivedContents {
                 try FileHandler.shared.move(
-                    from: $0,
-                    to: pluginReleaseDirectory.appending(component: $0.basename)
+                    from: unarchivedContent,
+                    to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
                 )
             }
 

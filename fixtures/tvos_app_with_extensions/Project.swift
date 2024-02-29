@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Info.plist",
@@ -14,9 +14,9 @@ let project = Project(
                 .target(name: "TopShelfExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "TopShelfExtension",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .tvTopShelfExtension,
             bundleId: "io.tuist.App.TopShelfExtension",
             infoPlist: .extendingDefault(with: [
@@ -30,9 +30,9 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.App.StaticFramework",
             infoPlist: .default,

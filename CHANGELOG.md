@@ -1,5 +1,439 @@
 # Changelog
 
+## 4.4.0 - 2024-02-28
+
+### Tuist
+
+#### Added
+* Add docs about GCS support by @fortmarek in https://github.com/tuist/tuist/pull/5997
+* Add support for the new `package` access modifier by @pepicrft in https://github.com/tuist/tuist/pull/5983
+
+#### Fixed
+* Fix spm bundle recursion by @fortmarek in https://github.com/tuist/tuist/pull/5999
+* Avoid infinite loop caused by symbolic links  by @haifengkao in https://github.com/tuist/tuist/pull/5813
+* Prune targets with no destinations after platform narrowing by @fortmarek in https://github.com/tuist/tuist/pull/5979
+
+#### Changed
+* Upgrade to xcbeautify 1.6.0 by @cpisciotta in https://github.com/tuist/tuist/pull/5996
+* Update docs for optional Cloud.Option by @fortmarek in https://github.com/tuist/tuist/pull/6002
+* SPM dependencies now implicitly support all platforms by @fortmarek in https://github.com/tuist/tuist/pull/5990
+
+#### Removed
+* Remove version command by @pepicrft in https://github.com/tuist/tuist/pull/5995
+
+### Tuist Cloud
+
+#### Fixed
+
+* Add support for pasting the token to enable Tuist Cloud authentication via Safari by @pepicrft
+
+## 4.3.4 - 2024-02-21
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 4.3.3 - 2024-02-21
+
+### Tuist
+
+#### Added
+
+- Migrate CI pipelines to Codemagic [#5913](https://github.com/tuist/tuist/pull/5913) by [@pepicrft](https://github.com/pepicrft)
+- Support visionOS from the default asset templates to synthesize resources [#5963](https://github.com/tuist/tuist/pull/5963) by [@Ethan-IS](https://github.com/Ethan-IS)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Override existing artifacts in the cache that are invalid by [@pepicrft](https://github.com/pepicrft)
+
+## 4.3.2 - 2024-02-21
+
+### Tuist
+
+#### Changed
+
+- Remove PackageSettings platforms property [#5953](https://github.com/tuist/tuist/pull/5953) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Improve retrying logic when interacting with the remote cache by [@pepicrft](https://github.com/pepicrft)
+
+## 4.3.1 - 2024-02-20
+
+### Tuist
+
+#### Fixed
+
+- Add missing `region` parameter in static helper `RunActionOptions`.`options` [#5954](https://github.com/tuist/tuist/pull/5954) by [@mihaicris-adoreme](https://github.com/mihaicris-adoreme)
+- Fix integration of local packages with Objective C targets [#5957](https://github.com/tuist/tuist/pull/5957) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Changed
+
+- Improve error handling in the remote storage by [@pepicrft](https://github.com/pepicrft)
+- Increase Tuist Cloud requests' timeout limit by [@pepicrft](https://github.com/pepicrft)
+
+## 4.3.0 - 2024-02-19
+
+### Tuist
+
+#### Changed
+
+- Make Tuist/Package.swift a valid location for the SPM manifest [#5947](https://github.com/tuist/tuist/pull/5947) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix integration of AppCenter [#5935](https://github.com/tuist/tuist/pull/5935) by [@fortmarek](https://github.com/fortmarek)
+- Fix integration of SPM dependencies with resources [#5945](https://github.com/tuist/tuist/pull/5945) by [@fortmarek](https://github.com/fortmarek)
+- Fix DEFINES_MODULE warning [#5946](https://github.com/tuist/tuist/pull/5946) by [@fortmarek](https://github.com/fortmarek)
+- Fix failing tuist install when a package is removed [#5948](https://github.com/tuist/tuist/pull/5948) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.2.5 - 2024-02-16
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix storing of artifacts in Tuist Cloud by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.4 - 2024-02-16
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix bug when compressing the artifacts to upload them to Tuist Cloud by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.3 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Changed
+
+- Only show the progress bar when we fetch and store remote artifacts by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Reduce the network concurrency and add automatic retries when interacting with the network by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.2 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix runtime network error due to unlimited connections when persisting cache artifacts by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.1 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix generation with targets absent in the cache by [@pepicrft](https://github.com/pepicrft)
+
+## 4.2.0 - 2024-02-14
+
+### Tuist
+
+#### Changed
+
+- Improve the error when users try to build or test multi-platform targets [#5919](https://github.com/tuist/tuist/pull/5919) by [@pepicrft](https://github.com/pepicrft)
+- Remove Mockable from the list of targets that depend on XCTest [#5923](https://github.com/tuist/tuist/pull/5923) by [@pepicrft](https://github.com/pepicrft)
+- Improve performance by replacing globing with FileManager when finding resource files [#5922](https://github.com/tuist/tuist/pull/5922) by [@anlaital-oura](https://github.com/anlaital-oura)
+- Automatically group local packages to `Packages` group [#5876](https://github.com/tuist/tuist/pull/5876) by [@Lommelun](https://github.com/Lommelun)
+
+#### Fixed
+
+- Fix runtime crash when using Obj-C dependencies [#5929](https://github.com/tuist/tuist/pull/5929) by [@fortmarek](https://github.com/fortmarek)
+- Fix external platform narrowing when there is a dependency platform condition [#5931](https://github.com/tuist/tuist/pull/5931) by [@fortmarek](https://github.com/fortmarek)
+- Fix integration of Objective C dependencies with resources [#5932](https://github.com/tuist/tuist/pull/5932) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Do not skip a whole target if only a suite is passed by [@fortmarek](https://github.com/fortmarek)
+
+## 4.1.2 - 2024-02-13
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 4.1.1 - 2024-02-12
+
+### Tuist
+
+#### Fixed
+
+- Fix caching package manifests [#5914](https://github.com/tuist/tuist/pull/5914) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.1.0 - 2024-02-12
+
+### Tuist
+
+#### Changed
+
+- Improve verbose logging by logging the workspace, project, and workspace transformations [#5905](https://github.com/tuist/tuist/pull/5905) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Support visionOS from the default templates to synthesize resources [#5892](https://github.com/tuist/tuist/pull/5892) by [@PushedCrayon](https://github.com/PushedCrayon)
+
+#### Fixed
+
+- Fix integration of Objective C dependencies [#5887](https://github.com/tuist/tuist/pull/5887) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.0.0-beta.4 - 2024-02-05
+
+### Tuist
+
+#### Changed
+
+- Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
+- Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
+- Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
+- Improve performance of resolving manifest file paths [#5871](https://github.com/tuist/tuist/pull/5871) by [@anlaital-oura](https://github.com/anlaital-oura)
+
+#### Fixed
+
+- Fix running tuist clean without a specific category [#5868](https://github.com/tuist/tuist/pull/5868) by [@fortmarek](https://github.com/fortmarek)
+- Fix tuist clean dependencies [#5872](https://github.com/tuist/tuist/pull/5872) by [@fortmarek](https://github.com/fortmarek)
+- Throw an error when focusing on a non-existent target [#5874](https://github.com/tuist/tuist/pull/5874) by [@fortmarek](https://github.com/fortmarek)
+- Fix error message on missing dependencies [#5875](https://github.com/tuist/tuist/pull/5875) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Changed
+
+- Fix tuist clean, remove --skip-cache by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fixed binary-caching of macOS targets might fail due to missing destinations by [@fortmarek](https://github.com/fortmarek)
+
+## 4.0.0-beta.3 - 2024-02-05
+
+### Tuist
+
+#### Changed
+
+- Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
+- Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
+- Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
+- Improve performance of resolving manifest file paths [#5871](https://github.com/tuist/tuist/pull/5871) by [@anlaital-oura](https://github.com/anlaital-oura)
+
+#### Fixed
+
+- Fix running tuist clean without a specific category [#5868](https://github.com/tuist/tuist/pull/5868) by [@fortmarek](https://github.com/fortmarek)
+- Fix tuist clean dependencies [#5872](https://github.com/tuist/tuist/pull/5872) by [@fortmarek](https://github.com/fortmarek)
+- Throw an error when focusing on a non-existent target [#5874](https://github.com/tuist/tuist/pull/5874) by [@fortmarek](https://github.com/fortmarek)
+- Fix error message on missing dependencies [#5875](https://github.com/tuist/tuist/pull/5875) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Changed
+
+- Fix tuist clean, remove --skip-cache by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fixed binary-caching of macOS targets might fail due to missing destinations by [@fortmarek](https://github.com/fortmarek)
+
+## 4.0.0-beta.2 - 2024-02-01
+
+### Tuist
+
+#### Fixed
+
+- Fix install script [#5858](https://github.com/tuist/tuist/pull/5858) by [@svenmuennich](https://github.com/svenmuennich)
+
+#### Changed
+
+- Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
+- Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
+- Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- no changes
+
+## 4.0.0-beta-1 - 2024-01-31
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Changed
+
+- Add --no-selective-testing flag, rename --no-cache to --no-binary-cache by [@fortmarek](https://github.com/fortmarek)
+
+## 3.42.2 - 2024-01-30
+
+### Tuist
+
+#### Fixed
+
+- Fix parsing of `conditon` on SPM `.product` dependencies [#5846](https://github.com/tuist/tuist/pull/5846) by [@waltflanagan](https://github.com/waltflanagan)
+- Fix missing plugin executable when the macro framework/library is not precompiled but the executable is [#5849](https://github.com/tuist/tuist/pull/5849) by [@pepicrft](https://github.com/pepicrft)
+- Fix Swift Macros unresolved by the Xcode editor [#5851](https://github.com/tuist/tuist/pull/5851) by [@pepicrft](https://github.com/pepicrft)
+- Fix false static side effect positives when the project contains Swift Macros [#5850](https://github.com/tuist/tuist/pull/5850) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.42.1 - 2024-01-26
+
+### Tuist
+
+#### Changed
+
+- Improve editing of PackageSettings in Package.swift [#5837](https://github.com/tuist/tuist/pull/5837) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Not bundle Swift Macros into the parent framework [#5834](https://github.com/tuist/tuist/pull/5834) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- Remove the the warning to nudge users to cache using `--xcframeworks` by [@pepicrft](https://github.com/pepicrft)
+
+## 3.42.0 - 2024-01-24
+
+### Tuist
+
+#### Fixed
+
+- Rename Compiled group to Frameworks [#5826](https://github.com/tuist/tuist/pull/5826) by [@kwridan](https://github.com/kwridan)
+- Use the correct Swift tools version when loading the PackageSettings [#5831](https://github.com/tuist/tuist/pull/5831) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.41.0 - 2024-01-19
+
+### Tuist
+
+#### Added
+
+- Add PackageSettings for Package.swift [#5802](https://github.com/tuist/tuist/pull/5802) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix generation not including macros from XCFrameworks [#5801](https://github.com/tuist/tuist/pull/5801) by [@pepicrft](https://github.com/pepicrft)
+- Fix loading PackageSettings when not specified in Package.swift [#5805](https://github.com/tuist/tuist/pull/5805) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.40.0 - 2024-01-15
+
+### Tuist
+
+#### Changed
+
+- Remove raw xcodebuild logs in favor of resultBundlePath and xcactivitylog [#5776](https://github.com/tuist/tuist/pull/5776) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix incremental test execution when migrating from Tuist versions older than 3.36.0 [#5791](https://github.com/tuist/tuist/pull/5791) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- Build macOS xcframework for both Intel and ARM by [@fortmarek](https://github.com/fortmarek)
+
+## 3.39.3 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 3.39.2 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix the warning messages that tells users about the depreaction of frameworks for caching by [@pepicrft](https://github.com/pepicrft)
+- Fix cache warming failing to resolve the hash for targets by [@pepicrft](https://github.com/pepicrft)
+
+## 3.39.1 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix cache warm for xcframeworks when explicit dependencies are enabled. [#66](https://github.com/tuist/tuist/pull/66) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.39.0 - 2024-01-07
 
 ### Tuist

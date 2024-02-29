@@ -15,6 +15,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 []
             )
         }
+        logger.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
 
         let graphTraverser = GraphTraverser(graph: graph)
 

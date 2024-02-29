@@ -135,7 +135,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -170,7 +171,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: true,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -204,7 +206,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .static,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -238,11 +241,35 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
 
         XCTAssertPrinterOutputContains("""
         MyFrameworkMissingArch.xcframework is missing architecture ios-x86_64-simulator/MyFrameworkMissingArch.framework/MyFrameworkMissingArch defined in the Info.plist
         """)
+    }
+
+    func test_loadMetadata_when_containsMacros() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        let xcframeworkPath = temporaryDirectory.appending(component: "MyFramework.xcframework")
+        try fileHandler.copy(
+            from: fixturePath(path: try RelativePath(validating: "MyFramework.xcframework")),
+            to: xcframeworkPath
+        )
+        var macroPaths: [AbsolutePath] = []
+        for frameworkPath in fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted() {
+            try fileHandler.createFolder(frameworkPath.appending(component: "Macros"))
+            let macroPath = frameworkPath.appending(components: ["Macros", "MyFramework"])
+            try fileHandler.touch(macroPath)
+            macroPaths.append(macroPath)
+        }
+
+        // When
+        let metadata = try subject.loadMetadata(at: xcframeworkPath, status: .required)
+
+        // Then
+        XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)
     }
 }

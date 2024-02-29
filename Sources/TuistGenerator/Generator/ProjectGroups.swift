@@ -28,7 +28,7 @@ class ProjectGroups {
 
     @SortedPBXGroup var sortedMain: PBXGroup
     let products: PBXGroup
-    let compiled: PBXGroup
+    let frameworks: PBXGroup
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
@@ -39,21 +39,21 @@ class ProjectGroups {
         main: PBXGroup,
         projectGroups: [(name: String, group: PBXGroup)],
         products: PBXGroup,
-        compiled: PBXGroup,
+        frameworks: PBXGroup,
         pbxproj: PBXProj
     ) {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
-        self.compiled = compiled
+        self.frameworks = frameworks
         self.pbxproj = pbxproj
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
-        if let group = compiled.group(named: target) {
+        if let group = frameworks.group(named: target) {
             return group
         } else {
-            return try compiled.addGroup(named: target, options: .withoutFolder).last!
+            return try frameworks.addGroup(named: target, options: .withoutFolder).last!
         }
     }
 
@@ -86,17 +86,17 @@ class ProjectGroups {
         let projectGroupNames = extractProjectGroupNames(from: project)
         let groupsToCreate = OrderedSet(projectGroupNames)
         var projectGroups = [(name: String, group: PBXGroup)]()
-        groupsToCreate.forEach {
-            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
+        for item in groupsToCreate {
+            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: item)
             pbxproj.add(object: projectGroup)
             mainGroup.children.append(projectGroup)
-            projectGroups.append(($0, projectGroup))
+            projectGroups.append((item, projectGroup))
         }
 
-        /// Compiled
-        let compiledGroup = PBXGroup(children: [], sourceTree: .group, name: "Compiled")
-        pbxproj.add(object: compiledGroup)
-        mainGroup.children.append(compiledGroup)
+        /// SDSKs & Pre-compiled frameworks
+        let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
+        pbxproj.add(object: frameworksGroup)
+        mainGroup.children.append(frameworksGroup)
 
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
@@ -107,7 +107,7 @@ class ProjectGroups {
             main: mainGroup,
             projectGroups: projectGroups,
             products: productsGroup,
-            compiled: compiledGroup,
+            frameworks: frameworksGroup,
             pbxproj: pbxproj
         )
     }

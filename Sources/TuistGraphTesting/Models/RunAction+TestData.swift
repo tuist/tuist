@@ -14,7 +14,10 @@ extension RunAction {
         filePath: AbsolutePath? = nil,
         arguments: Arguments? = Arguments.test(),
         options: RunActionOptions = .init(),
-        diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker, .performanceAntipatternChecker],
+        diagnosticsOptions: SchemeDiagnosticsOptions = TuistGraph.SchemeDiagnosticsOptions(
+            mainThreadCheckerEnabled: true,
+            performanceAntipatternCheckerEnabled: true
+        ),
         expandVariableFromTarget: TargetReference? = nil,
         launchStyle: LaunchStyle = .automatically
     ) -> RunAction {

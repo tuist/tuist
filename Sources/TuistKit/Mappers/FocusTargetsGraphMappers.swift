@@ -2,6 +2,25 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
+
+public enum FocusTargetsGraphMappersError: FatalError, Equatable {
+    case targetsNotFound([String])
+
+    public var type: ErrorType {
+        switch self {
+        case .targetsNotFound:
+            return .abort
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case let .targetsNotFound(targets):
+            return "The following targets were not found: \(targets.joined(separator: ", ")). Please, make sure they exist."
+        }
+    }
+}
 
 /// `FocusTargetsGraphMappers` is used to filter out some targets and their dependencies and tests targets.
 public final class FocusTargetsGraphMappers: GraphMapping {
@@ -32,12 +51,17 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             excludingExternalTargets: true
         )
 
+        let unavailableIncludedTargets = Set(includedTargets).subtracting(userSpecifiedSourceTargets.map(\.target.name))
+        if !unavailableIncludedTargets.isEmpty {
+            throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
+        }
+
         let filteredTargets = Set(try topologicalSort(
             Array(userSpecifiedSourceTargets),
-            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
+            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
 
-        graphTraverser.allTargets().forEach { graphTarget in
+        for graphTarget in graphTraverser.allTargets() {
             if !filteredTargets.contains(graphTarget) {
                 var target = graphTarget.target
                 target.prune = true

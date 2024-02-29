@@ -7,9 +7,9 @@ let project = Project(
     name: "MainApp",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Config/App-Info.plist",
@@ -18,9 +18,9 @@ let project = Project(
                 .project(target: "Framework1-iOS", path: "../Framework1"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Config/AppTests-Info.plist",

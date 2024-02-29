@@ -111,6 +111,7 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
+                    null,
                     {
                       "platformNames" : [
                         "ios"
@@ -225,6 +226,7 @@ extension PackageInfo {
                   "product" : [
                     "AnotherLibrary",
                     "another-dependency",
+                    null,
                     null
                   ]
                 }
@@ -378,6 +380,7 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
+                    null,
                     {
                       "platformNames" : [
                         "ios"
@@ -504,6 +507,7 @@ extension PackageInfo {
                   "product" : [
                     "AnotherLibrary",
                     "another-dependency",
+                    null,
                     null
                   ]
                 }
@@ -594,6 +598,7 @@ extension PackageInfo {
                         .product(
                             name: "ALibrary",
                             package: "a-dependency",
+                            moduleAliases: nil,
                             condition: .init(platformNames: ["ios"], config: nil)
                         ),
                     ],
@@ -636,7 +641,7 @@ extension PackageInfo {
                     resources: [],
                     exclude: [],
                     dependencies: [
-                        .product(name: "AnotherLibrary", package: "another-dependency", condition: nil),
+                        .product(name: "AnotherLibrary", package: "another-dependency", moduleAliases: nil, condition: nil),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,
@@ -1033,6 +1038,7 @@ extension PackageInfo {
                   "product" : [
                     "GULAppDelegateSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1040,6 +1046,7 @@ extension PackageInfo {
                   "product" : [
                     "GULMethodSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1047,6 +1054,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNSData",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1054,6 +1062,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNetwork",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1061,6 +1070,7 @@ extension PackageInfo {
                   "product" : [
                     "nanopb",
                     "nanopb",
+                    null,
                     null
                   ]
                 }
@@ -1135,6 +1145,7 @@ extension PackageInfo {
                   "product" : [
                     "GULAppDelegateSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1142,6 +1153,7 @@ extension PackageInfo {
                   "product" : [
                     "GULMethodSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1149,6 +1161,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNSData",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1156,6 +1169,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNetwork",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1163,6 +1177,7 @@ extension PackageInfo {
                   "product" : [
                     "nanopb",
                     "nanopb",
+                    null,
                     null
                   ]
                 }
@@ -1258,11 +1273,11 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .byName(name: "GoogleAppMeasurement", condition: nil),
-                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULNSData", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULNetwork", package: "GoogleUtilities", condition: nil),
-                        .product(name: "nanopb", package: "nanopb", condition: nil),
+                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULNSData", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULNetwork", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "nanopb", package: "nanopb", moduleAliases: nil, condition: nil),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,
@@ -1316,11 +1331,11 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .byName(name: "GoogleAppMeasurementWithoutAdIdSupport", condition: nil),
-                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULNSData", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULNetwork", package: "GoogleUtilities", condition: nil),
-                        .product(name: "nanopb", package: "nanopb", condition: nil),
+                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULNSData", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "GULNetwork", package: "GoogleUtilities", moduleAliases: nil, condition: nil),
+                        .product(name: "nanopb", package: "nanopb", moduleAliases: nil, condition: nil),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,

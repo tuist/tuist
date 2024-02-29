@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: "Info.plist",
@@ -14,9 +14,9 @@ let project = Project(
                 .target(name: "Framework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.appTests",
             infoPlist: "Info.plist",
@@ -25,9 +25,9 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.framework",
             infoPlist: "Info.plist",
@@ -35,9 +35,9 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "FrameworkTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.frameworkTests",
             infoPlist: "Info.plist",
@@ -48,7 +48,7 @@ let project = Project(
         ),
     ],
     schemes: [
-        Scheme(
+        .scheme(
             name: "AppCustomScheme",
             buildAction: .buildAction(targets: [TargetReference("App")])
         ),

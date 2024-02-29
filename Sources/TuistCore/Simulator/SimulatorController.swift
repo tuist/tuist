@@ -143,7 +143,6 @@ public final class SimulatorController: SimulatorControlling {
         deviceName: String?
     ) async throws -> [SimulatorDeviceAndRuntime] {
         let devicesAndRuntimes = try await devicesAndRuntimes()
-        let maxRuntimeVersion = devicesAndRuntimes.map(\.runtime.version).max()
         let availableDevices = devicesAndRuntimes
             .sorted(by: { $0.runtime.version >= $1.runtime.version })
             .filter { simulatorDeviceAndRuntime in
@@ -160,13 +159,18 @@ public final class SimulatorController: SimulatorControlling {
                     guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
                 }
 
-                if version == nil, let maxRuntimeVersion {
-                    guard simulatorDeviceAndRuntime.runtime.version == maxRuntimeVersion else { return false }
-                }
-
                 return true
             }
-        return availableDevices
+
+        let maxRuntimeVersion = availableDevices.map(\.runtime.version).max()
+
+        return availableDevices.filter { simulatorDeviceAndRuntime in
+            if version == nil, let maxRuntimeVersion {
+                return simulatorDeviceAndRuntime.runtime.version == maxRuntimeVersion
+            } else {
+                return true
+            }
+        }
     }
 
     public func findAvailableDevice(

@@ -67,8 +67,8 @@ final class VersionsControllerTests: TuistUnitTestCase {
             "12.2.0",
             "2.18.0",
         ]
-        try versions.forEach {
-            try fileHandler.createFolder(environment.versionsDirectory.appending(component: $0))
+        for version in versions {
+            try fileHandler.createFolder(environment.versionsDirectory.appending(component: version))
         }
 
         // When

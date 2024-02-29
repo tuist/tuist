@@ -36,6 +36,11 @@ public enum XcodeBuildControllerCreateXCFrameworkArgument {
     case library(path: AbsolutePath, headers: AbsolutePath)
 
     /**
+     It passes the -debug-symbol argument when creating frameworks.
+     */
+    case debugSymbols(path: AbsolutePath)
+
+    /**
      Returns the arguments that represent his argument when invoking xcodebuild.
      */
     public var xcodebuildArguments: [String] {
@@ -51,6 +56,8 @@ public enum XcodeBuildControllerCreateXCFrameworkArgument {
             return ["-archive", sanitizedPath(archivePath), "-framework", framework]
         case let .library(libraryPath, headers):
             return ["-library", sanitizedPath(libraryPath), "-headers", sanitizedPath(headers)]
+        case let .debugSymbols(path):
+            return ["-debug-symbols", sanitizedPath(path)]
         }
     }
 }
@@ -64,8 +71,6 @@ public protocol XcodeBuildControlling {
     ///   to determine the destination.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
-    ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
-    ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuildlogs in that file.
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -73,9 +78,7 @@ public protocol XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument],
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        arguments: [XcodeBuildArgument]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable to test the given project using xcodebuild.
@@ -90,8 +93,6 @@ public protocol XcodeBuildControlling {
     ///   - testTargets: A list of test identifiers indicating which tests to run
     ///   - skipTestTargets: A list of test identifiers indicating which tests to skip
     ///   - testPlanConfiguration: A configuration object indicating which test plan to use and its configurations
-    ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
-    ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuildlogs in that file.
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -104,9 +105,7 @@ public protocol XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?,
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        testPlanConfiguration: TestPlanConfiguration?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.
@@ -116,29 +115,23 @@ public protocol XcodeBuildControlling {
     ///   - clean: True if xcodebuild should clean the project before archiving.
     ///   - archivePath: Path where the archive will be exported (with extension .xcarchive)
     ///   - arguments: Extra xcodebuild arguments.
-    ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
-    ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuildlogs in that file.
+    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     func archive(
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool,
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        derivedDataPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
     ///   - arguments: A set of arguments to configure the XCFramework creation.
     ///   - output: Path to the output .xcframework.
-    ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
-    ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuildlogs in that file.
     func createXCFramework(
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
-        output: AbsolutePath,
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        output: AbsolutePath
     )
         throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
@@ -147,9 +140,11 @@ public protocol XcodeBuildControlling {
     ///   - target: Project of workspace where the scheme is defined.
     ///   - scheme: Scheme whose target build settings will be obtained.
     ///   - configuration: Build configuration.
+    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     func showBuildSettings(
         _ target: XcodeBuildTarget,
         scheme: String,
-        configuration: String
+        configuration: String,
+        derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings]
 }
