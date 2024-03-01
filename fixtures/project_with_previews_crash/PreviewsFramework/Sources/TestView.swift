@@ -10,7 +10,7 @@ struct TestView: View {
             Text(text)
         }
     }
-    
+
     @State var text = "-"
 }
 

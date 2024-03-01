@@ -10,16 +10,16 @@ let package = Package(
             name: "ResourcesFramework",
             type: .static,
             targets: [
-                "ResourcesFramework"
+                "ResourcesFramework",
             ]
-        )
+        ),
     ],
     targets: [
         .target(
             name: "ResourcesFramework",
             resources: [
-                .process("Resources")
+                .process("Resources"),
             ]
-        )
+        ),
     ]
 )

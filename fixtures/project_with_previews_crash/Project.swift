@@ -10,7 +10,7 @@ let project = Project(
             bundleId: "io.tuist.previewsframework",
             sources: "PreviewsFramework/Sources/**",
             dependencies: [
-                .external(name: "ResourcesFramework")
+                .external(name: "ResourcesFramework"),
             ]
         ),
     ]
