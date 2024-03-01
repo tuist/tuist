@@ -187,33 +187,12 @@ public class ResourcesProjectMapper: ProjectMapping {
                     Bundle.main.bundleURL,
                 ]
 
-                if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-                    let baseURL = Bundle(for: BundleFinder.self).bundleURL
-
-                    let targetURL = baseURL
-                        // arm64
-                        .deletingLastPathComponent()
-                        // Objects-normal
-                        .deletingLastPathComponent()
-                        // {FrameworkName}.build
-                        .deletingLastPathComponent()
-
-                    let targetName = targetURL.lastPathComponent
-
-                    let strippedURL = targetURL
-                        // {BuildConfigurationName}-{PlatformName}
-                        .deletingLastPathComponent()
-                        // {FrameworkName}.build
-                        .deletingLastPathComponent()
-                        // Intermediates.noindex
-                        .deletingLastPathComponent()
-
-                    let bundleURL = strippedURL
-                        .appendingPathComponent("Products")
-                        .appendingPathComponent(targetName)
-
-                    candidates.append(bundleURL)
+                #if DEBUG
+                // This makes Previews work with bundled resources.
+                if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
+                    candidates.append(URL(fileURLWithPath: override))
                 }
+                #endif
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
