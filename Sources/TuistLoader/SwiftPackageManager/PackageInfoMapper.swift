@@ -800,20 +800,24 @@ extension ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement {
+        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement? {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
+            let excluding = try excluding.map {
+                let excludePath = path.appending(try RelativePath(validating: $0))
+                let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                return Path.path(excludeGlob.pathString)
+            }
+            if excluding.map(\.pathString).contains(absolutePathGlob.pathString) {
+                return nil
+            }
             return .glob(
                 pattern: .path(absolutePathGlob.pathString),
-                excluding: try excluding.map {
-                    let excludePath = path.appending(try RelativePath(validating: $0))
-                    let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                    return .path(excludeGlob.pathString)
-                }
+                excluding: excluding
             )
         }
 
-        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.map {
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.compactMap {
             let resourceAbsolutePath = path.appending(try RelativePath(validating: $0.path))
 
             switch $0.rule {
@@ -833,7 +837,7 @@ extension ResourceFileElements {
         // They are handled like a `.process` rule
         if sources == nil {
             resourceFileElements += try defaultResourcePaths(from: path)
-                .map { try handleProcessResource(resourceAbsolutePath: $0) }
+                .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files

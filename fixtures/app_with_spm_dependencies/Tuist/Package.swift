@@ -6,6 +6,9 @@ import PackageDescription
     import ProjectDescriptionHelpers
 
     let packageSettings = PackageSettings(
+        productTypes: [
+            "Alamofire": .framework,
+        ],
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),

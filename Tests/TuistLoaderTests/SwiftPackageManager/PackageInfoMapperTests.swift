@@ -853,9 +853,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                                .init(rule: .process, path: "AnotherOne/Resource/Target1.xcprivacy"),
                             ],
                             exclude: [
                                 "AnotherOne/Resource",
+                                "AnotherOne/Resource/Target1.xcprivacy",
                             ]
                         ),
                     ],
@@ -867,7 +869,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        let expectedExcluding: [Path] = [
+            .path(
+                basePath
+                    .appending(
+                        try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                    )
+                    .pathString
+            ),
+            .path(
+                basePath
+                    .appending(
+                        try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/Target1.xcprivacy")
+                    )
+                    .pathString
+            ),
+        ]
+
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -878,15 +897,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: .custom(.sourceFilesList(globs: [
                             .glob(
                                 .path(basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString),
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
-                                            )
-                                            .pathString
-                                    ),
-                                ]
+                                excluding: expectedExcluding
                             ),
                         ])),
                         resources: [
@@ -905,15 +916,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                         )
                                         .pathString
                                 ),
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
-                                            )
-                                            .pathString
-                                    ),
-                                ],
+                                excluding: expectedExcluding,
                                 tags: []
                             ),
                             .glob(
@@ -924,15 +927,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                         )
                                         .pathString
                                 ),
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
-                                            )
-                                            .pathString
-                                    ),
-                                ],
+                                excluding: expectedExcluding,
                                 tags: []
                             ),
                         ]
