@@ -4,7 +4,7 @@ import TuistGraph
 import TuistSupport
 
 protocol TargetLinting: AnyObject {
-    func lint(target: Target) -> [LintingIssue]
+    func lint(target: Target, isExternal: Bool) -> [LintingIssue]
 }
 
 class TargetLinter: TargetLinting {
@@ -25,7 +25,7 @@ class TargetLinter: TargetLinting {
 
     // MARK: - TargetLinting
 
-    func lint(target: Target) -> [LintingIssue] {
+    func lint(target: Target, isExternal: Bool) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
@@ -47,6 +47,20 @@ class TargetLinter: TargetLinting {
     }
 
     // MARK: - Fileprivate
+    
+    private func lintResources(target: Target) -> [LintingIssue] {
+        target.resources.map {
+            $0.
+        }
+//        if files.isEmpty {
+//            if FileHandler.shared.isFolder(path) {
+//                logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
+//            } else {
+//                // FIXME: This should be done in a linter.
+//                logger.warning("No files found at: \(path.pathString)")
+//            }
+//        }
+    }
 
     /// Verifies that the bundle identifier doesn't include characters that are not supported.
     ///

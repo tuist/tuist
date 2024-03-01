@@ -91,6 +91,24 @@
       }
     },
     {
+      "identity" : "ios-library",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/urbanairship/ios-library",
+      "state" : {
+        "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
+        "version" : "17.7.3"
+      }
+    },
+    {
+      "identity" : "netfox",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kasketis/netfox",
+      "state" : {
+        "revision" : "557576032736fd3140422baefb68b8f76c55088f",
+        "version" : "1.21.0"
+      }
+    },
+    {
       "identity" : "nimble",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Quick/Nimble",

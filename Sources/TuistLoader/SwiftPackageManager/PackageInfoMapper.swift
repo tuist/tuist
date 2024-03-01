@@ -803,6 +803,9 @@ extension ResourceFileElements {
         func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement? {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
+            if !FileHandler.shared.exists(resourceAbsolutePath) {
+                return nil
+            }
             let excluding = try excluding.map {
                 let excludePath = path.appending(try RelativePath(validating: $0))
                 let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")

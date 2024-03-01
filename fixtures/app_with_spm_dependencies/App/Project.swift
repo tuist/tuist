@@ -41,6 +41,7 @@ let project = Project(
                 .external(name: "libzstd"),
                 .external(name: "NYTPhotoViewer"),
                 .external(name: "SVProgressHUD"),
+                .external(name: "netfox"),
             ],
             settings: .targetSettings
         ),

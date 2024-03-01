@@ -35,6 +35,8 @@ let package = Package(
         .package(url: "https://github.com/Quick/Quick", exact: "7.4.0"),
         .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
         .package(url: "https://github.com/SVProgressHUD/SVProgressHUD", exact: "2.3.1"),
+        .package(url: "https://github.com/kasketis/netfox", exact: "1.21.0"),
+        .package(url: "https://github.com/urbanairship/ios-library", .upToNextMajor(from: "17.7.3")),
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
     ]
