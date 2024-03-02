@@ -4,6 +4,7 @@ public enum TuistAcceptanceFixtures {
     case appWithBuildRules
     case appWithFrameworkAndTests
     case appWithPlugins
+    case appWithPreviews
     case appWithSpmDependencies
     case appWithTestPlan
     case commandLineToolBasic
@@ -70,6 +71,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_framework_and_tests"
         case .appWithPlugins:
             return "app_with_plugins"
+        case .appWithPreviews:
+            return "app_with_previews"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithTestPlan:

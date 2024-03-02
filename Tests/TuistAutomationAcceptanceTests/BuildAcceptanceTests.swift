@@ -14,6 +14,15 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     }
 }
 
+final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
+    func test_with_previews() async throws {
+        try setUpFixture(.appWithPreviews)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
     func test_with_framework_and_tests() async throws {
         try setUpFixture(.appWithFrameworkAndTests)
