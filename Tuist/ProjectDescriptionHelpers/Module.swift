@@ -38,7 +38,8 @@ public enum Module: String, CaseIterable {
             targets.append(target(
                 name: acceptanceTestsTargetName,
                 product: .unitTests,
-                dependencies: acceptanceTestDependencies
+                dependencies: acceptanceTestDependencies,
+                isTestingTarget: false
             ))
         }
 
@@ -53,7 +54,8 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies
+                    dependencies: unitTestDependencies,
+                    isTestingTarget: false
                 )
             )
         }
@@ -63,7 +65,8 @@ public enum Module: String, CaseIterable {
                 target(
                     name: integrationTestsTargetName,
                     product: .unitTests,
-                    dependencies: integrationTestsDependencies
+                    dependencies: integrationTestsDependencies,
+                    isTestingTarget: false
                 )
             )
         }
@@ -83,7 +86,8 @@ public enum Module: String, CaseIterable {
                 target(
                     name: testingTargetName,
                     product: product,
-                    dependencies: testingDependencies
+                    dependencies: testingDependencies,
+                    isTestingTarget: true
                 )
             )
         }
@@ -93,14 +97,13 @@ public enum Module: String, CaseIterable {
 
     public var sourceTargets: [Target] {
         let isStaticProduct = product == .staticLibrary || product == .staticFramework
-
+        let isTestingTarget = targetName == Module.acceptanceTesting.targetName
         return [
             target(
                 name: targetName,
                 product: product,
-                dependencies: dependencies + (isStaticProduct ? [
-                    .external(name: "Mockable"),
-                ] : [])
+                dependencies: dependencies + (isStaticProduct ? [.external(name: "Mockable")] : []),
+                isTestingTarget: isTestingTarget
             ),
         ]
     }
@@ -187,8 +190,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.targetName),
-                .external(name: "XcodeProj"),
-                .sdk(name: "XCTest", type: .framework, status: .optional),
+                .external(name: "XcodeProj")
             ]
         case .tuist:
             [
@@ -527,10 +529,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.graph.testingTargetName!),
             ]
         }
-        return dependencies + sharedDependencies + [
-            .target(name: targetName),
-            .sdk(name: "XCTest", type: .framework, status: .optional),
-        ]
+        return dependencies + sharedDependencies + [.target(name: targetName)]
     }
 
     public var integrationTestsDependencies: [TargetDependency] {
@@ -614,21 +613,7 @@ public enum Module: String, CaseIterable {
         name: String,
         product: Product,
         dependencies: [TargetDependency],
-        settings: Settings = .settings(
-            configurations: [
-                .debug(
-                    name: "Debug",
-                    settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
-                    xcconfig: nil
-                ),
-                .release(
-                    name: "Release",
-
-                    settings: [:],
-                    xcconfig: nil
-                ),
-            ]
-        )
+        isTestingTarget: Bool
     ) -> Target {
         let rootFolder: String
         switch product {
@@ -637,6 +622,26 @@ public enum Module: String, CaseIterable {
         default:
             rootFolder = "Sources"
         }
+        var debugSettings: ProjectDescription.SettingsDictionary = ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"]
+        var releaseSettings: ProjectDescription.SettingsDictionary = [:]
+        if (isTestingTarget) {
+            debugSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
+            releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
+        }
+        let settings = Settings.settings(
+            configurations: [
+                .debug(
+                    name: "Debug",
+                    settings: debugSettings,
+                    xcconfig: nil
+                ),
+                .release(
+                    name: "Release",
+                    settings: releaseSettings,
+                    xcconfig: nil
+                ),
+            ]
+        )
         return .target(
             name: name,
             destinations: [.mac],
