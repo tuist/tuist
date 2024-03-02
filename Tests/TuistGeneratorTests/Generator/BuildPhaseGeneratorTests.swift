@@ -862,13 +862,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateCopyFilesBuildPhases() throws {
         // Given
-        let fonts: [FileElement] = [
+        let fonts: [CopyFileElement] = [
             .file(path: "/path/fonts/font1.ttf"),
             .file(path: "/path/fonts/font2.ttf"),
-            .file(path: "/path/fonts/font3.ttf"),
+            .file(path: "/path/fonts/font3.ttf", condition: .when([.macos])),
         ]
 
-        let templates: [FileElement] = [
+        let templates: [CopyFileElement] = [
             .file(path: "/path/sharedSupport/tuist.rtfd"),
         ]
 
@@ -900,6 +900,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "font3.ttf",
         ])
 
+        XCTAssertEqual(firstBuildPhase.files?.map { $0.platformFilters }, [
+            nil,
+            nil,
+            ["macos"],
+        ])
+        
+        
         let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
         XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
         XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)
