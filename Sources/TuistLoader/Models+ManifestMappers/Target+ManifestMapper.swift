@@ -23,10 +23,12 @@ extension TuistGraph.Target {
     /// Maps a ProjectDescription.Target instance into a TuistGraph.Target instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
+    ///   - isExternal: Whether the target belongs to an external dependency.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
     static func from(
         manifest: ProjectDescription.Target,
+        isExternal: Bool,
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
@@ -57,6 +59,7 @@ extension TuistGraph.Target {
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
             manifest: manifest,
             targetName: name,
+            isExternal: isExternal,
             generatorPaths: generatorPaths
         )
 
@@ -65,12 +68,12 @@ extension TuistGraph.Target {
             generatorPaths: generatorPaths
         )
 
-        if !invalidResourceGlobs.isEmpty {
+        if !isExternal, !invalidResourceGlobs.isEmpty {
             throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
         }
 
         let copyFiles = try (manifest.copyFiles ?? []).map {
-            try TuistGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
+            try TuistGraph.CopyFilesAction.from(manifest: $0, isExternal: isExternal, generatorPaths: generatorPaths)
         }
 
         let headers = try manifest.headers.map { try TuistGraph.Headers.from(
@@ -186,24 +189,29 @@ extension TuistGraph.Target {
     fileprivate static func sourcesAndPlaygrounds(
         manifest: ProjectDescription.Target,
         targetName: String,
+        isExternal: Bool,
         generatorPaths: GeneratorPaths
     ) throws -> (sources: [TuistGraph.SourceFile], playgrounds: [AbsolutePath]) {
         var sourcesWithoutPlaygrounds: [TuistGraph.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
-            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
-            return TuistGraph.SourceFileGlob(
-                glob: globPath,
-                excluding: excluding,
-                compilerFlags: glob.compilerFlags,
-                codeGen: mappedCodeGen,
-                compilationCondition: glob.compilationCondition?.asGraphCondition
-            )
-        } ?? [])
+        let allSources = try TuistGraph.Target.sources(
+            targetName: targetName,
+            sources: manifest.sources?.globs.map { glob in
+                let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+                let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+                let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
+                return TuistGraph.SourceFileGlob(
+                    glob: globPath,
+                    excluding: excluding,
+                    compilerFlags: glob.compilerFlags,
+                    codeGen: mappedCodeGen,
+                    compilationCondition: glob.compilationCondition?.asGraphCondition
+                )
+            } ?? [],
+            isExternal: isExternal
+        )
 
         for sourceFile in allSources {
             if sourceFile.path.extension == "playground" {

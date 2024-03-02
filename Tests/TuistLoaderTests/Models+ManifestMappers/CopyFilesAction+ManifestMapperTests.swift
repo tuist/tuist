@@ -28,7 +28,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, isExternal: false, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Fonts")
@@ -61,7 +61,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, isExternal: false, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Templates")

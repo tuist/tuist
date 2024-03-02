@@ -23,8 +23,9 @@ extension TuistGraph.CopyFilesAction {
     /// Maps a ProjectDescription.CopyFilesAction instance into a TuistGraph.CopyFilesAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
+    ///   - isExternal: Whether the copy files action belongs to an external dependency.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> TuistGraph
+    static func from(manifest: ProjectDescription.CopyFilesAction, isExternal: Bool, generatorPaths: GeneratorPaths) throws -> TuistGraph
         .CopyFilesAction
     {
         var invalidResourceGlobs: [InvalidGlob] = []
@@ -42,7 +43,7 @@ extension TuistGraph.CopyFilesAction {
             }
         }
 
-        if !invalidResourceGlobs.isEmpty {
+        if !isExternal, !invalidResourceGlobs.isEmpty {
             throw CopyFilesManifestMapperError.invalidResourcesGlob(actionName: manifest.name, invalidGlobs: invalidResourceGlobs)
         }
 

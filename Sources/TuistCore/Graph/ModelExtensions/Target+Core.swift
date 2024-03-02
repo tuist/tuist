@@ -51,8 +51,11 @@ extension Target {
 
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
-    /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
+    /// - Parameters:
+    ///   - targetName: The name of the target.
+    ///   - sources: List of source file glob to be unfolded.
+    ///   - isExternal: Whether the target belongs to an external dependency.
+    public static func sources(targetName: String, sources: [SourceFileGlob], isExternal: Bool) throws -> [TuistGraph.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
@@ -94,7 +97,7 @@ extension Target {
                 ) }
         }
 
-        if !invalidGlobs.isEmpty {
+        if !isExternal, !invalidGlobs.isEmpty {
             throw TargetError.invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs)
         }
 

@@ -32,6 +32,7 @@ extension TuistGraph.Project {
         let targets = try manifest.targets.map {
             try TuistGraph.Target.from(
                 manifest: $0,
+                isExternal: isExternal,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
