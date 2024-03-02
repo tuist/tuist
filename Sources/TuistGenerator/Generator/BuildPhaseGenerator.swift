@@ -386,16 +386,18 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let filePaths = action.files.map(\.path).sorted()
+            let files = action.files.sorted(using: KeyPathComparator(\.path))
 
             var pbxBuildFiles = [PBXBuildFile]()
-            for filePath in filePaths {
+            for file in files {
+                let filePath = file.path
                 guard let fileReference = fileElements.file(path: filePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
 
                 if buildFilesCache.contains(filePath) == false {
                     let pbxBuildFile = PBXBuildFile(file: fileReference)
+                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)                    
                     pbxBuildFiles.append(pbxBuildFile)
                     buildFilesCache.insert(filePath)
                 }

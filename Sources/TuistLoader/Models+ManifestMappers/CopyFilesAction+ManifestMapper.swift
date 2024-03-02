@@ -28,9 +28,9 @@ extension TuistGraph.CopyFilesAction {
         .CopyFilesAction
     {
         var invalidResourceGlobs: [InvalidGlob] = []
-        let files: [TuistGraph.FileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.FileElement] in
+        let files: [TuistGraph.CopyFileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.CopyFileElement] in
             do {
-                let files = try TuistGraph.FileElement.from(
+                let files = try TuistGraph.CopyFileElement.from(
                     manifest: manifest,
                     generatorPaths: generatorPaths,
                     includeFiles: { TuistGraph.Target.isResource(path: $0) }
@@ -89,7 +89,7 @@ extension TuistGraph.CopyFilesAction.Destination {
 
 // MARK: - Array Extension FileElement
 
-extension [TuistGraph.FileElement] {
+extension [TuistGraph.CopyFileElement] {
     /// Packages should be added as a whole folder not individually.
     /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
     ///

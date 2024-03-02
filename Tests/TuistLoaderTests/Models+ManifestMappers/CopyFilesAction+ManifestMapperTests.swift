@@ -24,7 +24,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFilesAction.resources(
             name: "Copy Fonts",
             subpath: "Fonts",
-            files: "Fonts/**"
+            files: ["Fonts/**"]
         )
 
         // When
@@ -57,7 +57,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFilesAction.sharedSupport(
             name: "Copy Templates",
             subpath: "Templates",
-            files: "SharedSupport/**"
+            files: ["SharedSupport/**"]
         )
 
         // When
