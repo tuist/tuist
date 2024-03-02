@@ -900,13 +900,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "font3.ttf",
         ])
 
-        XCTAssertEqual(firstBuildPhase.files?.map { $0.platformFilters }, [
+        XCTAssertEqual(firstBuildPhase.files?.map(\.platformFilters), [
             nil,
             nil,
             ["macos"],
         ])
-        
-        
+
         let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
         XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
         XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)

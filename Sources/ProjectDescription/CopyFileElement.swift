@@ -8,11 +8,11 @@ import Foundation
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `ConditionalFileElement.glob(pattern: "some/pattern/**")`
 public enum CopyFileElement: Codable, Equatable {
-
     /// A file path (or glob pattern) to include with an optional PlatformCondition to control which platforms it applies to.
     case glob(pattern: Path, condition: PlatformCondition? = nil)
 
-    /// A directory path to include as a folder reference with an optional PlatformCondition to control which platforms it applies to.
+    /// A directory path to include as a folder reference with an optional PlatformCondition to control which platforms it applies
+    /// to.
     case folderReference(path: Path, condition: PlatformCondition? = nil)
 
     private enum TypeName: String, Codable {

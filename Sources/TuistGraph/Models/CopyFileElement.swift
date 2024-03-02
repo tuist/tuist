@@ -25,7 +25,7 @@ public enum CopyFileElement: Equatable, Hashable, Codable {
 
     public var condition: PlatformCondition? {
         switch self {
-        case .file(_, let condition), .folderReference(_, let condition):
+        case let .file(_, condition), let .folderReference(_, condition):
             return condition
         }
     }

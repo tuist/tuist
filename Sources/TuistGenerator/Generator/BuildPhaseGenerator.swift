@@ -397,7 +397,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 if buildFilesCache.contains(filePath) == false {
                     let pbxBuildFile = PBXBuildFile(file: fileReference)
-                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)                    
+                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
                     pbxBuildFiles.append(pbxBuildFile)
                     buildFilesCache.insert(filePath)
                 }
