@@ -87,7 +87,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         let packageInfo = try subject.loadPackageInfo(at: path)
 
         // Then
-        XCTAssertEqual(packageInfo, PackageInfo.test)
+        XCTAssertBetterEqual(packageInfo, PackageInfo.test)
     }
 
     func test_loadPackageInfo_Xcode14() throws {

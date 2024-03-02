@@ -105,8 +105,8 @@ public class CachedManifestLoader: ManifestLoading {
         manifestLoader.manifests(at: path)
     }
 
-    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
-        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
+    public func validateHasRootManifest(at path: AbsolutePath) throws {
+        try manifestLoader.validateHasRootManifest(at: path)
     }
 
     public func register(plugins: Plugins) throws {

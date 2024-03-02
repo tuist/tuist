@@ -268,7 +268,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in [.project] }
 
         // Then
-        try subject.validateHasProjectOrWorkspaceManifest(at: path)
+        try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_workspaceExists() throws {
@@ -279,7 +279,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         manifestLoader.manifestsAtStub = { _ in [.workspace] }
 
         // Then
-        try subject.validateHasProjectOrWorkspaceManifest(at: path)
+        try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_manifestDoesNotExist() throws {
@@ -288,7 +288,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.validateHasProjectOrWorkspaceManifest(at: path),
+            try subject.validateHasRootManifest(at: path),
             ManifestLoaderError.manifestNotFound(path)
         )
     }

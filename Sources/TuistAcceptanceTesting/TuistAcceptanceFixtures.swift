@@ -56,6 +56,7 @@ public enum TuistAcceptanceFixtures {
     case plugin
     case projectWithFileHeaderTemplate
     case projectWithInlineFileHeaderTemplate
+    case spmPackage
     case tuistPlugin
     case visionosApp
     case workspaceWithFileHeaderTemplate
@@ -174,6 +175,8 @@ public enum TuistAcceptanceFixtures {
             return "project_with_file_header_template"
         case .projectWithInlineFileHeaderTemplate:
             return "project_with_inline_file_header_template"
+        case .spmPackage:
+            return "spm_package"
         case .tuistPlugin:
             return "tuist_plugin"
         case .visionosApp:

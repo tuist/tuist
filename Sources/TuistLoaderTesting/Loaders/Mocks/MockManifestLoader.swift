@@ -49,9 +49,10 @@ public final class MockManifestLoader: ManifestLoading {
         return manifestsAtStub?(path) ?? Set()
     }
 
-    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
+    public func validateHasRootManifest(at path: AbsolutePath) throws {
         let manifests = manifests(at: path)
-        guard manifests.contains(.workspace) || manifests.contains(.project) else {
+        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
+        guard !manifests.intersection(rootManifests).isEmpty else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }

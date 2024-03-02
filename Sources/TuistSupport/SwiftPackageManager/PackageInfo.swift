@@ -1,4 +1,5 @@
 import ProjectDescription
+import TSCBasic
 import TSCUtility
 
 // MARK: - PackageInfo
@@ -7,6 +8,9 @@ import TSCUtility
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
 public struct PackageInfo: Hashable {
+    /// The name of the package.
+    public let name: String
+
     /// The products declared in the manifest.
     public let products: [Product]
 
@@ -27,9 +31,6 @@ public struct PackageInfo: Hashable {
 
     // Ignored fields
 
-    // /// The name of the package.
-    // let name: String
-
     // /// The tools version declared in the manifest.
     // let toolsVersion: ToolsVersion
 
@@ -46,6 +47,7 @@ public struct PackageInfo: Hashable {
     // let packageKind: PackageReference.Kind
 
     public init(
+        name: String,
         products: [Product],
         targets: [Target],
         platforms: [Platform],
@@ -53,6 +55,7 @@ public struct PackageInfo: Hashable {
         cxxLanguageStandard: String?,
         swiftLanguageVersions: [TSCUtility.Version]?
     ) {
+        self.name = name
         self.products = products
         self.targets = targets
         self.platforms = platforms
@@ -489,11 +492,12 @@ extension PackageInfo.Target {
 
 extension PackageInfo: Codable {
     private enum CodingKeys: String, CodingKey {
-        case products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
+        case name, products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        name = try values.decode(String.self, forKey: .name)
         products = try values.decode([Product].self, forKey: .products)
         targets = try values.decode([Target].self, forKey: .targets)
         platforms = try values.decode([Platform].self, forKey: .platforms)
@@ -608,16 +612,6 @@ extension PackageInfo.Product.ProductType: Codable {
 }
 
 extension PackageInfo.Target.TargetType {
-    /// Defines if the target would be processed when processing the package
-    public var isSupported: Bool {
-        switch self {
-        case .regular, .system, .macro:
-            return true
-        default:
-            return false
-        }
-    }
-
     /// Defines if target may have a public headers path
     /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
     public var supportsPublicHeaderPath: Bool {
