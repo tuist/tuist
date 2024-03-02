@@ -78,10 +78,10 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         let (gotGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertNotNil(gotGraph.targets[project.path]?[app.name])
-        XCTAssertNotNil(gotGraph.targets[packageProject.path]?[directPackageProduct.name])
-        XCTAssertNotNil(gotGraph.targets[packageProject.path]?[transitivePackageProduct.name])
-        XCTAssertNil(gotGraph.targets[packageProject.path]?[packageDevProduct.name])
-        XCTAssertNil(gotGraph.targets[packageProject.path]?[transitivePackageProductWithNoDestinations.name])
+        XCTAssertEqual(gotGraph.targets[project.path]?[app.name]?.prune, false)
+        XCTAssertEqual(gotGraph.targets[packageProject.path]?[directPackageProduct.name]?.prune, false)
+        XCTAssertEqual(gotGraph.targets[packageProject.path]?[transitivePackageProduct.name]?.prune, false)
+        XCTAssertEqual(gotGraph.targets[packageProject.path]?[packageDevProduct.name]?.prune, true)
+        XCTAssertEqual(gotGraph.targets[packageProject.path]?[transitivePackageProductWithNoDestinations.name]?.prune, true)
     }
 }
