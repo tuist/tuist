@@ -423,6 +423,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             Dictionary(
                 uniqueKeysWithValues: [
                     "Nimble", // https://github.com/Quick/Nimble
+                    "NimbleObjectiveC", // https://github.com/Quick/Nimble
                     "Quick", // https://github.com/Quick/Quick
                     "RxTest", // https://github.com/ReactiveX/RxSwift
                     "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
