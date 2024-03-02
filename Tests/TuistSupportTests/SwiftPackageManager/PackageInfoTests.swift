@@ -8,6 +8,7 @@ final class PackageInfoTests: XCTestCase {
     func test_packageInfo_codable() {
         XCTAssertCodable(
             PackageInfo(
+                name: "tuist",
                 products: [
                     PackageInfo.Product(name: "tuist", type: .executable, targets: ["tuist"]),
                     PackageInfo.Product(name: "tuist", type: .library(.dynamic), targets: ["ProjectDescription"]),

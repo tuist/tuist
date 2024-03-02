@@ -22,7 +22,7 @@ extension TuistGraph.Workspace {
                 .lazy
                 .filter(FileHandler.shared.isFolder)
                 .filter {
-                    manifestLoader.manifests(at: $0).contains(.project)
+                    manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
                 }
 
             if projects.isEmpty {
