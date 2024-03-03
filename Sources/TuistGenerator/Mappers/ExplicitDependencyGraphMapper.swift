@@ -73,8 +73,11 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         }
 
         // Recursively find whether a graph targets needs to have "ENABLE_TESTING_SEARCH_PATHS" set to "YES"
-        func findEnableTestingSearchPaths(graphTarget: GraphTarget) -> Bool {
-            guard let target = graphTraverser.target(path: graphTarget.path, name: graphTarget.target.name)?.target else {
+        func needsEnableTestingSearchPaths(graphTarget: GraphTarget) -> Bool {
+            guard let target = graphTraverser.target(
+                path: graphTarget.path,
+                name: graphTarget.target.name
+            )?.target else {
                 return false
             }
 
@@ -93,22 +96,19 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 return false
             }
 
-            var enable: Bool = false
+            var enable = false
             for dependency in allTargetDependencies {
-                if findEnableTestingSearchPaths(graphTarget: dependency) {
+                if needsEnableTestingSearchPaths(graphTarget: dependency) {
                     enable = true
                     break
                 }
             }
-
             return enable
         }
 
         // If any dependency of this target has "ENABLE_TESTING_SEARCH_PATHS" set to "YES", it needs to be propagated
         // on the upstream target as well
-        let enableTestingSearchPaths = findEnableTestingSearchPaths(graphTarget: graphTarget)
-
-        if enableTestingSearchPaths {
+        if needsEnableTestingSearchPaths(graphTarget: graphTarget) {
             additionalSettings["ENABLE_TESTING_SEARCH_PATHS"] = .string("YES")
         }
 
