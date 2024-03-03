@@ -110,12 +110,22 @@ extension SettingsDictionary {
 
     /// Sets `"OTHER_SWIFT_FLAGS"` to `flags`
     public func otherSwiftFlags(_ flags: String...) -> SettingsDictionary {
-        merging(["OTHER_SWIFT_FLAGS": SettingValue(flags.joined(separator: " "))])
+        otherSwiftFlags(flags)
+    }
+
+    /// Sets `"OTHER_SWIFT_FLAGS"` to `flags`
+    public func otherSwiftFlags(_ flags: [String]) -> SettingsDictionary {
+        merging(["OTHER_SWIFT_FLAGS": .array(flags)])
     }
 
     /// Sets `"SWIFT_ACTIVE_COMPILATION_CONDITIONS"` to `conditions`
     public func swiftActiveCompilationConditions(_ conditions: String...) -> SettingsDictionary {
-        merging(["SWIFT_ACTIVE_COMPILATION_CONDITIONS": SettingValue(conditions.joined(separator: " "))])
+        swiftActiveCompilationConditions(conditions)
+    }
+
+    /// Sets `"SWIFT_ACTIVE_COMPILATION_CONDITIONS"` to `conditions`
+    public func swiftActiveCompilationConditions(_ conditions: [String]) -> SettingsDictionary {
+        merging(["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(conditions)])
     }
 
     // MARK: - Swift Compiler - Code Generation
