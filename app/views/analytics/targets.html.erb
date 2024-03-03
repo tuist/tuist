@@ -40,7 +40,7 @@
         <% @targets_cache_hit_rate.each do |target| %>
           <tr>
             <td><%= target.target %></td>
-            <td><%= target.cache_hit_rate * 100 %> %</td>
+            <td><%= (target.cache_hit_rate * 100).round(3) %> %</td>
             <td><%= target.hits %></td>
             <td><%= target.misses %></td>
             <td><%= target.total_count %></td>
