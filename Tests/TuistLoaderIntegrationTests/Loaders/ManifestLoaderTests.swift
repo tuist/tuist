@@ -92,7 +92,7 @@ final class ManifestLoaderTests: TuistTestCase {
         #endif
 
         let package = Package(
-            name: "PackageName",
+            name: "tuist",
             products: [
                 .executable(name: "tuist", targets: ["tuist"]),
             ],
@@ -121,9 +121,10 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try subject.loadPackage(at: manifestPath.parentDirectory)
 
         // Then
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             got,
             .test(
+                name: "tuist",
                 products: [
                     PackageInfo.Product(name: "tuist", type: .executable, targets: ["tuist"]),
                 ],

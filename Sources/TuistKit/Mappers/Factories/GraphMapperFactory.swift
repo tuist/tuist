@@ -59,6 +59,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         if config.generationOptions.enforceExplicitDependencies {
             mappers.append(ExplicitDependencyGraphMapper())
         }
+        mappers.append(TreeShakePrunedTargetsGraphMapper())
         return mappers
     }
 }

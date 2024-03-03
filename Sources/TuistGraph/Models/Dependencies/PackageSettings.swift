@@ -2,7 +2,7 @@ import Foundation
 import TSCUtility
 
 /// Contains the description of custom SPM settings
-public struct PackageSettings: Equatable {
+public struct PackageSettings: Equatable, Codable {
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
 

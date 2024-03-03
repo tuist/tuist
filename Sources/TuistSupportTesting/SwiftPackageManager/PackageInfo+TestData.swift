@@ -7,6 +7,7 @@ import TuistGraph
 
 extension PackageInfo {
     public static func test(
+        name: String = "Package",
         products: [Product] = [],
         targets: [Target] = [],
         platforms: [Platform] = [],
@@ -15,6 +16,7 @@ extension PackageInfo {
         swiftLanguageVersions: [TSCUtility.Version]? = nil
     ) -> Self {
         .init(
+            name: name,
             products: products,
             targets: targets,
             platforms: platforms,
@@ -576,6 +578,7 @@ extension PackageInfo {
 
     public static var test: PackageInfo {
         .init(
+            name: "tuist",
             products: [
                 .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
             ],
@@ -691,6 +694,7 @@ extension PackageInfo {
 
     public static var aDependency: PackageInfo {
         .init(
+            name: "ALibrary",
             products: [
                 .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
             ],
@@ -737,6 +741,7 @@ extension PackageInfo {
 
     static var anotherDependency: PackageInfo {
         .init(
+            name: "AnotherLibrary",
             products: [
                 .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
             ],
@@ -893,6 +898,7 @@ extension PackageInfo {
 
     public static var alamofire: PackageInfo {
         .init(
+            name: "Alamofire",
             products: [
                 .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
             ],
@@ -1251,6 +1257,7 @@ extension PackageInfo {
 
     public static var googleAppMeasurement: PackageInfo {
         .init(
+            name: "GoogleAppMeasurement",
             products: [
                 .init(
                     name: "GoogleAppMeasurement",
@@ -1392,6 +1399,7 @@ extension PackageInfo {
 
     public static var googleUtilities: PackageInfo {
         .init(
+            name: "GoogleUtilities",
             products: [
                 .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
                 .init(name: "GULMethodSwizzler", type: .library(.automatic), targets: ["GULMethodSwizzler"]),
@@ -1463,6 +1471,7 @@ extension PackageInfo {
 
     public static var nanopb: PackageInfo {
         .init(
+            name: "nanopb",
             products: [
                 .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
             ],

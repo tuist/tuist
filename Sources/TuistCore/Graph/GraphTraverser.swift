@@ -628,8 +628,11 @@ public class GraphTraverser: GraphTraversing {
         let allTargetExternalDependendedUponTargets = filterDependencies(from: graphDependenciesWithExternalDependencies)
             .compactMap { graphDependency -> GraphTarget? in
                 if case let GraphDependency.target(name, path) = graphDependency {
-                    let target = graph.targets[path]![name]!
-                    let project = graph.projects[path]!
+                    guard let target = graph.targets[path]?[name],
+                          let project = graph.projects[path]
+                    else {
+                        return nil
+                    }
                     return GraphTarget(path: path, target: target, project: project)
                 } else {
                     return nil
