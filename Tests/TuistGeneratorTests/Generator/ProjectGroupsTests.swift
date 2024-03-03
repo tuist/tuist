@@ -103,9 +103,7 @@ final class ProjectGroupsTests: XCTestCase {
         )
 
         // Then
-        // swiftformat:disable preferKeyPath
-        let paths = subject.sortedMain.children.compactMap { $0.nameOrPath }
-        // swiftformat:enable preferKeyPath
+        let paths = subject.sortedMain.children.map(\.nameOrPath)
         XCTAssertEqual(paths, [
             "P",
             "B",

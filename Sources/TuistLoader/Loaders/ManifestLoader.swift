@@ -153,7 +153,7 @@ public class ManifestLoader: ManifestLoading {
     public func validateHasRootManifest(at path: AbsolutePath) throws {
         let manifests = manifests(at: path)
         let rootManifests: Set<Manifest> = [.workspace, .project, .package]
-        guard !manifests.intersection(rootManifests).isEmpty else {
+        guard !manifests.isDisjoint(with: rootManifests) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
