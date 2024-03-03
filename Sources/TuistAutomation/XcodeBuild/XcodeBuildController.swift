@@ -208,7 +208,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     enum ShowBuildSettingsError: Error {
-        // swiftformat:disable trailingCommas
         case timeout
     }
 

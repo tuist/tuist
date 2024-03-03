@@ -45,6 +45,7 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
+    // swiftlint:disable:next function_body_length
     public func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,

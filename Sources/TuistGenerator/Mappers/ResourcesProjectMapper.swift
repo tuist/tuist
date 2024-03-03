@@ -5,7 +5,7 @@ import TuistGraph
 import TuistSupport
 
 /// A project mapper that adds support for defining resources in targets that don't support it
-public class ResourcesProjectMapper: ProjectMapping {
+public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
     public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
@@ -29,6 +29,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (project.with(targets: targets), sideEffects)
     }
 
+    // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
 

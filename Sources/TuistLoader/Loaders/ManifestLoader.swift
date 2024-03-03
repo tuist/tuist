@@ -94,6 +94,7 @@ public protocol ManifestLoading {
     func register(plugins: Plugins) throws
 }
 
+// swiftlint:disable:next type_body_length
 public class ManifestLoader: ManifestLoading {
     // MARK: - Static
 
@@ -152,7 +153,7 @@ public class ManifestLoader: ManifestLoading {
     public func validateHasRootManifest(at path: AbsolutePath) throws {
         let manifests = manifests(at: path)
         let rootManifests: Set<Manifest> = [.workspace, .project, .package]
-        guard !manifests.intersection(rootManifests).isEmpty else {
+        guard !manifests.isDisjoint(with: rootManifests) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
