@@ -8,7 +8,7 @@ public enum XcodeBuildDestination: Equatable {
 }
 
 /// An enum that represents value pairs that can be passed when creating an .xcframework.
-public enum XcodeBuildControllerCreateXCFrameworkArgument {
+public enum XcodeBuildControllerCreateXCFrameworkArgument { // swiftlint:disable:this type_name
     /**
      An argument that represents a framework archive. The argument is a tuple containing the
      absolute path to the archive, and the name of the framework inside the archive.

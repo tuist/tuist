@@ -190,7 +190,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.targetName),
-                .external(name: "XcodeProj")
+                .external(name: "XcodeProj"),
             ]
         case .tuist:
             [
@@ -624,7 +624,7 @@ public enum Module: String, CaseIterable {
         }
         var debugSettings: ProjectDescription.SettingsDictionary = ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"]
         var releaseSettings: ProjectDescription.SettingsDictionary = [:]
-        if (isTestingTarget) {
+        if isTestingTarget {
             debugSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
             releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         }

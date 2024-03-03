@@ -94,6 +94,7 @@ public protocol ManifestLoading {
     func register(plugins: Plugins) throws
 }
 
+// swiftlint:disable:next type_body_length
 public class ManifestLoader: ManifestLoading {
     // MARK: - Static
 

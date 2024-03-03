@@ -639,6 +639,7 @@ public class GraphTraverser: GraphTraversing {
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
+    // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
         func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<AbsolutePath> {
             Set(
