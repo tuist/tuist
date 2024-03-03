@@ -87,7 +87,7 @@ public protocol ManifestLoading {
     func manifests(at path: AbsolutePath) -> Set<Manifest>
 
     /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
-    func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws
+    func validateHasRootManifest(at path: AbsolutePath) throws
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
@@ -149,9 +149,10 @@ public class ManifestLoader: ManifestLoading {
         Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
     }
 
-    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
+    public func validateHasRootManifest(at path: AbsolutePath) throws {
         let manifests = manifests(at: path)
-        guard manifests.contains(.workspace) || manifests.contains(.project) else {
+        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
+        guard !manifests.intersection(rootManifests).isEmpty else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
