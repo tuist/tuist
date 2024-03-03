@@ -181,11 +181,20 @@ public class ResourcesProjectMapper: ProjectMapping {
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
 
-                let candidates = [
+                var candidates = [
                     Bundle.main.resourceURL,
                     Bundle(for: BundleFinder.self).resourceURL,
                     Bundle.main.bundleURL,
                 ]
+
+                #if DEBUG
+                // This is a fix to make Previews work with bundled resources.
+                // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
+                // which is located under the derived data directory after building the project.
+                if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
+                    candidates.append(URL(fileURLWithPath: override))
+                }
+                #endif
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")

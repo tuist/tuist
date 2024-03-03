@@ -750,6 +750,17 @@ final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanc
     }
 }
 
+final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
+    func test_spm_package() async throws {
+        try setUpFixture(.spmPackage)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "MyPackage", "--platform", "ios")
+        try await run(BuildCommand.self, "MyCLI")
+        try await run(TestCommand.self, "--platform", "macos")
+    }
+}
+
 extension TuistAcceptanceTestCase {
     private func resourcePath(
         for productName: String,

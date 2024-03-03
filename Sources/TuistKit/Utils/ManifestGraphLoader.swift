@@ -35,6 +35,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let manifestLinter: ManifestLinting
     private let workspaceMapper: WorkspaceMapping
     private let graphMapper: GraphMapping
+    private let packageSettingsLoader: PackageSettingsLoading
+    private let manifestFilesLocator: ManifestFilesLocating
 
     public convenience init(
         manifestLoader: ManifestLoading,
@@ -54,7 +56,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             graphLoaderLinter: CircularDependencyLinter(),
             manifestLinter: ManifestLinter(),
             workspaceMapper: workspaceMapper,
-            graphMapper: graphMapper
+            graphMapper: graphMapper,
+            packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader),
+            manifestFilesLocator: ManifestFilesLocator()
         )
     }
 
@@ -69,7 +73,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphLoaderLinter: CircularDependencyLinting,
         manifestLinter: ManifestLinting,
         workspaceMapper: WorkspaceMapping,
-        graphMapper: GraphMapping
+        graphMapper: GraphMapping,
+        packageSettingsLoader: PackageSettingsLoading,
+        manifestFilesLocator: ManifestFilesLocating
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -82,25 +88,43 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         self.manifestLinter = manifestLinter
         self.workspaceMapper = workspaceMapper
         self.graphMapper = graphMapper
+        self.packageSettingsLoader = packageSettingsLoader
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     // swiftlint:disable:next large_tuple
     public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
-        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
+        try manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try converter.convert(
-            manifest: try swiftPackageManagerGraphLoader.load(
-                at: path,
-                plugins: plugins
-            ),
-            path: path
-        )
 
-        let allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let dependenciesGraph: TuistGraph.DependenciesGraph
+        let packageSettings: TuistGraph.PackageSettings?
+        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path) {
+            let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
+                at: packagePath.parentDirectory,
+                with: plugins
+            )
+            dependenciesGraph = try converter.convert(
+                manifest: try swiftPackageManagerGraphLoader.load(
+                    packagePath: packagePath,
+                    packageSettings: loadedPackageSettings
+                ),
+                path: path
+            )
+            packageSettings = loadedPackageSettings
+        } else {
+            packageSettings = nil
+            dependenciesGraph = .none
+        }
+
+        let allManifests = try recursiveManifestLoader.loadWorkspace(
+            at: path,
+            packageSettings: packageSettings
+        )
         let (workspaceModels, manifestProjects) = (
             try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects
