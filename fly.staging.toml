@@ -10,6 +10,12 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="staging"
+  RAILS_MAX_THREADS=2
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
 
 [processes]
   app = "./bin/rails server"

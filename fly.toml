@@ -10,6 +10,12 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="production"
+  RAILS_MAX_THREADS=5
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+  cpus = 2
 
 [processes]
   app = "./bin/rails server"
@@ -18,8 +24,8 @@ console_command = "/rails/bin/rails console"
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  auto_stop_machines = false
-  auto_start_machines = false
+  auto_stop_machines = true
+  auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
   http_options = { h2_backend = true }
@@ -34,8 +40,8 @@ console_command = "/rails/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 6000
-    soft_limit = 5000
+    hard_limit = 1000
+    soft_limit = 800
 
   [[services.tcp_checks]]
     interval = "15s"
