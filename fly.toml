@@ -10,7 +10,7 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=3
+  RAILS_MAX_THREADS=5
   WEB_CONCURRENCY=4
 
 [[vm]]
