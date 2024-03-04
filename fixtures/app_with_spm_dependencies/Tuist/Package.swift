@@ -32,6 +32,8 @@ let package = Package(
         .package(url: "https://github.com/Quick/Quick", exact: "7.4.0"),
         .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
         .package(url: "https://github.com/SVProgressHUD/SVProgressHUD", exact: "2.3.1"),
+        // Has missing resources and its own resource bundle accessors
+        .package(url: "https://github.com/urbanairship/ios-library.git", .exact("17.7.3")),
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
     ]

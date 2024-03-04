@@ -91,6 +91,15 @@
       }
     },
     {
+      "identity" : "ios-library",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/urbanairship/ios-library.git",
+      "state" : {
+        "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
+        "version" : "17.7.3"
+      }
+    },
+    {
       "identity" : "nimble",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Quick/Nimble",
