@@ -893,6 +893,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                                .init(rule: .process, path: "AnotherOne/Resource/Folder/NonExisting"),
                             ],
                             exclude: [
                                 "AnotherOne/Resource",
@@ -907,7 +908,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",

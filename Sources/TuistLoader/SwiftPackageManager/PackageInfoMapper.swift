@@ -766,6 +766,18 @@ extension ResourceFileElements {
                 return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
+            .filter {
+                switch $0 {
+                case let .glob(pattern: pattern, excluding: _, tags: _, inclusionCondition: _):
+                    // We will automatically skip including globs of non-existing directories for packages
+                    if !FileHandler.shared.exists(try AbsolutePath(validating: String(pattern.pathString)).parentDirectory) {
+                        return false
+                    }
+                    return true
+                case .folderReference:
+                    return true
+                }
+            }
 
         // Add default resources path if necessary
         // They are handled like a `.process` rule
