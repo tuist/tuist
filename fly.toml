@@ -11,7 +11,7 @@ console_command = "/rails/bin/rails console"
   PORT = "8080"
   RAILS_ENV="production"
   RAILS_MAX_THREADS=3
-  WEB_CONCURRENCY=2
+  WEB_CONCURRENCY=4
 
 [[vm]]
   cpu_kind = 'shared'
