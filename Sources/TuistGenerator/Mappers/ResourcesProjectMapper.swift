@@ -65,7 +65,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
+        if target.supportsSources,
+           target.sources.contains(where: { $0.path.extension == "swift" }),
+           !target.sources.contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
+        {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
