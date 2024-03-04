@@ -109,6 +109,7 @@ extension SettingsDictionary {
     // MARK: - Swift Compiler - Custom Flags
 
     /// Sets `"OTHER_SWIFT_FLAGS"` to `flags`
+    @available(*, deprecated, message: "Please use the version with array support")
     public func otherSwiftFlags(_ flags: String...) -> SettingsDictionary {
         otherSwiftFlags(flags)
     }
@@ -119,6 +120,7 @@ extension SettingsDictionary {
     }
 
     /// Sets `"SWIFT_ACTIVE_COMPILATION_CONDITIONS"` to `conditions`
+    @available(*, deprecated, message: "Please use the version with array support")
     public func swiftActiveCompilationConditions(_ conditions: String...) -> SettingsDictionary {
         swiftActiveCompilationConditions(conditions)
     }
