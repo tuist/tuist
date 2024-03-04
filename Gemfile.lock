@@ -153,7 +153,7 @@ GEM
       activesupport (>= 6.1)
     hashie (5.0.0)
     http-2-next (1.0.3)
-    httpx (1.2.2)
+    httpx (1.2.3)
       http-2-next (>= 1.0.3)
     i18n (1.14.1)
       concurrent-ruby (~> 1.0)
