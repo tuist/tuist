@@ -10,12 +10,13 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=5
+  RAILS_MAX_THREADS=3
+  WEB_CONCURRENCY=4
 
 [[vm]]
-  size = "shared-cpu-2x"
-  memory = "2gb"
-  cpus = 2
+  cpu_kind = 'shared'
+  memory = "4gb"
+  cpus = 4
 
 [processes]
   app = "./bin/rails server"

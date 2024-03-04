@@ -10,10 +10,11 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="canary"
-  RAILS_MAX_THREADS=2
+  RAILS_MAX_THREADS=1
+  WEB_CONCURRENCY=1
 
 [[vm]]
-  size = "shared-cpu-1x"
+  cpu_kind = 'shared'
   memory = "256mb"
   cpus = 1
 

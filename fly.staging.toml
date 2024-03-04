@@ -11,9 +11,10 @@ console_command = "/rails/bin/rails console"
   PORT = "8080"
   RAILS_ENV="staging"
   RAILS_MAX_THREADS=2
+  WEB_CONCURRENCY=1
 
 [[vm]]
-  size = "shared-cpu-1x"
+  cpu_kind = 'shared'
   memory = "256mb"
   cpus = 1
 
