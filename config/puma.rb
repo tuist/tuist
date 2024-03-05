@@ -11,6 +11,12 @@ rails_env = ENV.fetch("RAILS_ENV", "development")
 threads_count = ENV.fetch("RAILS_MAX_THREADS") { 3 }
 threads threads_count, threads_count
 
+unless ENV.fetch("TUIST_CLOUD_SELF_HOSTED", "0") == "1"
+  plugin :appsignal
+  # To load the AppSignal configuration from config/appsignal.yml
+  require "rails"
+end
+
 if rails_env == "production"
   # If you are running more than 1 thread per process, the workers count
   # should be equal to the number of processors (CPU cores) in production.
