@@ -1,2 +1,6 @@
 [tools]
 ruby = "3.3.0"
+traefik = "3.0.0-rc1"
+
+[plugins]
+traefik = "https://github.com/Dabolus/asdf-traefik"

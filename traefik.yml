@@ -1,0 +1,17 @@
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":8080"
+
+providers:
+  file:
+    directory: "./.traefik"
+
+log:
+  level: DEBUG
+
+accessLog: {}
+

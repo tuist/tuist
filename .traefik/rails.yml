@@ -1,0 +1,11 @@
+http:
+  routers:
+    rails:
+      rule: "PathPrefix(`/`)"
+      service: rails
+  services:
+    rails:
+      loadBalancer:
+        servers:
+        - url: "http://127.0.0.1:3000/"
+        passHostHeader: true

@@ -72,10 +72,28 @@ ARG APP_REVISION=unknown
 ENV APP_REVISION=${APP_REVISION}
 ARG TUIST_VERSION=""
 ENV TUIST_VERSION=${TUIST_VERSION}
+ENV TRAEFIK_VERSION "3.0.0-rc1"
 
 # Install packages needed for deployment
-RUN apt-get install --no-install-recommends -y curl libvips postgresql-client && \
+RUN apt-get install --no-install-recommends -y curl libvips postgresql-client supervisor && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+# Install Traefik
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+    curl -L "https://github.com/traefik/traefik/releases/download/v${TRAEFIK_VERSION}/traefik_v${TRAEFIK_VERSION}_linux_amd64.tar.gz" -o /tmp/traefik.tar.gz && \
+    tar -xzf /tmp/traefik.tar.gz -C /usr/local/bin traefik && \
+    rm /tmp/traefik.tar.gz && \
+    chmod +x /usr/local/bin/traefik && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Traefik configuration file
+COPY traefik.yml traefik.yml
+COPY .traefik/ .traefik/
+
+# Supervisor configuration file
+RUN mkdir -p /var/log/supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Copy built artifacts: gems, application
 COPY --from=build /usr/local/bundle /usr/local/bundle
@@ -91,4 +109,4 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
-CMD ["./bin/rails", "server"]
+CMD ["/usr/bin/supervisord"]
