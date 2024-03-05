@@ -10,7 +10,7 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=15
+  RAILS_MAX_THREADS=30
   WEB_CONCURRENCY=4
 
 [[vm]]
@@ -41,7 +41,7 @@ console_command = "/rails/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 70
+    hard_limit = 59
     soft_limit = 40
 
   [[services.tcp_checks]]
