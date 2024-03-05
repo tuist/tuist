@@ -212,7 +212,7 @@ class TargetLinter: TargetLinting {
             let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
             if !version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
 
-            let destinations = target.destinations
+            let destinations = target.destinations.sorted(by: { $0.rawValue < $1.rawValue })
             let inconsistentPlatformIssue = LintingIssue(
                 reason: "Found an inconsistency between target destinations `\(destinations)` and deployment target `\(platform.caseValue)`",
                 severity: .error
