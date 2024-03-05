@@ -1,24 +1,38 @@
 # Changelog
 
+## 4.5.1 - 2024-03-05
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.4.0 - 2024-02-28
 
 ### Tuist
 
 #### Added
+
 * Add docs about GCS support by @fortmarek in https://github.com/tuist/tuist/pull/5997
 * Add support for the new `package` access modifier by @pepicrft in https://github.com/tuist/tuist/pull/5983
 
 #### Fixed
+
 * Fix spm bundle recursion by @fortmarek in https://github.com/tuist/tuist/pull/5999
 * Avoid infinite loop caused by symbolic links  by @haifengkao in https://github.com/tuist/tuist/pull/5813
 * Prune targets with no destinations after platform narrowing by @fortmarek in https://github.com/tuist/tuist/pull/5979
 
 #### Changed
+
 * Upgrade to xcbeautify 1.6.0 by @cpisciotta in https://github.com/tuist/tuist/pull/5996
 * Update docs for optional Cloud.Option by @fortmarek in https://github.com/tuist/tuist/pull/6002
 * SPM dependencies now implicitly support all platforms by @fortmarek in https://github.com/tuist/tuist/pull/5990
 
 #### Removed
+
 * Remove version command by @pepicrft in https://github.com/tuist/tuist/pull/5995
 
 ### Tuist Cloud
