@@ -35,7 +35,11 @@ class CacheClearServiceTest < ActiveSupport::TestCase
   test "cache is cleared with project slug" do
     # Given
     client = mock("s3-client").responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns([client, "bucket"])
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(client)
+    S3.stubs(:instance).returns(s3)
+
     client.expects(:delete_objects)
     client.expects(:list_objects).returns(ContentsMock.new)
     project = Project.create!(

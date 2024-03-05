@@ -29,7 +29,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
 
     # When
@@ -52,7 +55,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
     @project.update(remote_cache_storage: nil)
 
@@ -76,7 +82,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
 
     # When
@@ -99,7 +108,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
 
     # When
@@ -120,7 +132,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "object does not exist when not found AWS error is thrown" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).raises(Aws::S3::Errors::NotFound.new("", ""))
 
     # When
@@ -141,7 +156,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "object does not exist when no such key AWS error is thrown" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).raises(Aws::S3::Errors::NoSuchKey.new("", ""))
 
     # When
@@ -162,7 +180,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "catches forbidden AWS error" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).raises(Aws::S3::Errors::Forbidden.new("", ""))
 
     # When / Then
@@ -182,7 +203,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "fetch returns presigned url for uploading file" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
     CacheEvent.create!(
       name: "my-project/tuist/builds/artifact-hash/MyFramework",
@@ -214,7 +238,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "fetch returns presigned url for uploading file for tests cache_category" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
 
     Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
     CacheEvent.create!(
@@ -247,7 +274,10 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "upload returns presigned url for uploading file" do
     # Given
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:put_object)
     Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("upload url")
 
@@ -271,7 +301,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
 
     # When
@@ -337,7 +370,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
     ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(project)
 
@@ -373,7 +409,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     s3_client = mock('s3-client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns(s3_client)
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:get_object).returns(bucket_object)
 
     project.account.update(cache_upload_event_count: 15_000)
@@ -414,7 +453,10 @@ class CacheServiceTest < ActiveSupport::TestCase
       add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns([s3_client, "bucket"])
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:create_multipart_upload).with({
       bucket: "bucket",
       key: subject.object_key,
@@ -448,7 +490,10 @@ class CacheServiceTest < ActiveSupport::TestCase
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
     presigner = mock('Aws::S3::Presigner').responds_like_instance_of(Aws::S3::Presigner)
-    S3ClientService.expects(:call).returns([s3_client, "bucket"])
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     Aws::S3::Presigner.expects(:new).returns(presigner)
     upload_url = "https://test.upload.com/"
     presigner.expects(:presigned_url).with(:upload_part, {
@@ -485,7 +530,10 @@ class CacheServiceTest < ActiveSupport::TestCase
       add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
-    S3ClientService.expects(:call).returns([s3_client, "bucket"])
+    s3 = mock("s3")
+    s3.stubs(:bucket).returns("bucket")
+    s3.stubs(:client).returns(s3_client)
+    S3.stubs(:instance).returns(s3)
     s3_client.expects(:complete_multipart_upload).with({
       bucket: "bucket",
       key: subject.object_key,

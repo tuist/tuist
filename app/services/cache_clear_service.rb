@@ -28,10 +28,9 @@ class CacheClearService < ApplicationService
     )
     raise Error::Unauthorized unless ProjectPolicy.new(subject, project).update?
 
-    s3_client, bucket_name = S3ClientService.call
     delete_objects(
-      bucket_name: bucket_name,
-      s3_client: s3_client,
+      bucket_name: S3.instance.bucket,
+      s3_client: S3.instance.client,
       project: project,
     )
   end
