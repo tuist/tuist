@@ -3,11 +3,11 @@
 ## 4.5.1 - 2024-03-05
 
 ### Tuist
-
-- no changes
+#### Fixes
+* Fix generation of SPM packages when some resources are missing by @fortmarek in https://github.com/tuist/tuist/pull/6027
+* fix: Previews crash when accessing resources from cached XCFrameworks by @anlaital-oura in https://github.com/tuist/tuist/pull/6028
 
 ### Tuist Cloud
-
 - no changes
 
 ## 4.4.0 - 2024-02-28
