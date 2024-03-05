@@ -115,10 +115,10 @@ final class SettingsTests: XCTestCase {
             "VERSION_INFO_PREFIX": "A_Prefix",
             "VERSION_INFO_SUFFIX": "A_Suffix",
             "SWIFT_VERSION": "5.2.1",
-            "OTHER_SWIFT_FLAGS": "first second third",
+            "OTHER_SWIFT_FLAGS": ["first", "second", "third"],
             "ENABLE_BITCODE": "YES",
             "DEBUG_INFORMATION_FORMAT": "dwarf",
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["FIRST", "SECOND", "THIRD"],
             "SWIFT_OBJC_BRIDGING_HEADER": "/my/bridging/header/path.h",
             "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
             "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
@@ -138,15 +138,44 @@ final class SettingsTests: XCTestCase {
         ])
     }
 
-    func test_settingsDictionary_swiftActiveCompilationConditions() {
+    func test_settingsDictionary_otherSwiftFlags() {
         /// Given/When
-        let settings = SettingsDictionary()
-            .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
+        let settingsVariadic = SettingsDictionary()
+            .otherSwiftFlags("FIRST", "SECOND", "THIRD")
+
+        let settingsArray = SettingsDictionary()
+            .otherSwiftFlags(["FIRST", "SECOND", "THIRD"])
 
         /// Then
-        XCTAssertEqual(settings, [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
+        XCTAssertEqual(settingsVariadic, [
+            "OTHER_SWIFT_FLAGS": ["FIRST", "SECOND", "THIRD"],
         ])
+
+        XCTAssertEqual(settingsArray, [
+            "OTHER_SWIFT_FLAGS": ["FIRST", "SECOND", "THIRD"],
+        ])
+
+        XCTAssertEqual(settingsVariadic, settingsArray)
+    }
+
+    func test_settingsDictionary_swiftActiveCompilationConditions() {
+        /// Given/When
+        let settingsVariadic = SettingsDictionary()
+            .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
+
+        let settingsArray = SettingsDictionary()
+            .swiftActiveCompilationConditions(["FIRST", "SECOND", "THIRD"])
+
+        /// Then
+        XCTAssertEqual(settingsVariadic, [
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["FIRST", "SECOND", "THIRD"],
+        ])
+
+        XCTAssertEqual(settingsArray, [
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["FIRST", "SECOND", "THIRD"],
+        ])
+
+        XCTAssertEqual(settingsVariadic, settingsArray)
     }
 
     func test_settingsDictionary_SwiftCompilationMode() {
