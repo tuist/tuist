@@ -546,6 +546,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "XROS_DEPLOYMENT_TARGET": "1.0",
             "IPHONEOS_DEPLOYMENT_TARGET": "16.0",
+            "SDKROOT": "iphoneos",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
