@@ -196,7 +196,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // which is located under the derived data directory after building the project.
                 if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
                     candidates.append(URL(fileURLWithPath: override))
-                    
+
                     // Deleting derived data and not building the frameworks containing resources may result in a state
                     // where the bundles are only available in the framework's directory that is actively being previewed.
                     // Since we don't know which framework is being actively previewed, we need to look in the subpaths also.
