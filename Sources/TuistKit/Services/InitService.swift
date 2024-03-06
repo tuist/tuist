@@ -117,6 +117,7 @@ class InitService {
                 let parsedAttributes = try parseAttributes(
                     name: name,
                     platform: platform,
+                    tuistVersion: Constants.version,
                     requiredTemplateOptions: requiredTemplateOptions,
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
@@ -137,6 +138,7 @@ class InitService {
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
+                tuistVersion: Constants.version,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template
@@ -177,6 +179,7 @@ class InitService {
     private func parseAttributes(
         name: String,
         platform: Platform,
+        tuistVersion: String,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
@@ -184,11 +187,11 @@ class InitService {
         let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
+            "tuist_version": .string(tuistVersion)
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
-            if attribute.name == "name" || attribute.name == "platform" {
-                return
-            }
+            if defaultAttributes.keys.contains(attribute.name) { return }
+            
             switch attribute {
             case let .required(name):
                 guard let option = requiredTemplateOptions[name]
