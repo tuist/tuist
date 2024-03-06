@@ -65,7 +65,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }.flatMap {
             fileHandler.glob($0, glob: "")
         }.filter {
-            fileHandler.isFolder($0)
+            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts")
         }.filter {
             let manifests = manifestLoader.manifests(at: $0)
             return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace)
@@ -104,7 +104,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         var paths = Set(paths)
         while !paths.isEmpty {
             paths.subtract(cache.keys)
-            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
+            let projects = try Array(paths).compactMap(context: ExecutionContext.concurrent) {
                 let packageInfo = try manifestLoader.loadPackage(at: $0)
                 return try packageInfoMapper.map(
                     packageInfo: packageInfo,
@@ -112,7 +112,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     packageType: .local,
                     packageSettings: packageSettings,
                     packageToProject: [:]
-                )!
+                )
             }
             var newDependenciesPaths = Set<AbsolutePath>()
             for (path, project) in zip(paths, projects) {
