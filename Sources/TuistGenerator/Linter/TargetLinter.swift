@@ -223,7 +223,10 @@ class TargetLinter: TargetLinting {
             case .macOS: if !target.supports(.macOS) { return [inconsistentPlatformIssue] }
             case .watchOS: if !target.supports(.watchOS) { return [inconsistentPlatformIssue] }
             case .tvOS: if !target.supports(.tvOS) { return [inconsistentPlatformIssue] }
-            case .visionOS: if !target.supports(.visionOS) { return [inconsistentPlatformIssue] }
+            case .visionOS:
+                if !target.supports(.visionOS), !target.destinations.contains(.appleVisionWithiPadDesign) {
+                    return [inconsistentPlatformIssue]
+                }
             }
             return []
         }

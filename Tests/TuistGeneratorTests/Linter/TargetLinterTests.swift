@@ -274,7 +274,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         }
     }
 
-    func test_lint_when_visionos_deployment_target_is_invalid_for_iPad_design() {
+    func test_lint_when_visionos_iPad_designed_deployment_target_is_valid() {
         let targets = [
             Target(
                 name: "visionOS",
