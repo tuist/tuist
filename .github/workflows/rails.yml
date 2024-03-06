@@ -1,4 +1,4 @@
-name: Cloud
+name: Rails
 
 on:
   push:
@@ -13,7 +13,7 @@ env:
   NODE_VERSION: 16.17.0
 
 concurrency:
-  group: cloud-${{ github.head_ref }}
+  group: rails-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:

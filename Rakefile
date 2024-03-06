@@ -6,18 +6,3 @@
 require_relative "config/application"
 
 Rails.application.load_tasks
-
-task "Deploys the app to the staging environment"
-task "deploy:staging" do
-  system("flyctl deploy -c fly.staging.toml --build-arg RAILS_ENV=staging --vm-memory=2048 --wait-timeout 600") || abort
-end
-
-desc "Deploys the app to the canary environment"
-task "deploy:canary" do
-  system("flyctl deploy -c fly.canary.toml --build-arg RAILS_ENV=canary --vm-memory=2048 --wait-timeout 600") || abort
-end
-
-desc "Deploys the app to the production environment"
-task "deploy:production" do
-  system("flyctl deploy -c fly.toml --build-arg RAILS_ENV=production --vm-memory=2048 --wait-timeout 600") || abort
-end

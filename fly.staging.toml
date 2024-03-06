@@ -2,7 +2,7 @@ app = "tuist-cloud-staging"
 primary_region = "atl"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
-console_command = "/rails/bin/rails console"
+console_command = "/app/bin/rails console"
 
 [experimental]
   auto_rollback = true
@@ -10,6 +10,7 @@ console_command = "/rails/bin/rails console"
 [env]
   PORT = "8080"
   RAILS_PORT="3000"
+  PHX_PORT="4000"
   RAILS_ENV="staging"
   RAILS_MAX_THREADS=2
   WEB_CONCURRENCY=1
@@ -20,8 +21,8 @@ console_command = "/rails/bin/rails console"
   cpus = 1
 
 [processes]
-  app = "/rails/bin/serve"
-  worker = "/rails/bin/que"
+  app = "/app/bin/serve"
+  worker = "/app/bin/que"
 
 [[services]]
   protocol = "tcp"
@@ -51,5 +52,5 @@ console_command = "/rails/bin/rails console"
     grace_period = "1s"
 
 [[statics]]
-  guest_path = "/rails/public"
+  guest_path = "/app/public"
   url_prefix = "/"

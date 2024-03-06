@@ -1,0 +1,11 @@
+http:
+  routers:
+    phx:
+      rule: "PathPrefix(`/api/phx`)"
+      service: phx
+  services:
+    phx:
+      loadBalancer:
+        servers:
+        - url: "http://127.0.0.1:4000/"
+        passHostHeader: true

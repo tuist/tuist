@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# mise description="Deploys the app to canary"
+
+flyctl deploy -c $MISE_PROJECT_ROOT/fly.canary.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg RAILS_ENV=canary --vm-memory=2048 --wait-timeout 600

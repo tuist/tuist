@@ -1,0 +1,92 @@
+name: Phoenix
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: phoenix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  MASTER_KEY: ${{ secrets.MASTER_KEY }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 15
+    services:
+      db:
+        image: postgres:14.11
+        ports: ['5432:5432']
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - working-directory: phx
+        run: mix deps.get
+      - working-directory: phx
+        run: mix test
+  credo:
+    name: Credo
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - working-directory: phx
+        run: mix deps.get
+      - working-directory: phx
+        run: mix credo
+
+  dialyzer:
+    name: Dialyzer
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - env:
+          MIX_ENV: dev
+        working-directory: phx
+        run: mix deps.get
+      - env:
+          MIX_ENV: dev
+        working-directory: phx
+        run: mix dialyzer

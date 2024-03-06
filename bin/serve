@@ -1,8 +1,3 @@
 #!/bin/bash -e
 
-./bin/rails server -p 3000 &
-traefik --configFile=./traefik.yml &
-
-wait
-
-exit $?
+parallel --ungroup -j 3 --halt now,fail=1 ::: './bin/rails server -p 3000' './phx/bin/server' 'traefik --configFile=./traefik.yml'
