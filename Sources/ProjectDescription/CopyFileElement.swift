@@ -1,12 +1,6 @@
 import Foundation
 
 /// A file element from a glob pattern or a folder reference which is conditionally applied to specific platforms.
-///
-/// - glob: a glob pattern for files to include
-/// - folderReference: a single path to a directory
-///
-/// Note: For convenience, an element can be represented as a string literal
-///       `"some/pattern/**"` is the equivalent of `ConditionalFileElement.glob(pattern: "some/pattern/**")`
 public enum CopyFileElement: Codable, Equatable {
     /// A file path (or glob pattern) to include with an optional PlatformCondition to control which platforms it applies to.
     case glob(pattern: Path, condition: PlatformCondition? = nil)
