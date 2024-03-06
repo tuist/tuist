@@ -8,11 +8,6 @@
       href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css"
       rel="stylesheet"
     />
-     <% unless browser.safari? %>
-      <script>
-        fetch("http://127.0.0.1:4545/auth?token=<%= current_user.token %>&account=<%= current_user.account.name %>", { mode: "cors", headers: { "Content-Type": "application/json" } })
-      </script>
-    <% end %>
   </head>
 
   <body
@@ -26,36 +21,25 @@
     </div>
     <div class="bg-white shadow sm:rounded-lg max-w-lg">
       <div class="px-4 py-5 sm:p-6">
-        <% if browser.safari? %>
-          <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">
-            Copy token and continue in the terminal
-          </h3>
-          <div class="flex flex-col items-center mt-2 max-w-xl text-sm leading-5 text-gray-600 text-center gap-y-5" data-controller="clipboard" data-clipboard-token-value="<%= current_user.token %>">
-            <p>
-              Copy the following token and paste it in the terminal to continue the authentication process.
-            </p>
-            <div class="flex flex-row">
-              <div class="bg-gray-700 text-gray-200 py-2 rounded-l-lg px-4">
-                <%= current_user.token %>
-              </div>
-              <button data-action="click->clipboard#copy" class="bg-gray-300 hover:bg-gray-400 flex items-center justify-center px-2 rounded-r-lg border border-gray-400 hover:border-gray-500">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" class="h-4 w-4 text-gray-500" fill="currentColor"><path d="M384 336H192c-8.8 0-16-7.2-16-16V64c0-8.8 7.2-16 16-16l140.1 0L400 115.9V320c0 8.8-7.2 16-16 16zM192 384H384c35.3 0 64-28.7 64-64V115.9c0-12.7-5.1-24.9-14.1-33.9L366.1 14.1c-9-9-21.2-14.1-33.9-14.1H192c-35.3 0-64 28.7-64 64V320c0 35.3 28.7 64 64 64zM64 128c-35.3 0-64 28.7-64 64V448c0 35.3 28.7 64 64 64H256c35.3 0 64-28.7 64-64V416H272v32c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192c0-8.8 7.2-16 16-16H96V128H64z"/></svg>
-              </button>
+        <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">
+          Copy token and continue in the terminal
+        </h3>
+        <div class="flex flex-col items-center mt-2 max-w-xl text-sm leading-5 text-gray-600 text-center gap-y-5" data-controller="clipboard" data-clipboard-token-value="<%= current_user.token %>">
+          <p>
+            Copy the following token and paste it in the terminal to continue the authentication process.
+          </p>
+          <div class="flex flex-row">
+            <div class="bg-gray-700 text-gray-200 py-2 rounded-l-lg px-4">
+              <%= current_user.token %>
             </div>
-            <p>
-              <span data-clipboard-target="success"></span>
-            </p>
+            <button data-action="click->clipboard#copy" class="bg-gray-300 hover:bg-gray-400 flex items-center justify-center px-2 rounded-r-lg border border-gray-400 hover:border-gray-500">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" class="h-4 w-4 text-gray-500" fill="currentColor"><path d="M384 336H192c-8.8 0-16-7.2-16-16V64c0-8.8 7.2-16 16-16l140.1 0L400 115.9V320c0 8.8-7.2 16-16 16zM192 384H384c35.3 0 64-28.7 64-64V115.9c0-12.7-5.1-24.9-14.1-33.9L366.1 14.1c-9-9-21.2-14.1-33.9-14.1H192c-35.3 0-64 28.7-64 64V320c0 35.3 28.7 64 64 64zM64 128c-35.3 0-64 28.7-64 64V448c0 35.3 28.7 64 64 64H256c35.3 0 64-28.7 64-64V416H272v32c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V192c0-8.8 7.2-16 16-16H96V128H64z"/></svg>
+            </button>
           </div>
-        <% else %>
-          <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">
-            Continue in the terminal
-          </h3>
-          <div class="mt-2 max-w-xl text-sm leading-5 text-gray-600 text-center">
-            <p>
-              Tuist should have automatically captured your session and persisted it locally.
-            </p>
-          </div>
-        <% end %>
+          <p>
+            <span data-clipboard-target="success"></span>
+          </p>
+        </div>
       </div>
     </div>
   </body>
