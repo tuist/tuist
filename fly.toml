@@ -11,13 +11,13 @@ console_command = "/rails/bin/rails console"
   PORT = "8080"
   RAILS_PORT="3000"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=10
-  WEB_CONCURRENCY=2
+  RAILS_MAX_THREADS=100
+  WEB_CONCURRENCY=1
 
 [[vm]]
   cpu_kind = 'shared'
   memory = "4096mb"
-  cpus = 4
+  cpus = 2
 
 [processes]
   app = "/usr/bin/supervisord"
@@ -28,7 +28,7 @@ console_command = "/rails/bin/rails console"
   internal_port = 8080
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 4
+  min_machines_running = 2
   processes = ["app"]
   http_options = { h2_backend = true }
 
