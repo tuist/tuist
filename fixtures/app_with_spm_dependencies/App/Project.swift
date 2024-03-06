@@ -42,6 +42,7 @@ let project = Project(
                 .external(name: "NYTPhotoViewer"),
                 .external(name: "SVProgressHUD"),
                 .external(name: "AirshipPreferenceCenter"),
+                .external(name: "MarkdownUI"),
             ],
             settings: .targetSettings
         ),
