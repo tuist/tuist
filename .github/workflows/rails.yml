@@ -19,7 +19,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     services:
       postgres:
         image: postgres:16-alpine
@@ -61,7 +61,7 @@ jobs:
           bundle exec rails test
   assets_precompile:
     name: Assets precompile
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/mise-action@v2
@@ -81,7 +81,7 @@ jobs:
           bundle exec rails assets:precompile
   rubocop:
     name: Rubocop
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/mise-action@v2
@@ -101,7 +101,7 @@ jobs:
           bundle exec rubocop
   type-check:
     name: Type-check
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/mise-action@v2
