@@ -63,6 +63,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
+            "tuist_version": .string(Constants.version),
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -114,6 +115,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
+            "tuist_version": .string(Constants.version),
             "required": .string("requiredValue"),
             "optional": .string("optionalValue"),
         ]
@@ -157,6 +159,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
+            "tuist_version": .string(Constants.version),
             "optional": context,
         ]
 
@@ -190,6 +193,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
+            "tuist_version": .string(Constants.version),
             "optional": defaultIntegerValue,
         ]
 
