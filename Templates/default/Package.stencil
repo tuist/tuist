@@ -1,0 +1,8 @@
+import ProjectDescription
+
+let project = Project(
+    name: "{{ name }}", 
+    packages: [
+        // Add your dependencies here
+    ]
+)
