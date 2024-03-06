@@ -41,6 +41,10 @@ let template = Template(
             templatePath: "Gitignore.stencil"
         ),
         .file(
+            path: ".mise.toml",
+            templatePath: "mise.stencil"
+        ),
+        .file(
             path: appPath + "/Resources/LaunchScreen.storyboard",
             templatePath: "LaunchScreen+\(platformAttribute).stencil"
         ),
