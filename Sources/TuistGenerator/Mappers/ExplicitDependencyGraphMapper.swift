@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// A target mapper that enforces explicit dependneices by adding custom build directories
+/// A target mapper that enforces explicit dependencies by adding custom build directories
 public struct ExplicitDependencyGraphMapper: GraphMapping {
     public init() {}
 
@@ -44,6 +44,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         return (graph, [])
     }
 
+    // swiftlint:disable:next function_body_length
     private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing, debugConfigurations: [String]) -> Target {
         let allTargetDependencies = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
@@ -155,7 +156,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         debugConfigurations: [String],
         extensionName: String,
         prefix: String = ""
-    ) -> (String, [String], [String]) {
+    ) -> (String, [String], [String]) { // swiftlint:disable:this large_tuple
         let script = debugConfigurations.map {
             copyScript(for: $0, extensionName: extensionName, prefix: prefix)
         }

@@ -1,7 +1,7 @@
 [tools]
-tuist = "4.4.0"
+tuist = "4.5.1"
 swiftlint = "0.54.0"
-swiftformat = "0.53.0"
+swiftformat = "0.53.3"
 
 [plugins]
 python = 'https://github.com/asdf-community/asdf-tuist'
@@ -33,7 +33,7 @@ run = "./make/tasks/tuist/test.sh"
 [tasks."tuist:run"]
 description = "Run the project using Tuist"
 run = "./make/tasks/tuist/run.sh"
-	
+
 [tasks."lint"]
 description = "Lint the workspace"
 run = "./make/tasks/workspace/lint.sh"

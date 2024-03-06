@@ -82,10 +82,8 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     public func bootstrap() throws {
-        for item in [directory, versionsDirectory] {
-            if !fileHandler.exists(item) {
-                try fileHandler.createFolder(item)
-            }
+        for item in [directory, versionsDirectory] where !fileHandler.exists(item) {
+            try fileHandler.createFolder(item)
         }
     }
 

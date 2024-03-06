@@ -12,7 +12,7 @@ public struct CopyFilesAction: Equatable, Codable {
     public var subpath: String?
 
     /// Relative paths to the files to be copied.
-    public var files: [FileElement]
+    public var files: [CopyFileElement]
 
     /// Destination path.
     public enum Destination: String, Equatable, Codable {
@@ -33,7 +33,7 @@ public struct CopyFilesAction: Equatable, Codable {
         name: String,
         destination: Destination,
         subpath: String? = nil,
-        files: [FileElement]
+        files: [CopyFileElement]
     ) {
         self.name = name
         self.destination = destination

@@ -5,7 +5,7 @@ import TuistGraph
 import TuistSupport
 
 /// A project mapper that adds support for defining resources in targets that don't support it
-public class ResourcesProjectMapper: ProjectMapping {
+public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
     public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
@@ -29,6 +29,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (project.with(targets: targets), sideEffects)
     }
 
+    // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
 
@@ -64,7 +65,10 @@ public class ResourcesProjectMapper: ProjectMapping {
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
+        if target.supportsSources,
+           target.sources.contains(where: { $0.path.extension == "swift" }),
+           !target.sources.contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
+        {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
@@ -187,14 +191,23 @@ public class ResourcesProjectMapper: ProjectMapping {
                     Bundle.main.bundleURL,
                 ]
 
-                #if DEBUG
                 // This is a fix to make Previews work with bundled resources.
                 // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
                 // which is located under the derived data directory after building the project.
                 if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
                     candidates.append(URL(fileURLWithPath: override))
+
+                    // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
+                    // where the bundles are only available in the framework's directory that is actively being previewed.
+                    // Since we don't know which framework this is, we also need to look in all the framework subpaths.
+                    if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                        for subpath in subpaths {
+                            if subpath.hasSuffix(".framework") {
+                                candidates.append(URL(fileURLWithPath: override + "/" + subpath))
+                            }
+                        }
+                    }
                 }
-                #endif
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
