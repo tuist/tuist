@@ -21,6 +21,7 @@ extension TuistGraph.Workspace {
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
                 .lazy
                 .filter(FileHandler.shared.isFolder)
+                .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
                 .filter {
                     manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
                 }
