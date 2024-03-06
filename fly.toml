@@ -13,12 +13,12 @@ console_command = "/app/bin/rails console"
   PHX_PORT="4000"
   RAILS_ENV="production"
   RAILS_MAX_THREADS=5
-  WEB_CONCURRENCY=2
+  WEB_CONCURRENCY=1
 
 [[vm]]
   cpu_kind = 'shared'
-  memory = "4096mb"
-  cpus = 2
+  memory = "512mb"
+  cpus = 1
 
 [processes]
   app = "/app/bin/serve"
@@ -27,9 +27,8 @@ console_command = "/app/bin/rails console"
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 8
+  auto_stop_machines = false
+  auto_start_machines = false
   processes = ["app"]
   http_options = { h2_backend = true }
 
