@@ -258,6 +258,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings: SettingsDictionary = [
+            "SDKROOT": "iphoneos",
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "YES",
@@ -266,6 +267,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         assert(config: debugConfig, contains: expectedSettings)
         assert(config: releaseConfig, contains: expectedSettings)
+
+        // SUPPORTED_PLATFORMS is only set when multiple platforms are defined by the target
+        XCTAssertNil(debugConfig?.buildSettings["SUPPORTED_PLATFORMS"])
+        XCTAssertNil(releaseConfig?.buildSettings["SUPPORTED_PLATFORMS"])
     }
 
     func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() throws {
