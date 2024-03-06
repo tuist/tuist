@@ -11,8 +11,8 @@ console_command = "/rails/bin/rails console"
   PORT = "8080"
   RAILS_PORT="3000"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=30
-  WEB_CONCURRENCY=4
+  RAILS_MAX_THREADS=10
+  WEB_CONCURRENCY=2
 
 [[vm]]
   cpu_kind = 'shared'
@@ -28,7 +28,7 @@ console_command = "/rails/bin/rails console"
   internal_port = 8080
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 4
   processes = ["app"]
   http_options = { h2_backend = true }
 
@@ -42,8 +42,8 @@ console_command = "/rails/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 59
-    soft_limit = 40
+    hard_limit = 400
+    soft_limit = 300
 
   [[services.tcp_checks]]
     interval = "15s"
