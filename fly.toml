@@ -12,8 +12,8 @@ console_command = "/app/bin/rails console"
   RAILS_PORT="3000"
   PHX_PORT="4000"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=50
-  WEB_CONCURRENCY=1
+  RAILS_MAX_THREADS=5
+  WEB_CONCURRENCY=2
 
 [[vm]]
   cpu_kind = 'shared'
@@ -43,8 +43,8 @@ console_command = "/app/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 400
-    soft_limit = 300
+    hard_limit = 60
+    soft_limit = 50
 
   [[services.tcp_checks]]
     interval = "15s"
