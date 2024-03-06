@@ -20,7 +20,7 @@ console_command = "/rails/bin/rails console"
   cpus = 1
 
 [processes]
-  app = "/usr/bin/supervisord"
+  app = "/rails/bin/serve"
   worker = "/rails/bin/que"
 
 [[services]]

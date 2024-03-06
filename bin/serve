@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+./bin/rails server -p 3000 &
+traefik --configFile=./traefik.yml &
+
+wait
+
+exit $?

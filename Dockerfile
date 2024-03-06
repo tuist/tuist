@@ -75,7 +75,7 @@ ENV TUIST_VERSION=${TUIST_VERSION}
 ENV TRAEFIK_VERSION "3.0.0-rc1"
 
 # Install packages needed for deployment
-RUN apt-get install --no-install-recommends -y curl libvips postgresql-client supervisor && \
+RUN apt-get install --no-install-recommends -y curl libvips postgresql-client && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install Traefik
@@ -91,10 +91,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY traefik.yml traefik.yml
 COPY .traefik/ .traefik/
 
-# Supervisor configuration file
-RUN mkdir -p /var/log/supervisor
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 # Copy built artifacts: gems, application
 COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY --from=build /rails /rails
@@ -109,4 +105,4 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
-CMD ["/usr/bin/supervisord"]
+CMD ["/rails/bin/serve"]
