@@ -201,7 +201,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     // where the bundles are only available in the framework's directory that is actively being previewed.
                     // Since we don't know which framework is being actively previewed, we need to look in the subpaths also.
                     if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
-                        candidates.append(contentsOf: subpaths.map { URL(fileURLWithPath: override + "/" + $0) })
+                        for subpath in subpaths {
+                            if subpath.hasSuffix(".framework") {
+                                candidates.append(URL(fileURLWithPath: override + "/" + subpath))
+                            }
+                        }
                     }
                 }
 
