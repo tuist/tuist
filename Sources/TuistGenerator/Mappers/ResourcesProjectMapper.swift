@@ -197,9 +197,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
                     candidates.append(URL(fileURLWithPath: override))
 
-                    // Deleting derived data and not building the frameworks containing resources may result in a state
+                    // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
                     // where the bundles are only available in the framework's directory that is actively being previewed.
-                    // Since we don't know which framework is being actively previewed, we need to look in the subpaths also.
+                    // Since we don't know which framework this is, we also need to look in all the framework subpaths.
                     if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
                         for subpath in subpaths {
                             if subpath.hasSuffix(".framework") {
