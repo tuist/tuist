@@ -274,6 +274,42 @@ final class TargetLinterTests: TuistUnitTestCase {
         }
     }
 
+    func test_lint_when_visionos_iPad_designed_deployment_target_is_valid() {
+        let targets = [
+            Target(
+                name: "visionOS",
+                destinations: [.appleVision],
+                product: .app,
+                productName: "visionOS",
+                bundleId: "io.tuist.visionOS",
+                deploymentTargets: .visionOS("1.0"),
+                filesGroup: .group(name: "Project")
+            ),
+            Target(
+                name: "iPadVision",
+                destinations: [.iPhone, .iPad, .appleVisionWithiPadDesign],
+                product: .app,
+                productName: "visionOS",
+                bundleId: "io.tuist.visionOS",
+                deploymentTargets: .init(iOS: "16.0", visionOS: "1.0"),
+                filesGroup: .group(name: "Project")
+            ),
+        ]
+
+        for target in targets {
+            let got = subject.lint(target: target)
+
+            // Then
+            XCTDoesNotContainLintingIssue(
+                got,
+                LintingIssue(
+                    reason: "Found an inconsistency between target destinations `[TuistGraph.Destination.appleVisionWithiPadDesign, TuistGraph.Destination.iPad, TuistGraph.Destination.iPhone]` and deployment target `visionOS`",
+                    severity: .error
+                )
+            )
+        }
+    }
+
     func test_lint_when_deployment_target_version_is_invalid() {
         let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
         for version in validVersions {
