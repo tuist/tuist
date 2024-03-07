@@ -32,16 +32,16 @@ if config_env() == :prod do
   [username, password] = parsed_url.userinfo |> String.split(":")
 
   config :tuist_cloud, TuistCloud.Repo,
-  database: parsed_url.path |> String.replace_prefix("/", ""),
-  username: username,
-  password: password,
-  hostname: parsed_url.host,
-  ssl: false,
-  socket_options: [:inet6]
-  # ssl_opts: [
-  #   server_name_indication: to_char_list(parsed_url.host),
-  #   verify: :verify_none
-  # ]
+    database: parsed_url.path |> String.replace_prefix("/", ""),
+    username: username,
+    password: password,
+    hostname: parsed_url.host,
+    ssl: true,
+    # TODO: Add proper certificate verification
+    ssl_opts: [
+      server_name_indication: to_char_list(parsed_url.host),
+      verify: :verify_none
+    ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

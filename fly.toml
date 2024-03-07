@@ -17,8 +17,8 @@ console_command = "/app/bin/rails console"
 
 [[vm]]
   cpu_kind = 'shared'
-  memory = "512mb"
-  cpus = 1
+  memory = "2048mb"
+  cpus = 2
 
 [processes]
   app = "/app/bin/serve"

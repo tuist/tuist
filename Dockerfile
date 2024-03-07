@@ -103,9 +103,6 @@ ENV TUIST_VERSION=${TUIST_VERSION}
 ENV TRAEFIK_VERSION "3.0.0-rc1"
 ARG MIX_ENV="prod"
 ENV MIX_ENV=$MIX_ENV
-ENV DATABASE_CA_CERT_FILEPATH "/app/phx/deps/castore/priv/cacerts.pem"
-ENV ECTO_IPV6 false
-ENV ERL_AFLAGS "-proto_dist inet6_tcp"
 
 WORKDIR "/app"
 
@@ -154,3 +151,7 @@ ENTRYPOINT ["/app/bin/docker-entrypoint"]
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
 CMD ["/app/bin/serve"]
+
+ENV DATABASE_CA_CERT_FILEPATH "/app/phx/deps/castore/priv/cacerts.pem"
+ENV ECTO_IPV6 false
+ENV ERL_AFLAGS "-proto_dist inet6_tcp"

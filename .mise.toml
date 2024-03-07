@@ -4,6 +4,10 @@ traefik = "3.0.0-rc1"
 "elixir" = "1.16.0"
 "flyctl" = "0.1.104"
 "erlang" = "26.2.1"
+"tmux" = "3.4"
+"overmind" = "2.4.0"
 
 [plugins]
 traefik = "https://github.com/Dabolus/asdf-traefik"
+overmind = "https://github.com/virtualstaticvoid/asdf-overmind.git"
+tmux = "https://github.com/aphecetche/asdf-tmux"

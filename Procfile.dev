@@ -1,2 +1,3 @@
-rails: bin/rails server --port 3000
-css: bin/rails tailwindcss:watch
+rails: ./bin/rails server
+phx: cd ./phx && mix phx.server
+traefik: traefik --configFile=./traefik.yml
