@@ -84,6 +84,9 @@ production:
   database: tuistcloud_production
   username: tuistcloud
   password: <%= ENV['tuistcloud_DATABASE_PASSWORD'] %>
+  # Needed when using PgBouncer
+  prepared_statements: false
+  advisory_locks: false
 staging:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>

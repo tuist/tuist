@@ -28,20 +28,16 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  parsed_url = URI.parse(database_url)
-  [username, password] = parsed_url.userinfo |> String.split(":")
 
   config :tuist_cloud, TuistCloud.Repo,
-    database: parsed_url.path |> String.replace_prefix("/", ""),
-    username: username,
-    password: password,
-    hostname: parsed_url.host,
-    ssl: true,
+    pool_size: 10,
+    url: database_url,
+    ssl: false
     # TODO: Add proper certificate verification
-    ssl_opts: [
-      server_name_indication: to_char_list(parsed_url.host),
-      verify: :verify_none
-    ]
+    # ssl_opts: [
+    #   server_name_indication: to_char_list(parsed_url.host),
+    #   verify: :verify_none
+    # ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
