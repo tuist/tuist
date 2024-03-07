@@ -168,10 +168,10 @@ extension TuistTestCase {
         line: UInt = #line
     ) throws {
         let convertedTargets: [TuistGraph.TargetReference] = try manifest.targets.map {
-            let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath($0.projectPath)
-            return .init(projectPath: resolvedPath, name: $0.targetName)
+            let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath($0.targetReference.projectPath)
+            return .init(projectPath: resolvedPath, name: $0.targetReference.targetName)
         }
-        XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
+        XCTAssertEqual(buildAction.targets.map(\.targetReference), convertedTargets, file: file, line: line)
     }
 
     func assert(

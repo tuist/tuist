@@ -140,7 +140,7 @@ extension Scheme {
 }
 
 extension BuildAction {
-    public static func test(targets: [TargetReference] = []) -> BuildAction {
+    public static func test(targets: [Target] = []) -> BuildAction {
         .buildAction(
             targets: targets,
             preActions: [ExecutionAction.test()],

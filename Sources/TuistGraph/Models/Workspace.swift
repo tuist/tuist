@@ -112,7 +112,7 @@ extension Workspace {
 
                 // having empty `codeCoverageTargets` means that we should gather code coverage for all build targets
                 if schemeCoverageTargets.isEmpty, let buildAction = scheme.buildAction {
-                    resultTargets.formUnion(buildAction.targets)
+                    resultTargets.formUnion(buildAction.targets.map(\.targetReference))
                 } else {
                     resultTargets.formUnion(schemeCoverageTargets)
                 }
