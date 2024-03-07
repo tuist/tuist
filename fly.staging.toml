@@ -21,7 +21,7 @@ console_command = "/app/bin/rails console"
   cpus = 2
 
 [processes]
-  app = "/app/bin/serve"
+  app = "/usr/local/bin/hivemind /app/Procfile"
   worker = "/app/bin/que"
 
 [[services]]

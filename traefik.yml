@@ -11,7 +11,7 @@ providers:
     directory: "./.traefik"
 
 log:
-  level: DEBUG
+  level: INFO
 
 accessLog: {}
 

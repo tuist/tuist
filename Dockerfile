@@ -122,6 +122,15 @@ RUN curl -L "https://github.com/traefik/traefik/releases/download/v${TRAEFIK_VER
 COPY traefik.yml traefik.yml
 COPY .traefik/ .traefik/
 
+# Copy Procfile
+COPY Procfile Procfile
+
+# Install Hivemind
+RUN curl -L https://github.com/DarthSim/hivemind/releases/download/v1.1.0/hivemind-v1.1.0-linux-amd64.gz -o hivemind.gz
+RUN gunzip hivemind.gz
+RUN mv hivemind /usr/local/bin/hivemind
+RUN chmod +x /usr/local/bin/hivemind
+
 # Copy built artifacts: gems, application
 COPY --from=build-rails /usr/local/bundle /usr/local/bundle
 COPY --from=build-rails /app /app
@@ -150,7 +159,7 @@ ENTRYPOINT ["/app/bin/docker-entrypoint"]
 
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
-CMD ["/app/bin/serve"]
+CMD ["/usr/local/bin/hivemind", "Procfile"]
 
 ENV DATABASE_CA_CERT_FILEPATH "/app/phx/deps/castore/priv/cacerts.pem"
 ENV ECTO_IPV6 false
