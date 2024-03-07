@@ -520,6 +520,44 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenVisionWithiPadDesign() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.iPhone, .iPad, .appleVisionWithiPadDesign],
+            deploymentTargets: .init(iOS: "16.0", visionOS: "1.0")
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings: SettingsDictionary = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "XROS_DEPLOYMENT_TARGET": "1.0",
+            "IPHONEOS_DEPLOYMENT_TARGET": "16.0",
+            "SDKROOT": "iphoneos",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateTargetWithMultiplePlatforms() throws {
         // Given
         let project = Project.test()
