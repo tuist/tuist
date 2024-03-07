@@ -7,6 +7,7 @@ import XCTest
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
         try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "MyApp")
