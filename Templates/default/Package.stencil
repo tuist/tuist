@@ -1,9 +1,21 @@
 // swift-tools-version: 5.9
-import ProjectDescription
+import PackageDescription
 
-let project = Project(
-    name: "{{ name }}", 
-    packages: [
-        // Add your dependencies here
+#if TUIST
+    import ProjectDescription
+
+    let packageSettings = PackageSettings(
+        // Customize the product types for specific package product
+        // Default is .staticFramework
+        // productTypes: ["Alamofire": .framework,] 
+        productTypes: [:]
+    )
+#endif
+
+let package = Package(
+    name: "{{ name }}",
+    dependencies: [
+        // Add your own dependencies here:
+        // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
     ]
 )
