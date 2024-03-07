@@ -13,6 +13,7 @@ concurrency:
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  MISE_EXPERIMENTAL: 1
 
 jobs:
   deploy:

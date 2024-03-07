@@ -13,6 +13,7 @@ concurrency:
 env:
   MIX_ENV: test
   MASTER_KEY: ${{ secrets.MASTER_KEY }}
+  MISE_EXPERIMENTAL: 1
 
 jobs:
   test:

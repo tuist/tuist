@@ -22,7 +22,6 @@ console_command = "/app/bin/rails console"
 
 [processes]
   app = "/usr/local/bin/hivemind /app/Procfile"
-  worker = "/app/bin/que"
 
 [[services]]
   protocol = "tcp"

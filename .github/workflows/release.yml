@@ -12,6 +12,9 @@ permissions:
   statuses: write
   packages: write
 
+env:
+  MISE_EXPERIMENTAL: 1
+
 jobs:
   release:
     name: Release

@@ -12,7 +12,7 @@ console_command = "/app/bin/rails console"
   RAILS_PORT="3000"
   PHX_PORT="4000"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=5
+  RAILS_MAX_THREADS=20
   WEB_CONCURRENCY=1
 
 [[vm]]
@@ -22,7 +22,6 @@ console_command = "/app/bin/rails console"
 
 [processes]
   app = "/usr/local/bin/hivemind /app/Procfile"
-  worker = "/app/bin/que"
 
 [[services]]
   protocol = "tcp"
