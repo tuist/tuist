@@ -187,11 +187,11 @@ class InitService {
         let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
-            "tuist_version": .string(tuistVersion)
+            "tuist_version": .string(tuistVersion),
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if defaultAttributes.keys.contains(attribute.name) { return }
-            
+
             switch attribute {
             case let .required(name):
                 guard let option = requiredTemplateOptions[name]
