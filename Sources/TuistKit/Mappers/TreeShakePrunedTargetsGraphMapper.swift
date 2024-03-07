@@ -79,7 +79,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             var scheme = scheme
 
             if let buildAction = scheme.buildAction {
-                scheme.buildAction?.targets = buildAction.targets.filter(sourceTargets.contains)
+                scheme.buildAction?.targets = buildAction.targets.filter({
+                    sourceTargets.contains($0.targetReference)
+                })
             }
 
             if let testAction = scheme.testAction {

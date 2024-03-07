@@ -29,7 +29,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
-        let scheme = Scheme.test(buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: "App")]))
+        let targetBuildAction = BuildAction.Target(
+            targetReference: TargetReference(projectPath: projectPath, name: "App"),
+            buildFor: [.running, .testing, .profiling]
+        )
+        let scheme = Scheme.test(buildAction: BuildAction(targets: [targetBuildAction]))
+
 
         let app = Target.test(name: "App", product: .app)
         let targets = [app]
@@ -59,7 +64,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildActionEntries.count, 1)
         let entry = try XCTUnwrap(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(entry.buildFor, [.running, .testing, .profiling])
 
         XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "App.app")
@@ -74,7 +79,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = try AbsolutePath(validating: "/differentpath/Workspace/project.xcodeproj")
-        let scheme = Scheme.test(buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: "App")]))
+        let targetBuildAction = BuildAction.Target(
+            targetReference: TargetReference(projectPath: projectPath, name: "App"),
+            buildFor: [.analyzing]
+        )
+        let scheme = Scheme.test(buildAction: BuildAction(targets: [targetBuildAction]))
 
         let app = Target.test(name: "App", product: .app)
         let targets = [app]
@@ -104,7 +113,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildActionEntries.count, 1)
         let entry = try XCTUnwrap(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(entry.buildFor, [.analyzing])
 
         XCTAssertEqual(buildableReference.referencedContainer, "container:project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "App.app")
@@ -123,8 +132,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let xcodeProjBPath = projectBPath.appending(component: "project.xcodeproj")
 
         let buildAction = BuildAction(targets: [
-            TargetReference(projectPath: projectAPath, name: "FrameworkA"),
-            TargetReference(projectPath: projectBPath, name: "FrameworkB"),
+            BuildAction.Target(
+                targetReference: TargetReference(projectPath: projectAPath, name: "FrameworkA"),
+                buildFor: [.testing, .running, .profiling]
+            ),
+            BuildAction.Target(
+                targetReference: TargetReference(projectPath: projectBPath, name: "FrameworkB")
+            ),
         ])
         let scheme = Scheme.test(buildAction: buildAction)
 
@@ -167,7 +181,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let firstEntry = try XCTUnwrap(result.buildActionEntries[0])
         let firstBuildableReference = firstEntry.buildableReference
-        XCTAssertEqual(firstEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(firstEntry.buildFor, [.testing, .running, .profiling])
 
         let secondEntry = try XCTUnwrap(result.buildActionEntries[1])
         let secondBuildableReference = secondEntry.buildableReference
@@ -1828,7 +1842,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/test")
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
-        let appScheme = Scheme.test(buildAction: BuildAction(targets: [
+        let appScheme = Scheme.test(buildAction: BuildAction(targetReferences: [
             TargetReference(projectPath: path, name: app.name),
         ]))
         let extensionScheme = Scheme.test(buildAction: BuildAction.test(targets: [

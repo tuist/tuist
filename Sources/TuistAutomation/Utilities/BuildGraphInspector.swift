@@ -108,7 +108,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
 
     public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         guard scheme.buildAction?.targets.isEmpty == false,
-              let buildTarget = scheme.buildAction?.targets.first
+              let buildTarget = scheme.buildAction?.targets.first?.targetReference
         else {
             return nil
         }

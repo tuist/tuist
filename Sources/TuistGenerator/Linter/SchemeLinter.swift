@@ -97,7 +97,7 @@ extension SchemeLinter {
             {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
-                } else if let buildTargetNames = scheme.buildAction?.targets.map(\.name),
+                } else if let buildTargetNames = scheme.buildAction?.targets.map(\.targetReference.name),
                           !buildTargetNames.contains(target.name)
                 {
                     issues

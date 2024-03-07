@@ -40,7 +40,7 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) }
+                    .map { .target($0, buildFor: [.testing]) }
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name)) }
@@ -55,7 +55,7 @@ func schemes() -> [Scheme] {
             name: "TuistUnitTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
-                    .map { .target($0) }
+                    .map { .target($0, buildFor: [.testing]) }
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) }
