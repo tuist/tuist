@@ -3,9 +3,4 @@
 
 set -eu
 
-$MISE_PROJECT_ROOT/bin/rails server &
-(cd $MISE_PROJECT_ROOT/phx && mix phx.server) &
-traefik --providers.file.directory=$MISE_PROJECT_ROOT/.traefik --configFile=$MISE_PROJECT_ROOT/traefik.yml
-
-wait
-exit $?
+hivemind $MISE_PROJECT_ROOT/Procfile.dev
