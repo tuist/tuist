@@ -99,7 +99,7 @@ extension PrintableString {
         public var description: String {
             return self.description(shouldOutputBeColoured: TuistContext.shared.environment.shouldOutputBeColoured)
         }
-        
+
         // TODO: Eliminate once we refactor the code to pass down the context
         public func description(shouldOutputBeColoured: Bool) -> String {
             guard shouldOutputBeColoured else {

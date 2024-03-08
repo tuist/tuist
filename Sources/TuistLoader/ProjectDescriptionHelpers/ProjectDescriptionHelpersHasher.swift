@@ -1,7 +1,7 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistSupport
-import Mockable
 
 @Mockable
 public protocol ProjectDescriptionHelpersHashing: AnyObject {

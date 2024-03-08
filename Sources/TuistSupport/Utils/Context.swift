@@ -6,11 +6,11 @@ public protocol Context {
 }
 
 #if MOCKING
-public class MockContext: Context {
+    public class MockContext: Context {
         public var environment: Environmenting { mockEnvironment }
         public var mockEnvironment: MockEnvironment
         public let testId: String
-    
+
         public init(testId: String = UUID().uuidString) {
             self.testId = testId
             mockEnvironment = MockEnvironment()
@@ -24,7 +24,7 @@ public class TuistContext: Context {
     are pending a refactor, so please avoid cargo-culting the pattern.
     """)
     public private(set) static var shared: Context!
-    
+
     public let environment: Environmenting
 
     public convenience init() throws {
@@ -35,7 +35,7 @@ public class TuistContext: Context {
     init(environment: Environmenting) throws {
         self.environment = environment
     }
-    
+
     public static func initializeSharedInstace() throws {
         TuistContext.shared = try TuistContext()
     }

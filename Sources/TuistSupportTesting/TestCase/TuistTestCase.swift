@@ -124,11 +124,11 @@ open class TuistTestCase: XCTestCase {
 
     public var fileHandler: MockFileHandler!
 
-    open override func setUpWithError() throws {
+    override open func setUpWithError() throws {
         try super.setUpWithError()
 
         try TuistContext.initializeSharedInstace()
-        
+
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
         FileHandler.shared = fileHandler
     }

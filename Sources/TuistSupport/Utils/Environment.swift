@@ -74,7 +74,7 @@ public struct Environment: Environmenting {
     public let detailedLog: Bool
     public let osLog: Bool
     public let isGitHubActions: Bool
-    
+
     public init(env: [String: String] = ProcessInfo.processInfo.environment) throws {
         let homeDirectory = FileHandler.shared.homeDirectory
         self.init(
@@ -203,7 +203,7 @@ public struct Environment: Environmenting {
             return FileHandler.shared.homeDirectory.appending(components: ".cache")
         }
     }
-    
+
     private static func derivedDataDirectory(homeDirectory: AbsolutePath) throws -> AbsolutePath {
         let location: AbsolutePath
         if let customLocation = try? System.shared.capture([
@@ -296,7 +296,7 @@ public struct Environment: Environmenting {
         guard let variable = env["TUIST_CONFIG_OS_LOG"] else { return false }
         return Constants.trueValues.contains(variable)
     }
-    
+
     private static func isGitHubActions(from env: [String: String]) -> Bool {
         guard let variable = env["GITHUB_ACTIONS"] else { return false }
         return Constants.trueValues.contains(variable)

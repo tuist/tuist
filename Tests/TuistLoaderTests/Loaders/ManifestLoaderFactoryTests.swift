@@ -8,17 +8,17 @@ import XCTest
 
 final class ManifestLoaderFactoryTests: TuistUnitTestCase {
     var context: MockContext!
-    
+
     override func setUp() {
         super.setUp()
         context = MockContext()
     }
-    
+
     override func tearDown() {
         context = nil
         super.tearDown()
     }
-    
+
     func test_create_default_cached_manifest_loader() {
         // Given
         let sut = ManifestLoaderFactory()
@@ -32,7 +32,7 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
         // Given
         context.mockEnvironment.useManifestsCache = false
         let sut = ManifestLoaderFactory()
-        
+
         // When
         let result = sut.createManifestLoader(context: context)
         // Then
@@ -43,7 +43,7 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
         // Given
         let sut = ManifestLoaderFactory()
         context.mockEnvironment.useManifestsCache = false
-        
+
         // When
         let result = sut.createManifestLoader(context: context)
         // Then
@@ -54,10 +54,10 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
         // Given
         let sut = ManifestLoaderFactory()
         context.mockEnvironment.useManifestsCache = true
-        
+
         // When
         let result = sut.createManifestLoader(context: context)
-        
+
         // Then
         XCTAssert(type(of: result) is CachedManifestLoader.Type)
     }

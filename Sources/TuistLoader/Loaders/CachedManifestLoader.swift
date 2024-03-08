@@ -111,7 +111,12 @@ public class CachedManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, context: Context, loader: () throws -> T) throws -> T {
+    private func load<T: Codable>(
+        manifest: Manifest,
+        at path: AbsolutePath,
+        context: Context,
+        loader: () throws -> T
+    ) throws -> T {
         if cacheDirectory == nil {
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
         }

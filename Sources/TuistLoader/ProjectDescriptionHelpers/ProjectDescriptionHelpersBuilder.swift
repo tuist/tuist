@@ -187,7 +187,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         )
 
         let timer = clock.startTimer()
-        try System.shared.runAndPrint(command, verbose: false, environment: TuistContext.shared.environment.manifestLoadingVariables)
+        try System.shared.runAndPrint(
+            command,
+            verbose: false,
+            environment: TuistContext.shared.environment.manifestLoadingVariables
+        )
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         logger.debug("Built \(name) in (\(time)s)", metadata: .success)

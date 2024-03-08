@@ -9,7 +9,7 @@ import XCTest
 final class ManifestLoaderTests: TuistTestCase {
     var subject: ManifestLoader!
     var context: MockContext!
-    
+
     override func setUp() {
         super.setUp()
         subject = ManifestLoader()

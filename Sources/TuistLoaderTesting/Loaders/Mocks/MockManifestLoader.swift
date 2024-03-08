@@ -36,7 +36,7 @@ public final class MockManifestLoader: ManifestLoading {
 
     public init() {}
 
-    public func loadProject(at path: AbsolutePath, context: Context) throws -> Project {
+    public func loadProject(at path: AbsolutePath, context _: Context) throws -> Project {
         try loadProjectStub?(path) ?? Project.test()
     }
 

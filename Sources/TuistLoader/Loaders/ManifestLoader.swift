@@ -162,7 +162,7 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.config, at: path)
     }
 
-    public func loadProject(at path: AbsolutePath, context: Context) throws -> ProjectDescription.Project {
+    public func loadProject(at path: AbsolutePath, context _: Context) throws -> ProjectDescription.Project {
         try loadManifest(.project, at: path)
     }
 
@@ -305,7 +305,11 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: context.environment.manifestLoadingVariables)
+            let string = try System.shared.capture(
+                arguments,
+                verbose: false,
+                environment: context.environment.manifestLoadingVariables
+            )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)

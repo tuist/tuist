@@ -10,7 +10,7 @@ import XCTest
 class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
     var subject: ProjectDescriptionHelpersHasher!
     var context: MockContext!
-    
+
     override func setUp() {
         super.setUp()
         context = MockContext()

@@ -8,9 +8,9 @@ open class TuistUnitTestCase: TuistTestCase {
     public var developerEnvironment: MockDeveloperEnvironment!
     public var xcodeController: MockXcodeController!
 
-    open override func setUpWithError() throws {
+    override open func setUpWithError() throws {
         try super.setUpWithError()
-        
+
         // System
         system = MockSystem()
         System.shared = system

@@ -1,10 +1,10 @@
 import Foundation
+import MockableTest
 import ProjectDescription
 import TSCBasic
 import struct TuistGraph.Plugins
 import TuistSupport
 import XCTest
-import MockableTest
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
@@ -31,10 +31,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         context = MockContext()
         projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHashing()
-        
+
         do {
             cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
@@ -150,7 +150,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .hash(helpersDirectory: .value(path), context: .any).willReturn("updatedHash")
         let context = MockContext()
         context.mockEnvironment.useManifestsCache = true
-        
+
         _ = try subject.loadProject(at: path, context: context)
 
         // When
