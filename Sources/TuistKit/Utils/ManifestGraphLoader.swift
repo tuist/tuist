@@ -106,6 +106,10 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load DependenciesGraph
 
+        if hasExternalDependencies {
+            logger.notice("It might take a while if the cache is empty")
+        }
+
         let dependenciesGraph: TuistGraph.DependenciesGraph
         let packageSettings: TuistGraph.PackageSettings?
 
