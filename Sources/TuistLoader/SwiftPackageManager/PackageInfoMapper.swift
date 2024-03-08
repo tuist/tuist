@@ -483,22 +483,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         if target.type.supportsDependencies {
             let linkerDependencies: [ProjectDescription.TargetDependency] = target.settings.compactMap { setting in
-                do {
-                    let condition = try ProjectDescription.PlatformCondition.from(setting.condition)
+                let condition = ProjectDescription.PlatformCondition.from(setting.condition)
 
-                    switch (setting.tool, setting.name) {
-                    case (.linker, .linkedFramework):
-                        return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
-                    case (.linker, .linkedLibrary):
-                        return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                    case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
-                        .linker,
-                        .define
-                    ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
-                        return nil
-                    }
-                } catch {
+                // The condition returned only unsupported platforms
+                if condition == nil, setting.condition != nil {
+                    return nil
+                }
+
+                switch (setting.tool, setting.name) {
+                case (.linker, .linkedFramework):
+                    return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
+                case (.linker, .linkedLibrary):
+                    return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
+                case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
+                    .linker,
+                    .define
+                ),
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
                     return nil
                 }
             }
@@ -1216,14 +1217,10 @@ extension PackageInfoMapper {
 }
 
 extension ProjectDescription.PlatformCondition {
-    struct OnlyConditionsWithUnsupportedPlatforms: Error {}
-
     /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
-    /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g
-    /// `windows`)
-    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) throws -> Self? {
+    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) -> Self? {
         guard let condition else { return nil }
         let filters: [ProjectDescription.PlatformFilter] = condition.platformNames.compactMap { name in
             switch name {
@@ -1242,11 +1239,6 @@ extension ProjectDescription.PlatformCondition {
             default:
                 return nil
             }
-        }
-
-        // If empty, we know there are no supported platforms and this dependency should not be included in the graph
-        if filters.isEmpty {
-            throw OnlyConditionsWithUnsupportedPlatforms()
         }
 
         return .when(Set(filters))
