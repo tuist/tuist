@@ -6,14 +6,13 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    
     /// Load manifest at path
     /// - Parameter path: Path of the manifest
     /// - Returns: Loaded manifest
     func loadWorkspace(
         at path: AbsolutePath
     ) throws -> LoadedWorkspace
-    
+
     /// Load package projects and merge in the loaded manifest
     /// - Parameters:
     ///   - loadedWorkspace: manifest to merge in
@@ -87,7 +86,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     }
 
     public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistGraph.PackageSettings)
-    throws -> LoadedWorkspace {
+        throws -> LoadedWorkspace
+    {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
         let projectSearchPaths = (loadedWorkspace.workspace.projects)
         let packagePaths = try projectSearchPaths.map {

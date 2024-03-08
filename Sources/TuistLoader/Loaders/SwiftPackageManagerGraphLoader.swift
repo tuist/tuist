@@ -87,7 +87,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
-        
+
         let packageInfos: [
             // swiftlint:disable:next large_tuple
             (
