@@ -10,36 +10,45 @@ max_threads_count = ENV.fetch("RAILS_MAX_THREADS", 5)
 min_threads_count = ENV.fetch("RAILS_MIN_THREADS") { max_threads_count }
 threads min_threads_count, max_threads_count
 
-# Specifies the `worker_timeout` threshold that Puma will use to wait before
-# terminating a worker in development environments.
-#
-worker_timeout 3600 if ENV.fetch("RAILS_ENV", "development") == "development"
+rails_env = ENV.fetch("RAILS_ENV", "development")
+environment rails_env
+case rails_env
+when "production", "staging", "canary"
+  # If you are running more than 1 thread per process, the workers count
+  # should be equal to the number of processors (CPU cores) in production.
+  #
+  # It defaults to 1 because it's impossible to reliably detect how many
+  # CPU cores are available. Make sure to set the `WEB_CONCURRENCY` environment
+  # variable to match the number of processors.
+  workers_count = Integer(ENV.fetch("WEB_CONCURRENCY", 1))
+  workers(workers_count) if workers_count > 1
+
+  preload_app!
+when "development"
+  # Specifies a very generous `worker_timeout` so that the worker
+  # isn't killed by Puma when suspended by a debugger.
+  worker_timeout(3600)
+end
 
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.
-#
 port ENV.fetch("PORT", 3000)
 
-# Specifies the `environment` that Puma will run in.
-#
-environment ENV.fetch("RAILS_ENV", "development")
-
-# Specifies the `pidfile` that Puma will use.
-pidfile ENV.fetch("PIDFILE", "tmp/pids/server.pid")
-
-# Specifies the number of `workers` to boot in clustered mode.
-# Workers are forked web server processes. If using threads and workers together
-# the concurrency of the application would be max `threads` * `workers`.
-# Workers do not work on JRuby or Windows (both of which do not support
-# processes).
-#
-# workers ENV.fetch("WEB_CONCURRENCY") { 2 }
-
-# Use the `preload_app!` method when specifying a `workers` number.
-# This directive tells Puma to first boot the application and load code
-# before forking the application. This takes advantage of Copy On Write
-# process behavior so workers use less memory.
-#
-# preload_app!
-
-# Allow puma to be restarted by `rails restart` command.
+# Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart
+
+# Only use a pidfile when requested
+pidfile ENV["PIDFILE"] if ENV["PIDFILE"]
+
+self_hosted = ENV["TUIST_CLOUD_SELF_HOSTED"] == "1"
+
+unless self_hosted
+  plugin :appsignal
+  lowlevel_error_handler do |_e|
+    [
+      500,
+      {},
+      ["An error has occurred, and engineers have been informed. Please reload the page."\
+        " If you continue to have problems, contact contact@tuist.io"],
+    ]
+  end
+end

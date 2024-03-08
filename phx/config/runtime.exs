@@ -45,11 +45,19 @@ if config_env() == :prod do
       verify: :verify_none
     ]
 
-  # TODO: Add proper certificate verification
-  # ssl_opts: [
-  #   server_name_indication: to_char_list(parsed_url.host),
-  #   verify: :verify_none
-  # ]
+  config :tuist_cloud, TuistCloud.Repo,
+    pool_size: 2,
+    database: parsed_url.path |> String.replace_prefix("/", ""),
+    username: username,
+    password: password,
+    hostname: parsed_url.host,
+    ssl: true,
+    socket_options: [:inet6],
+    # TODO: Add proper certificate verification
+    ssl_opts: [
+      server_name_indication: Kernel.to_charlist(parsed_url.host),
+      verify: :verify_none
+    ]
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
