@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# mise description="Sets up the database"
+
+$MISE_PROJECT_ROOT/bin/rails db:setup

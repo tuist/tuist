@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# mise description="Migrates the database"
+
+$MISE_PROJECT_ROOT/bin/rails db:migrate

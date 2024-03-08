@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# mise description="Drops the database"
+
+$MISE_PROJECT_ROOT/bin/rails db:drop
