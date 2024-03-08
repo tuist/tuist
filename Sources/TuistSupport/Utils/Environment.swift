@@ -1,100 +1,135 @@
+import CryptoKit
 import Darwin
 import Foundation
+import Mockable
 import TSCBasic
 
-/// Protocol that defines the interface of a local environment controller.
-/// It manages the local directory where tuistenv stores the tuist versions and user settings.
-public protocol Environmenting: AnyObject {
-    /// Returns the versions directory.
-    var versionsDirectory: AbsolutePath { get }
-
-    /// Returns the path to the settings.
-    var settingsPath: AbsolutePath { get }
-
-    /// Returns true if the output of Tuist should be coloured.
+public protocol Environmenting: Actor {
     var shouldOutputBeColoured: Bool { get }
-
-    /// Returns automation path
-    /// Only to be used for acceptance tests
-    var automationPath: AbsolutePath? { get }
-
-    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
-
-    /// Returns all the environment variables that are specific to Tuist configuration (prefixed with TUIST_CONFIG_)
     var tuistConfigVariables: [String: String] { get }
-
-    /// Returns all the environment variables that can be included during the manifest loading process
     var manifestLoadingVariables: [String: String] { get }
-
-    /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
-
-    /// Returns the path to the directory where the async queue events are persisted.
-    var queueDirectory: AbsolutePath { get }
-
-    /// Returns true unless the user specifically opted out from stats
-    var isStatsEnabled: Bool { get }
-
-    /// Returns true if the environment is a GitHub Actions environment
-    var isGitHubActions: Bool { get }
-
-    /// Sets up the local environment.
-    func bootstrap() throws
+    var isCI: Bool { get }
+    var cacheDirectory: AbsolutePath { get }
+    var uniqueHostId: String { get }
+    var macOSVersion: String { get }
+    var swiftVersion: String { get }
+    var hardwareName: String { get }
+    var githubAPIToken: String? { get }
+    var useManifestsCache: Bool { get }
+    var detailedLog: Bool { get }
+    var osLog: Bool { get }
 }
 
-/// Local environment controller.
-public class Environment: Environmenting {
-    public static var shared: Environmenting = Environment()
+#if MOCKING
+    public actor MockEnvironment: Environmenting {
+        public var shouldOutputBeColoured: Bool = false
+        public var isCI: Bool = false
+        public var isStandardOutputInteractive: Bool = false
+        public var isVerbose: Bool = false
+        public var cacheDirectory: AbsolutePath = .root
+        public var tuistVariables: [String: String] = [:]
+        public var tuistConfigVariables: [String: String] = [:]
+        public var manifestLoadingVariables: [String: String] = [:]
+        public var uniqueHostId: String = "host"
+        public var macOSVersion: String = "14.2.1"
+        public var swiftVersion: String = "5.9"
+        public var hardwareName: String = "macbook"
+        public var githubAPIToken: String?
+        public var useManifestsCache: Bool = true
+        public var detailedLog: Bool = false
+        public var osLog: Bool = false
+    }
+#endif
 
-    /// Returns the default local directory.
-    static let defaultDirectory = try! AbsolutePath( // swiftlint:disable:this force_try
-        validating: URL(fileURLWithPath: NSHomeDirectory()).path
-    ).appending(component: ".tuist")
-
+public actor Environment: Environmenting {
     // MARK: - Attributes
 
-    /// Directory.
-    private let directory: AbsolutePath
+    @available(*, deprecated, message: "Use the instance passed from the command")
+    public static let shared: Environmenting = try! Environment()
 
-    /// File handler instance.
-    private let fileHandler: FileHandling
+    public let shouldOutputBeColoured: Bool
+    public let isCI: Bool
+    public let isStandardOutputInteractive: Bool
+    public let isVerbose: Bool
+    public let cacheDirectory: AbsolutePath
+    public let tuistVariables: [String: String]
+    public let tuistConfigVariables: [String: String]
+    public let manifestLoadingVariables: [String: String]
+    public let uniqueHostId: String
+    public let macOSVersion: String
+    public let swiftVersion: String
+    public let hardwareName: String
+    public let githubAPIToken: String?
+    public let useManifestsCache: Bool
+    public let detailedLog: Bool
+    public let osLog: Bool
 
-    /// Default public constructor.
-    convenience init() {
+    public init(env: [String: String] = ProcessInfo.processInfo.environment) throws {
         self.init(
-            directory: Environment.defaultDirectory,
-            fileHandler: FileHandler.shared
+            shouldOutputBeColoured: try Environment.shouldOutputBeColoured(from: env),
+            isCI: try Environment.isCI(from: env),
+            isStandardOutputInteractive: try Environment.isStandardOutputInteractive(from: env),
+            isVerbose: try Environment.isVerbose(from: env),
+            cacheDirectory: try Environment.cacheDirectory(from: env),
+            tuistVariables: try Environment.tuistVariables(from: env),
+            tuistConfigVariables: try Environment.tuistConfigVariables(from: env),
+            manifestLoadingVariables: try Environment.manifestLoadingVariables(from: env),
+            uniqueHostId: try Environment.uniqueHostId(),
+            macOSVersion: Environment.macOSVersion(),
+            swiftVersion: try Environment.swiftVersion(),
+            hardwareName: Environment.hardwareName(),
+            githubAPIToken: Environment.githubAPIToken(from: env),
+            useManifestsCache: Environment.useManifestsCache(from: env),
+            detailedLog: Environment.detailedLog(from: env),
+            osLog: Environment.osLog(from: env)
         )
     }
 
-    /// Default environment constructor.
-    ///
-    /// - Parameters:
-    ///   - directory: Directory where the Tuist environment files will be stored.
-    ///   - fileHandler: File handler instance to perform file operations.
-    init(directory: AbsolutePath, fileHandler: FileHandling) {
-        self.directory = directory
-        self.fileHandler = fileHandler
+    public init(
+        shouldOutputBeColoured: Bool,
+        isCI: Bool,
+        isStandardOutputInteractive: Bool,
+        isVerbose: Bool,
+        cacheDirectory: AbsolutePath,
+        tuistVariables: [String: String],
+        tuistConfigVariables: [String: String],
+        manifestLoadingVariables: [String: String],
+        uniqueHostId: String,
+        macOSVersion: String,
+        swiftVersion: String,
+        hardwareName: String,
+        githubAPIToken: String?,
+        useManifestsCache: Bool,
+        detailedLog: Bool,
+        osLog: Bool
+    ) {
+        self.shouldOutputBeColoured = shouldOutputBeColoured
+        self.isCI = isCI
+        self.isStandardOutputInteractive = isStandardOutputInteractive
+        self.isVerbose = isVerbose
+        self.cacheDirectory = cacheDirectory
+        self.tuistVariables = tuistVariables
+        self.tuistConfigVariables = tuistConfigVariables
+        self.manifestLoadingVariables = manifestLoadingVariables
+        self.uniqueHostId = uniqueHostId
+        self.macOSVersion = macOSVersion
+        self.swiftVersion = swiftVersion
+        self.hardwareName = hardwareName
+        self.githubAPIToken = githubAPIToken
+        self.useManifestsCache = useManifestsCache
+        self.detailedLog = detailedLog
+        self.osLog = osLog
     }
 
-    // MARK: - EnvironmentControlling
-
-    /// Sets up the local environment.
-    public func bootstrap() throws {
-        for item in [directory, versionsDirectory] where !fileHandler.exists(item) {
-            try fileHandler.createFolder(item)
-        }
-    }
-
-    /// Returns true if the output of Tuist should be coloured.
-    public var shouldOutputBeColoured: Bool {
-        let noColor = if let noColorEnvVariable = ProcessInfo.processInfo.environment["NO_COLOR"] {
+    private static func shouldOutputBeColoured(from env: [String: String]) throws -> Bool {
+        let noColor = if let noColorEnvVariable = env["NO_COLOR"] {
             Constants.trueValues.contains(noColorEnvVariable)
         } else {
             false
         }
-        let ciColorForce = if let ciColorForceEnvVariable = ProcessInfo.processInfo.environment["CLICOLOR_FORCE"] {
+        let ciColorForce = if let ciColorForceEnvVariable = env["CLICOLOR_FORCE"] {
             Constants.trueValues.contains(ciColorForceEnvVariable)
         } else {
             false
@@ -109,79 +144,118 @@ public class Environment: Environmenting {
         }
     }
 
-    /// Returns true if the environment represents a GitHub Actions environment
-    public var isGitHubActions: Bool {
-        if let githubActions = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] {
-            return Constants.trueValues.contains(githubActions)
-        } else {
-            return false
-        }
+    private static func isCI(from env: [String: String]) throws -> Bool {
+        let variables = [
+            // GitHub: https://help.github.com/en/actions/automating-your-workflow-with-github-actions/using-environment-variables
+            "GITHUB_RUN_ID",
+            // CircleCI: https://circleci.com/docs/2.0/env-vars/
+            // Bitrise: https://devcenter.bitrise.io/builds/available-environment-variables/
+            // Buildkite: https://buildkite.com/docs/pipelines/environment-variables
+            // Travis: https://docs.travis-ci.com/user/environment-variables/
+            "CI",
+            // Jenkins: https://wiki.jenkins.io/display/JENKINS/Building+a+software+project
+            "BUILD_NUMBER",
+        ]
+        return env.first(where: {
+            variables.contains($0.key)
+        }) != nil
     }
 
-    /// Returns true if the standard output is interactive.
-    public var isStandardOutputInteractive: Bool {
-        let termType = ProcessInfo.processInfo.environment["TERM"]
+    private static func isStandardOutputInteractive(from env: [String: String]) throws -> Bool {
+        let termType = env["TERM"]
         if let t = termType, t.lowercased() != "dumb", isatty(fileno(stdout)) != 0 {
             return true
         }
         return false
     }
 
-    public var isVerbose: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
+    private static func isVerbose(from env: [String: String]) throws -> Bool {
+        guard let variable = env["TUIST_CONFIG_VERBOSE"] else { return false }
         return Constants.trueValues.contains(variable)
     }
 
-    public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
-        let userOptedOut = Constants.trueValues.contains(variable)
-        return !userOptedOut
-    }
-
-    /// Returns the directory where all the versions are.
-    public var versionsDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
-            return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
+    private static func cacheDirectory(from env: [String: String]) throws -> AbsolutePath {
+        if let xdgCacheHome = env["XDG_CACHE_HOME"] {
+            return try AbsolutePath(validating: xdgCacheHome)
         } else {
-            return directory.appending(component: "Versions")
+            return FileHandler.shared.homeDirectory.appending(components: ".cache")
         }
     }
 
-    public var automationPath: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath]
-            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
+    private static func tuistVariables(from env: [String: String]) throws -> [String: String] {
+        env.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
     }
 
-    public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
-            return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
-        } else {
-            return directory.appending(component: Constants.AsyncQueue.directoryName)
-        }
+    private static func tuistConfigVariables(from env: [String: String]) throws -> [String: String] {
+        env.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
     }
 
-    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
-    public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
-    }
-
-    /// Returns all the environment variables that are specific to Tuist config (prefixed with TUIST_CONFIG_)
-    public var tuistConfigVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
-    }
-
-    public var manifestLoadingVariables: [String: String] {
+    private static func manifestLoadingVariables(from env: [String: String]) throws -> [String: String] {
         let allowedVariableKeys = [
             "DEVELOPER_DIR",
         ]
-        let allowedVariables = ProcessInfo.processInfo.environment.filter {
+        let allowedVariables = env.filter {
             allowedVariableKeys.contains($0.key)
         }
-        return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+        return try tuistVariables(from: env).merging(allowedVariables, uniquingKeysWith: { $1 })
     }
 
-    /// Settings path.
-    public var settingsPath: AbsolutePath {
-        directory.appending(component: "settings.json")
+    private static func uniqueHostId() throws -> String {
+        let matchingDict = IOServiceMatching("IOPlatformExpertDevice")
+        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, matchingDict)
+        defer { IOObjectRelease(platformExpert) }
+        guard platformExpert != 0 else {
+            fatalError("Couldn't obtain the platform expert")
+        }
+        let uuid = IORegistryEntryCreateCFProperty(
+            platformExpert,
+            kIOPlatformUUIDKey as CFString,
+            kCFAllocatorDefault,
+            0
+        ).takeRetainedValue() as! String // swiftlint:disable:this force_cast
+        return Insecure.MD5.hash(data: uuid.data(using: .utf8)!)
+            .compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func macOSVersion() -> String {
+        """
+        \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\
+        \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
+        \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
+        """
+    }
+
+    private static func swiftVersion() throws -> String {
+        try System.shared // swiftlint:disable:this force_try
+            .capture(["/usr/bin/xcrun", "swift", "-version"])
+            .components(separatedBy: "Swift version ").last!
+            .components(separatedBy: " ").first!
+    }
+
+    private static func hardwareName() -> String {
+        var sysinfo = utsname()
+        let result = uname(&sysinfo)
+        guard result == EXIT_SUCCESS else { fatalError("uname result is \(result)") }
+        let data = Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN))
+        return String(bytes: data, encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+    }
+
+    private static func githubAPIToken(from env: [String: String]) -> String? {
+        return env["TUIST_CONFIG_GITHUB_API_TOKEN"] ?? env["GITHUB_API_TOKEN"]
+    }
+
+    private static func useManifestsCache(from env: [String: String]) -> Bool {
+        guard let variable = env["TUIST_CONFIG_CACHE_MANIFESTS"] else { return false }
+        return Constants.trueValues.contains(variable)
+    }
+
+    private static func detailedLog(from env: [String: String]) -> Bool {
+        guard let variable = env["TUIST_CONFIG_DETAILED_LOG"] else { return false }
+        return Constants.trueValues.contains(variable)
+    }
+
+    private static func osLog(from env: [String: String]) -> Bool {
+        guard let variable = env["TUIST_CONFIG_OS_LOG"] else { return false }
+        return Constants.trueValues.contains(variable)
     }
 }

@@ -4,7 +4,7 @@ import TSCUtility
 
 public protocol GitEnvironmenting {
     /// Returns the authentication type that should be used with GitHub.
-    func githubAuthentication() -> AnyPublisher<GitHubAuthentication?, Error>
+    func githubAuthentication(context: Context) async -> AnyPublisher<GitHubAuthentication?, Error>
 
     /// It returns the environment's Git credentials for GitHub.
     /// This is useful for operations such pulling newer Tuist versions from GitHub
@@ -46,15 +46,8 @@ public enum GitEnvironmentError: FatalError {
 }
 
 public class GitEnvironment: GitEnvironmenting {
-    let environment: () -> [String: String]
-
-    public init(environment: @escaping () -> [String: String] = { ProcessInfo.processInfo.environment }) {
-        self.environment = environment
-    }
-
-    public func githubAuthentication() -> AnyPublisher<GitHubAuthentication?, Error> {
-        let env = environment()
-        if let environmentToken = env[Constants.EnvironmentVariables.githubAPIToken] {
+    public func githubAuthentication(context: Context) async -> AnyPublisher<GitHubAuthentication?, Error> {
+        if let environmentToken = await context.environment.githubAPIToken {
             return .init(value: .token(environmentToken))
         } else {
             return githubCredentials().map { (credentials: GithubCredentials?) -> GitHubAuthentication? in
