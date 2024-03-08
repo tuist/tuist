@@ -28,10 +28,22 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
+  parsed_url = URI.parse(database_url)
+  [username, password] = parsed_url.userinfo |> String.split(":")
+
   config :tuist_cloud, TuistCloud.Repo,
-    pool_size: 10,
-    url: database_url,
-    ssl: false
+    pool_size: 1,
+    database: parsed_url.path |> String.replace_prefix("/", ""),
+    username: username,
+    password: password,
+    hostname: parsed_url.host,
+    ssl: true,
+    socket_options: [:inet6],
+    # TODO: Add proper certificate verification
+    ssl_opts: [
+      server_name_indication: to_char_list(parsed_url.host),
+      verify: :verify_none
+    ]
 
   # TODO: Add proper certificate verification
   # ssl_opts: [

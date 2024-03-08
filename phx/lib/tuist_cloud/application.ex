@@ -7,8 +7,6 @@ defmodule TuistCloud.Application do
 
   @impl true
   def start(_type, _args) do
-    load_secrets()
-
     children = [
       TuistCloudWeb.Telemetry,
       TuistCloud.Repo,
