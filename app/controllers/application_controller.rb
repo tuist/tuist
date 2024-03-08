@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-# typed: strict
+# typed: false
 
 class ApplicationController < ActionController::Base
   extend T::Sig
@@ -35,7 +35,22 @@ class ApplicationController < ActionController::Base
 
   sig { void }
   def ready
-    head(:ok)
+    max_attempts = 3
+    attempts = 0
+
+    while attempts < max_attempts
+      response = Faraday.get("http://127.0.0.1:#{ENV.fetch("PHX_PORT", "4000")}/ready")
+
+      if response.success?
+        head(:ok) # Return 200 if the request was successful
+        return
+      else
+        attempts += 1
+        sleep(3) # Wait for 3 seconds before the next attempt
+      end
+    end
+
+    head(:bad_request)
   end
 
   private

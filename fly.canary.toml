@@ -14,6 +14,7 @@ console_command = "/app/bin/rails console"
   RAILS_ENV="canary"
   RAILS_MAX_THREADS=2
   WEB_CONCURRENCY=1
+  PHX_HOST="cloud-staging.tuist.io"
 
 [[vm]]
   cpu_kind = 'shared'
@@ -45,10 +46,15 @@ console_command = "/app/bin/rails console"
     hard_limit = 25
     soft_limit = 20
 
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-    grace_period = "1s"
+  [[services.http_checks]]
+    interval = 10000
+    grace_period = "10s"
+    method = "get"
+    path = "/ready"
+    protocol = "http"
+    timeout = 2000
+    tls_skip_verify = false
+    [services.http_checks.headers]
 
 [[statics]]
   guest_path = "/app/public"

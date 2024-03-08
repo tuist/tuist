@@ -18,6 +18,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/ready", PageController, :ready
     get "/api/phx", PageController, :api
   end
 

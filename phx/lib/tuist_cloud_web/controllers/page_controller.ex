@@ -10,4 +10,8 @@ defmodule TuistCloudWeb.PageController do
   def api(conn, _params) do
     conn |> json(%{message: "Hello, Phoenix!"})
   end
+
+  def ready(conn, _params) do
+    conn |> Plug.Conn.send_resp(200, []) |> Plug.Conn.halt()
+  end
 end

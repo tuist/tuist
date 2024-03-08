@@ -71,7 +71,7 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || "cloud.tuist.io"
   port = String.to_integer(System.get_env("PHX_PORT") || "4000")
 
   config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
@@ -143,7 +143,7 @@ if !TuistCloud.Environment.on_premise?() do
   config :appsignal, :config,
     otp_app: :tuist_cloud,
     name: "Tuist Cloud Phoenix",
-    push_api_key: "6a8e48b7-0688-44b3-9df9-f19b5a095edf",
+    push_api_key: "985ffa3c-8466-47e7-ad1c-ab72d26c01a4",
     env: TuistCloud.Environment.env(),
     active: TuistCloud.Environment.env() == :prod
 end

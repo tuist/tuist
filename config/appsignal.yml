@@ -1,8 +1,4 @@
 default: &defaults
-  # Your push api key, it is possible to set this dynamically using ERB:
-  # push_api_key: "<%= ENV['APPSIGNAL_PUSH_API_KEY'] %>"
-  push_api_key: "6a8e48b7-0688-44b3-9df9-f19b5a095edf"
-
   # Your app's name
   name: "Tuist Cloud Rails"
 
@@ -54,12 +50,15 @@ development:
 
 staging:
   <<: *defaults
+  push_api_key: 6b537076-3b76-4ca8-95af-c1231b2e40bd
   active: <%= ENV.fetch("TUIST_CLOUD_SELF_HOSTED", 0) == 0 %>
 
 canary:
   <<: *defaults
+  push_api_key: 4d1bdc6c-2b28-43a2-aac3-3729d9cffb9b
   active: <%= ENV.fetch("TUIST_CLOUD_SELF_HOSTED", 0) == 0 %>
 
 production:
   <<: *defaults
+  push_api_key: 6ac0be5a-4a1d-488d-ab22-e9a96ffe42d8
   active: <%= ENV.fetch("TUIST_CLOUD_SELF_HOSTED", 0) == 0 %>

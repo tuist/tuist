@@ -486,6 +486,7 @@ DEPENDENCIES
   devise (~> 4.8)
   dockerfile-rails (>= 1.5)
   faker (~> 3.0)
+  faraday (~> 2.7)
   foreman (~> 0.87.2)
   groupdate (~> 6.1)
   gvltools (~> 0.4.0)
