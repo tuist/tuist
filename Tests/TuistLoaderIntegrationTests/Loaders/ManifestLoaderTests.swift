@@ -8,14 +8,17 @@ import XCTest
 
 final class ManifestLoaderTests: TuistTestCase {
     var subject: ManifestLoader!
-
+    var context: MockContext!
+    
     override func setUp() {
         super.setUp()
         subject = ManifestLoader()
+        context = MockContext()
     }
 
     override func tearDown() {
         subject = nil
+        context = nil
         super.tearDown()
     }
 
@@ -69,7 +72,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadProject(at: temporaryPath)
+        let got = try subject.loadProject(at: temporaryPath, context: context)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -299,14 +302,14 @@ final class ManifestLoaderTests: TuistTestCase {
 
         // When / Then
         XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
+            try subject.loadProject(at: temporaryPath, context: context)
         )
     }
 
     func test_load_missingManifest() throws {
         let temporaryPath = try temporaryPath()
         XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
+            try subject.loadProject(at: temporaryPath, context: context)
         ) { error in
             XCTAssertEqual(error as? ManifestLoaderError, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
         }

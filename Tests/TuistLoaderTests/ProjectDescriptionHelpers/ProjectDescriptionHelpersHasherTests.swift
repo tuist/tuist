@@ -9,15 +9,18 @@ import XCTest
 
 class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
     var subject: ProjectDescriptionHelpersHasher!
-
+    var context: MockContext!
+    
     override func setUp() {
         super.setUp()
+        context = MockContext()
         system.swiftVersionStub = { "5.2" }
         subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
     }
 
     override func tearDown() {
         subject = nil
+        context = nil
         super.tearDown()
     }
 
@@ -26,11 +29,11 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         let temporaryDir = try temporaryPath()
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
         try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
-        environment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
+        context.mockEnvironment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
         for _ in 0 ..< 20 {
-            let got = try subject.hash(helpersDirectory: temporaryDir)
+            let got = try subject.hash(helpersDirectory: temporaryDir, context: context)
             XCTAssertEqual(got, "0a46768e766bdd05bdf901098d323b8a")
         }
     }

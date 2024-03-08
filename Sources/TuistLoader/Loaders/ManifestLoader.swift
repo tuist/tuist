@@ -60,7 +60,7 @@ public protocol ManifestLoading {
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    func loadProject(at path: AbsolutePath, context: Context) throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Workspace.swift
@@ -105,7 +105,7 @@ public class ManifestLoader: ManifestLoading {
 
     let resourceLocator: ResourceLocating
     let manifestFilesLocator: ManifestFilesLocating
-    let environment: Environmenting
+    let context: Context
     private let decoder: JSONDecoder
     private var plugins: Plugins = .none
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
@@ -117,7 +117,7 @@ public class ManifestLoader: ManifestLoading {
 
     public convenience init() {
         self.init(
-            environment: Environment.shared,
+            context: TuistContext.shared,
             resourceLocator: ResourceLocator(),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
@@ -128,7 +128,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     init(
-        environment: Environmenting,
+        context: Context,
         resourceLocator: ResourceLocating,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
@@ -136,7 +136,7 @@ public class ManifestLoader: ManifestLoading {
         xcodeController: XcodeControlling,
         swiftPackageManagerController: SwiftPackageManagerControlling
     ) {
-        self.environment = environment
+        self.context = context
         self.resourceLocator = resourceLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
@@ -162,7 +162,7 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.config, at: path)
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
+    public func loadProject(at path: AbsolutePath, context: Context) throws -> ProjectDescription.Project {
         try loadManifest(.project, at: path)
     }
 
@@ -305,7 +305,7 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            let string = try System.shared.capture(arguments, verbose: false, environment: context.environment.manifestLoadingVariables)
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)

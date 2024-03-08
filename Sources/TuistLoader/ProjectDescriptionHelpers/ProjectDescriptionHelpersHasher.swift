@@ -1,12 +1,13 @@
 import Foundation
 import TSCBasic
 import TuistSupport
+import Mockable
 
+@Mockable
 public protocol ProjectDescriptionHelpersHashing: AnyObject {
     /// Given the path to the directory that contains the helpers, it returns a hash that includes
     /// the hash of the files, the environment, as well as the versions of Swift and Tuist.
-    /// - Parameter helpersDirectory: Path to the helpers directory.
-    func hash(helpersDirectory: AbsolutePath) throws -> String
+    func hash(helpersDirectory: AbsolutePath, context: Context) throws -> String
 
     /// Gets the prefix hash for the given helpers directory.
     /// This is useful to uniquely identify a helpers directory in the cache.
@@ -24,13 +25,13 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
 
     // MARK: - ProjectDescriptionHelpersHashing
 
-    public func hash(helpersDirectory: AbsolutePath) throws -> String {
+    public func hash(helpersDirectory: AbsolutePath, context: Context) throws -> String {
         let fileHashes = FileHandler.shared
             .glob(helpersDirectory, glob: "**/*.swift")
             .sorted()
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
-        let tuistEnvVariables = Environment.shared.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = context.environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         let swiftVersion = try System.shared.swiftVersion()
         #if DEBUG
             let debug = true

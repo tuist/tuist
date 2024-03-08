@@ -17,7 +17,6 @@ public class CachedManifestLoader: ManifestLoading {
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileHandler: FileHandling
-    private let environment: Environmenting
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let tuistVersion: String
     private let decoder = JSONDecoder()
@@ -27,13 +26,11 @@ public class CachedManifestLoader: ManifestLoading {
     @Atomic private var cacheDirectory: AbsolutePath!
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
-        let environment = TuistSupport.Environment.shared
         self.init(
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
             helpersDirectoryLocator: HelpersDirectoryLocator(),
             fileHandler: FileHandler.shared,
-            environment: environment,
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             tuistVersion: Constants.version
         )
@@ -44,7 +41,6 @@ public class CachedManifestLoader: ManifestLoading {
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
         helpersDirectoryLocator: HelpersDirectoryLocating,
         fileHandler: FileHandling,
-        environment: Environmenting,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         tuistVersion: String
     ) {
@@ -52,51 +48,50 @@ public class CachedManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileHandler = fileHandler
-        self.environment = environment
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.tuistVersion = tuistVersion
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        try load(manifest: .config, at: path) {
+        try load(manifest: .config, at: path, context: TuistContext.shared) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
             return projectDescriptionConfig
         }
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> Project {
-        try load(manifest: .project, at: path) {
-            try manifestLoader.loadProject(at: path)
+    public func loadProject(at path: AbsolutePath, context: Context) throws -> Project {
+        try load(manifest: .project, at: path, context: context) {
+            try manifestLoader.loadProject(at: path, context: context)
         }
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
-        try load(manifest: .workspace, at: path) {
+        try load(manifest: .workspace, at: path, context: TuistContext.shared) {
             try manifestLoader.loadWorkspace(at: path)
         }
     }
 
     public func loadTemplate(at path: AbsolutePath) throws -> Template {
-        try load(manifest: .template, at: path) {
+        try load(manifest: .template, at: path, context: TuistContext.shared) {
             try manifestLoader.loadTemplate(at: path)
         }
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> Plugin {
-        try load(manifest: .plugin, at: path) {
+        try load(manifest: .plugin, at: path, context: TuistContext.shared) {
             try manifestLoader.loadPlugin(at: path)
         }
     }
 
     public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
-        try load(manifest: .packageSettings, at: path) {
+        try load(manifest: .packageSettings, at: path, context: TuistContext.shared) {
             try manifestLoader.loadPackageSettings(at: path)
         }
     }
 
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try load(manifest: .package, at: path) {
+        try load(manifest: .package, at: path, context: TuistContext.shared) {
             try manifestLoader.loadPackage(at: path)
         }
     }
@@ -110,13 +105,13 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func register(plugins: Plugins) throws {
-        pluginsHashCache = try calculatePluginsHash(for: plugins)
+        pluginsHashCache = try calculatePluginsHash(for: plugins, context: TuistContext.shared)
         try manifestLoader.register(plugins: plugins)
     }
 
     // MARK: - Private
 
-    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
+    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, context: Context, loader: () throws -> T) throws -> T {
         if cacheDirectory == nil {
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
         }
@@ -129,7 +124,8 @@ public class CachedManifestLoader: ManifestLoading {
         let calculatedHashes = try? calculateHashes(
             path: path,
             manifestPath: manifestPath,
-            manifest: manifest
+            manifest: manifest,
+            context: context
         )
 
         guard let hashes = calculatedHashes else {
@@ -160,11 +156,12 @@ public class CachedManifestLoader: ManifestLoading {
     private func calculateHashes(
         path: AbsolutePath,
         manifestPath: AbsolutePath,
-        manifest: Manifest
+        manifest: Manifest,
+        context: Context
     ) throws -> Hashes {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
-        let helpersHash = try calculateHelpersHash(at: path)
-        let environmentHash = calculateEnvironmentHash()
+        let helpersHash = try calculateHelpersHash(at: path, context: context)
+        let environmentHash = calculateEnvironmentHash(context: context)
 
         return Hashes(
             manifestHash: manifestHash,
@@ -181,7 +178,7 @@ public class CachedManifestLoader: ManifestLoading {
         return hash
     }
 
-    private func calculateHelpersHash(at path: AbsolutePath) throws -> String? {
+    private func calculateHelpersHash(at path: AbsolutePath, context: Context) throws -> String? {
         guard let helpersDirectory = helpersDirectoryLocator.locate(at: path) else {
             return nil
         }
@@ -190,21 +187,21 @@ public class CachedManifestLoader: ManifestLoading {
             return cached
         }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory, context: context)
         helpersCache[helpersDirectory] = hash
 
         return hash
     }
 
-    private func calculatePluginsHash(for plugins: Plugins) throws -> String? {
+    private func calculatePluginsHash(for plugins: Plugins, context: Context) throws -> String? {
         try plugins.projectDescriptionHelpers
-            .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
+            .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path, context: context) }
             .joined(separator: "-")
             .md5
     }
 
-    private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+    private func calculateEnvironmentHash(context: Context) -> String? {
+        let tuistEnvVariables = context.environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }

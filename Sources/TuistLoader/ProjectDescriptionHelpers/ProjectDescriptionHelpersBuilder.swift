@@ -155,7 +155,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ) throws -> ProjectDescriptionHelpersModule {
         if let cachedModule = builtHelpers[path] { return cachedModule }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path, context: TuistContext.shared)
         let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
 
         let helpersCachePath = cacheDirectory.appending(component: prefixHash)
@@ -187,7 +187,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         )
 
         let timer = clock.startTimer()
-        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+        try System.shared.runAndPrint(command, verbose: false, environment: TuistContext.shared.environment.manifestLoadingVariables)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         logger.debug("Built \(name) in (\(time)s)", metadata: .success)

@@ -60,7 +60,7 @@ public class GeneratorFactory: GeneratorFactorying {
             excludedTargets: excludedTargets
         )
         let workspaceMappers = workspaceMapperFactory.automation()
-        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader(context: TuistContext.shared)
         return Generator(
             manifestLoader: manifestLoader,
             manifestGraphLoader: ManifestGraphLoader(
@@ -79,7 +79,7 @@ public class GeneratorFactory: GeneratorFactorying {
         let graphMapperFactory = GraphMapperFactory()
         let graphMappers = graphMapperFactory.default(config: config)
         let workspaceMappers = workspaceMapperFactory.default()
-        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader(context: TuistContext.shared)
         return Generator(
             manifestLoader: manifestLoader,
             manifestGraphLoader: ManifestGraphLoader(

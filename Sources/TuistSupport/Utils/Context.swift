@@ -3,36 +3,40 @@ import Logging
 
 public protocol Context {
     var environment: Environmenting { get }
-    var logger: Logger! { get }
 }
 
 #if MOCKING
 public class MockContext: Context {
-        public var logHandler: TestLogHandler
-        public var environment: Environmenting
-        public var logger: Logging.Logger!
-        public var mockEnvironment: MockEnvironment { environment as! MockEnvironment }
-
+        public var environment: Environmenting { mockEnvironment }
+        public var mockEnvironment: MockEnvironment
+        public let testId: String
+    
         public init(testId: String = UUID().uuidString) {
-            environment = MockEnvironment()
-            logHandler = TestLogHandler(testId: testId)
-            logger = Logger(label: "io.tuist.test.\(testId)", factory: { _ in self.logHandler })
+            self.testId = testId
+            mockEnvironment = MockEnvironment()
         }
     }
 #endif
 
 public class TuistContext: Context {
+    @available(*, deprecated, message: """
+    The usage of TuistContext.shared is discouraged because it limits the ability to run tests in parallel. Existing usages in the codebase
+    are pending a refactor, so please avoid cargo-culting the pattern.
+    """)
+    public private(set) static var shared: Context!
+    
     public let environment: Environmenting
-    public let logger: Logger!
 
-    public convenience init() async throws {
+    public convenience init() throws {
         let environment = try Environment()
-        let logger = await Logger.tuist(environment: environment)
-        try self.init(environment: environment, logger: logger)
+        try self.init(environment: environment)
     }
 
-    init(environment: Environmenting, logger: Logger) throws {
+    init(environment: Environmenting) throws {
         self.environment = environment
-        self.logger = logger
+    }
+    
+    public static func initializeSharedInstace() throws {
+        TuistContext.shared = try TuistContext()
     }
 }

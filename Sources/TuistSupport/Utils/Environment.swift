@@ -4,14 +4,17 @@ import Foundation
 import Mockable
 import TSCBasic
 
-public protocol Environmenting: Actor {
+public protocol Environmenting {
     var shouldOutputBeColoured: Bool { get }
     var tuistVariables: [String: String] { get }
     var tuistConfigVariables: [String: String] { get }
     var manifestLoadingVariables: [String: String] { get }
     var isVerbose: Bool { get }
     var isCI: Bool { get }
+    var currentDirectory: AbsolutePath { get }
+    var homeDirectory: AbsolutePath { get }
     var cacheDirectory: AbsolutePath { get }
+    var derivedDataDirectory: AbsolutePath { get }
     var uniqueHostId: String { get }
     var macOSVersion: String { get }
     var swiftVersion: String { get }
@@ -20,15 +23,19 @@ public protocol Environmenting: Actor {
     var useManifestsCache: Bool { get }
     var detailedLog: Bool { get }
     var osLog: Bool { get }
+    var isGitHubActions: Bool { get }
 }
 
 #if MOCKING
-    public actor MockEnvironment: Environmenting {
+    public struct MockEnvironment: Environmenting {
         public var shouldOutputBeColoured: Bool = false
         public var isCI: Bool = false
         public var isStandardOutputInteractive: Bool = false
         public var isVerbose: Bool = false
+        public var currentDirectory: AbsolutePath = .root
+        public var homeDirectory: AbsolutePath = .root
         public var cacheDirectory: AbsolutePath = .root
+        public var derivedDataDirectory: AbsolutePath = .root
         public var tuistVariables: [String: String] = [:]
         public var tuistConfigVariables: [String: String] = [:]
         public var manifestLoadingVariables: [String: String] = [:]
@@ -37,23 +44,24 @@ public protocol Environmenting: Actor {
         public var swiftVersion: String = "5.9"
         public var hardwareName: String = "macbook"
         public var githubAPIToken: String?
+        public var isGitHubActions: Bool = false
         public var useManifestsCache: Bool = true
         public var detailedLog: Bool = false
         public var osLog: Bool = false
     }
 #endif
 
-public actor Environment: Environmenting {
+public struct Environment: Environmenting {
     // MARK: - Attributes
-
-    @available(*, deprecated, message: "Use the instance passed from the command")
-    public static let shared: Environmenting = try! Environment()
 
     public let shouldOutputBeColoured: Bool
     public let isCI: Bool
     public let isStandardOutputInteractive: Bool
     public let isVerbose: Bool
+    public let currentDirectory: AbsolutePath
+    public let homeDirectory: AbsolutePath
     public let cacheDirectory: AbsolutePath
+    public let derivedDataDirectory: AbsolutePath
     public let tuistVariables: [String: String]
     public let tuistConfigVariables: [String: String]
     public let manifestLoadingVariables: [String: String]
@@ -65,14 +73,19 @@ public actor Environment: Environmenting {
     public let useManifestsCache: Bool
     public let detailedLog: Bool
     public let osLog: Bool
-
+    public let isGitHubActions: Bool
+    
     public init(env: [String: String] = ProcessInfo.processInfo.environment) throws {
+        let homeDirectory = FileHandler.shared.homeDirectory
         self.init(
             shouldOutputBeColoured: try Environment.shouldOutputBeColoured(from: env),
             isCI: try Environment.isCI(from: env),
             isStandardOutputInteractive: try Environment.isStandardOutputInteractive(from: env),
             isVerbose: try Environment.isVerbose(from: env),
+            currentDirectory: FileHandler.shared.currentPath,
+            homeDirectory: homeDirectory,
             cacheDirectory: try Environment.cacheDirectory(from: env),
+            derivedDataDirectory: try Environment.derivedDataDirectory(homeDirectory: homeDirectory),
             tuistVariables: try Environment.tuistVariables(from: env),
             tuistConfigVariables: try Environment.tuistConfigVariables(from: env),
             manifestLoadingVariables: try Environment.manifestLoadingVariables(from: env),
@@ -83,7 +96,8 @@ public actor Environment: Environmenting {
             githubAPIToken: Environment.githubAPIToken(from: env),
             useManifestsCache: Environment.useManifestsCache(from: env),
             detailedLog: Environment.detailedLog(from: env),
-            osLog: Environment.osLog(from: env)
+            osLog: Environment.osLog(from: env),
+            isGitHubActions: Environment.isGitHubActions(from: env)
         )
     }
 
@@ -92,7 +106,10 @@ public actor Environment: Environmenting {
         isCI: Bool,
         isStandardOutputInteractive: Bool,
         isVerbose: Bool,
+        currentDirectory: AbsolutePath,
+        homeDirectory: AbsolutePath,
         cacheDirectory: AbsolutePath,
+        derivedDataDirectory: AbsolutePath,
         tuistVariables: [String: String],
         tuistConfigVariables: [String: String],
         manifestLoadingVariables: [String: String],
@@ -103,13 +120,17 @@ public actor Environment: Environmenting {
         githubAPIToken: String?,
         useManifestsCache: Bool,
         detailedLog: Bool,
-        osLog: Bool
+        osLog: Bool,
+        isGitHubActions: Bool
     ) {
         self.shouldOutputBeColoured = shouldOutputBeColoured
         self.isCI = isCI
         self.isStandardOutputInteractive = isStandardOutputInteractive
         self.isVerbose = isVerbose
+        self.currentDirectory = currentDirectory
+        self.homeDirectory = homeDirectory
         self.cacheDirectory = cacheDirectory
+        self.derivedDataDirectory = derivedDataDirectory
         self.tuistVariables = tuistVariables
         self.tuistConfigVariables = tuistConfigVariables
         self.manifestLoadingVariables = manifestLoadingVariables
@@ -121,6 +142,7 @@ public actor Environment: Environmenting {
         self.useManifestsCache = useManifestsCache
         self.detailedLog = detailedLog
         self.osLog = osLog
+        self.isGitHubActions = isGitHubActions
     }
 
     private static func shouldOutputBeColoured(from env: [String: String]) throws -> Bool {
@@ -180,6 +202,22 @@ public actor Environment: Environmenting {
         } else {
             return FileHandler.shared.homeDirectory.appending(components: ".cache")
         }
+    }
+    
+    private static func derivedDataDirectory(homeDirectory: AbsolutePath) throws -> AbsolutePath {
+        let location: AbsolutePath
+        if let customLocation = try? System.shared.capture([
+            "/usr/bin/defaults",
+            "read",
+            "com.apple.dt.Xcode IDECustomDerivedDataLocation",
+        ]) {
+            location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
+        } else {
+            // Default location
+            // swiftlint:disable:next force_try
+            location = homeDirectory.appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+        }
+        return location
     }
 
     private static func tuistVariables(from env: [String: String]) throws -> [String: String] {
@@ -256,6 +294,11 @@ public actor Environment: Environmenting {
 
     private static func osLog(from env: [String: String]) -> Bool {
         guard let variable = env["TUIST_CONFIG_OS_LOG"] else { return false }
+        return Constants.trueValues.contains(variable)
+    }
+    
+    private static func isGitHubActions(from env: [String: String]) -> Bool {
+        guard let variable = env["GITHUB_ACTIONS"] else { return false }
         return Constants.trueValues.contains(variable)
     }
 }

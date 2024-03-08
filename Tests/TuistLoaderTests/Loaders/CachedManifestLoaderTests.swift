@@ -4,6 +4,7 @@ import TSCBasic
 import struct TuistGraph.Plugins
 import TuistSupport
 import XCTest
+import MockableTest
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
@@ -13,7 +14,7 @@ import XCTest
 final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var cacheDirectory: AbsolutePath!
     private var manifestLoader = MockManifestLoader()
-    private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
+    private var projectDescriptionHelpersHasher: MockProjectDescriptionHelpersHashing!
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
@@ -25,12 +26,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var recordedLoadProjectCalls: Int = 0
     private var recordedLoadConfigCalls: Int = 0
     private var recordedLoadPluginCalls: Int = 0
-
+    private var context: MockContext!
     private var subject: CachedManifestLoader!
 
     override func setUp() {
         super.setUp()
-
+        
+        context = MockContext()
+        projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHashing()
+        
         do {
             cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
@@ -78,6 +82,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         cacheDirectory = nil
+        context = nil
+        projectDescriptionHelpersHasher = nil
         super.tearDown()
     }
 
@@ -90,7 +96,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try stubProject(project, at: path)
 
         // When
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(result, project)
@@ -104,10 +110,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try stubProject(project, at: path)
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
+        _ = try subject.loadProject(at: path, context: context)
+        _ = try subject.loadProject(at: path, context: context)
+        let result = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(result, project)
@@ -119,12 +125,13 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let originalProject = Project.test(name: "Original")
         try stubProject(originalProject, at: path)
-        _ = try subject.loadProject(at: path)
+        let context = MockContext()
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
         try stubProject(modifiedProject, at: path)
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(result, modifiedProject)
@@ -136,14 +143,19 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        try stubHelpers(withHash: "hash")
-
-        _ = try subject.loadProject(at: path)
+        let helpersPath = try temporaryPath().appending(components: "Tuist", "ProjectDescriptionHelpers")
+        helpersDirectoryLocator.locateStub = path
+        given(projectDescriptionHelpersHasher)
+            .hash(helpersDirectory: .value(path), context: .any).willReturn("hash")
+            .hash(helpersDirectory: .value(path), context: .any).willReturn("updatedHash")
+        let context = MockContext()
+        context.mockEnvironment.useManifestsCache = true
+        
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
-        try stubHelpers(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -155,13 +167,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         try stubPlugins(withHash: "hash")
+        let context = MockContext()
 
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
         try stubPlugins(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -172,13 +185,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        environment.manifestLoadingVariables = ["NAME": "A"]
+        let context = MockContext()
+        context.mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
+        _ = try subject.loadProject(at: path, context: context)
+        _ = try subject.loadProject(at: path, context: context)
+        let result = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(result, project)
@@ -190,12 +204,13 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        environment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try subject.loadProject(at: path)
+        let context = MockContext()
+        context.mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
-        environment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try subject.loadProject(at: path)
+        context.mockEnvironment.manifestLoadingVariables = ["NAME": "B"]
+        _ = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -206,12 +221,13 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
+        let context = MockContext()
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 1)
@@ -223,11 +239,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        let context = MockContext()
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
         subject = createSubject(tuistVersion: "2.0")
-        _ = try subject.loadProject(at: path)
+        _ = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -238,11 +255,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        _ = try subject.loadProject(at: path)
+        let context = MockContext()
+        _ = try subject.loadProject(at: path, context: context)
 
         // When
         try corruptFiles(at: cacheDirectory)
-        let result = try subject.loadProject(at: path)
+        let result = try subject.loadProject(at: path, context: context)
 
         // Then
         XCTAssertEqual(result, project)
@@ -252,10 +270,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     func test_load_missingManifest() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        let context = MockContext()
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadProject(at: path),
+            try subject.loadProject(at: path, context: context),
             ManifestLoaderError.manifestNotFound(.project, path)
         )
     }
@@ -301,7 +320,6 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             helpersDirectoryLocator: helpersDirectoryLocator,
             fileHandler: fileHandler,
-            environment: environment,
             cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory,
             tuistVersion: tuistVersion
         )
@@ -340,14 +358,6 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         configManifests[path] = manifest
     }
 
-    private func stubHelpers(withHash hash: String) throws {
-        let path = try temporaryPath().appending(components: "Tuist", "ProjectDescriptionHelpers")
-        helpersDirectoryLocator.locateStub = path
-        projectDescriptionHelpersHasher.stubHash = { _ in
-            hash
-        }
-    }
-
     private func stubPlugins(withHash hash: String) throws {
         let plugin = Plugin(name: "TestPlugin")
         let path = try temporaryPath().appending(component: "TestPlugin")
@@ -361,7 +371,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .init(name: "TestPlugin", path: path, location: .local),
         ])
 
-        projectDescriptionHelpersHasher.stubHash = { _ in hash }
+        given(projectDescriptionHelpersHasher).hash(helpersDirectory: .any, context: .any).willReturn(hash)
         try subject.register(plugins: plugins)
     }
 

@@ -26,17 +26,18 @@ public protocol AsyncQueuePersisting {
 final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Attributes
 
-    let directory: AbsolutePath
+    let cacheDirectory: AbsolutePath
     let jsonEncoder = JSONEncoder()
+    var queueDirectory: AbsolutePath { cacheDirectory.appending(components: ["Queue"]) }
 
     // MARK: - Init
 
-    init(directory: AbsolutePath = Environment.shared.queueDirectory) {
-        self.directory = directory
+    init(cacheDirectory: AbsolutePath = TuistContext.shared.environment.cacheDirectory) {
+        self.cacheDirectory = cacheDirectory
     }
 
     func write(event: some AsyncQueueEvent) throws {
-        let path = directory.appending(component: filename(event: event))
+        let path = queueDirectory.appending(component: filename(event: event))
         try createDirectoryIfNeeded()
         let data = try jsonEncoder.encode(event)
         try data.write(to: path.url)
@@ -47,13 +48,13 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     func delete(filename: String) throws {
-        let path = directory.appending(component: filename)
+        let path = queueDirectory.appending(component: filename)
         guard FileHandler.shared.exists(path) else { return }
         try FileHandler.shared.delete(path)
     }
 
     func readAll() throws -> [AsyncQueueEventTuple] {
-        let paths = FileHandler.shared.glob(directory, glob: "*.json")
+        let paths = FileHandler.shared.glob(queueDirectory, glob: "*.json")
         var events: [AsyncQueueEventTuple] = []
         for eventPath in paths {
             let fileName = eventPath.basenameWithoutExt
@@ -91,7 +92,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     private func createDirectoryIfNeeded() throws {
-        guard !FileManager.default.fileExists(atPath: directory.pathString) else { return }
-        try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
+        guard !FileManager.default.fileExists(atPath: queueDirectory.pathString) else { return }
+        try FileManager.default.createDirectory(atPath: queueDirectory.pathString, withIntermediateDirectories: true)
     }
 }

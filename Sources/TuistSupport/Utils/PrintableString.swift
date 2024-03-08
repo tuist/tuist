@@ -97,7 +97,12 @@ extension PrintableString {
         }
 
         public var description: String {
-            guard Environment.shared.shouldOutputBeColoured else {
+            return self.description(shouldOutputBeColoured: TuistContext.shared.environment.shouldOutputBeColoured)
+        }
+        
+        // TODO: Eliminate once we refactor the code to pass down the context
+        public func description(shouldOutputBeColoured: Bool) -> String {
+            guard shouldOutputBeColoured else {
                 return unformatted
             }
 
@@ -150,7 +155,7 @@ extension Logger {
             line: line
         )
 
-        if Environment.shared.shouldOutputBeColoured {
+        if TuistContext.shared.environment.shouldOutputBeColoured {
             FileHandle.standardOutput.print(printableString.pretty)
         } else {
             FileHandle.standardOutput.print(printableString.rawString)

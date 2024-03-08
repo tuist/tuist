@@ -8,8 +8,9 @@ open class TuistUnitTestCase: TuistTestCase {
     public var developerEnvironment: MockDeveloperEnvironment!
     public var xcodeController: MockXcodeController!
 
-    override open func setUp() {
-        super.setUp()
+    open override func setUpWithError() throws {
+        try super.setUpWithError()
+        
         // System
         system = MockSystem()
         System.shared = system
@@ -31,10 +32,6 @@ open class TuistUnitTestCase: TuistTestCase {
         // Xcode controller
         xcodeController = nil
         XcodeController.shared = XcodeController()
-
-        // Environment
-        environment = nil
-        Environment.shared = Environment()
 
         // Developer environment
         developerEnvironment = nil

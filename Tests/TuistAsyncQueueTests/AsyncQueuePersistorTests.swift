@@ -13,7 +13,7 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         let temporaryDirectory = try! temporaryPath()
-        subject = AsyncQueuePersistor(directory: temporaryDirectory)
+        subject = AsyncQueuePersistor(cacheDirectory: temporaryDirectory)
     }
 
     override func tearDown() {
@@ -39,7 +39,7 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
 
     func test_write_whenDirectoryDoesntExist_itCreatesDirectory() throws {
         let temporaryDirectory = try! temporaryPath()
-        subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(try RelativePath(validating: "test/")))
+        subject = AsyncQueuePersistor(cacheDirectory: temporaryDirectory.appending(try RelativePath(validating: "test/")))
 
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
