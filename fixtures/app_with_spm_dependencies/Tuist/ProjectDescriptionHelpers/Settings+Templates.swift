@@ -10,6 +10,7 @@ extension ProjectDescription.Settings {
 
     public static var targetSettings: Self {
         .settings(
+            base: [:].otherSwiftFlags("-enable-actor-data-race-checks"),
             configurations: BuildEnvironment.allCases.map(\.targetConfiguration)
         )
     }
