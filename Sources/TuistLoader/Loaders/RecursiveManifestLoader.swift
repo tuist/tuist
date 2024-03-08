@@ -98,7 +98,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
         }.filter {
             let manifests = manifestLoader.manifests(at: $0)
-            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace) && !$0.pathString.contains(".build/checkouts")
+            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace) && !$0
+                .pathString.contains(".build/checkouts")
         }
 
         let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
