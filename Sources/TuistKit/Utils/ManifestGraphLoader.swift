@@ -111,7 +111,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
-           isSPMProjectOnly || hasExternalDependencies {
+           isSPMProjectOnly || hasExternalDependencies
+        {
             let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
