@@ -56,4 +56,27 @@ defmodule TuistCloud.Environment do
   def rails_env do
     System.get_env("RAILS_ENV", "development") |> String.to_atom()
   end
+
+  @spec put_application_secrets(map()) :: :ok
+  def put_application_secrets(secrets) do
+    Application.put_env(:tuist_cloud, :secrets, secrets)
+    :ok
+  end
+
+  @doc ~s"""
+  It decrypts the secrets and returns them.
+  """
+  @spec decrypt_secrets() :: map()
+  def decrypt_secrets() do
+    master_key_path = Path.join("priv/secrets", "master.key")
+    master_key_env_variable = "PHX_MASTER_KEY"
+    secrets_path = System.get_env("SECRETS_PATH", "priv/secrets//secrets.yml.enc")
+
+    if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
+      key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
+      EncryptedSecrets.read!(key, secrets_path)
+    else
+      %{}
+    end
+  end
 end

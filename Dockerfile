@@ -22,6 +22,7 @@ ENV MIX_ENV=$MIX_ENV
 COPY phx/mix.exs phx/mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 COPY phx/config/config.exs phx/config/${MIX_ENV}.exs config/
+COPY phx/priv/secrets/secrets.yml.enc phx/priv/secrets/secrets.yml.enc
 RUN mix deps.compile
 COPY phx/priv priv
 COPY phx/lib lib
@@ -83,8 +84,7 @@ RUN rm -rf ./phx
 RUN bundle exec bootsnap precompile app/ lib/
 
 # Precompiling assets for production without requiring secret RAILS_MASTER_KEY
-RUN SECRET_KEY_BASE_DUMMY=1 SECRET_KEY_BASE=1 ./bin/rails assets:precompile
-
+RUN SECRET_KEY_BASE_DUMMY=1 TUIST_SECRET_KEY_BASE=1 ./bin/rails assets:precompile
 
 # Final stage for app image
 FROM base-rails
@@ -103,6 +103,7 @@ ENV TUIST_VERSION=${TUIST_VERSION}
 ENV TRAEFIK_VERSION "3.0.0-rc1"
 ARG MIX_ENV="prod"
 ENV MIX_ENV=$MIX_ENV
+ENV SECRETS_PATH="/app/phx/priv/secrets/secrets.yml.enc"
 
 WORKDIR "/app"
 
@@ -151,8 +152,8 @@ USER app:app
 
 # Only copy the final release from the build stage
 COPY --from=phx-builder --chown=app:app /app/_build/${MIX_ENV}/rel/tuist_cloud ./phx
+COPY --from=phx-builder --chown=app:app /app/priv/secrets/secrets.yml.enc ./phx/priv/secrets/secrets.yml.enc
 # COPY --from=phx-builder --chown=app:app /app/deps/castore/priv/cacerts.pem ./deps/castore/priv/cacerts.pem
-# COPY --from=phx-builder --chown=app:app /app/priv/secrets/secrets.yml.enc ./priv/secrets/secrets.yml.enc
 
 # Entrypoint prepares the database.
 ENTRYPOINT ["/app/bin/docker-entrypoint"]

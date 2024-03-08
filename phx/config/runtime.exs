@@ -20,7 +20,7 @@ if System.get_env("PHX_SERVER") do
   config :tuist_cloud, TuistCloudWeb.Endpoint, server: true
 end
 
-if config_env() == :prod do
+if [:prod, :stag, :can] |> Enum.member?(config_env()) do
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -140,10 +140,12 @@ if config_env() == :prod do
 end
 
 if !TuistCloud.Environment.on_premise?() do
+  env = TuistCloud.Environment.env()
+  push_api_key = TuistCloud.Environment.decrypt_secrets()[env][:app_signal][:push_api_key]
   config :appsignal, :config,
     otp_app: :tuist_cloud,
     name: "Tuist Cloud Phoenix",
-    push_api_key: "985ffa3c-8466-47e7-ad1c-ab72d26c01a4",
-    env: TuistCloud.Environment.env(),
-    active: TuistCloud.Environment.env() == :prod
+    push_api_key: push_api_key,
+    env: env,
+    active: [:prod, :stag, :can] |> Enum.member?(env)
 end

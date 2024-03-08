@@ -7,7 +7,7 @@ defmodule TuistCloud.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: Mix.env() == :prod,
+      start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
       aliases: aliases(),
       deps: deps()
     ]

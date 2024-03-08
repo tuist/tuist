@@ -99,6 +99,6 @@ jobs:
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy --remote-only -c fly.toml --build-arg RAILS_ENV=production --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+        run: flyctl deploy --remote-only -c fly.toml --build-arg RAILS_ENV=production --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
 
 

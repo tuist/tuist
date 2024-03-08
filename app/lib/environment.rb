@@ -43,8 +43,8 @@ module Environment
       env_variable_key = args.join('_').upcase.to_s
       env_variable_key = "TUIST_#{env_variable_key}" if with_prefix
       env_variable_value = env.to_h.fetch(env_variable_key, nil)
-      credentials_value = credentials.dig(*args)
-      defaults_value = defaults.dig(*args)
+      credentials_value = credentials&.dig(*args)
+      defaults_value = defaults&.dig(*args)
       env_variable_value || credentials_value || defaults_value
     end
 

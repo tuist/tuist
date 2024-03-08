@@ -30,14 +30,13 @@
 /config/credentials/production.key
 /config/credentials/staging.key
 /config/credentials/canary.key
+/config/credentials/environment.key
 
 node_modules
 *.local
 .DS_Store
 
 TODO.md
-
-/config/credentials/environment.key
 
 /public/packs
 /public/packs-test

@@ -35,6 +35,8 @@ jobs:
         with:
           context: .
           push: false
-          build-args: "RAILS_ENV=production"
+          build-args: |
+            RAILS_ENV=production
+            MIX_ENV=prod
           cache-from: type=gha
           cache-to: type=gha,mode=max

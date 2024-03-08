@@ -1,12 +1,11 @@
 defmodule TuistCloud.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
-  @moduledoc false
-
   use Application
+  alias TuistCloud.Environment
 
   @impl true
   def start(_type, _args) do
+    Environment.decrypt_secrets() |> Environment.put_application_secrets()
+
     children = [
       TuistCloudWeb.Telemetry,
       TuistCloud.Repo,
@@ -32,17 +31,5 @@ defmodule TuistCloud.Application do
   def config_change(changed, _new, removed) do
     TuistCloudWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  def load_secrets() do
-    master_key_path = Path.join("priv/secrets", "master.key")
-    master_key_env_variable = "PHX_MASTER_KEY"
-
-    if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
-      key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
-      Application.put_env(:tuist_cloud, :secrets, EncryptedSecrets.read!(key))
-    else
-      Application.put_env(:tuist_cloud, :secrets, %{})
-    end
   end
 end

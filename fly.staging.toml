@@ -11,6 +11,7 @@ console_command = "/app/bin/rails console"
   PORT = "8080"
   RAILS_PORT="3000"
   PHX_PORT="4000"
+  MIX_ENV="stag"
   RAILS_ENV="staging"
   RAILS_MAX_THREADS=2
   WEB_CONCURRENCY=1

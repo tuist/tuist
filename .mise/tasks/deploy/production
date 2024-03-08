@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # mise description="Deploys the app to production"
 
-flyctl deploy -c $MISE_PROJECT_ROOT/fly.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg RAILS_ENV=production --vm-memory=2048 --wait-timeout 600
+flyctl deploy -c $MISE_PROJECT_ROOT/fly.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg RAILS_ENV=production --build-arg MIX_ENV=prod --vm-memory=2048 --wait-timeout 600

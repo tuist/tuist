@@ -38,3 +38,6 @@ npm-debug.log
 
 # Master key should never be in version control
 priv/secrets/master.key
+
+# Master key should never be in version control
+priv/secrets/master.key
