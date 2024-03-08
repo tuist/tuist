@@ -4,12 +4,15 @@ import TuistGraph
 import XcodeProj
 
 final class SettingsHelper {
+    /// - Parameters:
+    ///     - inherit: Forces the new settings to inherit the old settings
     func extend(
         buildSettings: inout SettingsDictionary,
-        with other: SettingsDictionary
+        with other: SettingsDictionary,
+        inherit: Bool = false
     ) {
         for (key, newValue) in other {
-            buildSettings[key] = merge(oldValue: buildSettings[key], newValue: newValue).normalize()
+            buildSettings[key] = merge(oldValue: buildSettings[key], newValue: newValue, inherit: inherit).normalize()
         }
     }
 
@@ -61,7 +64,7 @@ final class SettingsHelper {
 
     // MARK: - Private
 
-    private func merge(oldValue: SettingValue?, newValue: SettingValue) -> SettingValue {
+    private func merge(oldValue: SettingValue?, newValue: SettingValue, inherit: Bool) -> SettingValue {
         // No need to merge, just return newValue when the oldValue is nil (buildSettings[key] == nil).
         guard let oldValue else {
             return newValue
@@ -84,21 +87,21 @@ final class SettingsHelper {
         // would result in ["$(inherited)", "$(inherited)", "VALUE_1", "VALUE_2"] if .sortAndTrim() was not used.
         let inherited = "$(inherited)"
         switch (oldValue, newValue) {
-        case let (.string(old), .string(new)) where new.contains(inherited):
+        case let (.string(old), .string(new)) where new.contains(inherited) || inherit:
             // Example: ("OLD", "$(inherited) NEW") -> ["$(inherited) NEW", "OLD"]
             // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
             return .array(Self.sortAndTrim(array: [old, new], element: inherited))
 
-        case let (.string(old), .array(new)) where new.contains(inherited):
+        case let (.string(old), .array(new)) where new.contains(inherited) || inherit:
             // Example: ("OLD", ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD"]
             return .array(Self.sortAndTrim(array: [old] + new, element: inherited))
 
-        case let (.array(old), .string(new)) where new.contains(inherited):
+        case let (.array(old), .string(new)) where new.contains(inherited) || inherit:
             // Example: (["OLD", "OLD_2"], "$(inherited) NEW") -> ["$(inherited) NEW", "OLD", "OLD_2"]
             // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
             return .array(Self.sortAndTrim(array: old + [new], element: inherited))
 
-        case let (.array(old), .array(new)) where new.contains(inherited):
+        case let (.array(old), .array(new)) where new.contains(inherited) || inherit:
             // Example: (["OLD", "OLD_2"], ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD", OLD_2"]
             return .array(Self.sortAndTrim(array: old + new, element: inherited))
 
