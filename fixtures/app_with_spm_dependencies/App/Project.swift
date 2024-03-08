@@ -43,6 +43,7 @@ let project = Project(
                 .external(name: "SVProgressHUD"),
                 .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
+                .external(name: "GoogleMobileAds"),
             ],
             settings: .targetSettings
         ),
