@@ -35,3 +35,6 @@ tuist_cloud-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Master key should never be in version control
+priv/secrets/master.key

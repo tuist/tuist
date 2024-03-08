@@ -15,6 +15,7 @@ defmodule TuistCloud.DataCase do
   """
 
   use ExUnit.CaseTemplate
+  require File
 
   using do
     quote do

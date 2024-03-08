@@ -61,7 +61,9 @@ defmodule TuistCloud.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.0"},
-      {:castore, "~> 1.0"}
+      {:castore, "~> 1.0"},
+      {:uniq, "~> 0.1"},
+      {:encrypted_secrets, "~> 0.3.0"}
     ]
   end
 
