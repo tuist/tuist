@@ -89,7 +89,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         throws -> LoadedWorkspace
     {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
-        let projectSearchPaths = (loadedWorkspace.workspace.projects)
+        let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
         let packagePaths = try projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.flatMap {
