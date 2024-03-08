@@ -101,7 +101,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load Workspace
         var allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
-
+        let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
         // Load DependenciesGraph
@@ -109,8 +109,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let dependenciesGraph: TuistGraph.DependenciesGraph
         let packageSettings: TuistGraph.PackageSettings?
 
-        // Load SPM graph only if Workspace is using external dependencies
-        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path), hasExternalDependencies {
+        // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
+        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
+           isSPMProjectOnly || hasExternalDependencies {
             let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
