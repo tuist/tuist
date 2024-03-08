@@ -12,7 +12,7 @@ console_command = "/app/bin/rails console"
   RAILS_PORT="3000"
   PHX_PORT="4000"
   RAILS_ENV="production"
-  RAILS_MAX_THREADS=20
+  RAILS_MAX_THREADS=40
   WEB_CONCURRENCY=1
 
 [[vm]]
