@@ -6,9 +6,22 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
+    
+    /// Load manifest at path
+    /// - Parameter path: Path of the manifest
+    /// - Returns: Loaded manifest
     func loadWorkspace(
-        at path: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings?
+        at path: AbsolutePath
+    ) throws -> LoadedWorkspace
+    
+    /// Load package projects and merge in the loaded manifest
+    /// - Parameters:
+    ///   - loadedWorkspace: manifest to merge in
+    ///   - packageSettings: custom SPM settings
+    /// - Returns: Loaded manifest
+    func loadAndMergePackageProjects(
+        in loadedWorkspace: LoadedWorkspace,
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> LoadedWorkspace
 }
 
@@ -37,10 +50,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.packageInfoMapper = packageInfoMapper
     }
 
-    public func loadWorkspace(
-        at path: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings?
-    ) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: TSCBasic.AbsolutePath) throws -> LoadedWorkspace {
         let loadedWorkspace: ProjectDescription.Workspace?
         do {
             loadedWorkspace = try manifestLoader.loadWorkspace(at: path)
@@ -60,23 +70,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let packagePaths = try projectSearchPaths.map {
-            try generatorPaths.resolve(path: $0)
-        }.flatMap {
-            fileHandler.glob($0, glob: "")
-        }.filter {
-            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts")
-        }.filter {
-            let manifests = manifestLoader.manifests(at: $0)
-            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace)
-        }
-
-        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
-
-        let projects = LoadedProjects(projects: try loadProjects(paths: projectPaths).projects.merging(
-            packageProjects.projects,
-            uniquingKeysWith: { _, newValue in newValue }
-        ))
+        let projects = LoadedProjects(projects: try loadProjects(paths: projectPaths).projects)
         let workspace: ProjectDescription.Workspace
         if let loadedWorkspace {
             workspace = loadedWorkspace
@@ -89,6 +83,35 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             path: path,
             workspace: workspace,
             projects: projects.projects
+        )
+    }
+
+    public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistGraph.PackageSettings)
+    throws -> LoadedWorkspace {
+        let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
+        let projectSearchPaths = (loadedWorkspace.workspace.projects)
+        let packagePaths = try projectSearchPaths.map {
+            try generatorPaths.resolve(path: $0)
+        }.flatMap {
+            fileHandler.glob($0, glob: "")
+        }.filter {
+            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName && $0.pathString.contains(".build/checkouts")
+        }.filter {
+            let manifests = manifestLoader.manifests(at: $0)
+            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace)
+        }
+
+        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
+
+        let projects = loadedWorkspace.projects.merging(
+            packageProjects.projects,
+            uniquingKeysWith: { _, newValue in newValue }
+        )
+
+        return LoadedWorkspace(
+            path: loadedWorkspace.path,
+            workspace: loadedWorkspace.workspace,
+            projects: projects
         )
     }
 

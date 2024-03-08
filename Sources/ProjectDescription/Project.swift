@@ -106,4 +106,17 @@ public struct Project: Codable, Equatable {
         self.resourceSynthesizers = resourceSynthesizers
         dumpIfNeeded(self)
     }
+
+    /// The project contains targets that depend on external dependencies
+    public var containsExternalDependencies: Bool {
+        targets.contains(where: { target in
+            target.dependencies.contains(where: {
+                if case .external = $0 {
+                    return true
+                } else {
+                    return false
+                }
+            })
+        })
+    }
 }

@@ -99,32 +99,42 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
 
+        // Load Workspace
+        var allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
+
+        let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
+
         // Load DependenciesGraph
 
         let dependenciesGraph: TuistGraph.DependenciesGraph
         let packageSettings: TuistGraph.PackageSettings?
-        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path) {
+
+        // Load SPM graph only if Workspace is using external dependencies
+        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path), hasExternalDependencies {
             let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
-            dependenciesGraph = try converter.convert(
-                manifest: try swiftPackageManagerGraphLoader.load(
-                    packagePath: packagePath,
-                    packageSettings: loadedPackageSettings
-                ),
-                path: path
+
+            let manifest = try swiftPackageManagerGraphLoader.load(
+                packagePath: packagePath,
+                packageSettings: loadedPackageSettings
             )
+            dependenciesGraph = try converter.convert(manifest: manifest, path: path)
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
             dependenciesGraph = .none
         }
 
-        let allManifests = try recursiveManifestLoader.loadWorkspace(
-            at: path,
-            packageSettings: packageSettings
-        )
+        // Merge SPM graph
+        if let packageSettings {
+            allManifests = try recursiveManifestLoader.loadAndMergePackageProjects(
+                in: allManifests,
+                packageSettings: packageSettings
+            )
+        }
+
         let (workspaceModels, manifestProjects) = (
             try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects
