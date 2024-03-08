@@ -95,7 +95,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }.flatMap {
             fileHandler.glob($0, glob: "")
         }.filter {
-            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName && $0.pathString.contains(".build/checkouts")
+            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
         }.filter {
             let manifests = manifestLoader.manifests(at: $0)
             return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace)
