@@ -1,7 +1,6 @@
-import ProjectDescription
 import LocalPlugin
+import ProjectDescription
 
-public struct Constants {
+public enum Constants {
     public static let name: String = Project.name
 }
-

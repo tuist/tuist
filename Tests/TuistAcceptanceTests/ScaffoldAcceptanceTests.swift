@@ -169,11 +169,18 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             """
         )
     }
-    
+
     func test_ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
         try setUpFixture(.iosAppWithPluginsAndTemplates)
         try await run(InstallCommand.self)
-        try await ScaffoldCommand.preprocess(["scaffold", "example", "--name", "PluginAndTemplate", "--path", fixturePath.pathString])
+        try await ScaffoldCommand.preprocess([
+            "scaffold",
+            "example",
+            "--name",
+            "PluginAndTemplate",
+            "--path",
+            fixturePath.pathString,
+        ])
         try await run(ScaffoldCommand.self, "example")
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
         XCTAssertEqual(
@@ -181,11 +188,18 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "// Generated file named LocalPlugin from local template"
         )
     }
-    
+
     func test_ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
         try setUpFixture(.iosAppWithPluginsAndTemplates)
         try await run(InstallCommand.self)
-        try await ScaffoldCommand.preprocess(["scaffold", "plugin", "--name", "PluginAndTemplate", "--path", fixturePath.pathString])
+        try await ScaffoldCommand.preprocess([
+            "scaffold",
+            "plugin",
+            "--name",
+            "PluginAndTemplate",
+            "--path",
+            fixturePath.pathString,
+        ])
         try await run(ScaffoldCommand.self, "plugin")
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
         XCTAssertEqual(
