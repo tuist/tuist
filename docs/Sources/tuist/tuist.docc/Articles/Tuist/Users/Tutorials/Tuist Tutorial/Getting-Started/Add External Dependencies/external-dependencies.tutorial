@@ -29,14 +29,9 @@
         
         @Steps {
             @Step {
-                Run `tuist install` to resolve the dependencies using the Swift Package Manager under `Tuist/Dependencies`. The generated workspace will contain projects and targets for them.
+                Run `tuist install` to resolve the dependencies using the Swift Package Manager defined in `Tuist/Package.swift`. The generated workspace will contain projects and targets for them. Don't forget to add `Tuist/.build` to your `.gitignore`. 
                 
                 @Code(name: "Console", file: "tuist-install.sh", reset: true)
-            }
-            
-            @Step {
-                Don't forget to ignore the following directories and files from your version control system.
-                @Code(name: ".gitignore", file: "dependencies-gitignore.txt", reset: true)
             }
         }
     }
@@ -51,7 +46,7 @@
             }
 
             @Step {
-                Use the `.external` target dependency option to declare the dependency.
+                Use the `.xcodePackage` target dependency option to declare the dependency.
                 @Code(name: "Project.swift", file: "Project.swift", reset: true)
             }
             

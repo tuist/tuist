@@ -41,6 +41,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `XCFramework`: Declares a dependency with a binary XCFramework.
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
+- `XcodePackage`: Declares a dependency on an SPM package. The package can either be local or external.
 
 Note that every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 

@@ -9,6 +9,7 @@ extension PackageInfo {
     public static func test(
         name: String = "Package",
         products: [Product] = [],
+        dependencies: [PackageDependency] = [],
         targets: [Target] = [],
         platforms: [Platform] = [],
         cLanguageStandard: String? = nil,
@@ -18,6 +19,7 @@ extension PackageInfo {
         .init(
             name: name,
             products: products,
+            dependencies: dependencies,
             targets: targets,
             platforms: platforms,
             cLanguageStandard: cLanguageStandard,
@@ -582,6 +584,7 @@ extension PackageInfo {
             products: [
                 .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "Tuist",
@@ -698,6 +701,7 @@ extension PackageInfo {
             products: [
                 .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "ALibrary",
@@ -745,6 +749,7 @@ extension PackageInfo {
             products: [
                 .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "AnotherLibrary",
@@ -902,6 +907,7 @@ extension PackageInfo {
             products: [
                 .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "Alamofire",
@@ -1270,6 +1276,7 @@ extension PackageInfo {
                     targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"]
                 ),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "GoogleAppMeasurementTarget",
@@ -1406,6 +1413,7 @@ extension PackageInfo {
                 .init(name: "GULNSData", type: .library(.automatic), targets: ["GULNSData"]),
                 .init(name: "GULNetwork", type: .library(.automatic), targets: ["GULNetwork"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "GULAppDelegateSwizzler",
@@ -1475,6 +1483,7 @@ extension PackageInfo {
             products: [
                 .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
             ],
+            dependencies: [],
             targets: [
                 .init(
                     name: "nanopb",

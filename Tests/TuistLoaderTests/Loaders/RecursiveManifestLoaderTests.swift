@@ -106,10 +106,31 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     func test_loadProject_projectWithTransitiveDependencies() throws {
         // Given
+        let packageA = createPackage(
+            name: "PackageA",
+            products: [
+                PackageInfo.Product(
+                    name: "LibraryA",
+                    type: .library(.automatic),
+                    targets: [
+                        "LibraryA",
+                    ]
+                ),
+            ]
+        )
+        let packageProjectA = createProject(
+            name: "PackageA"
+        )
+        let packageARelativePath = try RelativePath(validating: "Some/Path/PackageA")
+        let packageProjectAPath = path
+            .appending(packageARelativePath)
         let projectA = createProject(
             name: "ProjectA",
             targets: [
-                "TargetA": [.project(target: "TargetB", path: "../B")],
+                "TargetA": [
+                    .project(target: "TargetB", path: "../B"),
+                    .xcodePackage(product: "LibraryA", source: .local(.path(packageProjectAPath.pathString)), condition: nil),
+                ],
             ]
         )
         let projectB = createProject(
@@ -144,21 +165,47 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
         try stub(manifest: projectD, at: try RelativePath(validating: "Some/Path/D"))
         try stub(manifest: projectE, at: try RelativePath(validating: "Some/Path/E"))
+        try stub(manifest: packageA, at: packageARelativePath)
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageToProject: .any
+        )
+        .willReturn(
+            .test(
+                name: "PackageA"
+            )
+        )
 
         // When
         let manifests = try subject.loadWorkspace(
             at: path.appending(try RelativePath(validating: "Some/Path/A")),
-            packageSettings: nil
+            packageSettings: .test()
         )
 
         // Then
-        XCTAssertEqual(withRelativePaths(manifests.projects), [
+        XCTAssertBetterEqual(withRelativePaths(manifests.projects), [
             "Some/Path/A": projectA,
             "Some/Path/B": projectB,
             "Some/Path/C": projectC,
             "Some/Path/D": projectD,
             "Some/Path/E": projectE,
+            "Some/Path/PackageA": packageProjectA,
         ])
+        XCTAssertEqual(
+            manifests.packageProducts,
+            [
+                "LibraryA": [
+                    .project(
+                        target: "LibraryA",
+                        path: packageProjectAPath,
+                        condition: nil
+                    ),
+                ],
+            ]
+        )
     }
 
     func test_loadProject_missingManifest() throws {
@@ -358,9 +405,10 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func createPackage(
-        name: String
+        name: String,
+        products: [PackageInfo.Product] = []
     ) -> PackageInfo {
-        return .test(name: name)
+        return .test(name: name, products: products)
     }
 
     private func withRelativePaths(_ projects: [AbsolutePath: Project]) -> [String: Project] {

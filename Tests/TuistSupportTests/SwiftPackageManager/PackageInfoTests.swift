@@ -13,6 +13,9 @@ final class PackageInfoTests: XCTestCase {
                     PackageInfo.Product(name: "tuist", type: .executable, targets: ["tuist"]),
                     PackageInfo.Product(name: "tuist", type: .library(.dynamic), targets: ["ProjectDescription"]),
                 ],
+                dependencies: [
+                    .local(path: "MyLocalDependency"),
+                ],
                 targets: [
                     PackageInfo.Target(
                         name: "tuist",

@@ -43,6 +43,15 @@ public enum TargetDependency: Codable, Hashable {
         case macro
     }
 
+    public enum PackageSource: Hashable, Codable {
+        /// Dependency on a local SPM package.
+        /// **Note**: If your local package has external, non-local package dependencies, they still need to be defined in your
+        /// `Tuist/Package.swift` file.
+        case local(Path)
+        /// Dependency on an external SPM package dependency imported through `Tuist/Package.swift`.
+        case external
+    }
+
     /// Dependency on another target within the same project
     ///
     /// - Parameters:
@@ -76,7 +85,6 @@ public enum TargetDependency: Codable, Hashable {
     case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, condition: PlatformCondition? = nil)
 
     /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
-    /// For more info, check the [external dependencies documentation](https://docs.tuist.io/guides/third-party-dependencies/).
     ///
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
@@ -84,6 +92,25 @@ public enum TargetDependency: Codable, Hashable {
     ///   - type: The type of package being integrated.
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case package(product: String, type: PackageType = .runtime, condition: PlatformCondition? = nil)
+
+    /// Dependency on a Swift Package Manager product using Tuist's recommended XcodeProj-based integration.
+    ///
+    /// You can either depend on an external SPM dependency that needs to be also defined in the `Tuist/Package.swift`:
+    /// ```
+    /// .xcodePackage(product: "Alamofire", source: .external)
+    /// ```
+    ///
+    /// Or you can depend on a local package by:
+    /// ```
+    /// .xcodePackage(product: "MyLibrary", source: .local(.relativeToRoot("MyLocalPackage")))
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
+    ///              e.g. RxSwift
+    ///   - source: The source of package to be integreated.
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
+    case xcodePackage(product: String, source: PackageSource = .external, condition: PlatformCondition? = nil)
 
     /// Dependency on system library or framework
     ///
@@ -153,6 +180,8 @@ public enum TargetDependency: Codable, Hashable {
             return "xctest"
         case .external:
             return "external"
+        case .xcodePackage:
+            return "xcode-package"
         }
     }
 }

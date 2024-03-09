@@ -37,6 +37,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
                         .test(name: "Target_2"),
@@ -77,6 +78,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target_1",
@@ -100,6 +102,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product2", type: .library(.automatic), targets: ["Target_2"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target_2"),
                     ],
@@ -149,6 +152,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target_1",
@@ -172,6 +176,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "com.example.dep-1", type: .library(.automatic), targets: ["com.example.dep-1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "com.example.dep-1"),
                     ],
@@ -221,6 +226,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target_1",
@@ -270,6 +276,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product_1", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target_1",
@@ -300,6 +307,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .init(name: "Product_2", type: .library(.automatic), targets: ["Target_2"]),
                         .init(name: "Product_3", type: .library(.automatic), targets: ["Target_3"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target_2"),
                         .test(name: "Target_3"),
@@ -359,6 +367,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -397,6 +406,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -443,6 +453,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -491,6 +502,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         products: [
                             .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                         ],
+                        dependencies: [],
                         targets: [
                             .test(name: "Target1"),
                         ],
@@ -535,6 +547,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
                     ],
@@ -563,6 +576,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target_1"),
                     ],
@@ -604,6 +618,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -659,6 +674,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "com.example.product-1", type: .library(.automatic), targets: ["com.example.target-1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "com.example.target-1"),
                     ],
@@ -706,6 +722,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                         .test(name: "Target2"),
@@ -746,6 +763,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2", "Target3"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                         .test(name: "Target2", type: .test),
@@ -786,6 +804,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .init(name: "Product2", type: .plugin, targets: ["Target2"]),
                         .init(name: "Product3", type: .test, targets: ["Target3"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                         .test(name: "Target2"),
@@ -823,6 +842,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1", sources: ["Subfolder", "Another/Subfolder/file.swift"]),
                     ],
@@ -886,6 +906,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1001,6 +1022,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -1052,6 +1074,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1"
@@ -1100,6 +1123,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1155,6 +1179,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1188,6 +1213,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1"
@@ -1244,6 +1270,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1334,6 +1361,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1350,6 +1378,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Dependency1", type: .library(.automatic), targets: ["Dependency1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Dependency1",
@@ -1366,6 +1395,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Dependency2", type: .library(.automatic), targets: ["Dependency2"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Dependency2"
@@ -1425,6 +1455,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1490,6 +1521,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1550,6 +1582,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -1600,6 +1633,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -1650,6 +1684,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1691,6 +1726,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1732,6 +1768,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1777,6 +1814,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1821,6 +1859,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1860,6 +1899,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1900,6 +1940,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1940,6 +1981,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -1980,6 +2022,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2019,6 +2062,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2063,6 +2107,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2104,6 +2149,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2184,6 +2230,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2236,6 +2283,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2291,6 +2339,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2335,6 +2384,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2381,6 +2431,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2407,6 +2458,48 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenHasDependencies() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        let localDependencyPath = basePath.appending(try RelativePath(validating: "LocalPackage"))
+        try fileHandler.createFolder(sourcesPath)
+        try fileHandler.createFolder(localDependencyPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    dependencies: [
+                        .local(path: localDependencyPath.pathString),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath),
+                ]
+            )
+        )
+    }
+
     func testMap_whenBinaryTargetDependency_mapsToXcframework() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -2423,6 +2516,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2473,6 +2567,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2513,6 +2608,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2563,6 +2659,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -2611,6 +2708,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
             ],
+            dependencies: [],
             targets: [
                 .test(
                     name: "Target1",
@@ -2629,6 +2727,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
                 .init(name: "Product3", type: .library(.automatic), targets: ["Target4"]),
             ],
+            dependencies: [],
             targets: [
                 .test(name: "Target2"),
                 .test(name: "Target3"),
@@ -2674,6 +2773,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
             ],
+            dependencies: [],
             targets: [
                 .test(
                     name: "Target1",
@@ -2692,6 +2792,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
                 .init(name: "Product3", type: .library(.automatic), targets: ["Target4"]),
             ],
+            dependencies: [],
             targets: [
                 .test(name: "Target2"),
                 .test(name: "Target3"),
@@ -2738,6 +2839,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2774,6 +2876,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2810,6 +2913,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2846,6 +2950,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2882,6 +2987,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2922,6 +3028,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(name: "Target1"),
                     ],
@@ -2970,6 +3077,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: allTargets),
                     ],
+                    dependencies: [],
                     targets: allTargets.map { .test(name: $0) },
                     platforms: [.ios],
                     cLanguageStandard: nil,
@@ -3034,6 +3142,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target1"]),
                     ],
+                    dependencies: [],
                     targets: [
                         .test(
                             name: "Target1",
@@ -3108,6 +3217,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
             ],
+            dependencies: [],
             targets: [
                 .test(
                     name: "Target1",
@@ -3131,6 +3241,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
             ],
+            dependencies: [],
             targets: [
                 .test(name: "Target2"),
                 .test(name: "Target3"),

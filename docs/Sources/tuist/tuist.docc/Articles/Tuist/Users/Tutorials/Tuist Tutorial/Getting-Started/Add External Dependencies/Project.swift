@@ -13,7 +13,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
-                .external(name: "Alamofire"),
+                .xcodePackage(name: "Alamofire"),
             ]
         ),
     ]
