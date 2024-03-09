@@ -185,6 +185,16 @@ final class ConfigGenerator: ConfigGenerating {
             settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
         }
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        settingsHelper
+            .extend(
+                buildSettings: &settings,
+                with: swiftMacrosDerivedSettings(
+                    target: target,
+                    graphTraverser: graphTraverser,
+                    projectPath: project.path
+                ),
+                inherit: true
+            )
 
         let variantBuildConfiguration = XCBuildConfiguration(
             name: buildConfiguration.xcodeValue,
@@ -223,10 +233,6 @@ final class ConfigGenerator: ConfigGenerating {
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
-        settings
-            .merge(swiftMacrosDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
-                $1
-            }
     }
 
     private func generalTargetDerivedSettings(

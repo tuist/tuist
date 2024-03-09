@@ -45,14 +45,16 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
+    // swiftlint:disable:next function_body_length
     public func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath
     ) throws -> ModuleMap {
-        let umbrellaHeaderPath = publicHeadersPath.appending(component: moduleName + ".h")
-        let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")
         let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
+        let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
+        let nestedUmbrellaHeaderPath = publicHeadersPath
+            .appending(components: sanitizedModuleName, moduleName + ".h")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 

@@ -44,6 +44,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         return (graph, [])
     }
 
+    // swiftlint:disable:next function_body_length
     private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing, debugConfigurations: [String]) -> Target {
         let allTargetDependencies = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
@@ -194,7 +195,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         debugConfigurations: [String],
         extensionName: String,
         prefix: String = ""
-    ) -> (String, [String], [String]) {
+    ) -> (String, [String], [String]) { // swiftlint:disable:this large_tuple
         let script = debugConfigurations.map {
             copyScript(for: $0, extensionName: extensionName, prefix: prefix)
         }

@@ -504,7 +504,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
 
-            dependencies = try linkerDependencies + target.dependencies.map {
+            dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
                 case let .byName(name: name, condition: condition), let .product(
                     name: name,
@@ -516,7 +516,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     name: name,
                     condition: condition
                 ):
-                    let platformCondition = try ProjectDescription.PlatformCondition.from(condition)
+                    let platformCondition: ProjectDescription.PlatformCondition?
+                    do {
+                        platformCondition = try ProjectDescription.PlatformCondition.from(condition)
+                    } catch {
+                        return nil
+                    }
                     if let target = packageInfo.targets.first(where: { $0.name == name }) {
                         if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
                             guard let artifactPath = artifactPaths[target.name] else {
@@ -765,6 +770,18 @@ extension ResourceFileElements {
                 }
             case .process:
                 return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+            }
+        }
+        .filter {
+            switch $0 {
+            case let .glob(pattern: pattern, excluding: _, tags: _, inclusionCondition: _):
+                // We will automatically skip including globs of non-existing directories for packages
+                if !FileHandler.shared.exists(try AbsolutePath(validating: String(pattern.pathString)).parentDirectory) {
+                    return false
+                }
+                return true
+            case .folderReference:
+                return true
             }
         }
 
@@ -1210,8 +1227,6 @@ extension ProjectDescription.PlatformCondition {
     /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
-    /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g
-    /// `windows`)
     fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) throws -> Self? {
         guard let condition else { return nil }
         let filters: [ProjectDescription.PlatformFilter] = condition.platformNames.compactMap { name in

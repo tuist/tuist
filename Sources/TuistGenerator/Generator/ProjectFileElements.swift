@@ -205,6 +205,7 @@ class ProjectFileElements {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func generate(
         dependencyReferences: Set<GraphDependencyReference>,
         groups: ProjectGroups,

@@ -14,9 +14,7 @@ extension Configuration {
 extension Settings {
     public static func test(
         base: SettingsDictionary,
-        // swiftlint:disable:next force_try
         debug: Configuration,
-        // swiftlint:disable:next force_try
         release: Configuration
     ) -> Settings {
         Settings(

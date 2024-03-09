@@ -5,8 +5,10 @@ import AppCenterCrashes
 import CocoaLumberjackSwift
 import ComposableArchitecture
 import CrashReporter
+import GoogleMobileAds
 import GoogleSignIn
 import libzstd
+import MarkdownUI
 import NYTPhotoViewer
 import Realm
 import RealmSwift
@@ -52,6 +54,9 @@ public enum AppKit {
 
         // Use SVProgressHUD
         SVProgressHUD.show()
+
+        // Use MarkdownUI
+        _ = BulletedList(of: [""])
     }
 }
 
