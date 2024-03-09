@@ -236,4 +236,75 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             ]
         )
     }
+
+    func test_enabling_testing_search_paths() async throws {
+        // Given
+        let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
+        let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
+        
+        let frameworkA: Target = .test(
+            name: "FrameworkA",
+            product: .framework,
+            dependencies: [
+                .project(target: "ExternalFrameworkB", path: externalProjectBPath),
+            ]
+        )
+
+        let externalFrameworkB: Target = .test(
+            name: "ExternalFrameworkB",
+            product: .staticFramework,
+            productName: "ExternalFrameworkB",
+            settings: .test(base: ["ENABLE_TESTING_SEARCH_PATHS": .string("YES")])
+        )
+
+        let graph = Graph.test(
+            projects: [
+                projectAPath: .test(
+                    targets: [
+                        frameworkA,
+                    ]
+                ),
+                externalProjectBPath: .test(
+                    targets: [
+                        externalFrameworkB,
+                    ],
+                    isExternal: true
+                ),
+            ],
+            targets: [
+                projectAPath: [
+                    "FrameworkA": frameworkA,
+                ],
+                externalProjectBPath: [
+                    "ExternalFrameworkB": externalFrameworkB,
+                ],
+            ],
+            dependencies: [
+                .target(name: "FrameworkA", path: projectAPath): [
+                    .target(name: "ExternalFrameworkB", path: externalProjectBPath),
+                ],
+            ]
+        )
+
+        // When
+        let got = try await subject.map(graph: graph)
+
+        // Then
+        let gotFrameworkA = try XCTUnwrap(got.0.projects[projectAPath]?.targets[0])
+        XCTAssertEqual(
+            gotFrameworkA.name,
+            "FrameworkA"
+        )
+        XCTAssertEqual(
+            gotFrameworkA.product,
+            .framework
+        )
+
+        // ENABLE_TESTING_SEARCH_PATHS is propagated from ExternalFrameworkB
+        XCTAssertEqual(
+            gotFrameworkA.settings?.baseDebug["ENABLE_TESTING_SEARCH_PATHS"],
+            .string("YES")
+        )
+
+    }
 }
