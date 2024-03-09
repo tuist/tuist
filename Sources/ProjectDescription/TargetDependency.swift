@@ -47,6 +47,8 @@ public enum TargetDependency: Codable, Hashable {
         /// Dependency on a local SPM package.
         /// **Note**: If your local package has external, non-local package dependencies, they still need to be defined in your
         /// `Tuist/Package.swift` file.
+        ///
+        /// To link to external package dependencies from you local packages, refer to them via the `byName` static initializer.
         case local(Path)
         /// Dependency on an external SPM package dependency imported through `Tuist/Package.swift`.
         case external
@@ -102,7 +104,7 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// Or you can depend on a local package by:
     /// ```
-    /// .xcodePackage(product: "MyLibrary", source: .local(.relativeToRoot("MyLocalPackage")))
+    /// .xcodePackage(product: "MyLibrary", source: .local("MyLocalPackage"))
     /// ```
     ///
     /// - Parameters:

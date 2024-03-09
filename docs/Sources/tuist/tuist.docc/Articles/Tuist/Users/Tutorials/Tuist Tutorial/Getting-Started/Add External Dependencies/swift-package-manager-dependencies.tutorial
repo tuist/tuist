@@ -1,13 +1,13 @@
 @Tutorial(time: 5) {
-    @Intro(title: "Adding external Dependencies") {
-        Learn how to integrate external Package dependencies into your Tuist project.
+    @Intro(title: "Adding Swift Package Manager dependencies") {
+        Learn how to integrate Swift Package Manager dependencies into your Tuist project.
 
         @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
     }
 
     @Section(title: "Defining package dependencies") {
         @ContentAndMedia {
-            External dependencies are defined in a `Package.swift` manifest file in the `/Tuist` directory in the root of your project. You can also define your `Package.swift` directly in the root if you are working on an SPM package.
+            External package dependencies are defined in a `Package.swift` manifest file in the `/Tuist` directory in the root of your project. You can also define your `Package.swift` directly in the root if you are working on an SPM package.
         }
 
         @Steps {
@@ -56,6 +56,21 @@
             }
         }
     }
-        
+
+    @Section(title: "Integrating local package dependencies") {
+        dd
+
+        @Steps {
+            @Step {
+                Use the `.xcodePackage` target dependency option to declare the dependency.
+                @Code(name: "Project.swift", file: "project-local-package.swift", reset: true)
+            }
+
+            @Step {
+                External dependencies still need to be declared in the root `Tuist/Package.swift`. But you can link to them through your `Package.swift` via `.byName(name: "ExternalProduct")`
+                @Code(name: "Package.swift", file: "local-package.swift", reset: true)
+            }
+        }
+    }
 }
 

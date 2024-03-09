@@ -10,6 +10,6 @@
         
         @TutorialReference(tutorial: "doc:install")
         @TutorialReference(tutorial: "doc:create-project")
-        @TutorialReference(tutorial: "doc:external-dependencies")
+        @TutorialReference(tutorial: "doc:swift-package-manager-dependencies")
     }
 }
