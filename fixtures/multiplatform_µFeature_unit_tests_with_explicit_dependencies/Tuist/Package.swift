@@ -6,7 +6,7 @@ import PackageDescription
     import ProjectDescriptionHelpers
 
     let packageSettings = PackageSettings(
-         productTypes: [ // Convert 3rd party frameworks into dynamic frameworks
+        productTypes: [ // Convert 3rd party frameworks into dynamic frameworks
             "Mocker": .framework,
         ]
     )

@@ -241,7 +241,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         // Given
         let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
         let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
-        
+
         let frameworkA: Target = .test(
             name: "FrameworkA",
             product: .framework,
@@ -305,6 +305,5 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             gotFrameworkA.settings?.baseDebug["ENABLE_TESTING_SEARCH_PATHS"],
             .string("YES")
         )
-
     }
 }
