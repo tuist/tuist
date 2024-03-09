@@ -83,7 +83,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             }
 
             if target.settings?.base.contains(where: { key, value in
-                return key == "ENABLE_TESTING_SEARCH_PATHS" && value == .string("YES")
+                return (key, value) == ("ENABLE_TESTING_SEARCH_PATHS", .string("YES"))
             }) ?? false {
                 return true
             }

@@ -6,7 +6,7 @@ let supportedPlatforms: Set<Platform> = [.iOS]
 let project = Project(
     name: "ModuleA",
     targets: [
-        Target(
+        .target(
             name: "ModuleAInterface",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
@@ -16,7 +16,7 @@ let project = Project(
                 .glob("Interface/Sources/**"),
             ]
         ),
-        Target(
+        .target(
             name: "ModuleAImplementation",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
@@ -29,7 +29,7 @@ let project = Project(
                 .target(name: "ModuleAInterface"),
             ]
         ),
-        Target(
+        .target(
             name: "ModuleATestSupporting",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
@@ -43,7 +43,7 @@ let project = Project(
                 .external(name: "Mocker"),
             ]
         ),
-        Target(
+        .target(
             name: "ModuleATests",
             destinations: .destinations(for: supportedPlatforms),
             product: .unitTests,
@@ -58,7 +58,7 @@ let project = Project(
                 .external(name: "Mocker"),
             ]
         ),
-        Target(
+        .target(
             name: "ExampleApp",
             destinations: .destinations(for: [.iOS]),
             product: .app,
