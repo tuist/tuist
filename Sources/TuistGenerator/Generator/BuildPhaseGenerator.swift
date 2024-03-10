@@ -73,8 +73,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         /**
          Targets that depend on a Swift Macro have the following dependency graph:
-
-         Target -> MyMacro (Static framework) -> MyMacro (Executable)
+         - Target -> MyMacro (Static framework) -> MyMacro (Executable)
+         - or, in some cases, they directly depend on the executable: Target -> MyMacro (Executable)
 
          The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
          to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build setting.
