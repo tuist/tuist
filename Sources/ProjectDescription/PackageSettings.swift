@@ -14,8 +14,7 @@ import Foundation
 ///     let packageSettings = PackageSettings(
 ///         productTypes: [
 ///             "Alamofire": .framework, // default is .staticFramework
-///         ],
-///         platforms: [.iOS]
+///         ]
 ///     )
 /// #endif
 ///
