@@ -113,8 +113,6 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
-            logger.notice("It might take a while if the cache is empty")
-
             let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
