@@ -57,6 +57,7 @@ let project = Project(
             dependencies: [
                 .target(name: "AppKit"),
                 .external(name: "Nimble"),
+                .external(name: "Testing"),
             ],
             settings: .targetSettings
         ),
