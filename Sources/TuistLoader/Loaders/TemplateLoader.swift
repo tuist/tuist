@@ -14,12 +14,6 @@ public protocol TemplateLoading {
     func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistGraph.Template
 }
 
-extension TemplateLoading {
-    public func loadTemplate(at path: AbsolutePath) throws -> TuistGraph.Template {
-        try loadTemplate(at: path, plugins: .none)
-    }
-}
-
 public class TemplateLoader: TemplateLoading {
     private let manifestLoader: ManifestLoading
 

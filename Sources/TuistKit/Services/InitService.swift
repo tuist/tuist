@@ -78,7 +78,7 @@ class InitService {
                 template: templateName
             )
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             attributes = template.attributes
         }
 
