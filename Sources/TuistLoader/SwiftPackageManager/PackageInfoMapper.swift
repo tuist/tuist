@@ -280,6 +280,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
+                    "Testing", // https://github.com/apple/swift-testing
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
