@@ -5,6 +5,7 @@ import AppCenterCrashes
 import CocoaLumberjackSwift
 import ComposableArchitecture
 import CrashReporter
+import GoogleMobileAds
 import GoogleSignIn
 import libzstd
 import MarkdownUI

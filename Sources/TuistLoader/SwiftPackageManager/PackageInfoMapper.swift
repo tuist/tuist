@@ -280,6 +280,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
+                    "Testing", // https://github.com/apple/swift-testing
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -483,28 +484,27 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         if target.type.supportsDependencies {
             let linkerDependencies: [ProjectDescription.TargetDependency] = target.settings.compactMap { setting in
-                let condition = ProjectDescription.PlatformCondition.from(setting.condition)
+                do {
+                    let condition = try ProjectDescription.PlatformCondition.from(setting.condition)
 
-                // The condition returned only unsupported platforms
-                if condition == nil, setting.condition != nil {
-                    return nil
-                }
-
-                switch (setting.tool, setting.name) {
-                case (.linker, .linkedFramework):
-                    return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
-                case (.linker, .linkedLibrary):
-                    return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
-                case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
-                    .linker,
-                    .define
-                ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                    switch (setting.tool, setting.name) {
+                    case (.linker, .linkedFramework):
+                        return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
+                    case (.linker, .linkedLibrary):
+                        return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
+                    case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
+                        .linker,
+                        .define
+                    ),
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                        return nil
+                    }
+                } catch {
                     return nil
                 }
             }
 
-            dependencies = try linkerDependencies + target.dependencies.map {
+            dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
                 case let .byName(name: name, condition: condition), let .product(
                     name: name,
@@ -516,7 +516,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     name: name,
                     condition: condition
                 ):
-                    let platformCondition = try ProjectDescription.PlatformCondition.from(condition)
+                    let platformCondition: ProjectDescription.PlatformCondition?
+                    do {
+                        platformCondition = try ProjectDescription.PlatformCondition.from(condition)
+                    } catch {
+                        return nil
+                    }
                     if let target = packageInfo.targets.first(where: { $0.name == name }) {
                         if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
                             guard let artifactPath = artifactPaths[target.name] else {
@@ -1217,10 +1222,12 @@ extension PackageInfoMapper {
 }
 
 extension ProjectDescription.PlatformCondition {
+    struct OnlyConditionsWithUnsupportedPlatforms: Error {}
+
     /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
-    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) -> Self? {
+    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) throws -> Self? {
         guard let condition else { return nil }
         let filters: [ProjectDescription.PlatformFilter] = condition.platformNames.compactMap { name in
             switch name {
@@ -1239,6 +1246,11 @@ extension ProjectDescription.PlatformCondition {
             default:
                 return nil
             }
+        }
+
+        // If empty, we know there are no supported platforms and this dependency should not be included in the graph
+        if filters.isEmpty {
+            throw OnlyConditionsWithUnsupportedPlatforms()
         }
 
         return .when(Set(filters))

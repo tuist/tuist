@@ -43,6 +43,7 @@ let project = Project(
                 .external(name: "SVProgressHUD"),
                 .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
+                .external(name: "GoogleMobileAds"),
             ],
             settings: .targetSettings
         ),
@@ -56,6 +57,7 @@ let project = Project(
             dependencies: [
                 .target(name: "AppKit"),
                 .external(name: "Nimble"),
+                .external(name: "Testing"),
             ],
             settings: .targetSettings
         ),
