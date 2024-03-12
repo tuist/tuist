@@ -1291,6 +1291,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "stefanomondino",
+      "name": "Stefano Mondino",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1691903?v=4",
+      "profile": "https://stefanomondino.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

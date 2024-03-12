@@ -37,7 +37,7 @@ class ListService {
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
         let templates: [PrintableTemplate] = try templateDirectories.map { path in
-            let template = try templateLoader.loadTemplate(at: path)
+            let template = try templateLoader.loadTemplate(at: path, plugins: plugins)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 
