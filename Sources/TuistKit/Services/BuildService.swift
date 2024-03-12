@@ -33,13 +33,13 @@ enum BuildServiceError: FatalError {
     }
 }
 
-final class BuildService {
+public final class BuildService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let configLoader: ConfigLoading
 
-    init(
+    public init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
@@ -52,7 +52,7 @@ final class BuildService {
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         schemeName: String?,
         generate: Bool,
         clean: Bool,
@@ -64,11 +64,12 @@ final class BuildService {
         platform: String?,
         osVersion: String?,
         rosetta: Bool,
-        generateOnly: Bool
+        generateOnly: Bool,
+        generator: ((Config) throws -> Generating)? = nil
     ) async throws {
         let graph: Graph
         let config = try configLoader.loadConfig(path: path)
-        let generator = generatorFactory.default(config: config)
+        let generator = try generator?(config) ?? generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try await generator.generateWithGraph(path: path).1
         } else {
