@@ -129,7 +129,7 @@ final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDepend
         try setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
         try await run(TestCommand.self, "ModuleA", "--platform", "ios")
     }
 }
