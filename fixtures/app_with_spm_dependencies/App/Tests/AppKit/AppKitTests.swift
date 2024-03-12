@@ -1,8 +1,8 @@
 import Nimble
-import XCTest
+import Testing
 
-final class AppKitTests: XCTestCase {
-    func testExample() {
+struct AppKitTestingTests {
+    @Test func example() {
         expect(1).to(equal(1))
     }
 }

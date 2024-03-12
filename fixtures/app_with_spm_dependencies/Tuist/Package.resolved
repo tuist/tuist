@@ -334,6 +334,15 @@
       }
     },
     {
+      "identity" : "swift-testing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-testing",
+      "state" : {
+        "revision" : "3ed2f90058afe4437369aee4880890e7fa65d1ec",
+        "version" : "0.5.1"
+      }
+    },
+    {
       "identity" : "swiftlint",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/realm/SwiftLint",

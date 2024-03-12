@@ -1568,6 +1568,64 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
+        // Given
+        let app = Target.test(name: "app", platform: .iOS, product: .app)
+        let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+        let fileElements = createProductFileElements(for: [app, macroFramework, macroExecutable])
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: app.name)
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+                macroExecutable.name: macroExecutable,
+            ],
+        ], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateBuildPhases(
+            path: "/Project",
+            target: macroFramework,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
+
+        XCTAssertNotNil(buildPhase)
+
+        let expectedScript =
+            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
+        XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
+        XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
+        XCTAssertTrue(
+            buildPhase?.outputPaths
+                .contains("$BUILD_DIR/Debug-iphonesimulator/\(macroExecutable.productName)") == true
+        )
+        XCTAssertTrue(
+            buildPhase?.outputPaths
+                .contains("$BUILD_DIR/Debug-iphoneos/\(macroExecutable.productName)") == true
+        )
+    }
+
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
