@@ -64,7 +64,7 @@ final class ProjectGroupsTests: XCTestCase {
         let main = subject.sortedMain
         XCTAssertNil(main.path)
         XCTAssertEqual(main.sourceTree, .group)
-        XCTAssertEqual(main.children.count, 4)
+        XCTAssertEqual(main.children.count, 5)
 
         XCTAssertNotNil(main.group(named: "Project"))
         XCTAssertNil(main.group(named: "Project")?.path)
@@ -78,6 +78,11 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
         XCTAssertNil(subject.frameworks.path)
         XCTAssertEqual(subject.frameworks.sourceTree, .group)
+
+        XCTAssertTrue(main.children.contains(subject.cachedFrameworks))
+        XCTAssertEqual(subject.cachedFrameworks.name, "Cache")
+        XCTAssertNil(subject.cachedFrameworks.path)
+        XCTAssertEqual(subject.cachedFrameworks.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.products))
         XCTAssertEqual(subject.products.name, "Products")
@@ -110,6 +115,7 @@ final class ProjectGroupsTests: XCTestCase {
             "C",
             "A",
             "Frameworks",
+            "Cache",
             "Products",
         ])
     }

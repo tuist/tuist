@@ -289,7 +289,7 @@ class ProjectFileElements {
                 from: sourceRootPath,
                 fileAbsolutePath: path,
                 name: path.basename,
-                toGroup: groups.frameworks,
+                toGroup: groups.cachedFrameworks,
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement
