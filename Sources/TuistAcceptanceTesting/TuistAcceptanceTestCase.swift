@@ -39,13 +39,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
             ]!
         )
 
-        do {
-            // Environment
-            environment = try MockEnvironment()
-            Environment.shared = environment
-        } catch {
-            XCTFail("Failed to setup environment")
-        }
+        try! TuistContext.initializeSharedInstace()
     }
 
     override open func tearDown() async throws {
