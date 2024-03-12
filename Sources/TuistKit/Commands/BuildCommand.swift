@@ -6,7 +6,7 @@ import TuistSupport
 
 public struct BuildOptions: ParsableArguments {
     public init() {}
-    
+
     @Argument(
         help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
     )
@@ -80,14 +80,14 @@ public struct BuildOptions: ParsableArguments {
 /// Command that builds a target from the project in the current directory.
 public struct BuildCommand: AsyncParsableCommand {
     public init() {}
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
             abstract: "Builds a project"
         )
     }
-    
+
     @OptionGroup()
     var buildOptions: BuildOptions
 
@@ -104,7 +104,10 @@ public struct BuildCommand: AsyncParsableCommand {
             generate: buildOptions.generate,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
-            buildOutputPath: buildOptions.buildOutputPath.map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) },
+            buildOutputPath: buildOptions.buildOutputPath.map { try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            ) },
             derivedDataPath: buildOptions.derivedDataPath,
             path: absolutePath,
             device: buildOptions.device,
