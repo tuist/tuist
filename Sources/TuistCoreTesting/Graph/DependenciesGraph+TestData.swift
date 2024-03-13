@@ -721,10 +721,31 @@ extension DependenciesGraph {
         }
 
         return .settings(
-            base: baseSettings.base.merging(settingsDictionary, uniquingKeysWith: { $1 }),
+            base: baseSettings.base.combine(with: settingsDictionary),
             configurations: baseSettings.configurations,
             defaultSettings: baseSettings.defaultSettings
         )
+    }
+}
+
+extension SettingsDictionary {
+    /// Combines two `SettingsDictionary`. Instead of overriding values for a duplicate key, it combines them.
+    func combine(with settings: SettingsDictionary) -> SettingsDictionary {
+        merging(settings, uniquingKeysWith: { oldValue, newValue in
+            let newValues: [String]
+            switch newValue {
+            case let .string(value):
+                newValues = [value]
+            case let .array(values):
+                newValues = values
+            }
+            switch oldValue {
+            case let .array(values):
+                return .array(values + newValues)
+            case let .string(value):
+                return .array(value.split(separator: " ").map(String.init) + newValues)
+            }
+        })
     }
 }
 
