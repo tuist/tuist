@@ -11,9 +11,8 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
 
     # When
     got = CommandEventCreateService.call(
-      project_slug: nil,
-      user: nil,
-      project: project,
+      project_slug: "#{account.name}/#{project.name}",
+      subject: project,
       name: "fetch",
       subcommand: "",
       command_arguments: ["fetch", "--path", "./"],
@@ -46,8 +45,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
     # When
     got = CommandEventCreateService.call(
       project_slug: "#{account.name}/#{project.name}",
-      user: user,
-      project: nil,
+      subject: user,
       name: "cache",
       subcommand: nil,
       command_arguments: ["cache"],

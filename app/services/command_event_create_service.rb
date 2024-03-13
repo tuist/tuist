@@ -3,8 +3,7 @@
 class CommandEventCreateService < ApplicationService
   attr_reader :account_name,
     :project_name,
-    :user,
-    :project,
+    :subject,
     :name,
     :subcommand,
     :command_arguments,
@@ -20,8 +19,7 @@ class CommandEventCreateService < ApplicationService
 
   def initialize(
     project_slug:,
-    user:,
-    project:,
+    subject:,
     name:,
     subcommand:,
     command_arguments:,
@@ -36,13 +34,10 @@ class CommandEventCreateService < ApplicationService
     is_ci:
   )
     super()
-    if project.nil?
-      split_project_slug = project_slug.split("/")
-      @account_name = split_project_slug.first
-      @project_name = split_project_slug.last
-    end
-    @project = project
-    @user = user
+    split_project_slug = project_slug.split("/")
+    @account_name = split_project_slug.first
+    @project_name = split_project_slug.last
+    @subject = subject
     @name = name
     @subcommand = subcommand
     @command_arguments = command_arguments
@@ -58,9 +53,7 @@ class CommandEventCreateService < ApplicationService
   end
 
   def call
-    if project.nil?
-      @project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, subject: user)
-    end
+    project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, subject: subject)
 
     CommandEvent.create!(
       name: name,
