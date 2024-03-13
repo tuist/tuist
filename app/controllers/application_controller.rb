@@ -39,7 +39,7 @@ class ApplicationController < ActionController::Base
     attempts = 0
 
     while attempts < max_attempts
-      response = Faraday.get("http://127.0.0.1:#{ENV.fetch("PHX_PORT", "4000")}/ready")
+      response = Faraday.get("http://127.0.0.1:4000/ready")
 
       if response.success?
         head(:ok) # Return 200 if the request was successful

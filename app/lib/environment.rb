@@ -12,11 +12,11 @@ module Environment
 
   class << self
     def self_hosted?(env: ENV)
-      truthy?(env['TUIST_CLOUD_SELF_HOSTED'])
+      !tuist_hosted?(env: env)
     end
 
     def tuist_hosted?(env: ENV)
-      !self_hosted?(env: env)
+      truthy?(env['TUIST_CLOUD_HOSTED'])
     end
 
     def production_like_env?(env: ENV)

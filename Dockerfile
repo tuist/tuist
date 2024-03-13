@@ -163,5 +163,3 @@ EXPOSE 3000
 CMD ["/usr/local/bin/hivemind", "Procfile"]
 
 ENV DATABASE_CA_CERT_FILEPATH "/app/phx/deps/castore/priv/cacerts.pem"
-ENV ECTO_IPV6 false
-ENV ERL_AFLAGS "-proto_dist inet6_tcp"

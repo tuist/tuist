@@ -9,13 +9,13 @@ console_command = "/app/bin/rails console"
 
 [env]
   PORT = "8080"
-  RAILS_PORT="3000"
-  PHX_PORT="4000"
   MIX_ENV="stag"
   RAILS_ENV="staging"
   RAILS_MAX_THREADS=2
   WEB_CONCURRENCY=1
-  PHX_HOST="cloud-staging.tuist.io"
+  TUIST_APP_URL="https://cloud-staging.tuist.io"
+  TUIST_USE_IPV6="1"
+  TUIST_CLOUD_HOSTED="1"
 
 [[vm]]
   cpu_kind = 'shared'

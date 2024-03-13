@@ -9,7 +9,7 @@ defmodule TuistCloud.Environment do
   end
 
   def on_premise?() do
-    truthy?(System.get_env("TUIST_CLOUD_SELF_HOSTED", "0"))
+    not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0"))
   end
 
   @spec s3_access_key_id() :: String.t() | nil

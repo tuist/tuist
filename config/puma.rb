@@ -39,7 +39,7 @@ plugin :tmp_restart
 # Only use a pidfile when requested
 pidfile ENV["PIDFILE"] if ENV["PIDFILE"]
 
-self_hosted = ENV["TUIST_CLOUD_SELF_HOSTED"] == "1"
+self_hosted = ENV["TUIST_CLOUD_HOSTED"] != "1"
 
 unless self_hosted
   plugin :appsignal

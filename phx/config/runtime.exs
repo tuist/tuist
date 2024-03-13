@@ -30,6 +30,7 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
 
   parsed_url = URI.parse(database_url)
   [username, password] = parsed_url.userinfo |> String.split(":")
+  maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :tuist_cloud, TuistCloud.Repo,
     pool_size: 1,
@@ -38,7 +39,7 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
     password: password,
     hostname: parsed_url.host,
     ssl: true,
-    socket_options: [:inet6],
+    socket_options: maybe_ipv6,
     # TODO: Add proper certificate verification
     ssl_opts: [
       server_name_indication: to_char_list(parsed_url.host),
@@ -71,8 +72,8 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "cloud.tuist.io"
-  port = String.to_integer(System.get_env("PHX_PORT") || "4000")
+  host = System.fetch_env!("WEB_CONCURRENCY")
+  port = "4000"
 
   config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 

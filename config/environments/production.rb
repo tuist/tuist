@@ -88,7 +88,7 @@ Rails.application.configure do
 
   # Action Mailer
   config.action_mailer.delivery_method = :smtp
-  if ENV['TUIST_CLOUD_SELF_HOSTED'] != 'true' && !Environment.precompiling_assets?
+  if ENV['TUIST_CLOUD_HOSTED'] == '1' && !Environment.precompiling_assets?
     config.action_mailer.smtp_settings = {
       authentication: Rails.application.config.defaults[:smpt_settings][:authentication],
       address: Rails.application.config.defaults[:smpt_settings][:address],
@@ -100,7 +100,7 @@ Rails.application.configure do
   end
 
   # Stripe
-  if ENV['TUIST_CLOUD_SELF_HOSTED'] != 'true' && !Environment.precompiling_assets?
+  if ENV['TUIST_CLOUD_HOSTED'] == '1' && !Environment.precompiling_assets?
     config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
     config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
