@@ -53,6 +53,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
 
+        manifestFilesLocator.locatePackageManifestStub = stubbedPath.appending(components: "Tuist", "Package.swift")
+
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
 
@@ -106,6 +108,8 @@ final class InstallServiceTests: TuistUnitTestCase {
     func test_run_when_installing_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
+
+        manifestFilesLocator.locatePackageManifestStub = stubbedPath.appending(components: "Tuist", "Package.swift")
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
