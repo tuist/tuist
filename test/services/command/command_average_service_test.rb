@@ -114,5 +114,14 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       end
     },
       got.map(&:duration_average)
+
+    assert_equal (1..31).map { |day|
+      if day == 30
+        2
+      else
+        0
+      end
+    },
+      got.map(&:runs_count)
   end
 end

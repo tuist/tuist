@@ -82,40 +82,50 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name);
   }
 
-  function chart({key, label, data, scales, getValue}) {
+  function chart({key, label, data, scales, getValue, tooltip}) {
     const ctx = document.getElementById(`${key}-chart`);
 
     function dataset(key) {
       const commandData = data[key];
       return {
         labels: commandData.map(e => e.date),
-        data: commandData.map(e => getValue(e))
+        data: commandData.map(e => getValue(e)),
+        runsCount: commandData.map(e => e.runs_count)
       }
     }
 
     const select = document.querySelector(`#${key}-select`);
-    const {labels: initialLabels, data: initialData} = dataset(select.value);
+    const {labels: initialLabels, data: initialData, runsCount: initialRunsCount} = dataset(select.value);
 
     const chart = new Chart(ctx, {
-      type: 'line',
       data: {
         labels: initialLabels,
-        datasets: [{
-          label,
-          data: initialData,
-          fill: false,
-          borderColor: function(context) {
-            const chart = context.chart;
-            const {ctx, chartArea} = chart;
+        datasets: [
+            {
+            type: 'line',
+            label,
+            data: initialData,
+            fill: false,
+            borderColor: function(context) {
+              const chart = context.chart;
+              const {ctx, chartArea} = chart;
 
-            if (!chartArea) {
-              // This case happens on initial chart load
-              return;
-            }
-            return getGradient(ctx, chartArea);
+              if (!chartArea) {
+                // This case happens on initial chart load
+                return;
+              }
+              return getGradient(ctx, chartArea);
+            },
+            tension: 0.4
           },
-          tension: 0.4
-        }]
+          {
+            label: 'Number of runs',
+            type: 'bar',
+            data: initialRunsCount,
+            yAxisID: 'y1',
+            backgroundColor: 'rgba(255, 99, 132, 0.2)'
+          }
+        ]
       },
       options: {
         interaction: {
@@ -125,7 +135,8 @@
         plugins: {
           legend: {
             display: false,
-          }
+          },
+          tooltip,
         },
         scales: {
             x: {
@@ -140,7 +151,20 @@
                 stepSize: <%= params[:date_range] == 'last_year' ? 1.to_json.html_safe : 2.to_json.html_safe %>
               }
             },
-            ...scales
+            ...scales,
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              ticks: {
+                callback: function(value, index, ticks) {
+                  if (Math.floor(value) === value) {
+                    return value + ' runs';
+                  }
+                },
+                color: cssvar('--text-inverse')
+              }
+            },
         },
         responsive: true
       }
@@ -148,9 +172,10 @@
 
     function onSelectChange(event) {
       const key = select.value;
-      const {labels, data} = dataset(key);
+      const {labels, data, runsCount} = dataset(key);
       chart.data.datasets[0].labels = labels;
       chart.data.datasets[0].data = data;
+      chart.data.datasets[1].data = runsCount;
       chart.update();
     }
     select.addEventListener('change', onSelectChange);
@@ -172,6 +197,17 @@
           }
         }
       },
+      tooltip: {
+          callbacks: {
+              label: function(context) {
+                  if (context.dataset.label === 'Number of runs') {
+                    return `${context.dataset.data[context.dataIndex]} runs`;
+                    } else {
+                    return `${(context.dataset.data[context.dataIndex] / 1000).toFixed(1)} s`;
+                  }
+              }
+          }
+      },
       getValue: (e) => e.duration_average
     }
   );
@@ -192,6 +228,13 @@
           }
         }
       },
+      tooltip: {
+          callbacks: {
+              label: function(context) {
+                  return (context.dataset.data[context.dataIndex] * 100).toFixed(1) + ' %'
+              }
+          }
+      },
       getValue: (e) => e.cache_hit_rate_average
     }
   );
@@ -210,16 +253,16 @@
           label: 'Target cache hit rate average',
           data: data.map(element => element.cache_hit_rate),
           borderWidth: 1,
-        backgroundColor: function(context) {
-          const chart = context.chart;
-          const {ctx, chartArea} = chart;
+          backgroundColor: function(context) {
+            const chart = context.chart;
+            const {ctx, chartArea} = chart;
 
-          if (!chartArea) {
-            // This case happens on initial chart load
-            return;
-          }
-          return getGradient(ctx, chartArea, true);
-        },
+            if (!chartArea) {
+              // This case happens on initial chart load
+              return;
+            }
+            return getGradient(ctx, chartArea, true);
+          },
         },
       ]
     },

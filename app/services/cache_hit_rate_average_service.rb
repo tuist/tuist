@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-CacheHitRateAverage = Struct.new(:date, :cache_hit_rate_average)
+CacheHitRateAverage = Struct.new(:date, :cache_hit_rate_average, :runs_count)
 
 class CacheHitRateAverageService < ApplicationService
   attr_reader :project_id, :command_name, :user, :start_date
@@ -34,11 +34,19 @@ class CacheHitRateAverageService < ApplicationService
         .group_by_month(:created_at, range: start_date..Time.now)
     end
 
+    command_events_count = command_events.count
+
     command_events
       .average(
         "(#{query("local_cache_target_hits")} + #{query("remote_cache_target_hits")}) / #{query("cacheable_targets")}",
       )
-      .map { |key, value| CacheHitRateAverage.new(date: key, cache_hit_rate_average: value.nil? ? 0 : value) }
+      .map do |key, value|
+        CacheHitRateAverage.new(
+          date: key,
+          cache_hit_rate_average: value.nil? ? 0 : value,
+          runs_count: command_events_count[key],
+        )
+      end
   end
 
   def query(name)

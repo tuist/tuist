@@ -132,5 +132,14 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
       end
     },
       got.map(&:cache_hit_rate_average)
+
+    assert_equal (0..12).map { |month|
+      if month == 3
+        2
+      else
+        0
+      end
+    },
+      got.map(&:runs_count)
   end
 end

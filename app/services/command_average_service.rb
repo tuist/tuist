@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 class CommandAverage
-  attr_reader :date, :duration_average
+  attr_reader :date, :duration_average, :runs_count
 
-  def initialize(date:, duration_average:)
+  def initialize(date:, duration_average:, runs_count:)
     @date = date
     @duration_average = duration_average
+    @runs_count = runs_count
   end
 end
 
@@ -40,8 +41,16 @@ class CommandAverageService < ApplicationService
         .group_by_month(:created_at, range: start_date..Time.now)
     end
 
+    command_events_count = command_events.count
+
     command_events
       .average(:duration)
-      .map { |key, value| CommandAverage.new(date: key, duration_average: value.nil? ? 0 : value) }
+      .map do |key, value|
+      CommandAverage.new(
+        date: key,
+        duration_average: value.nil? ? 0 : value,
+        runs_count: command_events_count[key],
+      )
+    end
   end
 end
