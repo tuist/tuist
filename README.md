@@ -520,6 +520,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/anlaital-oura"><img src="https://avatars.githubusercontent.com/u/133648611?v=4" width="100px;" alt=""/><br /><sub><b>Antti Laitala</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/PushedCrayon"><img src="https://avatars.githubusercontent.com/u/37077444?v=4" width="100px;" alt=""/><br /><sub><b>PushedCrayon</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://stefanomondino.com"><img src="https://avatars.githubusercontent.com/u/1691903?v=4" width="100px;" alt=""/><br /><sub><b>Stefano Mondino</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/leszko11"><img src="https://avatars.githubusercontent.com/u/23533452?v=4" width="100px;" alt=""/><br /><sub><b>Łukasz Lech</b></sub></a></td>
     </tr>
   </tbody>
 </table>
