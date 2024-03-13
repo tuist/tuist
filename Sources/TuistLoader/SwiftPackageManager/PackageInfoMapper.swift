@@ -289,10 +289,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
             }
         )
-        // Setting the -package-name Swift compiler flag
-        let baseSettings = packageSettings.baseSettings.with(base: [
-            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name],
-        ])
+
+        let baseSettings = packageSettings.baseSettings.with(
+            base: packageSettings.baseSettings.base.combine(
+                with: [
+                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name],
+                ]
+            )
+        )
 
         var targetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {

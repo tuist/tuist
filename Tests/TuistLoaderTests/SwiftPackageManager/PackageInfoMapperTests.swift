@@ -370,7 +370,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2121,6 +2121,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             packageSettings: .test(
                 baseSettings: .init(
+                    base: [
+                        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                    ],
                     configurations: [
                         .init(name: "Debug", variant: .debug): .init(
                             settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
@@ -2134,7 +2137,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 )
             )
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2143,6 +2146,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         baseSettings: .settings(
+                            base: [
+                                "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                            ],
                             configurations: [
                                 .debug(
                                     name: "Debug",
