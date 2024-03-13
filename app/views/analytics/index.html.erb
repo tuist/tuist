@@ -231,7 +231,11 @@
       tooltip: {
           callbacks: {
               label: function(context) {
-                  return (context.dataset.data[context.dataIndex] * 100).toFixed(1) + ' %'
+                  if (context.dataset.label === 'Number of runs') {
+                    return `${context.dataset.data[context.dataIndex]} runs`;
+                    } else {
+                      return (context.dataset.data[context.dataIndex] * 100).toFixed(1) + ' %'
+                  }
               }
           }
       },
