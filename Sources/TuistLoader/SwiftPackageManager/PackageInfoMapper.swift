@@ -248,7 +248,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistGraph.PackageSettings,
-        packageToProject: [String: AbsolutePath]
+        packageToProject _: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -327,8 +327,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageType: packageType,
                     path: path,
                     packageFolder: path,
-                    packageToProject: packageToProject,
                     productTypes: productTypes,
+                    productDestinations: packageSettings.productDestinations,
                     baseSettings: baseSettings,
                     targetSettings: targetSettings
                 )
@@ -379,8 +379,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         path: AbsolutePath,
         packageFolder: AbsolutePath,
-        packageToProject _: [String: AbsolutePath],
         productTypes: [String: TuistGraph.Product],
+        productDestinations: [String: TuistGraph.Destinations],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> ProjectDescription.Target? {
@@ -445,8 +445,37 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .macro, .executable:
             destinations = Set([.mac])
         default:
-            // All packages implicitly support all platforms
-            destinations = Set(Destination.allCases)
+            let productDestinations: Set<ProjectDescription.Destination> = Set(
+                products.flatMap { product in
+                    if product.type == .executable {
+                        return Set([TuistGraph.Destination.mac])
+                    }
+                    return productDestinations[product.name] ?? Set(Destination.allCases)
+                }
+                .map {
+                    switch $0 {
+                    case .iPhone:
+                        return .iPhone
+                    case .iPad:
+                        return .iPad
+                    case .mac:
+                        return .mac
+                    case .macWithiPadDesign:
+                        return .macWithiPadDesign
+                    case .macCatalyst:
+                        return .macCatalyst
+                    case .appleWatch:
+                        return .appleWatch
+                    case .appleTv:
+                        return .appleTv
+                    case .appleVision:
+                        return .appleVision
+                    case .appleVisionWithiPadDesign:
+                        return .appleVisionWithiPadDesign
+                    }
+                }
+            )
+            destinations = Set(Destination.allCases).intersection(productDestinations)
         }
 
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)

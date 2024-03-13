@@ -2120,6 +2120,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageSettings: .test(
+                productDestinations: [
+                    "Product1": .iOS,
+                ],
                 baseSettings: .init(
                     configurations: [
                         .init(name: "Debug", variant: .debug): .init(
@@ -2134,7 +2137,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 )
             )
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2142,6 +2145,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
+                        destinations: .iOS,
+                        deploymentTargets: .iOS("12.0"),
                         baseSettings: .settings(
                             configurations: [
                                 .debug(

@@ -56,6 +56,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Then
         let expected: TuistGraph.PackageSettings = .init(
             productTypes: [:],
+            productDestinations: [:],
             baseSettings: TuistGraph.Settings(
                 base: [:],
                 baseDebug: [:],

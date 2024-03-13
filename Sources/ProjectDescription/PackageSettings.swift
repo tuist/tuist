@@ -29,6 +29,12 @@ public struct PackageSettings: Codable, Equatable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
+    /// Custom product destinations. This setting should only be used when using Tuist for SPM packages.
+    /// SPM implicitly always supports all platforms, but some commands like `tuist cache` depend on destinations being explicit.
+    /// If a product does not support all destinations, you can use `productDestinations` to make the supported destinations
+    /// explicit.
+    public var productDestinations: [String: Destinations]
+
     // The base settings to be used for targets generated from SwiftPackageManager
     public var baseSettings: Settings
 
@@ -39,17 +45,21 @@ public struct PackageSettings: Codable, Equatable {
     public var projectOptions: [String: Project.Options]
 
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
-    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    /// - Parameters:
+    ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - productDestinations: Custom destinations to be used for SPM products.
+    ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
         productTypes: [String: Product] = [:],
+        productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
