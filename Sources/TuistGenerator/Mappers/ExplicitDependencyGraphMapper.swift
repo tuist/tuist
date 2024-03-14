@@ -77,7 +77,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         target.settings = Settings(
             base: target.settings?.base ?? [:],
             baseDebug: additionalSettings,
-            configurations: [:]
+            configurations: target.settings?.configurations ?? [:]
         )
 
         let copyBuiltProductsScript: String
