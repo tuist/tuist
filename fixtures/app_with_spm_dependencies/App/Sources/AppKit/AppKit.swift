@@ -7,6 +7,7 @@ import ComposableArchitecture
 import CrashReporter
 import GoogleMobileAds
 import GoogleSignIn
+import LibraryD
 import libzstd
 import MarkdownUI
 import NYTPhotoViewer

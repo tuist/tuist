@@ -41,6 +41,7 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
             ?? .init(
                 name: "Package",
                 products: [],
+                dependencies: [],
                 targets: [],
                 platforms: [],
                 cLanguageStandard: nil,

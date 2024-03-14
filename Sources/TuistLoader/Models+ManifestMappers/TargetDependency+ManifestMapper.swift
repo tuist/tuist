@@ -85,11 +85,29 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name, condition):
-            guard let dependencies = externalDependencies[name] else {
+            if let dependencies = externalDependencies[name] {
+                return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+            } else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
 
-            return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+        case let .xcodePackage(product: product, source: source, condition: condition):
+            switch source {
+            case .external:
+                guard let dependencies = externalDependencies[product] else {
+                    throw TargetDependencyMapperError.invalidExternalDependency(name: product)
+                }
+
+                return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+            case let .local(packagePath):
+                return [
+                    .project(
+                        target: product,
+                        path: try generatorPaths.resolve(path: packagePath),
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
+            }
         }
     }
 }

@@ -125,7 +125,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             at: path,
             packageSettings: packageSettings
         )
-        let (workspaceModels, manifestProjects) = (
+        let (workspace, manifestProjects) = (
             try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects
         )
@@ -139,15 +139,16 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             projects: manifestProjects,
             plugins: plugins,
             externalDependencies: dependenciesGraph.externalDependencies
+                .merging(allManifests.packageProducts, uniquingKeysWith: { $1 })
         ) +
             dependenciesGraph.externalProjects.values
 
         // Check circular dependencies
-        try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
+        try graphLoaderLinter.lintWorkspace(workspace: workspace, projects: projectsModels)
 
         // Apply any registered model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
-            workspace: .init(workspace: workspaceModels, projects: projectsModels)
+            workspace: .init(workspace: workspace, projects: projectsModels)
         )
 
         // Load graph

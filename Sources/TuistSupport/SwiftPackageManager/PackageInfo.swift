@@ -40,8 +40,8 @@ public struct PackageInfo: Hashable {
     // /// The system package providers of a system package.
     // let providers: [SystemPackageProviderDescription]?
 
-    // /// The declared package dependencies.
-    // let dependencies: [PackageDependencyDescription]
+    /// The declared package dependencies.
+    public let dependencies: [PackageDependency]
 
     // /// Whether kind of package this manifest is from.
     // let packageKind: PackageReference.Kind
@@ -49,6 +49,7 @@ public struct PackageInfo: Hashable {
     public init(
         name: String,
         products: [Product],
+        dependencies: [PackageDependency],
         targets: [Target],
         platforms: [Platform],
         cLanguageStandard: String?,
@@ -57,11 +58,18 @@ public struct PackageInfo: Hashable {
     ) {
         self.name = name
         self.products = products
+        self.dependencies = dependencies
         self.targets = targets
         self.platforms = platforms
         self.cLanguageStandard = cLanguageStandard
         self.cxxLanguageStandard = cxxLanguageStandard
         self.swiftLanguageVersions = swiftLanguageVersions
+    }
+}
+
+extension PackageInfo {
+    public enum PackageDependency: Hashable {
+        case local(path: String)
     }
 }
 
@@ -492,13 +500,55 @@ extension PackageInfo.Target {
 
 extension PackageInfo: Codable {
     private enum CodingKeys: String, CodingKey {
-        case name, products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
+        case name, products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions, dependencies
+    }
+
+    private struct PackageDependencies: Codable {
+        let dependencies: [PackageDependency]
+
+        init(
+            dependencies: [PackageDependency]
+        ) {
+            self.dependencies = dependencies
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case fileSystem
+        }
+
+        private struct FileSystemDependency: Codable {
+            let path: String
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            dependencies = try values.decodeIfPresent(
+                [FileSystemDependency].self,
+                forKey: .fileSystem
+            )?.map { .local(path: $0.path) } ?? []
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            guard !dependencies.isEmpty else { return }
+            try container.encode(
+                dependencies.map {
+                    switch $0 {
+                    case let .local(path: path):
+                        return FileSystemDependency(path: path)
+                    }
+                },
+                forKey: .fileSystem
+            )
+        }
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         name = try values.decode(String.self, forKey: .name)
         products = try values.decode([Product].self, forKey: .products)
+        dependencies = try values.decode([PackageDependencies].self, forKey: .dependencies)
+            .flatMap(\.dependencies)
         targets = try values.decode([Target].self, forKey: .targets)
         platforms = try values.decode([Platform].self, forKey: .platforms)
         cLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cLanguageStandard)
@@ -506,6 +556,18 @@ extension PackageInfo: Codable {
         swiftLanguageVersions = try values
             .decodeIfPresent([String].self, forKey: .swiftLanguageVersions)?
             .compactMap { TSCUtility.Version(unformattedString: $0) }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(products, forKey: .products)
+        try container.encode([PackageDependencies(dependencies: dependencies)], forKey: .dependencies)
+        try container.encode(targets, forKey: .targets)
+        try container.encode(platforms, forKey: .platforms)
+        try container.encodeIfPresent(cLanguageStandard, forKey: .cLanguageStandard)
+        try container.encodeIfPresent(cxxLanguageStandard, forKey: .cxxLanguageStandard)
+        try container.encodeIfPresent(swiftLanguageVersions, forKey: .swiftLanguageVersions)
     }
 }
 

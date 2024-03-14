@@ -41,6 +41,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `XCFramework`: Declares a dependency with a binary XCFramework.
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
+- `XcodePackage`: Declares a dependency on an SPM package. The package can either be local or external.
 
 Note that every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 
@@ -64,7 +65,7 @@ Thanks to that, we can not only give you more control over the integration but a
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
-You can follow the <doc:external-dependencies> tutorial to learn more about how to integrate Swift Packages in your project.
+You can follow the <doc:swift-package-manager-dependencies> tutorial to learn more about how to integrate Swift Packages in your project.
 
 > Note: The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
 

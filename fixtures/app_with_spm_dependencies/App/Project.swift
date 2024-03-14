@@ -44,6 +44,7 @@ let project = Project(
                 .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
+                .xcodePackage(product: "LibraryD", source: .local(.relativeToRoot("LocalSwiftPackageD"))),
             ],
             settings: .targetSettings
         ),

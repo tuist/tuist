@@ -14,12 +14,26 @@ public protocol RecursiveManifestLoading {
 
 public struct LoadedProjects {
     public var projects: [AbsolutePath: ProjectDescription.Project]
+    public var packageProducts: [String: [TuistGraph.TargetDependency]]
 }
 
 public struct LoadedWorkspace {
     public var path: AbsolutePath
     public var workspace: ProjectDescription.Workspace
     public var projects: [AbsolutePath: ProjectDescription.Project]
+    public let packageProducts: [String: [TuistGraph.TargetDependency]]
+}
+
+enum ManifestPath: Hashable {
+    case package(AbsolutePath)
+    case project(AbsolutePath)
+
+    var path: AbsolutePath {
+        switch self {
+        case let .project(path), let .package(path):
+            return path
+        }
+    }
 }
 
 public class RecursiveManifestLoader: RecursiveManifestLoading {
@@ -50,33 +64,27 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let projectSearchPaths = (loadedWorkspace?.projects ?? ["."])
-        let projectPaths = try projectSearchPaths.map {
-            try generatorPaths.resolve(path: $0)
-        }.flatMap {
-            fileHandler.glob($0, glob: "")
-        }.filter {
-            fileHandler.isFolder($0)
-        }.filter {
-            manifestLoader.manifests(at: $0).contains(.project)
-        }
-
-        let packagePaths = try projectSearchPaths.map {
+        let manifestPaths: [ManifestPath] = try projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.flatMap {
             fileHandler.glob($0, glob: "")
         }.filter {
             fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts")
-        }.filter {
+        }.compactMap {
             let manifests = manifestLoader.manifests(at: $0)
-            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace)
+            if manifests.contains(.project) {
+                return .project($0)
+            } else if manifests.contains(.package), !manifests.contains(.workspace) {
+                return .package($0)
+            } else {
+                return nil
+            }
         }
 
-        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
-
-        let projects = LoadedProjects(projects: try loadProjects(paths: projectPaths).projects.merging(
-            packageProjects.projects,
-            uniquingKeysWith: { _, newValue in newValue }
-        ))
+        let projects = try loadProjects(
+            paths: manifestPaths,
+            packageSettings: packageSettings
+        )
         let workspace: ProjectDescription.Workspace
         if let loadedWorkspace {
             workspace = loadedWorkspace
@@ -88,68 +96,90 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         return LoadedWorkspace(
             path: path,
             workspace: workspace,
-            projects: projects.projects
+            projects: projects.projects,
+            packageProducts: projects.packageProducts
         )
     }
 
     // MARK: - Private
 
-    private func loadPackageProjects(
-        paths: [AbsolutePath],
+    private func loadProjects(
+        paths: [ManifestPath],
         packageSettings: TuistGraph.PackageSettings?
     ) throws -> LoadedProjects {
-        guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()
+        var packageProducts: [String: [TuistGraph.TargetDependency]] = [:]
 
         var paths = Set(paths)
         while !paths.isEmpty {
-            paths.subtract(cache.keys)
-            let projects = try Array(paths).compactMap(context: ExecutionContext.concurrent) {
-                let packageInfo = try manifestLoader.loadPackage(at: $0)
-                return try packageInfoMapper.map(
-                    packageInfo: packageInfo,
-                    path: $0,
-                    packageType: .local,
-                    packageSettings: packageSettings,
-                    packageToProject: [:]
-                )
+            paths = paths.filter {
+                !cache.keys.contains($0.path)
             }
-            var newDependenciesPaths = Set<AbsolutePath>()
-            for (path, project) in zip(paths, projects) {
-                cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+            var newDependenciesPaths = Set<ManifestPath>()
+            let projects = try Array(paths).compactMap(context: ExecutionContext.concurrent) { manifestPath in
+                switch manifestPath {
+                case let .project(path):
+                    return try manifestLoader.loadProject(at: path)
+                case let .package(path):
+                    guard let packageSettings else { return nil }
+                    let packageInfo = try manifestLoader.loadPackage(at: path)
+                    newDependenciesPaths.formUnion(
+                        try packageInfo.dependencies.map {
+                            switch $0 {
+                            case let .local(path: localPackagePath):
+                                return try .package(AbsolutePath(validating: localPackagePath))
+                            }
+                        }
+                    )
+
+                    let packageProject = try packageInfoMapper.map(
+                        packageInfo: packageInfo,
+                        path: path,
+                        packageType: .local,
+                        packageSettings: packageSettings,
+                        packageToProject: [:]
+                    )
+
+                    for product in packageInfo.products {
+                        packageProducts[product.name] = product.targets.map { target in
+                            TuistGraph.TargetDependency.project(
+                                target: target,
+                                path: path,
+                                condition: nil
+                            )
+                        }
+                    }
+
+                    return packageProject
+                }
+            }
+
+            for (manifestPath, project) in zip(paths, projects) {
+                cache[manifestPath.path] = project
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: manifestPath.path))
             }
             paths = newDependenciesPaths
         }
-        return LoadedProjects(projects: cache)
+        return LoadedProjects(
+            projects: cache,
+            packageProducts: packageProducts
+        )
     }
 
-    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
-        var cache = [AbsolutePath: ProjectDescription.Project]()
-
-        var paths = Set(paths)
-        while !paths.isEmpty {
-            paths.subtract(cache.keys)
-            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
-                try manifestLoader.loadProject(at: $0)
-            }
-            var newDependenciesPaths = Set<AbsolutePath>()
-            for (path, project) in zip(paths, projects) {
-                cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
-            }
-            paths = newDependenciesPaths
-        }
-        return LoadedProjects(projects: cache)
-    }
-
-    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [ManifestPath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let paths: [AbsolutePath] = try project.targets.flatMap {
+        let paths: [ManifestPath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {
                 case let .project(target: _, path: projectPath, _):
-                    return try generatorPaths.resolve(path: projectPath)
+                    return .project(try generatorPaths.resolve(path: projectPath))
+                case let .xcodePackage(product: _, source: source, condition: _):
+                    switch source {
+                    case .external:
+                        return nil
+                    case let .local(packagePath):
+                        return .package(try generatorPaths.resolve(path: packagePath))
+                    }
                 default:
                     return nil
                 }
