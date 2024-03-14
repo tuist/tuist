@@ -37,7 +37,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             settings: .test(
                 configurations: [
                     .debug: .test(),
-                    .release: .test()
+                    .release: .test(),
                 ]
             )
         )
@@ -181,7 +181,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     ],
                     configurations: [
                         .debug: .test(),
-                        .release: .test()
+                        .release: .test(),
                     ]
                 ),
                 scripts: [
