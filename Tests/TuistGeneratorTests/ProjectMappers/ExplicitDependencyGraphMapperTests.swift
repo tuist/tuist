@@ -33,7 +33,13 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         let dynamicLibraryB: Target = .test(
             name: "DynamicLibraryB",
             product: .dynamicLibrary,
-            productName: "DynamicLibraryB"
+            productName: "DynamicLibraryB",
+            settings: .test(
+                configurations: [
+                    .debug: .test(),
+                    .release: .test()
+                ]
+            )
         )
         let externalFrameworkC: Target = .test(
             name: "ExternalFrameworkC",
@@ -172,6 +178,10 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     baseDebug: [
                         "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                         "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
+                    ],
+                    configurations: [
+                        .debug: .test(),
+                        .release: .test()
                     ]
                 ),
                 scripts: [
