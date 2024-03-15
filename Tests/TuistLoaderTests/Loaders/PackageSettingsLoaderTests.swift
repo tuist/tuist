@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -6,7 +7,6 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import MockableTest
 import XCTest
 
 @testable import ProjectDescription

@@ -445,37 +445,42 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .macro, .executable:
             destinations = Set([.mac])
         default:
-            let productDestinations: Set<ProjectDescription.Destination> = Set(
-                products.flatMap { product in
-                    if product.type == .executable {
-                        return Set([TuistGraph.Destination.mac])
+            switch packageType {
+            case .local:
+                let productDestinations: Set<ProjectDescription.Destination> = Set(
+                    products.flatMap { product in
+                        if product.type == .executable {
+                            return Set([TuistGraph.Destination.mac])
+                        }
+                        return productDestinations[product.name] ?? Set(Destination.allCases)
                     }
-                    return productDestinations[product.name] ?? Set(Destination.allCases)
-                }
-                .map {
-                    switch $0 {
-                    case .iPhone:
-                        return .iPhone
-                    case .iPad:
-                        return .iPad
-                    case .mac:
-                        return .mac
-                    case .macWithiPadDesign:
-                        return .macWithiPadDesign
-                    case .macCatalyst:
-                        return .macCatalyst
-                    case .appleWatch:
-                        return .appleWatch
-                    case .appleTv:
-                        return .appleTv
-                    case .appleVision:
-                        return .appleVision
-                    case .appleVisionWithiPadDesign:
-                        return .appleVisionWithiPadDesign
+                    .map {
+                        switch $0 {
+                        case .iPhone:
+                            return .iPhone
+                        case .iPad:
+                            return .iPad
+                        case .mac:
+                            return .mac
+                        case .macWithiPadDesign:
+                            return .macWithiPadDesign
+                        case .macCatalyst:
+                            return .macCatalyst
+                        case .appleWatch:
+                            return .appleWatch
+                        case .appleTv:
+                            return .appleTv
+                        case .appleVision:
+                            return .appleVision
+                        case .appleVisionWithiPadDesign:
+                            return .appleVisionWithiPadDesign
+                        }
                     }
-                }
-            )
-            destinations = Set(Destination.allCases).intersection(productDestinations)
+                )
+                destinations = Set(Destination.allCases).intersection(productDestinations)
+            case .external:
+                destinations = Set(Destination.allCases)
+            }
         }
 
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)

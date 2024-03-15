@@ -1,8 +1,8 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistCore
 import TuistSupport
-import Mockable
 
 @Mockable
 public protocol ManifestFilesLocating: AnyObject {

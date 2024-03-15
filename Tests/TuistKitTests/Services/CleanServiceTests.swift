@@ -1,11 +1,11 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
 import TuistSupport
-import MockableTest
 import XCTest
 
 @testable import TuistKit
