@@ -2098,6 +2098,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let project = try subject.map(
             package: "Package",
             basePath: basePath,
+            packageType: .local,
             packageInfos: [
                 "Package": .init(
                     name: "Package",
@@ -2141,6 +2142,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .testWithDefaultConfigs(
                 name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableBundleAccessors: false,
+                    disableSynthesizedResourceAccessors: true,
+                    textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                ),
                 targets: [
                     .test(
                         "Target1",
@@ -3202,6 +3209,7 @@ extension PackageInfoMapping {
     fileprivate func map(
         package: String,
         basePath: AbsolutePath = "/",
+        packageType: PackageType? = nil,
         packageInfos: [String: PackageInfo] = [:],
         packageSettings: TuistGraph.PackageSettings = .test(
             baseSettings: .default
@@ -3230,7 +3238,7 @@ extension PackageInfoMapping {
         return try map(
             packageInfo: packageInfos[package]!,
             path: basePath.appending(component: package),
-            packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
+            packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0))
@@ -3271,17 +3279,18 @@ extension PackageInfo.Target {
 extension ProjectDescription.Project {
     fileprivate static func test(
         name: String,
+        options: Options = .options(
+            automaticSchemesOptions: .disabled,
+            disableBundleAccessors: false,
+            disableSynthesizedResourceAccessors: true,
+            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+        ),
         settings: ProjectDescription.Settings? = nil,
         targets: [ProjectDescription.Target]
     ) -> Self {
         .init(
             name: name,
-            options: .options(
-                automaticSchemesOptions: .disabled,
-                disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: true,
-                textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
-            ),
+            options: options,
             settings: settings,
             targets: targets,
             resourceSynthesizers: .default
@@ -3290,10 +3299,17 @@ extension ProjectDescription.Project {
 
     fileprivate static func testWithDefaultConfigs(
         name: String,
+        options: Options = .options(
+            automaticSchemesOptions: .disabled,
+            disableBundleAccessors: false,
+            disableSynthesizedResourceAccessors: true,
+            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+        ),
         targets: [ProjectDescription.Target]
     ) -> Self {
         Project.test(
             name: name,
+            options: options,
             settings: .settings(configurations: [
                 .debug(name: .debug),
                 .release(name: .release),

@@ -122,6 +122,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         .willReturn(manifests)
         given(manifestFilesLocator).locateConfig(at: .any).willReturn(configPath)
         given(manifestFilesLocator).locatePackageManifest(at: .any).willReturn(packageManifestPath)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -157,6 +160,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -184,6 +193,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([pluginManifest])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
 
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -221,6 +239,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn(pluginManifests)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
 
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -271,6 +298,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([pluginManifestPath])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
@@ -320,6 +353,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([pluginManifestPath])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: editingPath.appending(component: "Edit.xcworkspacepath"))
@@ -365,6 +404,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
