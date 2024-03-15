@@ -6,6 +6,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
+import MockableTest
 import XCTest
 
 @testable import ProjectDescription
@@ -16,7 +17,7 @@ import XCTest
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
-    private var manifestFilesLocator: MockManifestFilesLocator!
+    private var manifestFilesLocator: MockManifestFilesLocating!
     private var subject: PackageSettingsLoader!
 
     override func setUp() {
@@ -24,12 +25,12 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
 
         manifestLoader = MockManifestLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
-        manifestFilesLocator = MockManifestFilesLocator()
+        manifestFilesLocator = MockManifestFilesLocating()
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
             swiftPackageManagerController: swiftPackageManagerController,
             fileHandler: fileHandler,
-            manifestFilesLocator: MockManifestFilesLocator()
+            manifestFilesLocator: manifestFilesLocator
         )
     }
 
@@ -45,6 +46,9 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(temporaryPath)
 
         swiftPackageManagerController.getToolsVersionStub = { _ in
             TSCUtility.Version("5.4.9")

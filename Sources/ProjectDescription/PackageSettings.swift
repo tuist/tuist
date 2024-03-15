@@ -29,7 +29,8 @@ public struct PackageSettings: Codable, Equatable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
-    /// Custom product destinations. This setting should only be used when using Tuist for SPM packages.
+    /// Custom product destinations where key of the dictionary is the name of the SPM product and the value contains the supported destinations.
+    /// **Note**: This setting should only be used when using Tuist for SPM packages.
     /// SPM implicitly always supports all platforms, but some commands like `tuist cache` depend on destinations being explicit.
     /// If a product does not support all destinations, you can use `productDestinations` to make the supported destinations
     /// explicit.

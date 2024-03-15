@@ -10,6 +10,7 @@ import TuistLoaderTesting
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
+import MockableTest
 import XCTest
 
 @testable import TuistKit
@@ -18,7 +19,7 @@ final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoader!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
-    private var manifestFilesLocator: MockManifestFilesLocator!
+    private var manifestFilesLocator: MockManifestFilesLocating!
 
     private var subject: InstallService!
 
@@ -28,7 +29,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         pluginService = MockPluginService()
         configLoader = MockConfigLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
-        manifestFilesLocator = MockManifestFilesLocator()
+        manifestFilesLocator = MockManifestFilesLocating()
 
         subject = InstallService(
             pluginService: pluginService,
@@ -53,7 +54,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
 
-        manifestFilesLocator.locatePackageManifestStub = stubbedPath.appending(components: "Tuist", "Package.swift")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -94,6 +97,9 @@ final class InstallServiceTests: TuistUnitTestCase {
             invokedConfig = config
             return .test()
         }
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
 
         // When
         try await subject.run(
@@ -109,7 +115,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
 
-        manifestFilesLocator.locatePackageManifestStub = stubbedPath.appending(components: "Tuist", "Package.swift")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -139,6 +147,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         let expectedFoundPackageLocation = temporaryDirectory.appending(
             components: Constants.tuistDirectoryName, Manifest.package.fileName(temporaryDirectory)
         )
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(expectedFoundPackageLocation)
 
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundPackageLocation)

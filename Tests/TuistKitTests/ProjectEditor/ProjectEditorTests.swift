@@ -7,6 +7,7 @@ import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
+import MockableTest
 import XCTest
 
 @testable import TuistCoreTesting
@@ -33,7 +34,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var generator: MockDescriptorGenerator!
     private var projectEditorMapper: MockProjectEditorMapper!
     private var resourceLocator: MockResourceLocator!
-    private var manifestFilesLocator: MockManifestFilesLocator!
+    private var manifestFilesLocator: MockManifestFilesLocating!
     private var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     private var writer: MockXcodeProjWriter!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
@@ -46,7 +47,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator = MockDescriptorGenerator()
         projectEditorMapper = MockProjectEditorMapper()
         resourceLocator = MockResourceLocator()
-        manifestFilesLocator = MockManifestFilesLocator()
+        manifestFilesLocator = MockManifestFilesLocating()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
@@ -95,7 +96,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         ]
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
         let configPath = directory.appending(components: "Tuist", "Config.swift")
-        let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swift")
         let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
         try FileHandler.shared.write(
@@ -108,20 +108,20 @@ final class ProjectEditorTests: TuistUnitTestCase {
         )
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, excluding, _ in
-            XCTAssertEqual(
-                excluding,
+        given(manifestFilesLocator).locateProjectManifests(
+            at: .any,
+            excluding: .value(
                 [
                     "**/.build/**",
                     "\(directory.pathString)/a folder/**",
                     "\(directory.pathString)/B.swift",
                 ]
-            )
-            return manifests
-        }
-        manifestFilesLocator.locateConfigStub = configPath
-        manifestFilesLocator.locateDependenciesStub = dependenciesPath
-        manifestFilesLocator.locatePackageManifestStub = packageManifestPath
+            ),
+            onlyCurrentDirectory: .any
+        )
+        .willReturn(manifests)
+        given(manifestFilesLocator).locateConfig(at: .any).willReturn(configPath)
+        given(manifestFilesLocator).locatePackageManifest(at: .any).willReturn(packageManifestPath)
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -151,10 +151,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
-            []
-        }
-        manifestFilesLocator.locatePluginManifestsStub = []
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -179,7 +181,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locatePluginManifestsStub = [pluginManifest]
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([pluginManifest])
 
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -214,7 +218,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locatePluginManifestsStub = pluginManifests
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn(pluginManifests)
 
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -259,10 +265,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
-            manifests
-        }
-        manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn(manifests)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([pluginManifestPath])
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
@@ -306,10 +314,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
-            manifests
-        }
-        manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn(manifests)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([pluginManifestPath])
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: editingPath.appending(component: "Edit.xcworkspacepath"))
@@ -349,10 +359,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
-            manifests
-        }
-        manifestFilesLocator.locatePluginManifestsStub = []
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn(manifests)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
