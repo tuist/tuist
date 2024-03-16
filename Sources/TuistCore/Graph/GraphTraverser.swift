@@ -572,6 +572,57 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
+    public func needsEnableTestingSearchPaths(path: AbsolutePath, name: String) -> Bool {
+        var cache = NSCache<GraphTargetCacheKey, NSNumber>()
+
+        func _needsEnableTestingSearchPaths(
+            path: AbsolutePath,
+            name: String,
+            cache: NSCache<GraphTargetCacheKey, NSNumber>
+        ) -> Bool {
+            if let target = target(path: path, name: name),
+               let gotNeeds = cache.object(forKey: .init(target))
+            {
+                return gotNeeds.boolValue
+            }
+
+            if dependsOnXCTest(path: path, name: name) {
+                return true
+            }
+
+            let allTargetDependencies = allTargetDependencies(
+                path: path,
+                name: name
+            )
+
+            guard !allTargetDependencies.isEmpty else {
+                return false
+            }
+
+            var enable = false
+            for dependency in allTargetDependencies {
+                let key = GraphTargetCacheKey(dependency)
+
+                if let cachedNeeds = cache.object(forKey: key)?.boolValue {
+                    return cachedNeeds
+                }
+
+                let needs = needsEnableTestingSearchPaths(path: dependency.path, name: dependency.target.name)
+
+                if needs {
+                    cache.setObject(1, forKey: .init(dependency))
+                    enable = true
+                    break
+                } else {
+                    cache.setObject(0, forKey: .init(dependency))
+                }
+            }
+            return enable
+        }
+
+        return _needsEnableTestingSearchPaths(path: path, name: name, cache: cache)
+    }
+
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
         guard let target = target(path: path, name: name) else {
             return false
