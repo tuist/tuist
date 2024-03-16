@@ -76,7 +76,8 @@ public enum TargetDependency: Codable, Hashable {
     case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, condition: PlatformCondition? = nil)
 
     /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
-    /// For more info, check the [external dependencies documentation](https://docs.tuist.io/documentation/tuist/dependencies/#External-dependencies).
+    /// For more info, check the [external dependencies documentation
+    /// ](https://docs.tuist.io/documentation/tuist/dependencies/#External-dependencies).
     ///
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
