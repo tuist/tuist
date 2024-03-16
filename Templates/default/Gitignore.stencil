@@ -68,3 +68,4 @@ Derived/
 
 ### Tuist managed dependencies ###
 Tuist/Dependencies
+Tuist/.build
