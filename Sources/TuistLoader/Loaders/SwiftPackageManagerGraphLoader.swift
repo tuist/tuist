@@ -87,9 +87,16 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
+
         let packageInfos: [
             // swiftlint:disable:next large_tuple
-            (id: String, name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)
+            (
+                id: String,
+                name: String,
+                folder: AbsolutePath,
+                targetToArtifactPaths: [String: AbsolutePath],
+                info: PackageInfo
+            )
         ]
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
