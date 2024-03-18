@@ -22,9 +22,14 @@ Once installed, you can install Tuist through any of the following commands:
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
 mise install tuist@x.y.z      # Install a specific version number
 mise install tuist@3          # Install a fuzzy version number
+```
+
+Note that unlike tools like Homebrew, which install and activate a single version of the tool globally, **Mise requires the activation of a version** either globally or scoped to a project. This is done by running `mise use`:
+
+```bash
 mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
-mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use tuist@latest         # Use the latest tuist in the current directory
+mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
