@@ -48,7 +48,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
             if let repoBranch {
                 try gitHandler.checkout(id: repoBranch, in: templatePath)
             }
-            let template = try templateLoader.loadTemplate(at: templatePath)
+            let template = try templateLoader.loadTemplate(at: templatePath, plugins: .none)
             try closure(template)
         }
     }

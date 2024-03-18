@@ -119,7 +119,7 @@ workflows:
       - name: Deploy to Cloudflare Pages
         script: |
           mise install node@latest
-          mise x npm:wrangler@latest -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
+          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
     triggering:
       events:
         - push

@@ -8,7 +8,7 @@ import TuistSupport
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands
-protocol GeneratorFactorying {
+public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
     /// - Parameter testsCacheDirectory: The cache directory used for tests.
@@ -38,7 +38,7 @@ public class GeneratorFactory: GeneratorFactorying {
         self.contentHasher = contentHasher
     }
 
-    func test(
+    public func test(
         config: Config,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,

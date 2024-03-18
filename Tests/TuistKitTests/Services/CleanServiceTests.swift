@@ -1,7 +1,9 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
+import TuistLoader
 import TuistLoaderTesting
 import TuistSupport
 import XCTest
@@ -13,13 +15,13 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!
     private var rootDirectoryLocator: MockRootDirectoryLocator!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
-    private var manifestFilesLocator: MockManifestFilesLocator!
+    private var manifestFilesLocator: MockManifestFilesLocating!
 
     override func setUpWithError() throws {
         super.setUp()
         rootDirectoryLocator = MockRootDirectoryLocator()
         cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
-        manifestFilesLocator = MockManifestFilesLocator()
+        manifestFilesLocator = MockManifestFilesLocating()
 
         subject = CleanService(
             fileHandler: FileHandler.shared,
@@ -44,6 +46,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         let cachePath = cachePaths[0].parentDirectory.parentDirectory
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
         rootDirectoryLocator.locateStub = cachePath
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
 
         // When
         try subject.run(categories: [TuistCleanCategory.global(.manifests)], path: nil)
@@ -58,8 +63,12 @@ final class CleanServiceTests: TuistUnitTestCase {
         let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
 
         rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
-        manifestFilesLocator.locatePackageManifestStub = localPaths[1].parentDirectory
-            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                localPaths[1].parentDirectory
+                    .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+            )
 
         // When
         try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
@@ -74,8 +83,12 @@ final class CleanServiceTests: TuistUnitTestCase {
         let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
 
         rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
-        manifestFilesLocator.locatePackageManifestStub = localPaths[0].parentDirectory
-            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                localPaths[0].parentDirectory
+                    .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+            )
 
         // When
         try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
@@ -94,8 +107,12 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         let projectPath = try temporaryPath()
         rootDirectoryLocator.locateStub = projectPath
-        manifestFilesLocator.locatePackageManifestStub = projectPath
-            .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath
+                    .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+            )
         let swiftPackageManagerBuildPath = projectPath.appending(
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )

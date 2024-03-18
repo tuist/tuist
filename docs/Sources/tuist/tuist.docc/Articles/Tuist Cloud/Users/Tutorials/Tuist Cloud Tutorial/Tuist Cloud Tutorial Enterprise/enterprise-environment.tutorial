@@ -26,6 +26,7 @@
         | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
         | `TUIST_SECRET_KEY_PASSWORD` | The key to use to encrypt a password when storing it | No | `$TUIST_SECRET_KEY_BASE` | |
         | `TUIST_SECRET_KEY_TOKENS` | The key to use to encrypt tokens when storing them (e.g. token for a confirmation email) | No | `$TUIST_SECRET_KEY_BASE` | |        
+        | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
     }
     
     @Section(title: "Authentication") {

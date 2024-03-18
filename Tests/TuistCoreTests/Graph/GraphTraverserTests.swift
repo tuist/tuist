@@ -4720,9 +4720,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.allSwiftMacroTargets(path: project.path, name: app.name)
+        let gotDirectMacroFramework = subject.allSwiftMacroTargets(path: project.path, name: directMacroFramework.name)
 
         // Then
         XCTAssertEqual(got.sorted(), [
+            GraphTarget(path: project.path, target: directMacroFramework, project: project),
+            GraphTarget(path: project.path, target: transitiveMacroLibrary, project: project),
+        ])
+        XCTAssertEqual(gotDirectMacroFramework.sorted(), [
             GraphTarget(path: project.path, target: directMacroFramework, project: project),
             GraphTarget(path: project.path, target: transitiveMacroLibrary, project: project),
         ])

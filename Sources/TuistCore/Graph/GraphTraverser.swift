@@ -457,9 +457,14 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func allSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        let dependencies = allTargetDependencies(path: path, name: name)
+        var dependencies = allTargetDependencies(path: path, name: name)
             .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
             .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
+
+        if let target = target(path: path, name: name), !directSwiftMacroExecutables(path: path, name: name).isEmpty {
+            dependencies.insert(target)
+        }
+
         return Set(dependencies)
     }
 
