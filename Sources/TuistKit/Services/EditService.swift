@@ -62,9 +62,7 @@ final class EditService {
             let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
             let generationDirectory = try cacheDirectory.tuistCacheDirectory(for: .editProjects).appending(component: "\(pathHash)")
             
-            guard let selectedXcode = try XcodeController.shared.selected() else {
-                throw EditServiceError.xcodeNotSelected
-            }
+            let selectedXcode = try XcodeController.shared.guaranteed()
             
             let workspacePath = try projectEditor.edit(
                 at: path,

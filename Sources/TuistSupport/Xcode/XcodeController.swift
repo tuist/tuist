@@ -10,6 +10,13 @@ public protocol XcodeControlling {
     /// - Throws: An error if it can't be obtained.
     func selected() throws -> Xcode?
 
+    /// Returns the non-optional selected Xcode. It uses xcode-select to determine
+    /// the Xcode that is selected in the environment, and throws if none is.
+    ///
+    /// - Returns: Selected Xcode.
+    /// - Throws: An error if it can't be obtained.
+    func guaranteed() throws -> Xcode
+
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
     /// - Returns: `Version` of selected Xcode
@@ -46,6 +53,32 @@ public class XcodeController: XcodeControlling {
         let xcode = try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
         selectedXcode = xcode
         return xcode
+    }
+
+    /// Returns the selected Xcode as a non-optional value. It uses xcode-select to determine
+    /// the Xcode that is selected in the environment.
+    ///
+    /// - Returns: Selected Xcode.
+    /// - Throws: An error if it can't be obtained.
+    public func guaranteed() throws -> Xcode {
+        if let selected = try selected() {
+            return selected
+        } else {
+            throw XcodeSelectedError.noXcodeSelected
+        }
+    }
+    
+    public enum XcodeSelectedError: FatalError {
+        case noXcodeSelected
+
+        public var type: ErrorType { .abort }
+
+        public var description: String {
+            switch self {
+            case .noXcodeSelected:
+                return "No Xcode selected"
+            }
+        }
     }
 
     enum XcodeVersionError: FatalError {

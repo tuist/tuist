@@ -16,6 +16,15 @@ public final class MockXcodeController: XcodeControlling {
         }
     }
 
+    public func guaranteed() throws -> Xcode {
+        guard let selectedStub else { throw XcodeController.XcodeSelectedError.noXcodeSelected }
+
+        switch selectedStub {
+        case let .failure(error): throw error
+        case let .success(xcode): return xcode
+        }
+    }
+
     public func selectedVersion() throws -> Version {
         switch selectedVersionStub {
         case let .failure(error): throw error
