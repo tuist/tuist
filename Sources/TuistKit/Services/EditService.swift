@@ -58,7 +58,7 @@ final class EditService {
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
-            let pathHash = path.hashValue
+            let pathHash = try XcodeProjectPathHasher.hashString(for: path.pathString)
             let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
             let generationDirectory = try cacheDirectory.tuistCacheDirectory(for: .editProjects).appending(component: "\(pathHash)")
             
