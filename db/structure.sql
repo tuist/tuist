@@ -377,6 +377,39 @@ ALTER SEQUENCE public.command_events_id_seq OWNED BY public.command_events.id;
 
 
 --
+-- Name: device_codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.device_codes (
+    id bigint NOT NULL,
+    code character varying NOT NULL,
+    authenticated boolean DEFAULT false,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    user_id bigint
+);
+
+
+--
+-- Name: device_codes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.device_codes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: device_codes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.device_codes_id_seq OWNED BY public.device_codes.id;
+
+
+--
 -- Name: invitations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -750,6 +783,13 @@ ALTER TABLE ONLY public.command_events ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: device_codes id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes ALTER COLUMN id SET DEFAULT nextval('public.device_codes_id_seq'::regclass);
+
+
+--
 -- Name: invitations id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -835,6 +875,14 @@ ALTER TABLE ONLY public.cache_events
 
 ALTER TABLE ONLY public.command_events
     ADD CONSTRAINT command_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: device_codes device_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes
+    ADD CONSTRAINT device_codes_pkey PRIMARY KEY (id);
 
 
 --
@@ -980,6 +1028,13 @@ CREATE INDEX index_cache_events_on_project_id ON public.cache_events USING btree
 --
 
 CREATE INDEX index_command_events_on_project_id ON public.command_events USING btree (project_id);
+
+
+--
+-- Name: index_device_codes_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_device_codes_on_user_id ON public.device_codes USING btree (user_id);
 
 
 --
@@ -1207,6 +1262,14 @@ CREATE TRIGGER que_state_notify AFTER INSERT OR DELETE OR UPDATE ON public.que_j
 
 
 --
+-- Name: device_codes fk_rails_50c7f9f833; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes
+    ADD CONSTRAINT fk_rails_50c7f9f833 FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: s3_buckets fk_rails_9f283692d5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1245,6 +1308,8 @@ ALTER TABLE ONLY public.que_scheduler_audit_enqueued
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20240314092359'),
+('20240305203007'),
 ('20240223151045'),
 ('20240108223110'),
 ('20240108084302'),

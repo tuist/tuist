@@ -25,6 +25,7 @@ Rails.application.routes.draw do
     resources :invitations, path: '/organizations/:organization_name/invitations', only: [:create]
     resources :organizations, :organizations, only: [:create, :index, :destroy, :show]
     resources :projects, :projects, only: [:create, :index, :destroy]
+    get "auth/device_code/:device_code", to: "auth#device_code"
   end
 
   resources :organizations, param: :name, only: [:index] do
@@ -41,6 +42,7 @@ Rails.application.routes.draw do
   get "/ready", to: "application#ready"
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
+  get "/auth/cli/:device_code", to: "auth#authenticate"
   get "/auth", to: "auth#authenticate"
   post '/webhooks/stripe', to: 'webhooks#stripe'
   get '/webhooks/okta', to: 'webhooks#okta_verify'
