@@ -3,6 +3,20 @@
 
 import PackageDescription
 
+#if TUIST
+    import ProjectDescription
+
+    let packageSettings = PackageSettings(
+        productDestinations: [
+            "MyUIKitPackage": [
+                .iPad,
+                .iPhone,
+            ],
+        ]
+    )
+
+#endif
+
 let package = Package(
     name: "MyPackage",
     products: [
@@ -11,6 +25,10 @@ let package = Package(
         .library(
             name: "MyPackage",
             targets: ["MyPackage"]
+        ),
+        .library(
+            name: "MyUIKitPackage",
+            targets: ["MyUIKitPackage"]
         ),
     ],
     dependencies: [
@@ -27,6 +45,12 @@ let package = Package(
         ),
         .target(
             name: "MyPackage",
+            dependencies: [
+                "Alamofire",
+            ]
+        ),
+        .target(
+            name: "MyUIKitPackage",
             dependencies: [
                 "Alamofire",
             ]

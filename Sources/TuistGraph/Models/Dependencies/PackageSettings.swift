@@ -6,6 +6,9 @@ public struct PackageSettings: Equatable, Codable {
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
 
+    /// Custom destinations to be used for SPM products.
+    public let productDestinations: [String: Destinations]
+
     // The base settings to be used for targets generated from SwiftPackageManager
     public let baseSettings: Settings
 
@@ -26,12 +29,14 @@ public struct PackageSettings: Equatable, Codable {
     ///    - projectOptions: The custom project options for each project generated from a swift package
     public init(
         productTypes: [String: Product],
+        productDestinations: [String: Destinations],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
         swiftToolsVersion: Version
     ) {
         self.productTypes = productTypes
+        self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions

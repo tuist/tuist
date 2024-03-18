@@ -756,8 +756,10 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "MyPackage", "--platform", "ios")
+        try await run(BuildCommand.self, "MyPackage", "--platform", "macos")
+        try await run(BuildCommand.self, "MyUIKitPackage", "--platform", "ios")
         try await run(BuildCommand.self, "MyCLI")
-        try await run(TestCommand.self, "--platform", "macos")
+        try await run(TestCommand.self, "--platform", "ios")
     }
 }
 
