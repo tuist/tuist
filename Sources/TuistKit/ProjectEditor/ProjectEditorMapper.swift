@@ -245,9 +245,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
         let packagesTarget: Target? = try {
-            guard let packageManifestPath,
-                  let xcode = try XcodeController.shared.selected()
-            else { return nil }
+            let xcode = try XcodeController.shared.selected()
+            guard let packageManifestPath else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
