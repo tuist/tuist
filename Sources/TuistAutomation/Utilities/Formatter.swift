@@ -8,18 +8,19 @@ protocol Formatting {
 }
 
 final class Formatter: Formatting {
-    private let parser: Parser
+    private let formatter: XCBeautifier
 
     init() {
-        parser = Parser(
+        formatter = XCBeautifier(
             colored: Environment.shared.shouldOutputBeColoured,
             renderer: Self.renderer(),
+            preserveUnbeautifiedLines: false,
             additionalLines: { nil }
         )
     }
 
     func format(_ line: String) -> String? {
-        parser.parse(line: line)
+        formatter.format(line: line)
     }
 
     private static func renderer() -> Renderer {

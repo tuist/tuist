@@ -29,6 +29,7 @@ class ProjectGroups {
     @SortedPBXGroup var sortedMain: PBXGroup
     let products: PBXGroup
     let frameworks: PBXGroup
+    let cachedFrameworks: PBXGroup
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
@@ -40,12 +41,14 @@ class ProjectGroups {
         projectGroups: [(name: String, group: PBXGroup)],
         products: PBXGroup,
         frameworks: PBXGroup,
+        cachedFrameworks: PBXGroup,
         pbxproj: PBXProj
     ) {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
+        self.cachedFrameworks = cachedFrameworks
         self.pbxproj = pbxproj
     }
 
@@ -98,6 +101,11 @@ class ProjectGroups {
         pbxproj.add(object: frameworksGroup)
         mainGroup.children.append(frameworksGroup)
 
+        /// Cached frameworks
+        let cacheGroup = PBXGroup(children: [], sourceTree: .group, name: "Cache")
+        pbxproj.add(object: cacheGroup)
+        mainGroup.children.append(cacheGroup)
+
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         pbxproj.add(object: productsGroup)
@@ -108,6 +116,7 @@ class ProjectGroups {
             projectGroups: projectGroups,
             products: productsGroup,
             frameworks: frameworksGroup,
+            cachedFrameworks: cacheGroup,
             pbxproj: pbxproj
         )
     }

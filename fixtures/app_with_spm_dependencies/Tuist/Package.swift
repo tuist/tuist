@@ -38,6 +38,7 @@ let package = Package(
         // Has an umbrella header where moduleName must be sanitized
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.2.0"),
         .package(url: "https://github.com/googleads/swift-package-manager-google-mobile-ads", from: "11.1.0"),
+        .package(url: "https://github.com/apple/swift-testing", .upToNextMajor(from: "0.5.1")),
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
     ]

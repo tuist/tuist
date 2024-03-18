@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistCore
 import TuistSupport
 
+@Mockable
 public protocol ManifestFilesLocating: AnyObject {
     /// It locates the manifest files in the locating directory.
     /// - Parameter locatingPath: Directory for which the manifest files will be obtained.

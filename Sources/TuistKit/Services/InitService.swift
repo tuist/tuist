@@ -78,7 +78,7 @@ class InitService {
                 template: templateName
             )
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             attributes = template.attributes
         }
 
@@ -133,7 +133,7 @@ class InitService {
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,

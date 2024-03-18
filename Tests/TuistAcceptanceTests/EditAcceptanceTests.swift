@@ -40,6 +40,14 @@ final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     }
 }
 
+final class EditAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
+    func test_spm_package() async throws {
+        try setUpFixture(.spmPackage)
+        try await run(EditCommand.self)
+        try build(scheme: "Manifests")
+    }
+}
+
 extension TuistAcceptanceTestCase {
     fileprivate func build(scheme: String) throws {
         try System.shared.runAndPrint(

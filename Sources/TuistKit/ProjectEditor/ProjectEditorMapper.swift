@@ -158,7 +158,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
     ) throws -> Project? {
-        guard !projectManifests.isEmpty else { return nil }
+        guard !projectManifests.isEmpty || packageManifestPath != nil else { return nil }
 
         let projectName = "Manifests"
         let projectPath = sourceRootPath.appending(component: projectName)
