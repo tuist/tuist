@@ -607,7 +607,7 @@ public class GraphTraverser: GraphTraversing {
             // If there are dependencies found, we need to traverse deeper down the graph
             var enable: Bool? // placeholder when we find a dependency that needs to enable testing paths
             for dependency in allTargetDependencies {
-                let needs = needsEnableTestingSearchPaths(path: dependency.path, name: dependency.target.name)
+                let needs = _needsEnableTestingSearchPaths(path: dependency.path, name: dependency.target.name)
 
                 if needs {
                     cache[dependency] = true
