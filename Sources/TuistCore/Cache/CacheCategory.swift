@@ -13,7 +13,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     case manifests
     
     /// The edit projects cache
-    case generatedEditProjects
+    case editProjects
 
     public var directoryName: String {
         switch self {
@@ -25,7 +25,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "ProjectDescriptionHelpers"
         case .manifests:
             return "Manifests"
-        case .generatedEditProjects:
+        case .editProjects:
             return "EditProjects"
         }
     }

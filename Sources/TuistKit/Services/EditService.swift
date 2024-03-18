@@ -60,7 +60,7 @@ final class EditService {
         if !permanent {
             let pathHash = path.hashValue
             let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
-            let generationDirectory = try cacheDirectory.tuistCacheDirectory(for: .generatedEditProjects).appending(component: "\(pathHash)")
+            let generationDirectory = try cacheDirectory.tuistCacheDirectory(for: .editProjects).appending(component: "\(pathHash)")
             
             guard let selectedXcode = try XcodeController.shared.selected() else {
                 throw EditServiceError.xcodeNotSelected
