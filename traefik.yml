@@ -9,6 +9,7 @@ entryPoints:
 providers:
   file:
     directory: "./.traefik"
+    watch: true
 
 log:
   level: INFO

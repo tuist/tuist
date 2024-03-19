@@ -5,7 +5,7 @@ defmodule TuistCloud.MixProject do
     [
       app: :tuist_cloud,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
       aliases: aliases(),
@@ -59,11 +59,17 @@ defmodule TuistCloud.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.2"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.0"},
       {:castore, "~> 1.0"},
       {:uniq, "~> 0.1"},
-      {:encrypted_secrets, "~> 0.3.0"}
+      {:encrypted_secrets, "~> 0.3.0"},
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:sweet_xml, "~> 0.7"},
+      {:number, "~> 1.0"},
+      {:mimic, "~> 1.7", only: :test},
+      {:open_api_spex, "~> 3.18"},
+      {:ymlr, "~> 2.0"}
     ]
   end
 

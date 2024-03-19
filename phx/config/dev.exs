@@ -5,7 +5,7 @@ config :tuist_cloud, TuistCloud.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "tuist_cloud_dev",
+  database: "tuistcloud_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -82,3 +82,6 @@ config :phoenix_live_view, :debug_heex_annotations, true
 config :swoosh, :api_client, false
 
 config :appsignal, :config, active: true
+
+# Disable caching of OpenAPI Spex as suggested in the docs
+config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache

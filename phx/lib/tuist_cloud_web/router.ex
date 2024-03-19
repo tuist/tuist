@@ -1,6 +1,10 @@
 defmodule TuistCloudWeb.Router do
   use TuistCloudWeb, :router
 
+  pipeline :open_api do
+    plug OpenApiSpex.Plug.PutApiSpec, module: TuistCloudWeb.API.Spec
+  end
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -10,16 +14,40 @@ defmodule TuistCloudWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  pipeline :api do
+  pipeline :non_authenticated_api do
     plug :accepts, ["json"]
   end
 
-  scope "/", TuistCloudWeb do
-    pipe_through :browser
+  pipeline :authenticated_api do
+    plug :accepts, ["json"]
 
-    get "/", PageController, :home
-    get "/ready", PageController, :ready
-    get "/api/phx", PageController, :api
+    plug TuistCloudWeb.WarningsHeaderPlug
+    plug TuistCloudWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistCloudWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+  end
+
+  scope "/" do
+    pipe_through [:open_api, :browser]
+
+    get "/", TuistCloudWeb.PageController, :home
+    get "/ready", TuistCloudWeb.PageController, :ready
+    get "/api-docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi"
+  end
+
+  scope "/api", TuistCloudWeb.API do
+    pipe_through [:open_api, :authenticated_api]
+
+    get "/cache", CacheController, :download
+    get "/cache/exists", CacheController, :exists
+    post "/cache/multipart/start", CacheController, :multipart_start
+    post "/cache/multipart/generate-url", CacheController, :multipart_generate_url
+    post "/cache/multipart/complete", CacheController, :multipart_complete
+  end
+
+  scope "/api" do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/openapi", OpenApiSpex.Plug.RenderSpec, []
   end
 
   # Other scopes may use custom stacks.

@@ -65,7 +65,10 @@ jobs:
         with:
           context: .
           push: true
-          build-args: "TUIST_VERSION=\"${{ steps.version.outputs.version }}\",RAILS_ENV=production,MIX_ENV=prod"
+          build-args: |
+            TUIST_VERSION=${{ steps.version.outputs.version }}
+            RAILS_ENV=production
+            MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}

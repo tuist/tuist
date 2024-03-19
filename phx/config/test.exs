@@ -9,7 +9,7 @@ config :tuist_cloud, TuistCloud.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "tuist_cloud_test#{System.get_env("MIX_TEST_PARTITION")}",
+  database: "tuistcloud_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 

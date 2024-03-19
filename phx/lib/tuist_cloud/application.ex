@@ -1,4 +1,6 @@
 defmodule TuistCloud.Application do
+  @moduledoc false
+
   use Application
   alias TuistCloud.Environment
 

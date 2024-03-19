@@ -140,13 +140,27 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
+env = TuistCloud.Environment.env()
+secrets = TuistCloud.Environment.decrypt_secrets()[env]
+
 if !TuistCloud.Environment.on_premise?() do
-  env = TuistCloud.Environment.env()
-  push_api_key = TuistCloud.Environment.decrypt_secrets()[env][:app_signal][:push_api_key]
   config :appsignal, :config,
     otp_app: :tuist_cloud,
     name: "Tuist Cloud Phoenix",
-    push_api_key: push_api_key,
+    push_api_key: TuistCloud.Environment.app_signal_push_api_key(secrets),
     env: env,
     active: [:prod, :stag, :can] |> Enum.member?(env)
+end
+
+if TuistCloud.Environment.s3_configured?(secrets) do
+  config :ex_aws,
+    access_key_id: TuistCloud.Environment.s3_access_key_id(secrets),
+    secret_access_key: TuistCloud.Environment.s3_secret_access_key(secrets),
+    s3: [
+      # Cloudflare R2 requires HTTPS
+      scheme: "https://",
+      host: TuistCloud.Environment.s3_endpoint(secrets) |> String.replace("https://", ""),
+      # Cloudflare R2 does not require a region, but ExAws needs a value here
+      region: "auto"
+    ]
 end

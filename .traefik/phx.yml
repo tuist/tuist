@@ -1,8 +1,9 @@
 http:
   routers:
     phx:
-      rule: "PathPrefix(`/api/phx`)"
+      rule: "Path(`/api-docs`) || Path(`/api/openapi`) || Path(`/api/cache`) || Path(`/api/cache/exists`) || Path(`/api/cache/multipart/generate-url`) || Path(`/api/cache/multipart/start`) || Path(`/api/cache/multipart/complete`)"
       service: phx
+
   services:
     phx:
       loadBalancer:

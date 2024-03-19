@@ -32,6 +32,7 @@
   "search.exclude": {
     "**/sorbet": true,
     "node_modules/**": true,
+    "phx/deps/**": true,
     "sorbet/**": true
   },
   "rubyLsp.rubyVersionManager": "custom",
@@ -39,5 +40,8 @@
   "[erb]": {
     "editor.defaultFormatter": "aliariff.vscode-erb-beautify"
   },
-  "elixirLS.projectDir": "./phx"
+  "elixirLS.projectDir": "./phx",
+  "emmet.includeLanguages": {
+    "html-eex": "html"
+  }
 }

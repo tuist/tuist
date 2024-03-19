@@ -2,6 +2,20 @@ defmodule TuistCloud.Environment do
   @moduledoc false
   @env Mix.env()
 
+  defmodule Version do
+    @moduledoc ~S"""
+    A module that represents a Tuist Cloud version.
+    Tuist Cloud versions follow the convention MAJOR.YY.MM.DD.
+    """
+    @type t :: %{
+            major: integer(),
+            date: Date.t()
+          }
+    @enforce_keys [:major, :date]
+
+    defstruct [:major, :date]
+  end
+
   def env, do: @env
 
   def truthy?(value) do
@@ -12,52 +26,76 @@ defmodule TuistCloud.Environment do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0"))
   end
 
-  @spec s3_access_key_id() :: String.t() | nil
-  def s3_access_key_id do
-    get([:aws, :access_key_id]) || get([:s3, :access_key_id])
+  def version() do
+    version = get([:version])
+
+    case version do
+      nil ->
+        %Version{major: "1", date: Date.utc_today()}
+
+      "" ->
+        %Version{major: "1", date: Date.utc_today()}
+
+      version ->
+        [major, yy, mm, dd] = String.split(version, ".")
+
+        date =
+          Date.from_iso8601("#{yy}-#{mm}-#{dd}")
+          |> case do
+            {:ok, date} -> date
+            # Fallback in case of error
+            {:error, _} -> Date.utc_today()
+          end
+
+        %Version{major: major, date: date}
+    end
   end
 
-  @spec s3_secret_access_key() :: String.t() | nil
-  def s3_secret_access_key do
-    get([:aws, :secret_access_key]) || get([:s3, :secret_access_key])
+  def s3_access_key_id(secrets \\ secrets()) do
+    get([:aws, :access_key_id], secrets) || get([:s3, :access_key_id], secrets)
   end
 
-  @spec s3_region() :: String.t() | nil
-  def s3_region do
-    get([:aws, :region]) || get([:s3, :region])
+  def s3_secret_access_key(secrets \\ secrets()) do
+    get([:aws, :secret_access_key], secrets) || get([:s3, :secret_access_key], secrets)
   end
 
-  @spec s3_bucket_name() :: String.t() | nil
-  def s3_bucket_name do
-    get([:aws, :bucket_name]) || get([:s3, :bucket_name])
+  def s3_region(secrets \\ secrets()) do
+    get([:aws, :region], secrets) || get([:s3, :region], secrets)
   end
 
-  def s3_configured? do
-    s3_access_key_id() != nil && s3_secret_access_key() != nil && s3_region() != nil &&
-      (!on_premise?() || s3_bucket_name() != nil)
+  def s3_bucket_name(secrets \\ secrets()) do
+    get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
   end
 
-  @spec get([String.t()]) :: String.t() | nil
-  def get(keys) do
+  def s3_endpoint(secrets \\ secrets()) do
+    get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
+  end
+
+  def s3_configured?(secrets \\ secrets()) do
+    s3_access_key_id(secrets) != nil and s3_secret_access_key(secrets) != nil and
+      s3_region(secrets) != nil and
+      (!on_premise?() or s3_bucket_name(secrets) != nil)
+  end
+
+  def app_signal_push_api_key(secrets \\ secrets()) do
+    get([:app_signal, :push_api_key], secrets)
+  end
+
+  def get(keys, secrets \\ secrets()) do
     env_variable =
-      "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join(&String.upcase/1, "_")}"
+      "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join("_", &String.upcase/1)}"
 
     if System.get_env(env_variable) do
       System.get_env(env_variable)
     else
-      get_in(secrets(), keys)
+      get_in(secrets, keys)
     end
   end
 
   def secrets do
-    Application.get_env(:tuist_cloud, :secrets)[rails_env()] || %{}
+    Application.get_env(:tuist_cloud, :secrets)[env()] || %{}
   end
 
-  def rails_env do
-    System.get_env("RAILS_ENV", "development") |> String.to_atom()
-  end
-
-  @spec put_application_secrets(map()) :: :ok
   def put_application_secrets(secrets) do
     Application.put_env(:tuist_cloud, :secrets, secrets)
     :ok
@@ -66,7 +104,6 @@ defmodule TuistCloud.Environment do
   @doc ~s"""
   It decrypts the secrets and returns them.
   """
-  @spec decrypt_secrets() :: map()
   def decrypt_secrets() do
     master_key_path = Path.join("priv/secrets", "master.key")
     master_key_env_variable = "PHX_MASTER_KEY"
