@@ -268,6 +268,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             // Force enable testing search paths
             Dictionary(
                 uniqueKeysWithValues: [
+                    "Mocker", // https://github.com/WeTransfer/Mocker
                     "Nimble", // https://github.com/Quick/Nimble
                     "NimbleObjectiveC", // https://github.com/Quick/Nimble
                     "Quick", // https://github.com/Quick/Quick
