@@ -24,11 +24,10 @@ defmodule TuistCloud.Projects do
   end
 
   def get_project_slug_from_id(id) do
-    with {:project, %{account: %{name: account_name}, name: project_name}} <-
-           {:project, Repo.get(Project, id) |> Repo.preload(:account)} do
-      "#{account_name}/#{project_name}"
+    if project = Repo.get(Project, id) |> Repo.preload(:account) do
+      "#{project.account.name}/#{project.name}"
     else
-      {:project, nil} -> nil
+      nil
     end
   end
 
