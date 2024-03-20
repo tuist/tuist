@@ -124,6 +124,16 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
     }
 }
 
+final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
+        try await run(TestCommand.self, "ModuleA", "--platform", "ios")
+    }
+}
+
 final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture(.appWithSpmDependencies)

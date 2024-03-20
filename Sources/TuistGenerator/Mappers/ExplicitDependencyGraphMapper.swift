@@ -73,6 +73,12 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
         }
 
+        // If any dependency of this target has "ENABLE_TESTING_SEARCH_PATHS" set to "YES", it needs to be propagated
+        // on the upstream target as well
+        if graphTraverser.needsEnableTestingSearchPaths(path: graphTarget.path, name: graphTarget.target.name) {
+            additionalSettings["ENABLE_TESTING_SEARCH_PATHS"] = .string("YES")
+        }
+
         var target = graphTarget.target
         target.settings = Settings(
             base: target.settings?.base ?? [:],
@@ -148,7 +154,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 ),
             ]
         )
-
         return target
     }
 

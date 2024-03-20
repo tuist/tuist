@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.7.0 - 2024-03-19
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.6.0 - 2024-03-11
 
 ### Tuist
