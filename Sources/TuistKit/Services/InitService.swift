@@ -44,17 +44,20 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
+    private let tuistVersionLoader: TuistVersionLoading
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader()
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
+        tuistVersionLoader: TuistVersionLoading = TuistVersionLoader()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
+        self.tuistVersionLoader = tuistVersionLoader
     }
 
     func loadTemplateOptions(
@@ -110,7 +113,7 @@ class InitService {
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        let tuistVersion = try fetchTuistVersion()
+        let tuistVersion = try tuistVersionLoader.getVersion()
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
@@ -251,9 +254,5 @@ class InitService {
         } else {
             return .iOS
         }
-    }
-
-    private func fetchTuistVersion() throws -> String {
-        return try System.shared.capture([CommandLine.arguments[0], "version"])
     }
 }

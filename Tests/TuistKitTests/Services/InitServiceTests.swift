@@ -16,6 +16,7 @@ final class InitServiceTests: TuistUnitTestCase {
     var templateGenerator: MockTemplateGenerator!
     var templateLoader: MockTemplateLoader!
     var templateGitLoader: MockTemplateGitLoader!
+    var tuistVersionLoader: MockTuistVersionLoader!
 
     override func setUp() {
         super.setUp()
@@ -23,11 +24,13 @@ final class InitServiceTests: TuistUnitTestCase {
         templateGenerator = MockTemplateGenerator()
         templateLoader = MockTemplateLoader()
         templateGitLoader = MockTemplateGitLoader()
+        tuistVersionLoader = MockTuistVersionLoader()
         subject = InitService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateGenerator: templateGenerator,
-            templateGitLoader: templateGitLoader
+            templateGitLoader: templateGitLoader,
+            tuistVersionLoader: tuistVersionLoader
         )
     }
 
@@ -60,10 +63,14 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
+
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(Constants.version),
+            "tuist_version": .string(tuistVersion),
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -83,10 +90,14 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
+
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(Constants.version),
+            "tuist_version": .string(tuistVersion),
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -112,10 +123,14 @@ final class InitServiceTests: TuistUnitTestCase {
                 items: []
             )
         }
+
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(Constants.version),
+            "tuist_version": .string(tuistVersion),
             "required": .string("requiredValue"),
             "optional": .string("optionalValue"),
         ]
@@ -151,6 +166,9 @@ final class InitServiceTests: TuistUnitTestCase {
             ])
         }
 
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
@@ -159,7 +177,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(Constants.version),
+            "tuist_version": .string(tuistVersion),
             "optional": context,
         ]
 
@@ -185,6 +203,9 @@ final class InitServiceTests: TuistUnitTestCase {
             ])
         }
 
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
@@ -193,7 +214,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(Constants.version),
+            "tuist_version": .string(tuistVersion),
             "optional": defaultIntegerValue,
         ]
 
