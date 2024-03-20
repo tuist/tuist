@@ -252,7 +252,7 @@ class InitService {
             return .iOS
         }
     }
-    
+
     private func fetchTuistVersion() throws -> String {
         return try System.shared.capture([CommandLine.arguments[0], "version"])
     }
