@@ -33,7 +33,7 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
   maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :tuist_cloud, TuistCloud.Repo,
-    pool_size: 1,
+    pool_size: 10,
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
@@ -43,20 +43,6 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
     # TODO: Add proper certificate verification
     ssl_opts: [
       server_name_indication: to_char_list(parsed_url.host),
-      verify: :verify_none
-    ]
-
-  config :tuist_cloud, TuistCloud.Repo,
-    pool_size: 2,
-    database: parsed_url.path |> String.replace_prefix("/", ""),
-    username: username,
-    password: password,
-    hostname: parsed_url.host,
-    ssl: true,
-    socket_options: [:inet6],
-    # TODO: Add proper certificate verification
-    ssl_opts: [
-      server_name_indication: Kernel.to_charlist(parsed_url.host),
       verify: :verify_none
     ]
 
