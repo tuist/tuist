@@ -1480,6 +1480,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(dependencyHeadersPath)
+        try fileHandler.touch(dependencyHeadersPath.appending(component: "Header.h"))
         try fileHandler.createFolder(sourcesPath)
         let project = try subject.map(
             package: "Package",
