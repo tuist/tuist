@@ -38,6 +38,7 @@ let project = Project(
                 .sdk(name: "ARKit", type: .framework, status: .required, condition: .when([.ios])),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebasePerformance", condition: .when([.ios])),
+                .external(name: "FirebaseRemoteConfig"),
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
             ]
         ),
