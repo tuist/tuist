@@ -41,5 +41,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-testing", .upToNextMajor(from: "0.5.1")),
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
+        .package(url: "https://github.com/kishikawakatsumi/UICKeyChainStore", exact: "2.2.1"),
     ]
 )

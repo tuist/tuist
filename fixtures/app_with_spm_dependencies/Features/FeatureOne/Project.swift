@@ -10,9 +10,11 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.featureOne",
-            sources: ["Sources/**"],
+            sources: ["Sources/*.{swift,m}"],
+            headers: .headers(public: "Sources/*.h"),
             dependencies: [
                 .external(name: "Alamofire"),
+                .external(name: "UICKeyChainStore"),
             ],
             settings: .targetSettings
         ),
