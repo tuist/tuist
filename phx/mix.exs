@@ -60,6 +60,7 @@ defmodule TuistCloud.MixProject do
       {:bandit, "~> 1.2"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.0"},
+      {:appsignal_phoenix, "~> 2.0"},
       {:castore, "~> 1.0"},
       {:uniq, "~> 0.1"},
       {:encrypted_secrets, "~> 0.3.0"},

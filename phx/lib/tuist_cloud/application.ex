@@ -8,6 +8,8 @@ defmodule TuistCloud.Application do
   def start(_type, _args) do
     Environment.decrypt_secrets() |> Environment.put_application_secrets()
 
+    Appsignal.Phoenix.LiveView.attach()
+
     children = [
       TuistCloudWeb.Telemetry,
       TuistCloud.Repo,

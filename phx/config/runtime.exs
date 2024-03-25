@@ -129,13 +129,21 @@ end
 env = TuistCloud.Environment.env()
 secrets = TuistCloud.Environment.decrypt_secrets()[env]
 
+appsignal_name = "Tuist Cloud Phoenix"
+
 if !TuistCloud.Environment.on_premise?() do
   config :appsignal, :config,
     otp_app: :tuist_cloud,
-    name: "Tuist Cloud Phoenix",
+    name: appsignal_name,
     push_api_key: TuistCloud.Environment.app_signal_push_api_key(secrets),
     env: env,
     active: [:prod, :stag, :can] |> Enum.member?(env)
+else
+  config :appsignal, :config,
+    otp_app: :tuist_cloud,
+    name: appsignal_name,
+    env: env,
+    active: false
 end
 
 if TuistCloud.Environment.s3_configured?(secrets) do
