@@ -15,7 +15,7 @@ let package = Package(
         .target(
             name: "Styles",
             dependencies: [
-                .product(name: "LibraryA", package: "LocalSwiftPackageB", condition: .when(platforms: [.macOS])),
+                .product(name: "LibraryA", package: "LocalSwiftPackageB"),
             ],
             resources: [
                 .process("Resources/Fonts"),
