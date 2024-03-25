@@ -521,10 +521,11 @@ final class GenerateAcceptanceTestFrameworkWithEnvironmentVariables: TuistAccept
     func test_framework_with_environment_variables() async throws {
         let context = MockContext()
         try setUpFixture(.frameworkWithEnvironmentVariables)
-//        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
+        
+        context.mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
         try await run(GenerateCommand.self, context: context)
         try await run(BuildCommand.self, "FrameworkA", context: context)
-//        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
+        context.mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
         try await run(GenerateCommand.self, context: context)
         try await run(BuildCommand.self, "FrameworkB", context: context)
     }
