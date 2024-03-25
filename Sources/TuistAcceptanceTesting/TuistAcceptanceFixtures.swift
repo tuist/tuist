@@ -53,6 +53,7 @@ public enum TuistAcceptanceFixtures {
     case macosAppWithExtensions
     case manifestWithLogs
     case multiplatformAppWithExtension
+    case multiplatformAppWithMacrosAndEmbeddedWatchOSApp
     case multiplatformAppWithSdk
     case multiplatformµFeatureUnitTestsWithExplicitDependencies
     case plugin
@@ -171,6 +172,8 @@ public enum TuistAcceptanceFixtures {
             return "manifest_with_logs"
         case .multiplatformAppWithExtension:
             return "multiplatform_app_with_extension"
+        case .multiplatformAppWithMacrosAndEmbeddedWatchOSApp:
+            return "multiplatform_app_with_macros_and_embedded_watchos_app"
         case .multiplatformAppWithSdk:
             return "multiplatform_app_with_sdk"
         case .multiplatformµFeatureUnitTestsWithExplicitDependencies:
