@@ -81,6 +81,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     ) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
+        let previousXcodeProj = try? XcodeProj(pathString: project.xcodeProjPath.pathString)
+
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)
         let workspaceData = XCWorkspaceData(children: [selfRefFile])
@@ -142,7 +144,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let schemes = try schemeDescriptorsGenerator.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            previousXcodeProj: previousXcodeProj
         )
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
