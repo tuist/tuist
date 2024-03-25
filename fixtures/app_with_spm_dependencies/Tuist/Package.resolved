@@ -379,6 +379,15 @@
       }
     },
     {
+      "identity" : "uickeychainstore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kishikawakatsumi/UICKeyChainStore",
+      "state" : {
+        "revision" : "8220ac38124613fb709508426f75fbac6921e261",
+        "version" : "2.2.1"
+      }
+    },
+    {
       "identity" : "xctest-dynamic-overlay",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
