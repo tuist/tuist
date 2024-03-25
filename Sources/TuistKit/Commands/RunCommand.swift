@@ -4,7 +4,7 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 
-public struct RunCommand: AsyncParsableCommand {
+public struct RunCommand: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -68,6 +68,10 @@ public struct RunCommand: AsyncParsableCommand {
     var arguments: [String] = []
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    public func run(context: any TuistSupport.Context) async throws {
         try await RunService().run(
             path: path,
             schemeName: scheme,

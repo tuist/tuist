@@ -25,7 +25,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-public struct ScaffoldCommand: AsyncParsableCommand {
+public struct ScaffoldCommand: ContextualizedAsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
@@ -77,6 +77,10 @@ public struct ScaffoldCommand: AsyncParsableCommand {
     }
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    public func run(context: any Context) async throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
             let format: ListService.OutputFormat = json ? .json : .table

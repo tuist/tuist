@@ -9,7 +9,7 @@ import TuistLoader
 import TuistSupport
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
-public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct GraphCommand: ContextualizedAsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
@@ -74,6 +74,10 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     var outputPath: String?
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    func run(context: any Context) async throws {
         GraphCommand.analyticsDelegate?.addParameters(
             [
                 "format": AnyCodable(format.rawValue),

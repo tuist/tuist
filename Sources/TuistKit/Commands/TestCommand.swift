@@ -6,7 +6,7 @@ import TuistCore
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct TestCommand: ContextualizedAsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
@@ -138,6 +138,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    public func run(context: any Context) async throws {
         let absolutePath: AbsolutePath
 
         if let path {

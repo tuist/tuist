@@ -1,9 +1,10 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistSupport
 
 /// A command to install the remote content the project depends on.
-public struct InstallCommand: AsyncParsableCommand {
+public struct InstallCommand: ContextualizedAsyncParsableCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -26,6 +27,10 @@ public struct InstallCommand: AsyncParsableCommand {
     var update: Bool = false
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    func run(context: any Context) async throws {
         try await InstallService().run(
             path: path,
             update: update

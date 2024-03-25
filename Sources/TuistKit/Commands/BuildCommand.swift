@@ -78,7 +78,7 @@ public struct BuildOptions: ParsableArguments {
 }
 
 /// Command that builds a target from the project in the current directory.
-public struct BuildCommand: AsyncParsableCommand {
+public struct BuildCommand: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -92,6 +92,10 @@ public struct BuildCommand: AsyncParsableCommand {
     var buildOptions: BuildOptions
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    public func run(context: any TuistSupport.Context) async throws {
         let absolutePath: AbsolutePath
         if let path = buildOptions.path {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)

@@ -499,10 +499,10 @@ final class GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptan
 final class GenerateAcceptanceTestFrameworkWithEnvironmentVariables: TuistAcceptanceTestCase {
     func test_framework_with_environment_variables() async throws {
         try setUpFixture(.frameworkWithEnvironmentVariables)
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
+//        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "FrameworkA")
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
+//        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "FrameworkB")
     }

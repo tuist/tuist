@@ -4,7 +4,7 @@ import TSCBasic
 import TuistLoader
 import TuistSupport
 
-struct DumpCommand: AsyncParsableCommand {
+struct DumpCommand: ContextualizedAsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "dump",
@@ -25,6 +25,10 @@ struct DumpCommand: AsyncParsableCommand {
     var manifest: DumpableManifest = .project
 
     func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    func run(context: any Context) async throws {
         try await DumpService().run(path: path, manifest: manifest)
     }
 }

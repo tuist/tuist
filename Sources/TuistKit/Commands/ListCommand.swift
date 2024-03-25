@@ -1,7 +1,8 @@
 import ArgumentParser
 import Foundation
+import TuistSupport
 
-public struct ListCommand: AsyncParsableCommand {
+public struct ListCommand: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -26,6 +27,10 @@ public struct ListCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    func run(context: any Context) async throws {
         let format: ListService.OutputFormat = json ? .json : .table
         try await ListService().run(
             path: path,

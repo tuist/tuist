@@ -4,7 +4,7 @@ import Foundation
 import TuistCore
 import TuistSupport
 
-public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct GenerateCommand: ContextualizedAsyncParsableCommand, HasTrackableParameters {
     public init() {}
     public static var analyticsDelegate: TrackableParametersDelegate?
 
@@ -30,6 +30,10 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var noOpen: Bool = false
 
     public func run() async throws {
+        try await self.run(context: try TuistContext())
+    }
+    
+    public func run(context: Context) async throws {
         try await GenerateService().run(
             path: path,
             noOpen: noOpen
