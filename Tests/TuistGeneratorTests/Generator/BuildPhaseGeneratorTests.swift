@@ -1616,13 +1616,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
         XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
         XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
-        XCTAssertTrue(
-            buildPhase?.outputPaths
-                .contains("$BUILD_DIR/Debug-iphonesimulator/\(macroExecutable.productName)") == true
-        )
-        XCTAssertTrue(
-            buildPhase?.outputPaths
-                .contains("$BUILD_DIR/Debug-iphoneos/\(macroExecutable.productName)") == true
+        XCTAssertEqual(
+            buildPhase?.outputPaths,
+            ["$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"]
         )
     }
 
