@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
+public struct MigrationTargetsByDependenciesCommand: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -21,7 +21,11 @@ public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     )
     var xcodeprojPath: String
 
-    public func run() throws {
+    public func run() async throws {
+        try await run(context: TuistContext())
+    }
+
+    public func run(context _: Context) async throws {
         try MigrationTargetsByDependenciesService()
             .run(xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath))
     }

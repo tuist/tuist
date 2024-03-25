@@ -27,10 +27,10 @@ public struct InstallCommand: ContextualizedAsyncParsableCommand {
     var update: Bool = false
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    func run(context: any Context) async throws {
+
+    public func run(context _: any Context) async throws {
         try await InstallService().run(
             path: path,
             update: update

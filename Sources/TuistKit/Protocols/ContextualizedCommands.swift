@@ -1,7 +1,7 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
-protocol ContextualizedAsyncParsableCommand: AsyncParsableCommand {
+public protocol ContextualizedAsyncParsableCommand: AsyncParsableCommand {
     func run(context: Context) async throws
 }

@@ -7,25 +7,28 @@ import XCTest
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_static_frameworks() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithStaticFrameworks)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, context: context)
     }
 }
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTestCase {
     func test_ios_app_with_static_libraries() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithStaticLibraries)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, context: context)
     }
 }
 
 final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_transitive_framework() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithTransitiveFramework)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "iOS")
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, "App", "--platform", "iOS", context: context)
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
             framework: "Framework1",
             architecture: "arm64"
@@ -34,27 +37,29 @@ final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptan
             "App.app",
             destination: "Debug-iphonesimulator"
         )
-        try await run(BuildCommand.self, "Framework1-iOS", "--platform", "iOS")
-        try await run(BuildCommand.self, "Framework1-macOS", "--platform", "macOS")
-        try await run(BuildCommand.self, "Framework1Tests-iOS", "--platform", "iOS")
-        try await run(BuildCommand.self, "Framework1Tests-macOS", "--platform", "macOS")
-        try await run(BuildCommand.self, "StaticFramework1", "--platform", "iOS")
+        try await run(BuildCommand.self, "Framework1-iOS", "--platform", "iOS", context: context)
+        try await run(BuildCommand.self, "Framework1-macOS", "--platform", "macOS", context: context)
+        try await run(BuildCommand.self, "Framework1Tests-iOS", "--platform", "iOS", context: context)
+        try await run(BuildCommand.self, "Framework1Tests-macOS", "--platform", "macOS", context: context)
+        try await run(BuildCommand.self, "StaticFramework1", "--platform", "iOS", context: context)
     }
 }
 
 final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_static_library_and_package() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithStaticLibraryAndPackage)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, context: context)
     }
 }
 
 final class PrecompiledAcceptanceTestiOSAppWithXCFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_xcframeworks() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithXcframeworks)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, context: context)
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
             framework: "MyFramework",
             architecture: "x86_64"

@@ -64,7 +64,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         )
     }
 
-    public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [], context _: Context) async throws {
         let arguments = arguments + [
             "--path", fixturePath.pathString,
         ]
@@ -73,31 +73,31 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
-    public func run(_ command: RunCommand.Type, _ arguments: String...) async throws {
-        try await run(command, arguments)
+    public func run(_ command: RunCommand.Type, _ arguments: String..., context: Context) async throws {
+        try await run(command, arguments, context: context)
     }
 
-    public func run(_ command: RunCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: RunCommand.Type, _ arguments: [String] = [], context: Context) async throws {
         let arguments = [
             "--path", fixturePath.pathString,
         ] + arguments
 
         let parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        try await parsedCommand.run(context: context)
     }
 
-    public func run(_ command: EditCommand.Type, _ arguments: String...) async throws {
-        try await run(command, arguments)
+    public func run(_ command: EditCommand.Type, _ arguments: String..., context: Context) async throws {
+        try await run(command, arguments, context: context)
     }
 
-    public func run(_ command: EditCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: EditCommand.Type, _ arguments: [String] = [], context: Context) async throws {
         let arguments = arguments + [
             "--path", fixturePath.pathString,
             "--permanent",
         ]
 
         let parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        try await parsedCommand.run(context: context)
 
         xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
             .first(where: { $0.basename == "Manifests.xcodeproj" })
@@ -105,47 +105,51 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.basename == "Manifests.xcworkspace" })
     }
 
-    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: String...) throws {
-        try run(command, arguments)
+    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: String..., context: Context) throws {
+        try run(command, arguments, context: context)
     }
 
-    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: [String] = []) throws {
+    public func run(
+        _ command: MigrationTargetsByDependenciesCommand.Type,
+        _ arguments: [String] = [],
+        context: Context
+    ) async throws {
         let parsedCommand = try command.parse(arguments)
-        try parsedCommand.run()
+        try await parsedCommand.run(context: context)
     }
 
-    public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: TestCommand.Type, _ arguments: [String] = [], context: Context) async throws {
         let arguments = arguments + [
             "--derived-data-path", derivedDataPath.pathString,
             "--path", fixturePath.pathString,
         ]
 
         let parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        try await parsedCommand.run(context: context)
     }
 
-    public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: BuildCommand.Type, _ arguments: [String] = [], context: Context) async throws {
         let arguments = arguments + [
             "--derived-data-path", derivedDataPath.pathString,
             "--path", fixturePath.pathString,
         ]
 
         let parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        try await parsedCommand.run(context: context)
     }
 
-    public func run(_ command: BuildCommand.Type, _ arguments: String...) async throws {
-        try await run(command, arguments)
+    public func run(_ command: BuildCommand.Type, _ arguments: String..., context: Context) async throws {
+        try await run(command, arguments, context: context)
     }
 
-    public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: GenerateCommand.Type, _ arguments: [String] = [], context: Context) async throws {
         let arguments = arguments + [
             "--no-open",
             "--path", fixturePath.pathString,
         ]
 
         let parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        try await parsedCommand.run(context: context)
 
         xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
             .first(where: { $0.extension == "xcodeproj" })
@@ -153,11 +157,19 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.extension == "xcworkspace" })
     }
 
-    public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: String...) async throws {
-        try await run(command, Array(arguments))
+    public func run(
+        _ command: (some ContextualizedAsyncParsableCommand).Type,
+        _ arguments: String...,
+        context: Context
+    ) async throws {
+        try await run(command, Array(arguments), context: context)
     }
 
-    public func run(_ command: (some ParsableCommand).Type, _ arguments: [String] = []) throws {
+    public func run(
+        _ command: (some ContextualizedAsyncParsableCommand).Type,
+        _ arguments: [String] = [],
+        context _: Context
+    ) throws {
         if String(describing: command) == "InitCommand" {
             fixturePath = fixtureTemporaryDirectory.path.appending(
                 component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
@@ -168,10 +180,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
                 ["--path", fixturePath.pathString]
         )
         try parsedCommand.run()
-    }
-
-    public func run(_ command: (some ParsableCommand).Type, _ arguments: String...) throws {
-        try run(command, Array(arguments))
     }
 
     public func addEmptyLine(to file: String) throws {

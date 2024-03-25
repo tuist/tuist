@@ -74,10 +74,10 @@ public struct GraphCommand: ContextualizedAsyncParsableCommand, HasTrackablePara
     var outputPath: String?
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    func run(context: any Context) async throws {
+
+    public func run(context _: any Context) async throws {
         GraphCommand.analyticsDelegate?.addParameters(
             [
                 "format": AnyCodable(format.rawValue),

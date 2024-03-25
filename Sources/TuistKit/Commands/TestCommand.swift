@@ -138,10 +138,10 @@ public struct TestCommand: ContextualizedAsyncParsableCommand, HasTrackableParam
     }
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    public func run(context: any Context) async throws {
+
+    public func run(context _: any Context) async throws {
         let absolutePath: AbsolutePath
 
         if let path {

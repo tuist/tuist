@@ -13,8 +13,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom",
@@ -23,7 +24,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom", "--name", "TemplateProject")
+        try await run(ScaffoldCommand.self, "custom", "--name", "TemplateProject", context: context)
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
@@ -39,8 +40,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom_using_filters() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_filters",
@@ -49,7 +51,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_filters", "--name", "TemplateProject")
+        try await run(ScaffoldCommand.self, "custom_using_filters", "--name", "TemplateProject", context: context)
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
@@ -58,8 +60,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom_using_copy_folder() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_copy_folder",
@@ -68,7 +71,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_copy_folder", "--name", "TemplateProject")
+        try await run(ScaffoldCommand.self, "custom_using_copy_folder", "--name", "TemplateProject", context: context)
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift")),
@@ -98,10 +101,11 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_app_with_plugins_local_plugin() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithPlugins)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess(["scaffold", "custom", "--name", "PluginTemplate", "--path", fixturePath.pathString])
-        try await run(ScaffoldCommand.self, "custom", "--name", "PluginTemplate")
+        try await run(ScaffoldCommand.self, "custom", "--name", "PluginTemplate", context: context)
         let pluginTemplateDirectory = fixturePath.appending(component: "PluginTemplate")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift")),
@@ -117,8 +121,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_app_with_plugins_remote_plugin() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithPlugins)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_two",
@@ -127,7 +132,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_two", "--name", "PluginTemplate")
+        try await run(ScaffoldCommand.self, "custom_two", "--name", "PluginTemplate", context: context)
         let pluginTemplateDirectory = fixturePath.appending(component: "PluginTemplate")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift")),
@@ -143,8 +148,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom_using_attribute() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_attribute",
@@ -153,7 +159,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_attribute", "--name", "TemplateProject")
+        try await run(ScaffoldCommand.self, "custom_using_attribute", "--name", "TemplateProject", context: context)
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
@@ -171,8 +177,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithPluginsAndTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "example",
@@ -181,7 +188,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "example")
+        try await run(ScaffoldCommand.self, "example", context: context)
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "LocalTemplateTest.swift")),
@@ -190,8 +197,9 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
+        let context = MockContext()
         try setUpFixture(.iosAppWithPluginsAndTemplates)
-        try await run(InstallCommand.self)
+        try await run(InstallCommand.self, context: context)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "plugin",
@@ -200,7 +208,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "plugin")
+        try await run(ScaffoldCommand.self, "plugin", context: context)
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "PluginTemplateTest.swift")),

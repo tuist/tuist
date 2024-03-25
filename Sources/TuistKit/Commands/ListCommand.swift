@@ -27,10 +27,10 @@ public struct ListCommand: ContextualizedAsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    func run(context: any Context) async throws {
+
+    public func run(context _: any Context) async throws {
         let format: ListService.OutputFormat = json ? .json : .table
         try await ListService().run(
             path: path,

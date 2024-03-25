@@ -92,10 +92,10 @@ public struct BuildCommand: ContextualizedAsyncParsableCommand {
     var buildOptions: BuildOptions
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    public func run(context: any TuistSupport.Context) async throws {
+
+    public func run(context _: any TuistSupport.Context) async throws {
         let absolutePath: AbsolutePath
         if let path = buildOptions.path {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)

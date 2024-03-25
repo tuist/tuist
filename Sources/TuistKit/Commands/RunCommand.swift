@@ -68,10 +68,10 @@ public struct RunCommand: ContextualizedAsyncParsableCommand {
     var arguments: [String] = []
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    public func run(context: any TuistSupport.Context) async throws {
+
+    public func run(context _: any TuistSupport.Context) async throws {
         try await RunService().run(
             path: path,
             schemeName: scheme,

@@ -30,10 +30,10 @@ public struct GenerateCommand: ContextualizedAsyncParsableCommand, HasTrackableP
     var noOpen: Bool = false
 
     public func run() async throws {
-        try await self.run(context: try TuistContext())
+        try await run(context: try TuistContext())
     }
-    
-    public func run(context: Context) async throws {
+
+    public func run(context _: Context) async throws {
         try await GenerateService().run(
             path: path,
             noOpen: noOpen

@@ -1,8 +1,9 @@
 import ArgumentParser
 import Foundation
 import TuistCore
+import TuistSupport
 
-public struct CleanCommand<T: CleanCategory>: ParsableCommand {
+public struct CleanCommand<T: CleanCategory>: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -22,7 +23,11 @@ public struct CleanCommand<T: CleanCategory>: ParsableCommand {
     )
     var path: String?
 
-    public func run() throws {
+    public func run() async throws {
+        try await run(context: TuistContext())
+    }
+
+    public func run(context _: Context) async throws {
         try CleanService().run(
             categories: cleanCategories,
             path: path
