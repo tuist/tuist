@@ -82,7 +82,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
-            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -425,7 +424,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
-        target _: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
