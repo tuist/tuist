@@ -301,8 +301,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let schemeDescriptors = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
-            graphTraverser: graphTraverser,
-            previousXcodeProj: nil
+            graphTraverser: graphTraverser
         )
 
         // Then
@@ -521,8 +520,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -574,8 +572,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1126,8 +1123,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: workspacePath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1204,8 +1200,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1251,8 +1246,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1264,89 +1258,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
         XCTAssertFalse(result.disableMainThreadChecker)
         XCTAssertEqual(result.language, nil)
-    }
-
-    func test_schemeLaunchAction_when_previousXcodeProjHasArguments() throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/somepath/Project")
-
-        let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
-
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
-        let launchAction = RunAction.test(
-            configurationName: "Debug",
-            filePath: "/usr/bin/foo",
-            diagnosticsOptions: SchemeDiagnosticsOptions(mainThreadCheckerEnabled: true)
-        )
-
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
-        let project = Project.test(path: projectPath, targets: [target])
-        let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let got = try subject.schemeLaunchAction(
-            scheme: scheme,
-            graphTraverser: graphTraverser,
-            rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: XcodeProj(
-                workspace: XCWorkspace(),
-                pbxproj: PBXProj(),
-                sharedData: XCSharedData(
-                    schemes: [
-                        XCScheme(
-                            name: "Library",
-                            lastUpgradeVersion: nil,
-                            version: nil,
-                            launchAction: XCScheme.LaunchAction(
-                                runnable: XCScheme.Runnable(
-                                    buildableReference: XCScheme.BuildableReference(
-                                        referencedContainer: "",
-                                        blueprint: nil,
-                                        buildableName: "",
-                                        blueprintName: ""
-                                    )
-                                ),
-                                buildConfiguration: "Debug",
-                                customWorkingDirectory: "/custom-dir",
-                                useCustomWorkingDirectory: true,
-                                commandlineArguments: XCScheme.CommandLineArguments(
-                                    arguments: [
-                                        XCScheme.CommandLineArguments.CommandLineArgument(
-                                            name: "generate",
-                                            enabled: true
-                                        ),
-                                    ]
-                                )
-                            )
-                        ),
-                    ]
-                )
-            )
-        )
-
-        // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
-        XCTAssertEqual(result.customWorkingDirectory, "/custom-dir")
-        XCTAssertTrue(result.useCustomWorkingDirectory)
-        XCTAssertEqual(result.commandlineArguments?.arguments.count, 1)
-        XCTAssertEqual(
-            result.commandlineArguments?.arguments.first,
-            XCScheme.CommandLineArguments.CommandLineArgument(
-                name: "generate",
-                enabled: true
-            )
-        )
     }
 
     func test_schemeLaunchAction_with_path() throws {
@@ -1381,8 +1292,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1447,8 +1357,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: projectPath,
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
@@ -1494,8 +1403,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1530,8 +1438,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1580,8 +1487,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: extensionScheme,
             graphTraverser: graphTraverser,
             rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -1635,8 +1541,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             scheme: extensionScheme,
             graphTraverser: graphTraverser,
             rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
-            generatedProjects: createGeneratedProjects(projects: [project]),
-            previousXcodeProj: nil
+            generatedProjects: createGeneratedProjects(projects: [project])
         )
 
         // Then
@@ -2049,8 +1954,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: project.targets),
-            graphTraverser: graphTraverser,
-            previousXcodeProj: nil
+            graphTraverser: graphTraverser
         )
 
         // Then
@@ -2098,8 +2002,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: project.targets),
-            graphTraverser: graphTraverser,
-            previousXcodeProj: nil
+            graphTraverser: graphTraverser
         )
 
         // Then
@@ -2168,8 +2071,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: project.targets),
-            graphTraverser: graphTraverser,
-            previousXcodeProj: nil
+            graphTraverser: graphTraverser
         )
 
         XCTAssertEqual(
