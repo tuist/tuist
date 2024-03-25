@@ -54,6 +54,7 @@ class AuthController < ApplicationController
 
     unless cookies.signed[:device_code].nil?
       device_code = DeviceCode.find_by(code: cookies.signed[:device_code])
+      cookies.delete(:device_code)
       unless device_code.nil?
         @authenticated_with_device_code = true
         device_code.update!(
