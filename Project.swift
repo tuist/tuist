@@ -19,7 +19,7 @@ func schemes() -> [Scheme] {
             name: "Tuist-Workspace",
             buildAction: .buildAction(targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) }),
             testAction: .targets(
-                Module.allCases.flatMap(\.testTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.testTargets).map { .testableTarget(target: .target($0.name), isParallelizable: true) }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -37,7 +37,7 @@ func schemes() -> [Scheme] {
                     .map { .target($0) }
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name), isParallelizable: true) }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -55,7 +55,7 @@ func schemes() -> [Scheme] {
                     .map { .target($0) }
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name), isParallelizable: true) }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -88,7 +88,7 @@ func schemes() -> [Scheme] {
             name: $0,
             hidden: true,
             buildAction: .buildAction(targets: [.target($0)]),
-            testAction: .targets([.testableTarget(target: .target($0))]),
+            testAction: .targets([.testableTarget(target: .target($0), isParallelizable: true)]),
             runAction: .runAction(
                 arguments: .arguments(
                     environmentVariables: [
