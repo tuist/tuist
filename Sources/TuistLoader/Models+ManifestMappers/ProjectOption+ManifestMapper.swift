@@ -8,7 +8,7 @@ extension TuistGraph.Project.Options {
     static func from(manifest: ProjectDescription.Project.Options) -> Self {
         .init(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
-            disableBundleAccessors: manifest.disableBundleAccessors,
+            bundleAccessorsOptions: manifest.bundleAccessorsOptions.asTuistGraphComponent(),
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
             textSettings: .init(
@@ -63,6 +63,17 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGroupi
             return .byNameSuffix(build: build, test: test, run: run)
         case .notGrouped:
             return .notGrouped
+        }
+    }
+}
+
+private extension ProjectDescription.Project.Options.BundleAccessorOptions {
+    func asTuistGraphComponent() -> TuistGraph.Project.Options.BundleAccessorOptions {
+        switch self {
+        case .disabled:
+            return .disabled
+        case .enabled(let includeObjcAccessor):
+            return .enabled(includeObjcAccessor: includeObjcAccessor)
         }
     }
 }

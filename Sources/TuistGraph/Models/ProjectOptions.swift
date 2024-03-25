@@ -6,8 +6,8 @@ extension Project {
         /// Defines how to generate automatic schemes
         public let automaticSchemesOptions: AutomaticSchemesOptions
 
-        /// Disables generating Bundle accessors.
-        public let disableBundleAccessors: Bool
+        /// Defines if and how bundle accessors are generated
+        public let bundleAccessorsOptions: BundleAccessorOptions
 
         /// Tuist disables echoing the ENV in shell script build phases
         public let disableShowEnvironmentVarsInScriptPhases: Bool
@@ -26,7 +26,25 @@ extension Project {
             textSettings: TextSettings
         ) {
             self.automaticSchemesOptions = automaticSchemesOptions
-            self.disableBundleAccessors = disableBundleAccessors
+            if disableBundleAccessors {
+                self.bundleAccessorsOptions = .disabled
+            } else {
+                self.bundleAccessorsOptions = .enabled(includeObjcAccessor: true)
+            }
+            self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
+            self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
+            self.textSettings = textSettings
+        }
+        
+        public init(
+            automaticSchemesOptions: AutomaticSchemesOptions,
+            bundleAccessorsOptions: BundleAccessorOptions,
+            disableShowEnvironmentVarsInScriptPhases: Bool,
+            disableSynthesizedResourceAccessors: Bool,
+            textSettings: TextSettings
+        ) {
+            self.automaticSchemesOptions = automaticSchemesOptions
+            self.bundleAccessorsOptions = bundleAccessorsOptions
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
             self.textSettings = textSettings
@@ -168,5 +186,19 @@ extension Project.Options {
         case .disabled:
             return nil
         }
+    }
+}
+
+// MARK: - BundleAccessorOptions
+
+extension Project.Options {
+    /// Defines if and how bundle accessors are generated
+    public enum BundleAccessorOptions: Codable, Hashable {
+        /// Enables generated bundle accessors
+        /// Option to control wether an accessor for Objective-C run time will be added as well
+        case enabled(includeObjcAccessor: Bool)
+
+        /// Disables generated bundle accessors
+        case disabled
     }
 }

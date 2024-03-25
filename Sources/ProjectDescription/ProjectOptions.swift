@@ -12,8 +12,8 @@ extension Project {
         /// Configures the development region.
         public var developmentRegion: String?
 
-        /// Disables generating Bundle accessors.
-        public var disableBundleAccessors: Bool
+        /// Defines if and how bundle accessors are generated
+        public var bundleAccessorsOptions: BundleAccessorOptions
 
         /// Suppress logging of environment in Run Script build phases.
         public var disableShowEnvironmentVarsInScriptPhases: Bool
@@ -37,11 +37,37 @@ extension Project {
             textSettings: TextSettings = .textSettings(),
             xcodeProjectName: String? = nil
         ) -> Self {
+            var bundleAccessorsOptions: BundleAccessorOptions = .enabled(includeObjcAccessor: true)
+            if disableBundleAccessors {
+                bundleAccessorsOptions = .disabled
+            }
+            return self.init(
+                automaticSchemesOptions: automaticSchemesOptions,
+                defaultKnownRegions: defaultKnownRegions,
+                developmentRegion: developmentRegion,
+                bundleAccessorsOptions: bundleAccessorsOptions,
+                disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
+                disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
+                textSettings: textSettings,
+                xcodeProjectName: xcodeProjectName
+            )
+        }
+        
+        public static func projectOptions(
+            automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+            defaultKnownRegions: [String]? = nil,
+            developmentRegion: String? = nil,
+            bundleAccessorsOptions: BundleAccessorOptions = .enabled(includeObjcAccessor: true),
+            disableShowEnvironmentVarsInScriptPhases: Bool = false,
+            disableSynthesizedResourceAccessors: Bool = false,
+            textSettings: TextSettings = .textSettings(),
+            xcodeProjectName: String? = nil
+        ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
                 defaultKnownRegions: defaultKnownRegions,
                 developmentRegion: developmentRegion,
-                disableBundleAccessors: disableBundleAccessors,
+                bundleAccessorsOptions: bundleAccessorsOptions,
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
@@ -110,5 +136,19 @@ extension Project.Options {
         ) -> Self {
             self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
         }
+    }
+}
+
+// MARK: - BundleAccessorOptions
+
+extension Project.Options {
+    /// Defines if and how bundle accessors are generated
+    public enum BundleAccessorOptions: Codable, Hashable {
+        /// Enables generated bundle accessors
+        /// Option to control wether an accessor for Objective-C run time will be added as well
+        case enabled(includeObjcAccessor: Bool)
+
+        /// Disables generated bundle accessors
+        case disabled
     }
 }

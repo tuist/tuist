@@ -6,9 +6,9 @@ extension ProjectDescription.Project.Options {
     /// - Parameters:
     /// - manifest: Manifest representation of project options.
     static func from(manifest: TuistGraph.Project.Options) -> Self {
-        options(
+        projectOptions(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
-            disableBundleAccessors: manifest.disableBundleAccessors,
+            bundleAccessorsOptions: manifest.bundleAccessorsOptions.asProjectDescriptionComponent(),
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
             textSettings: .textSettings(
@@ -76,6 +76,17 @@ extension ProjectDescription.ScreenCaptureFormat {
             return .screenshots
         case .screenRecording:
             return .screenRecording
+        }
+    }
+}
+
+private extension TuistGraph.Project.Options.BundleAccessorOptions {
+    func asProjectDescriptionComponent() -> ProjectDescription.Project.Options.BundleAccessorOptions {
+        switch self {
+        case .disabled:
+            return .disabled
+        case .enabled(let includeObjcAccessor):
+            return .enabled(includeObjcAccessor: includeObjcAccessor)
         }
     }
 }
