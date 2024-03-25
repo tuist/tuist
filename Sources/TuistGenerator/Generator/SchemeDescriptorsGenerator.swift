@@ -1,5 +1,4 @@
 import Foundation
-import Mockable
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -8,7 +7,6 @@ import TuistSupport
 import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
-@Mockable
 protocol SchemeDescriptorsGenerating {
     /// Generates the schemes for the workspace targets.
     ///
@@ -35,8 +33,7 @@ protocol SchemeDescriptorsGenerating {
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
-        graphTraverser: GraphTraversing,
-        previousXcodeProj: XcodeProj?
+        graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor]
 }
 
@@ -87,8 +84,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 path: workspace.xcWorkspacePath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck,
-                previousXcodeProj: nil
+                lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
         }
 
@@ -98,8 +94,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
-        graphTraverser: GraphTraversing,
-        previousXcodeProj: XcodeProj?
+        graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor] {
         try project.schemes.map { scheme in
             try generateScheme(
@@ -107,8 +102,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: [project.xcodeProjPath: generatedProject],
-                lastUpgradeCheck: project.lastUpgradeCheck,
-                previousXcodeProj: previousXcodeProj
+                lastUpgradeCheck: project.lastUpgradeCheck
             )
         }
     }
@@ -141,8 +135,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
-        lastUpgradeCheck: Version?,
-        previousXcodeProj: XcodeProj?
+        lastUpgradeCheck: Version?
     ) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
@@ -160,8 +153,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             scheme: scheme,
             graphTraverser: graphTraverser,
             rootPath: path,
-            generatedProjects: generatedProjects,
-            previousXcodeProj: previousXcodeProj
+            generatedProjects: generatedProjects
         )
         let generatedProfileAction = try schemeProfileAction(
             scheme: scheme,
@@ -439,15 +431,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         scheme: Scheme,
         graphTraverser: GraphTraversing,
         rootPath: AbsolutePath,
-        generatedProjects: [AbsolutePath: GeneratedProject],
-        previousXcodeProj: XcodeProj?
+        generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.LaunchAction? {
         let specifiedExecutableTarget = scheme.runAction?.executable
         let defaultTarget = defaultTargetReference(scheme: scheme)
         guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
-
-        let previousScheme = previousXcodeProj?.sharedData?.schemes
-            .first(where: { $0.name == scheme.name })
 
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
@@ -513,14 +501,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var locationScenarioReference: XCScheme.LocationScenarioReference?
 
         if let arguments = scheme.runAction?.arguments {
-            let launchArguments = if arguments.launchArguments.isEmpty {
-                previousScheme?.launchAction?.commandlineArguments?.arguments ?? []
-            } else {
-                getCommandlineArguments(arguments.launchArguments)
-            }
-            commandlineArguments = XCScheme.CommandLineArguments(
-                arguments: launchArguments
-            )
+            commandlineArguments = XCScheme.CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
             environments = environmentVariables(arguments.environmentVariables)
         }
 
@@ -630,8 +611,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
-            customWorkingDirectory: previousScheme?.launchAction?.customWorkingDirectory,
-            useCustomWorkingDirectory: previousScheme?.launchAction?.useCustomWorkingDirectory ?? false,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             enableAddressSanitizer: enableAddressSanitizer,
