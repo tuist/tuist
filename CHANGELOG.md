@@ -4,10 +4,6 @@
 
 ### Tuist
 
-#### Changed
-
-- Preserve custom arguments passed on launch and working directory [#6110](https://github.com/tuist/tuist/pull/6110) by [@fortmarek](https://github.com/fortmarek)
-
 #### Added
 
 - Updated init template with `.mise.toml` and `Package.swift` files [#6044](https://github.com/tuist/tuist/pull/6044) by [@dxmvsh](https://github.com/dxmvsh)
