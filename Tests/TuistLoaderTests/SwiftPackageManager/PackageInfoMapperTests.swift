@@ -2001,7 +2001,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature Foo"]]),
+                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature \"Foo\""]]),
                 ]
             )
         )
@@ -2043,7 +2043,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature Foo"]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature \"Foo\""]]
                     ),
                 ]
             )
