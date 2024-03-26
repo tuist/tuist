@@ -19,6 +19,12 @@ public struct RunActionOptions: Equatable, Codable {
 
     /// Configure your project to work with the Metal frame debugger.
     public let enableGPUFrameCaptureMode: GPUFrameCaptureMode
+    
+    /// Custom working directory for running the scheme.
+    public var customWorkingDirectory: AbsolutePath?
+    
+    /// Whether to use the `customWorkingDirectory` or not. Off by default.
+    public var useCustomWorkingDirectory: Bool
 
     /// Creates an `RunActionOptions` instance
     ///
@@ -42,13 +48,17 @@ public struct RunActionOptions: Equatable, Codable {
         region: String? = nil,
         storeKitConfigurationPath: AbsolutePath? = nil,
         simulatedLocation: SimulatedLocation? = nil,
-        enableGPUFrameCaptureMode: GPUFrameCaptureMode = .autoEnabled
+        enableGPUFrameCaptureMode: GPUFrameCaptureMode = .autoEnabled,
+        customWorkingDirectory: AbsolutePath? = nil,
+        useCustomWorkingDirectory: Bool = false
     ) {
         self.language = language
         self.region = region
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
+        self.customWorkingDirectory = customWorkingDirectory
+        self.useCustomWorkingDirectory = useCustomWorkingDirectory
     }
 }
 

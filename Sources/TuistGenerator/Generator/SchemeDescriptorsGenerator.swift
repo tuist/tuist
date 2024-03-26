@@ -446,9 +446,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let defaultTarget = defaultTargetReference(scheme: scheme)
         guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
 
-        let previousScheme = previousXcodeProj?.sharedData?.schemes
-            .first(where: { $0.name == scheme.name })
-
         var buildableProductRunnable: XCScheme.BuildableProductRunnable?
         var macroExpansion: XCScheme.BuildableReference?
         var pathRunnable: XCScheme.PathRunnable?

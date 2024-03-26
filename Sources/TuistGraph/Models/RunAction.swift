@@ -4,18 +4,18 @@ import TSCBasic
 public struct RunAction: Equatable, Codable {
     // MARK: - Attributes
 
-    public let configurationName: String
-    public let attachDebugger: Bool
-    public let customLLDBInitFile: AbsolutePath?
-    public let preActions: [ExecutionAction]
-    public let postActions: [ExecutionAction]
-    public let executable: TargetReference?
-    public let filePath: AbsolutePath?
-    public let arguments: Arguments?
-    public let options: RunActionOptions
-    public let diagnosticsOptions: SchemeDiagnosticsOptions
-    public let expandVariableFromTarget: TargetReference?
-    public let launchStyle: LaunchStyle
+    public var configurationName: String
+    public var attachDebugger: Bool
+    public var customLLDBInitFile: AbsolutePath?
+    public var preActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
+    public var executable: TargetReference?
+    public var filePath: AbsolutePath?
+    public var arguments: Arguments?
+    public var options: RunActionOptions
+    public var diagnosticsOptions: SchemeDiagnosticsOptions
+    public var expandVariableFromTarget: TargetReference?
+    public var launchStyle: LaunchStyle
 
     // MARK: - Init
 

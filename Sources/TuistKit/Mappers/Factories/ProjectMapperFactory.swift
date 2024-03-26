@@ -76,6 +76,8 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
+        
+        mappers.append(RunActionConfigurationProjectMapper())
 
         return mappers
     }
