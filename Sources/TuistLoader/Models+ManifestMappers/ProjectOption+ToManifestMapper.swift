@@ -80,12 +80,12 @@ extension ProjectDescription.ScreenCaptureFormat {
     }
 }
 
-private extension TuistGraph.Project.Options.BundleAccessorOptions {
-    func asProjectDescriptionComponent() -> ProjectDescription.Project.Options.BundleAccessorOptions {
+extension TuistGraph.Project.Options.BundleAccessorOptions {
+    fileprivate func asProjectDescriptionComponent() -> ProjectDescription.Project.Options.BundleAccessorOptions {
         switch self {
         case .disabled:
             return .disabled
-        case .enabled(let includeObjcAccessor):
+        case let .enabled(includeObjcAccessor):
             return .enabled(includeObjcAccessor: includeObjcAccessor)
         }
     }

@@ -13,7 +13,7 @@ extension Project.Options {
             testingOptions: []
         )
     }
-    
+
     public static func test(
         automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
         disableBundleAccessors: Bool = false,
@@ -29,7 +29,7 @@ extension Project.Options {
             textSettings: textSettings
         )
     }
-    
+
     public static func testOptions(
         automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
         bundleAccessorsOptions: BundleAccessorOptions = .disabled,

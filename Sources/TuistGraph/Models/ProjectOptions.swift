@@ -27,15 +27,15 @@ extension Project {
         ) {
             self.automaticSchemesOptions = automaticSchemesOptions
             if disableBundleAccessors {
-                self.bundleAccessorsOptions = .disabled
+                bundleAccessorsOptions = .disabled
             } else {
-                self.bundleAccessorsOptions = .enabled(includeObjcAccessor: true)
+                bundleAccessorsOptions = .enabled(includeObjcAccessor: true)
             }
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
             self.textSettings = textSettings
         }
-        
+
         public init(
             automaticSchemesOptions: AutomaticSchemesOptions,
             bundleAccessorsOptions: BundleAccessorOptions,

@@ -15,11 +15,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         switch project.options.bundleAccessorsOptions {
         case .disabled:
             return (project, [])
-        case .enabled(let includeObjcAccessor):
+        case let .enabled(includeObjcAccessor):
             return try map(project: project, to: includeObjcAccessor)
         }
     }
-    
+
     public func map(project: Project, to includeObjcBundleAccessor: Bool) throws -> (Project, [SideEffectDescriptor]) {
         logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
@@ -36,7 +36,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     // swiftlint:disable:next function_body_length
-    public func mapTarget(_ target: Target, project: Project, to includeObjcBundleAccessor: Bool) throws -> ([Target], [SideEffectDescriptor]) {
+    public func mapTarget(
+        _ target: Target,
+        project: Project,
+        to includeObjcBundleAccessor: Bool
+    ) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
 
         var additionalTargets: [Target] = []
@@ -71,14 +75,21 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        let conflictsWithObjectiveCBundleAccessor = target.sources.contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
+        let conflictsWithObjectiveCBundleAccessor = target.sources
+            .contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
         let skipBundleAccessor = conflictsWithObjectiveCBundleAccessor && includeObjcBundleAccessor
-        let qualifiesForBundleAccessors = target.supportsSources && target.sources.contains(where: { $0.path.extension == "swift" })
-        
+        let qualifiesForBundleAccessors = target.supportsSources && target.sources
+            .contains(where: { $0.path.extension == "swift" })
+
         let shouldSynthesizeBundleAccessor = qualifiesForBundleAccessors && !skipBundleAccessor
-        
+
         if shouldSynthesizeBundleAccessor {
-            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project, to: includeObjcBundleAccessor)
+            let (filePath, data) = synthesizedSwiftFile(
+                bundleName: bundleName,
+                target: target,
+                project: project,
+                to: includeObjcBundleAccessor
+            )
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -130,10 +141,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedSwiftFile(bundleName: String, 
-                              target: Target,
-                              project: Project,
-                              to includeObjcBundleAccessor: Bool) -> (AbsolutePath, Data?) {
+    func synthesizedSwiftFile(
+        bundleName: String,
+
+        target: Target,
+        project: Project,
+        to includeObjcBundleAccessor: Bool
+    ) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
@@ -178,10 +192,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName: String, 
-                            bundleName: String,
-                            target: Target,
-                            includeObjcBundleAccessor: Bool = true) -> String {
+    static func fileContent(
+        targetName: String,
+
+        bundleName: String,
+        target: Target,
+        includeObjcBundleAccessor: Bool = true
+    ) -> String {
         if !target.supportsResources {
             var content = """
             // swiftlint:disable all
@@ -234,7 +251,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 fatalError("unable to find bundle named \(bundleName)")
             }()
             }
-            
+
             """
             if includeObjcBundleAccessor {
                 content += objectiveCBundleAccessorString(for: target)
@@ -309,7 +326,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
         """
     }
-    
+
     private static func objectiveCBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Objective-C Bundle Accessor
@@ -320,7 +337,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             return .module
         }
         }
-        
+
         """
     }
 }

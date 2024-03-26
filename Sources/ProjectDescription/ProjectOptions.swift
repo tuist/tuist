@@ -52,7 +52,7 @@ extension Project {
                 xcodeProjectName: xcodeProjectName
             )
         }
-        
+
         public static func projectOptions(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,

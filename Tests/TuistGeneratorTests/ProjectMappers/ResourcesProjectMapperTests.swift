@@ -382,7 +382,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_map_simple_target_no_bundle_accessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -392,8 +392,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             sources: ["/Absolute/File.swift"],
             resources: resources
         )
-        project = Project.test(options: .testOptions(bundleAccessorsOptions: .disabled),
-                               targets: [target])
+        project = Project.test(
+            options: .testOptions(bundleAccessorsOptions: .disabled),
+            targets: [target]
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -401,7 +403,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Then: NO Side effects
         XCTAssertEqual(gotSideEffects.count, 0)
     }
-    
+
     func test_map_simple_target_no_objc_bundle_accessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -411,8 +413,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             sources: ["/Absolute/File.swift"],
             resources: resources
         )
-        project = Project.test(options: .testOptions(bundleAccessorsOptions: .enabled(includeObjcAccessor: false)),
-                               targets: [target])
+        project = Project.test(
+            options: .testOptions(bundleAccessorsOptions: .enabled(includeObjcAccessor: false)),
+            targets: [target]
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -429,14 +433,16 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name,
-                         bundleName: "\(project.name)_test_tuist",
-                         target: target,
-                         includeObjcBundleAccessor: false)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_test_tuist",
+                target: target,
+                includeObjcBundleAccessor: false
+            )
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
-    
+
     func test_map_simple_target_with_objc_bundle_accessors_and_with_class_with_the_same_symbols() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -447,8 +453,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             sources: [.init(stringLiteral: "/Absolute/\(targetName)Resources.swift")],
             resources: resources
         )
-        project = Project.test(options: .testOptions(bundleAccessorsOptions: .enabled(includeObjcAccessor: true)),
-                               targets: [target])
+        project = Project.test(
+            options: .testOptions(bundleAccessorsOptions: .enabled(includeObjcAccessor: true)),
+            targets: [target]
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)

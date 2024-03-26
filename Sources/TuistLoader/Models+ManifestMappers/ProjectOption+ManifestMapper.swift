@@ -67,12 +67,12 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGroupi
     }
 }
 
-private extension ProjectDescription.Project.Options.BundleAccessorOptions {
-    func asTuistGraphComponent() -> TuistGraph.Project.Options.BundleAccessorOptions {
+extension ProjectDescription.Project.Options.BundleAccessorOptions {
+    fileprivate func asTuistGraphComponent() -> TuistGraph.Project.Options.BundleAccessorOptions {
         switch self {
         case .disabled:
             return .disabled
-        case .enabled(let includeObjcAccessor):
+        case let .enabled(includeObjcAccessor):
             return .enabled(includeObjcAccessor: includeObjcAccessor)
         }
     }

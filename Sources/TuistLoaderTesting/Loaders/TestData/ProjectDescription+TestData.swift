@@ -47,7 +47,7 @@ extension Project {
         settings: Settings? = nil,
         targets: [Target] = [],
         additionalFiles: [FileElement] = [],
-        options: Options = .options()
+        options _: Options = .options()
     ) -> Project {
         Project(
             name: name,
