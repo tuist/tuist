@@ -1,0 +1,34 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "ProjectAutomation",
+        "repositoryURL": "https://github.com/tuist/ProjectAutomation",
+        "state": {
+          "branch": null,
+          "revision": "d794f0c4a4e2f0f918ed4acabcfdecd2535e0696",
+          "version": "4.7.0"
+        }
+      },
+      {
+        "package": "swift-system",
+        "repositoryURL": "https://github.com/apple/swift-system.git",
+        "state": {
+          "branch": null,
+          "revision": "836bc4557b74fe6d2660218d56e3ce96aff76574",
+          "version": "1.1.1"
+        }
+      },
+      {
+        "package": "swift-tools-support-core",
+        "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
+        "state": {
+          "branch": null,
+          "revision": "4f07be3dc201f6e2ee85b6942d0c220a16926811",
+          "version": "0.2.7"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
