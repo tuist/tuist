@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.8.0 - 2024-03-26
+
+### Tuist
+
+#### Changed
+
+- Preserve custom arguments passed on launch and working directory [#6110](https://github.com/tuist/tuist/pull/6110) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Updated init template with `.mise.toml` and `Package.swift` files [#6044](https://github.com/tuist/tuist/pull/6044) by [@dxmvsh](https://github.com/dxmvsh)
+
+#### Fixed
+
+- Fix testing search path build settings when forcing explicit dependencies [#5773](https://github.com/tuist/tuist/pull/5773) by [@alexanderwe](https://github.com/alexanderwe)
+- Fix integration of latest Firebase [#6104](https://github.com/tuist/tuist/pull/6104) by [@fortmarek](https://github.com/fortmarek)
+- Fix custom configurations from target when `enforceExplicitDependencies` option  is enabled [#6080](https://github.com/tuist/tuist/pull/6080) by [@fdzsergio](https://github.com/fdzsergio)
+- Fix Swift Macros when embedded apps [#6109](https://github.com/tuist/tuist/pull/6109) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.7.0 - 2024-03-19
 
 ### Tuist
