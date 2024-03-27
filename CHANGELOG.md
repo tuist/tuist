@@ -4,7 +4,8 @@
 
 ### Tuist
 
-- no changes
+#### Fixed
+- Fix released binaries missing `x86_64` Swift module interfaces for `ProjectDescription.framework`.
 
 ### Tuist Cloud
 
