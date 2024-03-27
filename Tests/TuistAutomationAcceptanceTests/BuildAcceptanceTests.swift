@@ -143,3 +143,12 @@ final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
+
+final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
