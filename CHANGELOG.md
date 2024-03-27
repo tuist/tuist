@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.8.1 - 2024-03-27
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.8.0 - 2024-03-26
 
 ### Tuist
