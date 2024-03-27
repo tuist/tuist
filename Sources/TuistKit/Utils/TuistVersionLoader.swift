@@ -15,6 +15,6 @@ final class TuistVersionLoader: TuistVersionLoading {
     func getVersion() throws -> String {
         try system
             .capture(["tuist", "version"])
-            .replacingOccurrences(of: "\n", with: "")
+            .spm_chomp()
     }
 }
