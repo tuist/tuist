@@ -61,9 +61,9 @@ struct SettingsMapper {
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
             case (.swift, .enableUpcomingFeature):
-                swiftFlags.append("-enable-upcoming-feature \(setting.value[0])")
+                swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
-                swiftFlags.append("-enable-experimental-feature \(setting.value[0])")
+                swiftFlags.append("-enable-experimental-feature \"\(setting.value[0])\"")
             case (.linker, .unsafeFlags):
                 linkerFlags.append(contentsOf: setting.value)
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):

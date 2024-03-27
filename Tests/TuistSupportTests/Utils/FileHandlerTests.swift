@@ -18,6 +18,8 @@ final class FileHandlerErrorTests: XCTestCase {
 }
 
 final class FileHandlerTests: TuistUnitTestCase {
+    struct TestDecodable: Decodable {}
+
     private var subject: FileHandler!
     private let fileManager = FileManager.default
 
@@ -102,6 +104,25 @@ final class FileHandlerTests: TuistUnitTestCase {
         XCTAssertEqual(result.basenameWithoutExt, testZippedFrameworkPath.basenameWithoutExt)
         XCTAssertEqual(result.basename, "\(testZippedFrameworkPath.basenameWithoutExt).txt")
         _ = try subject.changeExtension(path: result, to: "zip")
+    }
+
+    func test_readPlistFile_throwsAnError_when_invalidPlist() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        let plistPath = temporaryDirectory.appending(component: "file.plist")
+        try FileHandler.shared.touch(plistPath)
+
+        // When/Then
+        var _error: Error? = nil
+        do {
+            let _: TestDecodable = try subject.readPlistFile<TestDecodable>(plistPath)
+        } catch {
+            _error = error
+        }
+        XCTAssertEqual(
+            _error as? FileHandlerError,
+            FileHandlerError.propertyListDecodeError(plistPath, description: "The given data was not a valid property list.")
+        )
     }
 
     // MARK: - Private
