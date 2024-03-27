@@ -26,7 +26,7 @@ final class TuistVersionLoaderTests: TuistUnitTestCase {
         XCTAssertTrue(mockSystem.called(["tuist", "version"]))
         XCTAssertEqual(result, "4.0.1")
     }
-    
+
     func test_getVersion_removesNewLines() throws {
         // given
         let version = "4.0.1\n"
