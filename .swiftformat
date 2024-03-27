@@ -7,7 +7,7 @@
 --disable hoistAwait
 --disable hoistTry
 --disable redundantReturn
---swiftversion 5.9
+--swiftversion 5.10
 --minversion 0.53.0
 
 # format options
