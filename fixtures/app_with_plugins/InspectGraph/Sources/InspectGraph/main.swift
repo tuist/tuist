@@ -3,7 +3,8 @@ import ProjectAutomation
 
 let graph: Graph
 if CommandLine.arguments.contains("--path"),
-    let path = CommandLine.arguments.last {
+   let path = CommandLine.arguments.last
+{
     graph = try Tuist.graph(at: path)
 } else {
     graph = try Tuist.graph()
