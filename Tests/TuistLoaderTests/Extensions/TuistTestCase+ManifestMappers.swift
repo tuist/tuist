@@ -59,6 +59,12 @@ extension TuistTestCase {
             line: line
         )
         XCTAssertEqual(
+            target.privacyManifest?.path,
+            try generatorPaths.resolve(path: manifest.privacyManifest!.path!),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
             target.environmentVariables,
             manifest.environmentVariables.mapValues(EnvironmentVariable.from),
             file: file,

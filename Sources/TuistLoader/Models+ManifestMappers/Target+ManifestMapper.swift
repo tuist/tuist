@@ -51,6 +51,11 @@ extension TuistGraph.Target {
 
         let entitlements = try TuistGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
 
+        let privacyManifest = try TuistGraph.PrivacyManifest.from(
+            manifest: manifest.privacyManifest,
+            generatorPaths: generatorPaths
+        )
+
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let mergedBinaryType = try TuistGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
 
@@ -108,6 +113,7 @@ extension TuistGraph.Target {
             deploymentTargets: deploymentTargets,
             infoPlist: infoPlist,
             entitlements: entitlements,
+            privacyManifest: privacyManifest,
             settings: settings,
             sources: sources,
             resources: resources,

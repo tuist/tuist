@@ -147,7 +147,22 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
-    func test_lint_when_entitlements_not_missing() throws {
+    func test_lint_when_a_privacyManifest_file_is_being_copied() {
+        let path = try! AbsolutePath(validating: "/PrivacyInfo.xcprivacy")
+        let target = Target.test(resources: [.file(path: path)])
+
+        let got = subject.lint(target: target)
+
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "Privacy manifest file at path \(path.pathString) being copied into the target \(target.name) product.",
+                severity: .warning
+            )
+        )
+    }
+
+    func test_lint_when_infoplist_not_found() throws {
         let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
@@ -160,7 +175,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
-    func test_lint_when_infoplist_not_found() throws {
+    func test_lint_when_entitlements_not_missing() throws {
         let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: .file(path: path))
@@ -170,6 +185,19 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTContainsLintingIssue(
             got,
             LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error)
+        )
+    }
+
+    func test_lint_when_xcprivacy_not_found() throws {
+        let temporaryPath = try temporaryPath()
+        let path = temporaryPath.appending(component: "PrivacyInfo.xcprivacy")
+        let target = Target.test(privacyManifest: .file(path: path))
+
+        let got = subject.lint(target: target)
+
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(reason: "Privacy manifest file not found at path \(path.pathString)", severity: .error)
         )
     }
 

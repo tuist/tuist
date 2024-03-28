@@ -41,6 +41,7 @@ public enum Constants {
         public static let name = "Derived"
         public static let infoPlists = "InfoPlists"
         public static let entitlements = "Entitlements"
+        public static let privacyManifest = "PrivacyManifests"
         public static let moduleMaps = "ModuleMaps"
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"

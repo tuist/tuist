@@ -40,6 +40,9 @@ public struct Target: Codable, Equatable {
     /// The entitlements representation
     public var entitlements: Entitlements?
 
+    /// The privacyManifest representation
+    public var privacyManifest: PrivacyManifest?
+
     /// The build phase scripts actions for the target.
     public var scripts: [TargetScript]
 
@@ -83,6 +86,7 @@ public struct Target: Codable, Equatable {
         copyFiles: [CopyFilesAction]? = nil,
         headers: Headers? = nil,
         entitlements: Entitlements? = nil,
+        privacyManifest: PrivacyManifest? = nil,
         scripts: [TargetScript] = [],
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,
@@ -107,6 +111,7 @@ public struct Target: Codable, Equatable {
             copyFiles: copyFiles,
             headers: headers,
             entitlements: entitlements,
+            privacyManifest: privacyManifest,
             scripts: scripts,
             dependencies: dependencies,
             settings: settings,

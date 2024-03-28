@@ -898,6 +898,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             bundleId: "com.test.bundle_id",
             infoPlist: .file(path: try AbsolutePath(validating: "/Info.plist")),
             entitlements: .file(path: try AbsolutePath(validating: "/Test.entitlements")),
+            privacyManifest: .file(path: try AbsolutePath(validating: "/PrivacyInfo.xcprivacy")),
             settings: Settings(base: ["Base": "Base"], configurations: configurations)
         )
         let project = Project.test(

@@ -119,6 +119,7 @@ class TargetLinter: TargetLinting {
 
         let files = target.resources.map(\.path)
         let entitlements = files.filter { $0.pathString.contains(".entitlements") }
+        let privacyManifest = files.filter { $0.pathString.contains(".xcprivacy") }
 
         if let targetInfoPlistPath = target.infoPlist?.path, files.contains(targetInfoPlistPath) {
             let reason = "Info.plist at path \(targetInfoPlistPath) being copied into the target \(target.name) product."
@@ -130,8 +131,14 @@ class TargetLinter: TargetLinting {
             return LintingIssue(reason: reason, severity: .warning)
         })
 
+        issues.append(contentsOf: privacyManifest.map {
+            let reason = "Privacy manifest file at path \($0.pathString) being copied into the target \(target.name) product."
+            return LintingIssue(reason: reason, severity: .warning)
+        })
+
         issues.append(contentsOf: lintInfoplistExists(target: target))
         issues.append(contentsOf: lintEntitlementsExist(target: target))
+        issues.append(contentsOf: lintPrivacyManifestExists(target: target))
         return issues
     }
 
@@ -182,6 +189,21 @@ class TargetLinter: TargetLinting {
             issues
                 .append(LintingIssue(
                     reason: "Entitlements file not found at path \(entitlements.path!.pathString)",
+                    severity: .error
+                ))
+        }
+        return issues
+    }
+
+    private func lintPrivacyManifestExists(target: Target) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        if let privacyManifest = target.privacyManifest,
+           case let PrivacyManifest.file(path: path) = privacyManifest,
+           !FileHandler.shared.exists(path)
+        {
+            issues
+                .append(LintingIssue(
+                    reason: "Privacy manifest file not found at path \(privacyManifest.path!.pathString)",
                     severity: .error
                 ))
         }

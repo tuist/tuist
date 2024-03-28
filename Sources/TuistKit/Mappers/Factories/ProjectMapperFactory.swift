@@ -74,6 +74,9 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
         // Entitlements
         mappers.append(GenerateEntitlementsProjectMapper())
 
+        // PrivacyManifest
+        mappers.append(GeneratePrivacyManifestProjectMapper())
+
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
 

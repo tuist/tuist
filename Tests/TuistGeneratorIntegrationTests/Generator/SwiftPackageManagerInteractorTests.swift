@@ -235,6 +235,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         Target.test(
             infoPlist: nil,
             entitlements: nil,
+            privacyManifest: nil,
             settings: nil,
             dependencies: dependencies
         )

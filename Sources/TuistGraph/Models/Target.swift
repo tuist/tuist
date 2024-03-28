@@ -28,6 +28,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // however is not needed for other products such as static libraries.
     public var infoPlist: InfoPlist?
     public var entitlements: Entitlements?
+    public var privacyManifest: PrivacyManifest?
     public var settings: Settings?
     public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
@@ -58,6 +59,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         deploymentTargets: DeploymentTargets = DeploymentTargets(),
         infoPlist: InfoPlist? = nil,
         entitlements: Entitlements? = nil,
+        privacyManifest: PrivacyManifest? = nil,
         settings: Settings? = nil,
         sources: [SourceFile] = [],
         resources: [ResourceFileElement] = [],
@@ -85,6 +87,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.deploymentTargets = deploymentTargets
         self.infoPlist = infoPlist
         self.entitlements = entitlements
+        self.privacyManifest = privacyManifest
         self.settings = settings
         self.sources = sources
         self.resources = resources

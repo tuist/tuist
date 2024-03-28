@@ -391,6 +391,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             bundleId: "com.bundle.id",
             infoPlist: .file(path: try AbsolutePath(validating: "/project/info.plist")),
             entitlements: .file(path: try AbsolutePath(validating: "/project/app.entitlements")),
+            privacyManifest: .file(path: try AbsolutePath(validating: "/project/PrivacyInfo.xcprivacy")),
             settings: settings,
             sources: [SourceFile(path: try AbsolutePath(validating: "/project/file.swift"))],
             resources: [

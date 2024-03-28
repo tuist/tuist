@@ -6,6 +6,7 @@ import TSCBasic
 public enum Plist {
     case infoPlist(InfoPlist)
     case entitlements(Entitlements)
+    case privacyManifest(PrivacyManifest)
 
     public indirect enum Value: Equatable, Codable {
         case string(String)
@@ -155,6 +156,39 @@ public enum Entitlements: Equatable, Codable {
 // MARK: - Entitlements - ExpressibleByStringLiteral
 
 extension Entitlements: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+    }
+}
+
+// MARK: - PrivacyManifest
+
+public enum PrivacyManifest: Equatable, Codable {
+    // Path to a user defined .entitlements file (already exists on disk).
+    case file(path: AbsolutePath)
+
+    // Path to a generated .xcprivacy file (may not exist on disk at the time of project generation).
+    // Data of the generated file
+    case generatedFile(path: AbsolutePath, data: Data)
+
+    // User defined dictionary of keys/values for an .xcprivacy file.
+    case dictionary([String: Plist.Value])
+
+    // MARK: - Public
+
+    public var path: AbsolutePath? {
+        switch self {
+        case let .file(path), let .generatedFile(path: path, data: _):
+            return path
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - PrivacyManifest - ExpressibleByStringLiteral
+
+extension PrivacyManifest: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
     }

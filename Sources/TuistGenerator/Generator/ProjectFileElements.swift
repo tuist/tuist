@@ -162,6 +162,10 @@ class ProjectFileElements {
             files.insert(path)
         }
 
+        if let privacyManifest = target.privacyManifest, let path = privacyManifest.path {
+            files.insert(path)
+        }
+
         // Config files
         target.settings?.configurations.xcconfigs().forEach { configFilePath in
             files.insert(configFilePath)
