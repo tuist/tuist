@@ -26,8 +26,10 @@ extension TuistGraph.CopyFileElement {
                 if FileHandler.shared.isFolder(path) {
                     logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
-                    // FIXME: This should be done in a linter.
-                    logger.warning("No files found at: \(path.pathString)")
+                    if !path.pathString.isGlobComponent {
+                        // FIXME: This should be done in a linter.
+                        logger.warning("No files found at: \(path.pathString)")
+                    }
                 }
             }
 

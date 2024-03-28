@@ -37,6 +37,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let graphMapper: GraphMapping
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
+    private let filesLinter: FilesLinting
 
     public convenience init(
         manifestLoader: ManifestLoading,
@@ -58,7 +59,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             workspaceMapper: workspaceMapper,
             graphMapper: graphMapper,
             packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader),
-            manifestFilesLocator: ManifestFilesLocator()
+            manifestFilesLocator: ManifestFilesLocator(),
+            filesLinter: FilesLinter()
         )
     }
 
@@ -75,7 +77,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping,
         packageSettingsLoader: PackageSettingsLoading,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        filesLinter: FilesLinting
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -90,6 +93,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         self.graphMapper = graphMapper
         self.packageSettingsLoader = packageSettingsLoader
         self.manifestFilesLocator = manifestFilesLocator
+        self.filesLinter = filesLinter
     }
 
     // swiftlint:disable:next function_body_length large_tuple
@@ -156,6 +160,11 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Check circular dependencies
         try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
+        let filesLintingIssues = filesLinter.lint(
+            project: allManifests,
+            convertedProjects: projectsModels
+        )
+        filesLintingIssues.printWarningsIfNeeded()
 
         // Apply any registered model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
