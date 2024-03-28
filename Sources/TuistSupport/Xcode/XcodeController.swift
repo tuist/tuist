@@ -8,7 +8,7 @@ public protocol XcodeControlling {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    func selected() throws -> Xcode?
+    func selected() throws -> Xcode
 
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
@@ -32,7 +32,7 @@ public class XcodeController: XcodeControlling {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    public func selected() throws -> Xcode? {
+    public func selected() throws -> Xcode {
         // Return cached value if available
         if let cached = selectedXcode {
             return cached
@@ -40,7 +40,7 @@ public class XcodeController: XcodeControlling {
 
         // e.g. /Applications/Xcode.app/Contents/Developer
         guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
-            return nil
+            throw XcodeVersionError.noXcode
         }
 
         let xcode = try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
@@ -48,13 +48,13 @@ public class XcodeController: XcodeControlling {
         return xcode
     }
 
-    enum XcodeVersionError: FatalError {
+    public enum XcodeVersionError: FatalError {
         case noXcode
         case noVersion
 
-        var type: ErrorType { .abort }
+        public var type: ErrorType { .abort }
 
-        var description: String {
+        public var description: String {
             switch self {
             case .noXcode:
                 return "Could not find Xcode"
@@ -65,9 +65,7 @@ public class XcodeController: XcodeControlling {
     }
 
     public func selectedVersion() throws -> Version {
-        guard let xcode = try selected() else {
-            throw XcodeVersionError.noXcode
-        }
+        let xcode = try selected()
 
         guard let version = Version(unformattedString: xcode.infoPlist.version) else {
             throw XcodeVersionError.noXcode

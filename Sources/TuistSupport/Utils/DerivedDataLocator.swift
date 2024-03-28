@@ -25,12 +25,12 @@ public final class DerivedDataLocator: DerivedDataLocating {
 // This is taken from XCLogParser, from Spotify, at:
 // https://github.com/spotify/XCLogParser/blob/master/Sources/XcodeHasher/XcodeHasher.swift
 
-enum XcodeProjectPathHasher {
+public enum XcodeProjectPathHasher {
     enum HashingError: Error {
         case invalidPartitioning
     }
 
-    static func hashString(for path: String) throws -> String {
+    public static func hashString(for path: String) throws -> String {
         // Initialize a 28 `String` array since we can't initialize empty `Character`s.
         var result = Array(repeating: "", count: 28)
 
