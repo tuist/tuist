@@ -16,23 +16,7 @@ extension Project.Options {
 
     public static func test(
         automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
-        disableBundleAccessors: Bool = false,
-        disableShowEnvironmentVarsInScriptPhases: Bool = false,
-        disableSynthesizedResourceAccessors: Bool = false,
-        textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
-    ) -> Self {
-        .init(
-            automaticSchemesOptions: automaticSchemesOptions,
-            disableBundleAccessors: disableBundleAccessors,
-            disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
-            disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-            textSettings: textSettings
-        )
-    }
-
-    public static func testOptions(
-        automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
-        bundleAccessorsOptions: BundleAccessorOptions = .disabled,
+        bundleAccessorsOptions: BundleAccessorOptions = .all,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
         disableSynthesizedResourceAccessors: Bool = false,
         textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)

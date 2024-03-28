@@ -69,7 +69,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                         codeCoverageEnabled: true,
                         testingOptions: [.parallelizable]
                     ),
-                    disableBundleAccessors: true,
+                    bundleAccessorsOptions: [],
                     disableShowEnvironmentVarsInScriptPhases: true,
                     disableSynthesizedResourceAccessors: true,
                     textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true)

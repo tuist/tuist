@@ -262,10 +262,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 }
 
 private func bundleName(by bundleAccessorsOptions: Project.Options.BundleAccessorOptions) -> String? {
-    switch bundleAccessorsOptions {
-    case .disabled:
+    guard !bundleAccessorsOptions.isEmpty else {
         return nil
-    case .enabled:
-        return "Bundle.module"
     }
+    return "Bundle.module"
 }

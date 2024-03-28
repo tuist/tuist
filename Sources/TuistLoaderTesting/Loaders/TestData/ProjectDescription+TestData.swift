@@ -46,8 +46,7 @@ extension Project {
         organizationName: String? = nil,
         settings: Settings? = nil,
         targets: [Target] = [],
-        additionalFiles: [FileElement] = [],
-        options _: Options = .options()
+        additionalFiles: [FileElement] = []
     ) -> Project {
         Project(
             name: name,

@@ -342,7 +342,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             developmentRegion: nil,
             options: .init(
                 automaticSchemesOptions: .disabled,
-                disableBundleAccessors: true,
+                bundleAccessorsOptions: [],
                 disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
                 textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -433,7 +433,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             developmentRegion: nil,
             options: .init(
                 automaticSchemesOptions: .disabled,
-                disableBundleAccessors: true,
+                bundleAccessorsOptions: [],
                 disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
                 textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)

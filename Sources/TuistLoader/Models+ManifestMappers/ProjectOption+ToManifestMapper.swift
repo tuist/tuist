@@ -8,7 +8,7 @@ extension ProjectDescription.Project.Options {
     static func from(manifest: TuistGraph.Project.Options) -> Self {
         projectOptions(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
-            bundleAccessorsOptions: manifest.bundleAccessorsOptions.asProjectDescriptionComponent(),
+            bundleAccessorsOptions: .from(manifest.bundleAccessorsOptions),
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
             textSettings: .textSettings(
@@ -80,13 +80,8 @@ extension ProjectDescription.ScreenCaptureFormat {
     }
 }
 
-extension TuistGraph.Project.Options.BundleAccessorOptions {
-    fileprivate func asProjectDescriptionComponent() -> ProjectDescription.Project.Options.BundleAccessorOptions {
-        switch self {
-        case .disabled:
-            return .disabled
-        case let .enabled(includeObjcAccessor):
-            return .enabled(includeObjcAccessor: includeObjcAccessor)
-        }
+extension ProjectDescription.Project.Options.BundleAccessorOptions {
+    static func from(_ options: TuistGraph.Project.Options.BundleAccessorOptions) -> Self {
+        ProjectDescription.Project.Options.BundleAccessorOptions(rawValue: options.rawValue)
     }
 }

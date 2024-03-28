@@ -11,6 +11,10 @@ extension Project {
 
         /// Configures the development region.
         public var developmentRegion: String?
+        
+        /// Disables generating Bundle accessors.
+        @available(*, deprecated, message: "Please use `bundleAccessorsOptions` instead")
+        public var disableBundleAccessors: Bool { bundleAccessorsOptions.isEmpty }
 
         /// Defines if and how bundle accessors are generated
         public var bundleAccessorsOptions: BundleAccessorOptions
@@ -27,6 +31,7 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
+        @available(*, deprecated, message: "Please use `projectOptions` instead")
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
@@ -37,9 +42,9 @@ extension Project {
             textSettings: TextSettings = .textSettings(),
             xcodeProjectName: String? = nil
         ) -> Self {
-            var bundleAccessorsOptions: BundleAccessorOptions = .enabled(includeObjcAccessor: true)
+            var bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc]
             if disableBundleAccessors {
-                bundleAccessorsOptions = .disabled
+                bundleAccessorsOptions = []
             }
             return self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
@@ -57,7 +62,7 @@ extension Project {
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
             developmentRegion: String? = nil,
-            bundleAccessorsOptions: BundleAccessorOptions = .enabled(includeObjcAccessor: true),
+            bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc],
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
@@ -143,12 +148,20 @@ extension Project.Options {
 
 extension Project.Options {
     /// Defines if and how bundle accessors are generated
-    public enum BundleAccessorOptions: Codable, Hashable {
-        /// Enables generated bundle accessors
-        /// Option to control wether an accessor for Objective-C run time will be added as well
-        case enabled(includeObjcAccessor: Bool)
+    public struct BundleAccessorOptions: OptionSet, Codable {
+        public let rawValue: Int
+        
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+        
+        /// Enables bundle accessor for swift run time
+        public static let swift = BundleAccessorOptions(rawValue: 1 << 0)
 
-        /// Disables generated bundle accessors
-        case disabled
+        /// Enables bundle accessor for Objective-C runtime
+        public static let objc = BundleAccessorOptions(rawValue: 1 << 1)
+        
+        /// All Options
+        public static let all: BundleAccessorOptions = [.swift, .objc]
     }
 }
