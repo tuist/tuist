@@ -2,8 +2,8 @@ import Foundation
 @testable import TuistGraph
 
 extension Project.Options {
-    public static func test(
-        automaticSchemesOptions: AutomaticSchemesOptions = .enabled(
+    public static func automaticSchemesOptions() -> AutomaticSchemesOptions {
+        .enabled(
             targetSchemesGrouping: .byNameSuffix(
                 build: ["Implementation", "Interface", "Mocks", "Testing"],
                 test: ["Tests", "IntegrationTests", "UITests", "SnapshotTests"],
@@ -11,15 +11,19 @@ extension Project.Options {
             ),
             codeCoverageEnabled: false,
             testingOptions: []
-        ),
-        disableBundleAccessors: Bool = false,
+        )
+    }
+
+    public static func test(
+        automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
+        bundleAccessorsOptions: BundleAccessorOptions = .all,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
         disableSynthesizedResourceAccessors: Bool = false,
         textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
     ) -> Self {
         .init(
             automaticSchemesOptions: automaticSchemesOptions,
-            disableBundleAccessors: disableBundleAccessors,
+            bundleAccessorsOptions: bundleAccessorsOptions,
             disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
             textSettings: textSettings

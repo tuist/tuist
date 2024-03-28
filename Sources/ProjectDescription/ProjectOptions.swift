@@ -11,9 +11,13 @@ extension Project {
 
         /// Configures the development region.
         public var developmentRegion: String?
-
+        
         /// Disables generating Bundle accessors.
-        public var disableBundleAccessors: Bool
+        @available(*, deprecated, message: "Please use `bundleAccessorsOptions` instead")
+        public var disableBundleAccessors: Bool { bundleAccessorsOptions.isEmpty }
+
+        /// Defines if and how bundle accessors are generated
+        public var bundleAccessorsOptions: BundleAccessorOptions
 
         /// Suppress logging of environment in Run Script build phases.
         public var disableShowEnvironmentVarsInScriptPhases: Bool
@@ -27,6 +31,7 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
+        @available(*, deprecated, message: "Please use `projectOptions` instead")
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
@@ -37,11 +42,37 @@ extension Project {
             textSettings: TextSettings = .textSettings(),
             xcodeProjectName: String? = nil
         ) -> Self {
+            var bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc]
+            if disableBundleAccessors {
+                bundleAccessorsOptions = []
+            }
+            return self.init(
+                automaticSchemesOptions: automaticSchemesOptions,
+                defaultKnownRegions: defaultKnownRegions,
+                developmentRegion: developmentRegion,
+                bundleAccessorsOptions: bundleAccessorsOptions,
+                disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
+                disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
+                textSettings: textSettings,
+                xcodeProjectName: xcodeProjectName
+            )
+        }
+
+        public static func projectOptions(
+            automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+            defaultKnownRegions: [String]? = nil,
+            developmentRegion: String? = nil,
+            bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc],
+            disableShowEnvironmentVarsInScriptPhases: Bool = false,
+            disableSynthesizedResourceAccessors: Bool = false,
+            textSettings: TextSettings = .textSettings(),
+            xcodeProjectName: String? = nil
+        ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
                 defaultKnownRegions: defaultKnownRegions,
                 developmentRegion: developmentRegion,
-                disableBundleAccessors: disableBundleAccessors,
+                bundleAccessorsOptions: bundleAccessorsOptions,
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
@@ -110,5 +141,27 @@ extension Project.Options {
         ) -> Self {
             self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
         }
+    }
+}
+
+// MARK: - BundleAccessorOptions
+
+extension Project.Options {
+    /// Defines if and how bundle accessors are generated
+    public struct BundleAccessorOptions: OptionSet, Codable {
+        public let rawValue: Int
+        
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+        
+        /// Enables bundle accessor for swift run time
+        public static let swift = BundleAccessorOptions(rawValue: 1 << 0)
+
+        /// Enables bundle accessor for Objective-C runtime
+        public static let objc = BundleAccessorOptions(rawValue: 1 << 1)
+        
+        /// All Options
+        public static let all: BundleAccessorOptions = [.swift, .objc]
     }
 }

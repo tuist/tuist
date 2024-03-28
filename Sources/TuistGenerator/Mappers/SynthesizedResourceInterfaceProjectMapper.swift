@@ -251,7 +251,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                         parserOptions: resourceSynthesizer.parserOptions,
                         templateString: templateString,
                         name: target.productName.camelized.uppercasingFirst,
-                        bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
+                        bundleName: bundleName(by: project.options.bundleAccessorsOptions),
                         paths: paths
                     )
                 ),
@@ -259,4 +259,11 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
         return renderedInterfaces
     }
+}
+
+private func bundleName(by bundleAccessorsOptions: Project.Options.BundleAccessorOptions) -> String? {
+    guard !bundleAccessorsOptions.isEmpty else {
+        return nil
+    }
+    return "Bundle.module"
 }
