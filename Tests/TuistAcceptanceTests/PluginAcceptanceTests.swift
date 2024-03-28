@@ -7,17 +7,19 @@ import XCTest
 
 final class PluginAcceptanceTestTuistPlugin: TuistAcceptanceTestCase {
     func test_tuist_plugin() async throws {
+        let context = MockContext()
         try setUpFixture(.tuistPlugin)
-        try run(PluginBuildCommand.self)
-        try run(PluginRunCommand.self, "tuist-create-file")
+        try await run(PluginBuildCommand.self, context: context)
+        try await run(PluginRunCommand.self, "tuist-create-file", context: context)
     }
 }
 
 final class PluginAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithPlugins)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(InstallCommand.self, context: context)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, context: context)
     }
 }

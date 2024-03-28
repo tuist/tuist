@@ -12,7 +12,7 @@ import TuistSupport
 private typealias Platform = TuistGraph.Platform
 private typealias Product = TuistGraph.Product
 
-public struct InitCommand: ParsableCommand, HasTrackableParameters {
+public struct InitCommand: ContextualizedAsyncParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -73,7 +73,11 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
         }
     }
 
-    public func run() throws {
+    public func run() async throws {
+        try await run(context: TuistContext())
+    }
+
+    public func run(context _: Context) async throws {
         InitCommand.analyticsDelegate?.addParameters(
             [
                 "platform": AnyCodable(platform ?? "unknown"),

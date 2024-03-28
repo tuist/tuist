@@ -180,7 +180,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         }
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
-        let manifestLoader = manifestLoaderFactory.createManifestLoader()
+        let manifestLoader = manifestLoaderFactory.createManifestLoader(context: TuistContext.shared)
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
 

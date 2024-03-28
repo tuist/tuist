@@ -1,8 +1,9 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistSupport
 
-public struct PluginTestCommand: ParsableCommand {
+public struct PluginTestCommand: ContextualizedAsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -25,7 +26,11 @@ public struct PluginTestCommand: ParsableCommand {
     )
     var testProducts: [String] = []
 
-    public func run() throws {
+    public func run() async throws {
+        try await run(context: TuistContext())
+    }
+
+    public func run(context _: Context) async throws {
         try PluginTestService().run(
             path: pluginOptions.path,
             configuration: pluginOptions.configuration,

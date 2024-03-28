@@ -12,7 +12,7 @@ final class Formatter: Formatting {
 
     init() {
         formatter = XCBeautifier(
-            colored: Environment.shared.shouldOutputBeColoured,
+            colored: TuistContext.shared.environment.shouldOutputBeColoured,
             renderer: Self.renderer(),
             preserveUnbeautifiedLines: false,
             additionalLines: { nil }
@@ -24,7 +24,7 @@ final class Formatter: Formatting {
     }
 
     private static func renderer() -> Renderer {
-        if Environment.shared.isGitHubActions {
+        if TuistContext.shared.environment.isGitHubActions {
             return .gitHubActions
         } else {
             return .terminal

@@ -122,21 +122,13 @@ open class TuistTestCase: XCTestCase {
         }
     }
 
-    public var environment: MockEnvironment!
     public var fileHandler: MockFileHandler!
 
-    override open func setUp() {
-        super.setUp()
+    override open func setUpWithError() throws {
+        try super.setUpWithError()
 
-        do {
-            // Environment
-            environment = try MockEnvironment()
-            Environment.shared = environment
-        } catch {
-            XCTFail("Failed to setup environment")
-        }
+        try TuistContext.initializeSharedInstace()
 
-        // FileHandler
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
         FileHandler.shared = fileHandler
     }

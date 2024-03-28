@@ -6,16 +6,18 @@ import XCTest
 /// Test projects using tuist test
 final class TestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_app_with_framework_and_tests() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithFrameworkAndTests)
-        try await run(TestCommand.self)
-        try await run(TestCommand.self, "App")
-        try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
+        try await run(TestCommand.self, context: context)
+        try await run(TestCommand.self, "App", context: context)
+        try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests", context: context)
     }
 
     func test_with_app_with_test_plan() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithTestPlan)
-        try await run(TestCommand.self)
-        try await run(TestCommand.self, "App", "--test-plan", "All")
+        try await run(TestCommand.self, context: context)
+        try await run(TestCommand.self, "App", "--test-plan", "All", context: context)
     }
 }
 

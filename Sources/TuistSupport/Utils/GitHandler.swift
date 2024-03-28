@@ -75,7 +75,7 @@ public final class GitHandler: GitHandling {
     }
 
     private func run(command: String...) throws {
-        if Environment.shared.isVerbose {
+        if TuistContext.shared.environment.isVerbose {
             try system.runAndPrint(command, verbose: true, environment: System.shared.env)
         } else {
             try system.run(command)
@@ -83,7 +83,7 @@ public final class GitHandler: GitHandling {
     }
 
     private func capture(command: String...) throws -> String {
-        if Environment.shared.isVerbose {
+        if TuistContext.shared.environment.isVerbose {
             return try system.capture(command, verbose: true, environment: System.shared.env)
         } else {
             return try system.capture(command)

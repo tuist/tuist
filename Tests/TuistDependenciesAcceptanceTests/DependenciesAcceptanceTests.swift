@@ -7,20 +7,23 @@ import XCTest
 
 final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_app_spm_dependencies() async throws {
+        let context = MockContext()
+
         try setUpFixture(.appWithSpmDependencies)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(BuildCommand.self, "VisionOSApp")
-        try await run(TestCommand.self, "AppKit")
+        try await run(InstallCommand.self, context: context)
+        try await run(GenerateCommand.self, context: context)
+        try await run(BuildCommand.self, "App", context: context)
+        try await run(BuildCommand.self, "VisionOSApp", context: context)
+        try await run(TestCommand.self, "AppKit", context: context)
     }
 }
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {
+        let context = MockContext()
         try setUpFixture(.appWithSpmDependencies)
         do {
-            try await run(GenerateCommand.self)
+            try await run(GenerateCommand.self, context: context)
         } catch {
             XCTAssertEqual(
                 (error as? FatalError)?.description,

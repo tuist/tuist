@@ -17,7 +17,7 @@ final class GraphService {
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
+            .createManifestLoader(context: TuistContext.shared)
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),

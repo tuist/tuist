@@ -14,7 +14,7 @@ private enum TuistApp {
 
         TuistSupport.LogOutput.bootstrap()
 
-        try TuistSupport.Environment.shared.bootstrap()
+        try TuistSupport.TuistContext.initializeSharedInstace()
 
         await TuistCommand.main()
     }
