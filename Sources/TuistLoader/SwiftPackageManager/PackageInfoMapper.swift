@@ -500,7 +500,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var headers: ProjectDescription.Headers?
         var sources: SourceFilesList?
-        var resources: ResourceFileElements?
+        var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
             headers = try Headers.from(moduleMap: moduleMap)
@@ -762,7 +762,7 @@ extension SourceFilesList {
     }
 }
 
-extension ResourceFileElements {
+extension ProjectDescription.ResourceFileElements {
     fileprivate static func from(
         sources: [String]?,
         resources: [PackageInfo.Target.Resource],

@@ -349,7 +349,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.append(contentsOf: try generateResourcesBuildFile(
             target: target,
-            files: target.resources,
+            files: target.resources.resources,
             fileElements: fileElements
         ))
 

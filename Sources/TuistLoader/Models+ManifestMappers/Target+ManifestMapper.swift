@@ -134,7 +134,7 @@ extension TuistGraph.Target {
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
     ) throws -> (
-        resources: [TuistGraph.ResourceFileElement],
+        resources: TuistGraph.ResourceFileElements,
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath],
         invalidResourceGlobs: [InvalidGlob]
@@ -143,8 +143,17 @@ extension TuistGraph.Target {
             TuistGraph.Target.isResource(path: path)
         }
 
+        let privacyManifest: TuistGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {
+            return TuistGraph.PrivacyManifest(
+                tracking: $0.tracking,
+                trackingDomains: $0.trackingDomains,
+                collectedDataTypes: $0.collectedDataTypes.map { $0.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }},
+                accessedApiTypes: $0.accessedApiTypes.map { $0.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }}
+            )
+        }
+
         var invalidResourceGlobs: [InvalidGlob] = []
-        var filteredResources: [TuistGraph.ResourceFileElement] = []
+        var filteredResources: TuistGraph.ResourceFileElements = .resources([], privacyManifest: privacyManifest)
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
@@ -163,14 +172,14 @@ extension TuistGraph.Target {
 
         for fileElement in allResources {
             switch fileElement {
-            case .folderReference: filteredResources.append(fileElement)
+            case .folderReference: filteredResources.resources.append(fileElement)
             case let .file(path, _, _):
                 if path.extension == "playground" {
                     playgrounds.insert(path)
                 } else if path.extension == "xcdatamodeld" {
                     coreDataModels.insert(path)
                 } else {
-                    filteredResources.append(fileElement)
+                    filteredResources.resources.append(fileElement)
                 }
             }
         }

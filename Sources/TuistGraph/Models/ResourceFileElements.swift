@@ -1,11 +1,8 @@
 import Foundation
 
-/// A collection of resource file.
 public struct ResourceFileElements: Codable, Equatable {
-    /// List of resource file elements
     public var resources: [ResourceFileElement]
-  
-    /// Define your apps privacy manifest
+
     public var privacyManifest: PrivacyManifest?
 
     public static func resources(_ resources: [ResourceFileElement], privacyManifest: PrivacyManifest? = nil) -> Self {
@@ -13,19 +10,6 @@ public struct ResourceFileElements: Codable, Equatable {
     }
 }
 
-extension ResourceFileElements: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
-        self.init(resources: [.glob(pattern: .path(value))])
-    }
-}
-
-extension ResourceFileElements: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: ResourceFileElement...) {
-        self.init(resources: elements)
-    }
-}
-
-/// Describe the data your app or third-party SDK collects and the reasons required APIs it uses.
 public struct PrivacyManifest: Codable, Equatable {
     public var tracking: Bool
 
