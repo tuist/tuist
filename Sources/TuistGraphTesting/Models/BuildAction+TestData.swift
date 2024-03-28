@@ -9,6 +9,6 @@ extension BuildAction {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = []
     ) -> BuildAction {
-        BuildAction(targets: targets, preActions: preActions, postActions: postActions)
+        BuildAction(targetReferences: targets, preActions: preActions, postActions: postActions)
     }
 }
