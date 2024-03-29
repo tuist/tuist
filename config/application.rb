@@ -14,8 +14,9 @@ module TuistCloud
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults(7.0)
-    config.defaults = config_for(:defaults)
-    config.secret_key_base = Environment.secret_key_base(defaults: config_for(:defaults))
+
+    defaults = config_for(:defaults)
+    config.defaults = defaults
 
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
@@ -24,9 +25,9 @@ module TuistCloud
     Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
-    Rails.application.routes.default_url_options[:host] = Environment.app_url
-    config.action_controller.default_url_options = { host: Environment.app_url }
-    config.action_mailer.default_url_options = { host: Environment.app_url }
+    Rails.application.routes.default_url_options[:host] = Environment.app_url(defaults: config.defaults)
+    config.action_controller.default_url_options = { host: Environment.app_url(defaults: config.defaults) }
+    config.action_mailer.default_url_options = { host: Environment.app_url(defaults: config.defaults) }
 
     # Que
     config.active_record.schema_format = :sql

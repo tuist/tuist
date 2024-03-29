@@ -80,6 +80,8 @@ Rails.application.configure do
     Bullet.add_footer    = true
   end
 
+  config.log_level = :debug
+
   # Action Mailer
   config.action_mailer.raise_delivery_errors = false
   config.action_mailer.perform_caching = false

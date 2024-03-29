@@ -20,7 +20,16 @@ if System.get_env("PHX_SERVER") do
   config :tuist_cloud, TuistCloudWeb.Endpoint, server: true
 end
 
-if [:prod, :stag, :can] |> Enum.member?(config_env()) do
+env = TuistCloud.Environment.env()
+secrets = TuistCloud.Environment.decrypt_secrets()[env]
+secret_key_base = TuistCloud.Environment.secret_key_base(secrets)
+
+if env != :test do
+  config :tuist_cloud, TuistCloudWeb.Endpoint,
+    secret_key_base: secret_key_base
+end
+
+if [:prod, :stag, :can] |> Enum.member?(env) do
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -46,18 +55,6 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
       verify: :verify_none
     ]
 
-  # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
-  secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
-
   host = System.fetch_env!("WEB_CONCURRENCY")
   port = "4000"
 
@@ -72,8 +69,7 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
       # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
-    ],
-    secret_key_base: secret_key_base
+    ]
 
   # ## SSL Support
   #
@@ -125,9 +121,6 @@ if [:prod, :stag, :can] |> Enum.member?(config_env()) do
   #
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
-
-env = TuistCloud.Environment.env()
-secrets = TuistCloud.Environment.decrypt_secrets()[env]
 
 appsignal_name = "Tuist Cloud Phoenix"
 

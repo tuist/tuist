@@ -51,6 +51,10 @@ defmodule TuistCloud.Environment do
     end
   end
 
+  def secret_key_base(secrets \\ secrets()) do
+    get([:secret_key_base], secrets)
+  end
+
   def s3_access_key_id(secrets \\ secrets()) do
     get([:aws, :access_key_id], secrets) || get([:s3, :access_key_id], secrets)
   end

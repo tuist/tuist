@@ -127,8 +127,8 @@ module Environment
       fetch(:secret_key, :base, env: env, credentials: credentials, defaults: defaults, with_prefix: with_prefix)
     end
 
-    def app_url
-      fetch(:app_url)
+    def app_url(defaults: Rails.application.config.defaults)
+      fetch(:app_url, defaults: defaults)
     end
 
     def github_oauth_id

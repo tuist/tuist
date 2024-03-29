@@ -23,10 +23,8 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "3tmRRmmI+I4/lY4agm01WKV+JbFRJMFz6HE6njpFvMI07rvC1GLTPON1kXX7m0zC",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:tuist_cloud, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:tuist_cloud, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:tuist_cloud, ~w(--sourcemap=inline --watch)]}
   ]
 
 # ## SSL Support

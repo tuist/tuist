@@ -1,5 +1,5 @@
 default: &default
-  app_url: http://127.0.0.1:3000
+  app_url: http://127.0.0.1:8080
   smpt_settings:
     authentication: plain
     address: smtp.mailgun.org

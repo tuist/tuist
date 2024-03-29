@@ -13,4 +13,7 @@ if Environment.production_like_env?
     Rails.application.config.log_tags = [:request_id]
     Rails.logger = ActiveSupport::BroadcastLogger.new(console_logger)
   end
+else
+  Rails.logger = Logger.new($stdout)
+  Rails.logger.level = Logger::DEBUG
 end

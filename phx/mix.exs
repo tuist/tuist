@@ -42,7 +42,6 @@ defmodule TuistCloud.MixProject do
       {:floki, ">= 0.30.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
@@ -70,7 +69,8 @@ defmodule TuistCloud.MixProject do
       {:number, "~> 1.0"},
       {:mimic, "~> 1.7", only: :test},
       {:open_api_spex, "~> 3.18"},
-      {:ymlr, "~> 2.0"}
+      {:ymlr, "~> 2.0"},
+      {:poison, "~> 5.0"}
     ]
   end
 
@@ -86,10 +86,9 @@ defmodule TuistCloud.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind tuist_cloud", "esbuild tuist_cloud"],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["esbuild tuist_cloud"],
       "assets.deploy": [
-        "tailwind tuist_cloud --minify",
         "esbuild tuist_cloud --minify",
         "phx.digest"
       ]
