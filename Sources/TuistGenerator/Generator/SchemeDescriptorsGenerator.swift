@@ -107,20 +107,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
     }
 
-    /// Wipes shared and user schemes at a workspace or project path. This is needed
-    /// currently to support the workspace scheme generation case where a workspace that
-    /// already exists on disk is being regenerated. Wiping the schemes directory prevents
-    /// older custom schemes from persisting after regeneration.
-    ///
-    /// - Parameter at: Path to the workspace or project.
-    func wipeSchemes(at path: AbsolutePath) throws {
-        let fileHandler = FileHandler.shared
-        let userPath = try schemeDirectory(path: path, shared: false)
-        let sharedPath = try schemeDirectory(path: path, shared: true)
-        if fileHandler.exists(userPath) { try fileHandler.delete(userPath) }
-        if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
-    }
-
     // swiftlint:disable function_body_length
     /// Generate schemes for a project or workspace.
     ///
@@ -877,31 +863,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: rootPath,
             generatedProjects: generatedProjects
         )
-    }
-
-    /// Creates the directory where the schemes are stored inside the project.
-    /// If the directory exists it does not re-create it.
-    ///
-    /// - Parameters:
-    ///   - path: Path to the Xcode workspace or project.
-    ///   - shared: Scheme should be shared or not
-    /// - Returns: Path to the schemes directory.
-    /// - Throws: A FatalError if the creation of the directory fails.
-    private func createSchemesDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
-        let schemePath = try schemeDirectory(path: path, shared: shared)
-        if !FileHandler.shared.exists(schemePath) {
-            try FileHandler.shared.createFolder(schemePath)
-        }
-        return schemePath
-    }
-
-    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
-        if shared {
-            return path.appending(try RelativePath(validating: "xcshareddata/xcschemes"))
-        } else {
-            let username = NSUserName()
-            return path.appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
-        }
     }
 
     /// Returns the scheme commandline argument passed on launch
