@@ -11,7 +11,7 @@ extension Project {
 
         /// Configures the development region.
         public var developmentRegion: String?
-        
+
         /// Disables generating Bundle accessors.
         @available(*, deprecated, message: "Please use `bundleAccessorsOptions` instead")
         public var disableBundleAccessors: Bool { bundleAccessorsOptions.isEmpty }
@@ -150,17 +150,17 @@ extension Project.Options {
     /// Defines if and how bundle accessors are generated
     public struct BundleAccessorOptions: OptionSet, Codable {
         public let rawValue: Int
-        
+
         public init(rawValue: Int) {
             self.rawValue = rawValue
         }
-        
+
         /// Enables bundle accessor for swift run time
         public static let swift = BundleAccessorOptions(rawValue: 1 << 0)
 
         /// Enables bundle accessor for Objective-C runtime
         public static let objc = BundleAccessorOptions(rawValue: 1 << 1)
-        
+
         /// All Options
         public static let all: BundleAccessorOptions = [.swift, .objc]
     }

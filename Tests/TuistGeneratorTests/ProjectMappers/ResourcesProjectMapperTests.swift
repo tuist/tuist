@@ -442,7 +442,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
-    
+
     func test_map_simple_target_objc_only_bundle_accessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]

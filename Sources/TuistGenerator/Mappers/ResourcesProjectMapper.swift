@@ -10,39 +10,39 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
     }
-    
+
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         guard !project.options.bundleAccessorsOptions.isEmpty else {
             return (project, [])
         }
-        
+
         logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
-        
+
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
-        
+
         for target in project.targets {
             let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
             targets.append(contentsOf: mappedTargets)
             sideEffects.append(contentsOf: targetSideEffects)
         }
-        
+
         return (project.with(targets: targets), sideEffects)
     }
-    
+
     // swiftlint:disable:next function_body_length
     public func mapTarget(
         _ target: Target,
         project: Project
     ) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
-        
+
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
-        
+
         let bundleName = "\(project.name)_\(target.name)"
         var modifiedTarget = target
-        
+
         if !target.supportsResources {
             let resourcesTarget = Target(
                 name: bundleName,
@@ -68,48 +68,48 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
             additionalTargets.append(resourcesTarget)
         }
-        
+
         let includeObjcBundleAccessor = project.options.bundleAccessorsOptions.contains(.objc)
         let conflictsWithObjectiveCBundleAccessor = target.sources
             .contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
         let skipBundleAccessor = conflictsWithObjectiveCBundleAccessor && includeObjcBundleAccessor
         let qualifiesForBundleAccessors = target.supportsSources && target.sources
             .contains(where: { $0.path.extension == "swift" })
-        
+
         let shouldSynthesizeBundleAccessor = qualifiesForBundleAccessors && !skipBundleAccessor
-        
+
         if shouldSynthesizeBundleAccessor {
             let (filePath, data) = synthesizedSwiftFile(
                 bundleName: bundleName,
                 target: target,
                 project: project
             )
-            
+
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
             let sideEffect = SideEffectDescriptor.file(.init(path: filePath, contents: data, state: .present))
             modifiedTarget.sources.append(sourceFile)
             sideEffects.append(sideEffect)
         }
-        
+
         if project.isExternal,
            target.supportsSources,
            target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
            !target.resources.filter({ $0.path.extension != "xcprivacy" }).isEmpty
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
-            
+
             let headerHash = try headerData.map(contentHasher.hash)
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
-            
+
             let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
             settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
-            
+
             sideEffects.append(headerSideEffect)
-            
+
             let (resourceAccessorPath, resourceAccessorData) = synthesizedObjcImplementationFile(
                 bundleName: bundleName,
                 target: target,
@@ -131,10 +131,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 )
             )
         }
-        
+
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
-    
+
     func synthesizedSwiftFile(
         bundleName: String,
         target: Target,
@@ -143,7 +143,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
-        
+
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
@@ -152,10 +152,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         )
         return (filePath, content.data(using: .utf8))
     }
-    
+
     private func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
-        
+
         let content: String = ResourcesProjectMapper.objcHeaderFileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
@@ -163,29 +163,29 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         )
         return (filePath, content.data(using: .utf8))
     }
-    
+
     private func synthesizedObjcImplementationFile(
         bundleName: String,
         target: Target,
         project: Project
     ) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "m")
-        
+
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_")
         )
         return (filePath, content.data(using: .utf8))
     }
-    
+
     private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
         let filename = "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)"
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
-    
+
     // swiftlint:disable:next function_body_length
     static func fileContent(
-        targetName: String,
+        targetName _: String,
         bundleName: String,
         target: Target,
         bundleAccessorsOptions: Project.Options.BundleAccessorOptions = [.swift, .objc]
@@ -199,10 +199,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             if bundleAccessorsOptions.contains(.swift) {
                 content += swiftSPMBundleAccessorString(for: target, and: bundleName)
             }
-            
+
         } else {
             if bundleAccessorsOptions.contains(.swift) {
-                content+=swiftFrameworkBundleAccessorString(for: target)
+                content += swiftFrameworkBundleAccessorString(for: target)
             }
         }
         if bundleAccessorsOptions.contains(.objc) {
@@ -211,58 +211,58 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         content += """
         // swiftlint:enable all
         // swiftformat:enable all
-        
+
         """
         return content
     }
-    
+
     static func objcHeaderFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
         return """
         #import <Foundation/Foundation.h>
-        
+
         #if __cplusplus
         extern "C" {
         #endif
-        
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
-        
+
         #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
-        
+
         #if __cplusplus
         }
         #endif
         """
     }
-    
+
     static func objcImplementationFileContent(targetName: String, bundleName: String) -> String {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
-        
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
             NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
-        
+
             NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
-        
+
             return bundle;
         }
         """
     }
-    
+
     private static func objectiveCBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Objective-C Bundle Accessor
-        
+
         @objc
         public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
         @objc public class var bundle: Bundle {
             return .module
         }
         }
-        
+
         """
     }
-    
+
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         import Foundation
@@ -312,18 +312,18 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             fatalError("unable to find bundle named \(bundleName)")
         }()
         }
-        
+
         """
     }
-    
+
     private static func swiftFrameworkBundleAccessorString(for target: Target) -> String {
         """
         import Foundation
-        
+
         // MARK: - Swift Bundle Accessor
-        
+
         private class BundleFinder {}
-        
+
         extension Foundation.Bundle {
         /// Since \(target.name) is a \(
             target
@@ -331,7 +331,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle for classes within this module can be used directly.
         static let module = Bundle(for: BundleFinder.self)
         }
-        
+
         """
     }
 }
