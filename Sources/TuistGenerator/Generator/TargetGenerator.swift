@@ -31,20 +31,17 @@ final class TargetGenerator: TargetGenerating {
     let configGenerator: ConfigGenerating
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
-    let fileGenerator: FileGenerating
     let buildRulesGenerator: BuildRulesGenerating
 
     // MARK: - Init
 
     init(
         configGenerator: ConfigGenerating = ConfigGenerator(),
-        fileGenerator: FileGenerating = FileGenerator(),
         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
         linkGenerator: LinkGenerating = LinkGenerator(),
         buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator()
     ) {
         self.configGenerator = configGenerator
-        self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
         self.buildRulesGenerator = buildRulesGenerator
