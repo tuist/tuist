@@ -61,7 +61,7 @@ defmodule TuistCloud.MixProject do
       {:appsignal, "~> 2.0"},
       {:appsignal_phoenix, "~> 2.0"},
       {:castore, "~> 1.0"},
-      {:uniq, "~> 0.1"},
+      {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
