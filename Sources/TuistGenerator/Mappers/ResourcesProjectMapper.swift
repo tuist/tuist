@@ -266,7 +266,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
-        import Foundation
 
         // MARK: - Swift Bundle Accessor
 
@@ -319,7 +318,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     private static func swiftFrameworkBundleAccessorString(for target: Target) -> String {
         """
-        import Foundation
 
         // MARK: - Swift Bundle Accessor
 
