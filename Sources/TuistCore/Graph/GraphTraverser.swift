@@ -577,6 +577,62 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
+    public func needsEnableTestingSearchPaths(path: AbsolutePath, name: String) -> Bool {
+        var cache: [GraphTarget: Bool] = [:]
+
+        func _needsEnableTestingSearchPaths(
+            path: AbsolutePath,
+            name: String
+        ) -> Bool {
+            // Target could not be created, something must be wrong
+            guard let target = target(path: path, name: name) else {
+                return false
+            }
+
+            // If a cache value is already present use it
+            if let cacheValue = cache[target] {
+                return cacheValue
+            }
+
+            // Find all target dependencies
+            let allTargetDependencies = allTargetDependencies(
+                path: path,
+                name: name
+            )
+
+            // Check whether the current target depends on XCTest
+            let currentTargetDependsOnXCTest = dependsOnXCTest(path: path, name: name)
+
+            // If there are no further dependencies cache the value for the current target and return the value of it
+            guard !allTargetDependencies.isEmpty else {
+                cache[target] = currentTargetDependsOnXCTest
+                return currentTargetDependsOnXCTest
+            }
+
+            // If there are dependencies found, we need to traverse deeper down the graph
+            var enable: Bool? // placeholder when we find a dependency that needs to enable testing paths
+            for dependency in allTargetDependencies {
+                let needs = _needsEnableTestingSearchPaths(path: dependency.path, name: dependency.target.name)
+
+                if needs {
+                    cache[dependency] = true
+                    enable = true
+                    break
+                } else {
+                    cache[dependency] = false
+                }
+            }
+
+            // Either found a value or we use the one from the current target
+            let result = enable ?? currentTargetDependsOnXCTest
+
+            cache[target] = result
+            return result
+        }
+
+        return _needsEnableTestingSearchPaths(path: path, name: name)
+    }
+
     public func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool {
         guard let target = target(path: path, name: name) else {
             return false

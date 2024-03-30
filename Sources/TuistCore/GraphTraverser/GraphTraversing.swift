@@ -188,6 +188,14 @@ public protocol GraphTraversing {
     /// - Parameter path: Path to the directory where the project is defined.
     func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
 
+    /// Determines whether ENABLE_TESTING_SEARCH_PATHS needs to be enabled
+    ///
+    /// - Parameters:
+    ///   - path: Path to the project tha defines the target.
+    ///   - name: Target name.
+    /// - Returns: True if the given target needs to have ENABLE_TESTING_SEARCH_PATHS enabled, false otherwise
+    func needsEnableTestingSearchPaths(path: AbsolutePath, name: String) -> Bool
+
     /// Returns true if the given target depends on XCTest.
     /// - Parameters:
     ///   - path: Path to the project tha defines the target.

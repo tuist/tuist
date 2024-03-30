@@ -7,6 +7,7 @@ import XCTest
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
         try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "MyApp")
@@ -124,9 +125,28 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
     }
 }
 
+final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
+        try await run(TestCommand.self, "ModuleA", "--platform", "ios")
+    }
+}
+
 final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture(.appWithSpmDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
+
+final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")

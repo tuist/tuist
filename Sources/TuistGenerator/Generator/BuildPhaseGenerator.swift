@@ -82,7 +82,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
-            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -425,7 +424,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
-        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
@@ -459,19 +457,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
 
-        copySwiftMacrosBuildPhase.outputPaths = target.supportedPlatforms
-            .filter { $0 != .macOS }
-            .flatMap { platform in
-                var sdks: [String] = []
-                sdks.append(platform.xcodeDeviceSDK)
-                if let simulatorSDK = platform.xcodeSimulatorSDK { sdks.append(simulatorSDK) }
-                return sdks
-            }
-            .flatMap { sdk in
-                executableNames.map { executable in
-                    "$BUILD_DIR/Debug-\(sdk)/\(executable)"
-                }
-            }
+        copySwiftMacrosBuildPhase.outputPaths = executableNames.map { executable in
+            "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)"
+        }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
         pbxTarget.buildPhases.append(copySwiftMacrosBuildPhase)

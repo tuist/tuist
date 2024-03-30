@@ -26,17 +26,13 @@ public enum Tuist {
 
     /// Loads and returns the graph at the given path.
     /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
-    /// - parameter environmentKeys: the environment keys that should be copied. If empty, no environment variables will be
-    /// passed.
-    public static func graph(at path: String? = nil, environmentKeys: Set<String> = []) throws -> Graph {
-        // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
-        // Otherwise, fallback to go
-        let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
+    public static func graph(at path: String? = nil) throws -> Graph {
         let temporaryDirectory = try createTemporaryDirectory()
 
         do {
             let graphPath = temporaryDirectory.appendingPathComponent("graph.json")
             var arguments = [
+                "tuist",
                 "graph",
                 "--format", "json",
                 "--output-path", temporaryDirectory.path,
@@ -44,17 +40,8 @@ public enum Tuist {
             if let path {
                 arguments += ["--path", path]
             }
-            let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
-            var environment: [String: String] = [:]
-            for environmentKey in environmentKeys + [forceConfigCacheDirectory] {
-                if let value = ProcessInfo.processInfo.environment[environmentKey], !value.isEmpty {
-                    environment[environmentKey] = value
-                }
-            }
             try run(
-                tuistBinaryPath,
-                arguments,
-                environment: environment
+                arguments
             )
             let graphData = try Data(contentsOf: graphPath)
             return try JSONDecoder().decode(Graph.self, from: graphData)
@@ -72,12 +59,10 @@ public enum Tuist {
     }
 
     private static func run(
-        _ launchPath: String,
-        _ arguments: [String],
-        environment _: [String: String]
+        _ arguments: [String]
     ) throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchPath)
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = arguments
 
         let outputPipe = Pipe()
@@ -88,13 +73,10 @@ public enum Tuist {
         try process.run()
         process.waitUntilExit()
 
-        var command = [launchPath]
-        command.append(contentsOf: arguments)
-
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             throw Tuist.TuistError.terminated(
-                command: command.joined(separator: ""),
+                command: arguments.joined(separator: " "),
                 code: process.terminationStatus,
                 standardError: errorData
             )

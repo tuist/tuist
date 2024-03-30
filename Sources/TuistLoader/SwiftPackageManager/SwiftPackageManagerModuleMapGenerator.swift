@@ -103,6 +103,9 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if FileHandler.shared.exists(publicHeadersPath) {
+            if FileHandler.shared.glob(publicHeadersPath, glob: "**/*.h").isEmpty {
+                return .none
+            }
             // Consider the public headers folder as umbrella directory
             let generatedModuleMapContent =
                 """

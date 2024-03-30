@@ -540,6 +540,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedDependsOnXCTestResult
     }
 
+    var invokedNeedsEnableTestingSearchPaths = false
+    var invokedNeedsEnableTestingSearchPathsCount = 0
+    var invokedNeedsEnableTestingSearchPathsParameters: (path: AbsolutePath, name: String)?
+    var invokedNeedsEnableTestingSearchPathsParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedNeedsEnableTestingSearchPathsResult: Bool! = false
+
+    func needsEnableTestingSearchPaths(path: AbsolutePath, name: String) -> Bool {
+        invokedNeedsEnableTestingSearchPaths = true
+        invokedNeedsEnableTestingSearchPathsCount += 1
+        invokedNeedsEnableTestingSearchPathsParameters = (path, name)
+        invokedNeedsEnableTestingSearchPathsParametersList.append((path, name))
+        return stubbedNeedsEnableTestingSearchPathsResult
+    }
+
     var schemesStub: (() -> [Scheme])?
     func schemes() -> [Scheme] {
         schemesStub?() ?? []

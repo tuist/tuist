@@ -1480,6 +1480,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(dependencyHeadersPath)
+        try fileHandler.touch(dependencyHeadersPath.appending(component: "Header.h"))
         try fileHandler.createFolder(sourcesPath)
         let project = try subject.map(
             package: "Package",
@@ -2000,7 +2001,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature Foo"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature \"Foo\""]]
+                    ),
                 ]
             )
         )
@@ -2042,7 +2047,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature Foo"]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature \"Foo\""]]
                     ),
                 ]
             )

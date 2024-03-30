@@ -9,6 +9,7 @@ public enum FileHandlerError: FatalError, Equatable {
     case fileNotFound(AbsolutePath)
     case unreachableFileSize(AbsolutePath)
     case expectedAFile(AbsolutePath)
+    case propertyListDecodeError(AbsolutePath, description: String)
 
     public var description: String {
         switch self {
@@ -22,6 +23,8 @@ public enum FileHandlerError: FatalError, Equatable {
             return "Could not get the file size at path \(path.pathString)"
         case let .expectedAFile(path):
             return "Could not find a file at path \(path.pathString))"
+        case let .propertyListDecodeError(path, description):
+            return "The property list file at path \(path.pathString) is invalid and cannot be decoded:\n\(description)"
         }
     }
 
@@ -29,7 +32,7 @@ public enum FileHandlerError: FatalError, Equatable {
         switch self {
         case .invalidTextEncoding:
             return .bug
-        case .writingError, .fileNotFound, .unreachableFileSize, .expectedAFile:
+        case .writingError, .fileNotFound, .unreachableFileSize, .expectedAFile, .propertyListDecodeError:
             return .abort
         }
     }
@@ -187,7 +190,15 @@ public class FileHandler: FileHandling {
         guard let data = fileManager.contents(atPath: at.pathString) else {
             throw FileHandlerError.fileNotFound(at)
         }
-        return try propertyListDecoder.decode(T.self, from: data)
+        do {
+            return try propertyListDecoder.decode(T.self, from: data)
+        } catch {
+            if let debugDescription = (error as NSError).userInfo["NSDebugDescription"] as? String {
+                throw FileHandlerError.propertyListDecodeError(at, description: debugDescription)
+            } else {
+                throw FileHandlerError.propertyListDecodeError(at, description: error.localizedDescription)
+            }
+        }
     }
 
     public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {

@@ -159,8 +159,8 @@ final class SettingsMapperTests: XCTestCase {
             .array([
                 "$(inherited)",
                 "ArbitraryFlag",
-                "-enable-upcoming-feature NewFeature",
-                "-enable-experimental-feature Experimental",
+                "-enable-upcoming-feature \"NewFeature\"",
+                "-enable-experimental-feature \"Experimental\"",
             ])
         )
     }

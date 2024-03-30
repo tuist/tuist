@@ -28,16 +28,13 @@ protocol ConfigGenerating: AnyObject {
 final class ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
-    private let fileGenerator: FileGenerating
     private let defaultSettingsProvider: DefaultSettingsProviding
 
     // MARK: - Init
 
     init(
-        fileGenerator: FileGenerating = FileGenerator(),
         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()
     ) {
-        self.fileGenerator = fileGenerator
         self.defaultSettingsProvider = defaultSettingsProvider
     }
 

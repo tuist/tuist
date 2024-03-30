@@ -44,17 +44,20 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
+    private let tuistVersionLoader: TuistVersionLoading
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader()
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
+        tuistVersionLoader: TuistVersionLoading = TuistVersionLoader()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
+        self.tuistVersionLoader = tuistVersionLoader
     }
 
     func loadTemplateOptions(
@@ -110,6 +113,7 @@ class InitService {
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
+        let tuistVersion = try tuistVersionLoader.getVersion()
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
@@ -117,6 +121,7 @@ class InitService {
                 let parsedAttributes = try parseAttributes(
                     name: name,
                     platform: platform,
+                    tuistVersion: tuistVersion,
                     requiredTemplateOptions: requiredTemplateOptions,
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
@@ -137,6 +142,7 @@ class InitService {
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
+                tuistVersion: tuistVersion,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template
@@ -177,6 +183,7 @@ class InitService {
     private func parseAttributes(
         name: String,
         platform: Platform,
+        tuistVersion: String,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
@@ -184,11 +191,11 @@ class InitService {
         let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
+            "tuist_version": .string(tuistVersion),
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
-            if attribute.name == "name" || attribute.name == "platform" {
-                return
-            }
+            if defaultAttributes.keys.contains(attribute.name) { return }
+
             switch attribute {
             case let .required(name):
                 guard let option = requiredTemplateOptions[name]

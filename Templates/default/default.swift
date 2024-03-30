@@ -17,6 +17,10 @@ let template = Template(
             templatePath: "AppProject.stencil"
         ),
         .file(
+            path: projectPath + "/Tuist/Package.swift",
+            templatePath: "Package.stencil"
+        ),
+        .file(
             path: appPath + "/Sources/\(nameAttribute)App.swift",
             templatePath: "app.stencil"
         ),
@@ -39,6 +43,10 @@ let template = Template(
         .file(
             path: ".gitignore",
             templatePath: "Gitignore.stencil"
+        ),
+        .file(
+            path: ".mise.toml",
+            templatePath: "mise.stencil"
         ),
         .file(
             path: appPath + "/Resources/LaunchScreen.storyboard",
