@@ -474,7 +474,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  appsignal (~> 3.4)
+  appsignal (~> 3.6)
   aws-sdk-s3 (~> 1.112)
   bcrypt (~> 3.1.7)
   bigdecimal (~> 3.0)

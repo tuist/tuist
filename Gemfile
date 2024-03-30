@@ -43,7 +43,7 @@ gem "omniauth-okta", "~> 2.0"
 
 # Telemetry
 gem "logtail-rails", "~> 0.2.6"
-gem "appsignal", "~> 3.4"
+gem "appsignal", "~> 3.6"
 gem "gvltools", "~> 0.4.0"
 
 group :development, :test do
