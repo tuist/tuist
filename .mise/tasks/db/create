@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 # mise description="Creates the database"
 
-$MISE_PROJECT_ROOT/bin/rails db:create
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix ecto.create)

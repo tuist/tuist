@@ -9,10 +9,12 @@ defmodule TuistCloud.Application do
     Environment.decrypt_secrets() |> Environment.put_application_secrets()
 
     Appsignal.Phoenix.LiveView.attach()
+    Oban.Telemetry.attach_default_logger()
 
     children = [
       TuistCloudWeb.Telemetry,
       TuistCloud.Repo,
+      {Oban, Application.fetch_env!(:tuist_cloud, Oban)},
       {DNSCluster, query: Application.get_env(:tuist_cloud, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TuistCloud.PubSub},
       # Start the Finch HTTP client for sending emails

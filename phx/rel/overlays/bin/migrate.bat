@@ -1,1 +1,1 @@
-call "%~dp0\tuist_cloud" eval TuistCloud.Support.Release.migrate
+call "%~dp0\tuist_cloud" eval TuistCloud.Release.migrate

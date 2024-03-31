@@ -25,8 +25,7 @@ secrets = TuistCloud.Environment.decrypt_secrets()[env]
 secret_key_base = TuistCloud.Environment.secret_key_base(secrets)
 
 if env != :test do
-  config :tuist_cloud, TuistCloudWeb.Endpoint,
-    secret_key_base: secret_key_base
+  config :tuist_cloud, TuistCloudWeb.Endpoint, secret_key_base: secret_key_base
 end
 
 if [:prod, :stag, :can] |> Enum.member?(env) do

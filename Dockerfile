@@ -155,6 +155,9 @@ COPY --from=phx-builder --chown=app:app /app/_build/${MIX_ENV}/rel/tuist_cloud .
 COPY --from=phx-builder --chown=app:app /app/priv/secrets/secrets.yml.enc ./phx/priv/secrets/secrets.yml.enc
 # COPY --from=phx-builder --chown=app:app /app/deps/castore/priv/cacerts.pem ./deps/castore/priv/cacerts.pem
 
+# Copy initial schema
+COPY phx/priv/repo/structure.sql /app/phx/priv/repo/structure.sql
+
 # Entrypoint prepares the database.
 ENTRYPOINT ["/app/bin/docker-entrypoint"]
 

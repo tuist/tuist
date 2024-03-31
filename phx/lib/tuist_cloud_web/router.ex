@@ -71,7 +71,6 @@ defmodule TuistCloudWeb.Router do
     end
   end
 
-
   # Authenticated routes
   scope "/v2", TuistCloudWeb do
     pipe_through [:open_api, :browser, :authenticated]

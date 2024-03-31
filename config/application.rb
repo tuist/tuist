@@ -24,6 +24,11 @@ module TuistCloud
     config.autoload_once_paths << "#{root}/app/lib/environment"
     Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
+    # Migrations
+    # Since from a certain migration, they are managed by Ecto, we don't want
+    # Rails to check for migrations pending, otherwise it yields to errors.
+    config.active_record.migration_error = false
+
     # URLs
     Rails.application.routes.default_url_options[:host] = Environment.app_url(defaults: config.defaults)
     config.action_controller.default_url_options = { host: Environment.app_url(defaults: config.defaults) }

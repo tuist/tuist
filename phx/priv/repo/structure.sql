@@ -384,6 +384,39 @@ ALTER SEQUENCE public.command_events_id_seq OWNED BY public.command_events.id;
 
 
 --
+-- Name: device_codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.device_codes (
+    id bigint NOT NULL,
+    code character varying NOT NULL,
+    authenticated boolean DEFAULT false,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    user_id bigint
+);
+
+
+--
+-- Name: device_codes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.device_codes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: device_codes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.device_codes_id_seq OWNED BY public.device_codes.id;
+
+
+--
 -- Name: invitations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -670,7 +703,8 @@ ALTER SEQUENCE public.s3_buckets_id_seq OWNED BY public.s3_buckets.id;
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying NOT NULL
+    version bigint NOT NULL,
+    inserted_at timestamp without time zone
 );
 
 
@@ -754,6 +788,13 @@ ALTER TABLE ONLY public.cache_events ALTER COLUMN id SET DEFAULT nextval('public
 --
 
 ALTER TABLE ONLY public.command_events ALTER COLUMN id SET DEFAULT nextval('public.command_events_id_seq'::regclass);
+
+
+--
+-- Name: device_codes id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes ALTER COLUMN id SET DEFAULT nextval('public.device_codes_id_seq'::regclass);
 
 
 --
@@ -842,6 +883,14 @@ ALTER TABLE ONLY public.cache_events
 
 ALTER TABLE ONLY public.command_events
     ADD CONSTRAINT command_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: device_codes device_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes
+    ADD CONSTRAINT device_codes_pkey PRIMARY KEY (id);
 
 
 --
@@ -987,6 +1036,13 @@ CREATE INDEX index_cache_events_on_project_id ON public.cache_events USING btree
 --
 
 CREATE INDEX index_command_events_on_project_id ON public.command_events USING btree (project_id);
+
+
+--
+-- Name: index_device_codes_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_device_codes_on_user_id ON public.device_codes USING btree (user_id);
 
 
 --
@@ -1214,6 +1270,14 @@ CREATE TRIGGER que_state_notify AFTER INSERT OR DELETE OR UPDATE ON public.que_j
 
 
 --
+-- Name: device_codes fk_rails_50c7f9f833; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.device_codes
+    ADD CONSTRAINT fk_rails_50c7f9f833 FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: s3_buckets fk_rails_9f283692d5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1249,28 +1313,3 @@ ALTER TABLE ONLY public.que_scheduler_audit_enqueued
 -- PostgreSQL database dump complete
 --
 
-INSERT INTO public."schema_migrations" (version) VALUES (20210819110244);
-INSERT INTO public."schema_migrations" (version) VALUES (20210819111422);
-INSERT INTO public."schema_migrations" (version) VALUES (20211022081531);
-INSERT INTO public."schema_migrations" (version) VALUES (20211022082200);
-INSERT INTO public."schema_migrations" (version) VALUES (20211022083530);
-INSERT INTO public."schema_migrations" (version) VALUES (20211124155026);
-INSERT INTO public."schema_migrations" (version) VALUES (20211222143721);
-INSERT INTO public."schema_migrations" (version) VALUES (20220123191852);
-INSERT INTO public."schema_migrations" (version) VALUES (20220311074508);
-INSERT INTO public."schema_migrations" (version) VALUES (20220323204451);
-INSERT INTO public."schema_migrations" (version) VALUES (20220410132610);
-INSERT INTO public."schema_migrations" (version) VALUES (20220505193115);
-INSERT INTO public."schema_migrations" (version) VALUES (20220626091301);
-INSERT INTO public."schema_migrations" (version) VALUES (20230115112317);
-INSERT INTO public."schema_migrations" (version) VALUES (20230601202210);
-INSERT INTO public."schema_migrations" (version) VALUES (20230731104741);
-INSERT INTO public."schema_migrations" (version) VALUES (20230818092024);
-INSERT INTO public."schema_migrations" (version) VALUES (20230829211134);
-INSERT INTO public."schema_migrations" (version) VALUES (20230919143833);
-INSERT INTO public."schema_migrations" (version) VALUES (20230919143930);
-INSERT INTO public."schema_migrations" (version) VALUES (20231014204217);
-INSERT INTO public."schema_migrations" (version) VALUES (20231113224031);
-INSERT INTO public."schema_migrations" (version) VALUES (20240108084302);
-INSERT INTO public."schema_migrations" (version) VALUES (20240108223110);
-INSERT INTO public."schema_migrations" (version) VALUES (20240223151045);

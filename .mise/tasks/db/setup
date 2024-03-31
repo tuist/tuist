@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 # mise description="Sets up the database"
 
-$MISE_PROJECT_ROOT/bin/rails db:setup
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix ecto.load)
+

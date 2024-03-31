@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mise description="Devs the application"
 
-set -eu
+set -euo pipefail
 
 hivemind $MISE_PROJECT_ROOT/Procfile.dev

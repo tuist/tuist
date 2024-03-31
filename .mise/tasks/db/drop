@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 # mise description="Drops the database"
 
-$MISE_PROJECT_ROOT/bin/rails db:drop
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix ecto.drop)
+

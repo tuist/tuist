@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# mise description="Devs the application"
+
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT && bundle install)
+(cd $MISE_PROJECT_ROOT/phx && mix deps.get)
+(cd $MISE_PROJECT_ROOT && bin/migrate)

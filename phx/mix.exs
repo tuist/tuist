@@ -70,7 +70,8 @@ defmodule TuistCloud.MixProject do
       {:mimic, "~> 1.7", only: :test},
       {:open_api_spex, "~> 3.18"},
       {:ymlr, "~> 2.0"},
-      {:poison, "~> 5.0"}
+      {:poison, "~> 5.0"},
+      {:oban, "~> 2.17"}
     ]
   end
 

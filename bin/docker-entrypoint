@@ -2,7 +2,7 @@
 
 # If running the rails server then create or migrate existing database
 if [ "${1}" == "/usr/local/bin/hivemind" ]; then
-  ./bin/rails db:prepare
+  ./bin/migrate
 fi
 
 exec "${@}"
