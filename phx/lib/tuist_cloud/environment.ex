@@ -85,6 +85,10 @@ defmodule TuistCloud.Environment do
     get([:app_signal, :push_api_key], secrets)
   end
 
+  def secret_key_password(secrets \\ secrets()) do
+    get([:secret_key, :password], secrets)
+  end
+
   def get(keys, secrets \\ secrets()) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join("_", &String.upcase/1)}"

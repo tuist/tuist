@@ -38,6 +38,16 @@ defmodule TuistCloud.Accounts do
     Repo.get_by(User, token: token)
   end
 
+  @doc """
+  Given an email address, it returns the user associated with it.
+
+  # Parameters
+    - `email` - The email address of the user.
+  """
+  def get_user_by_email(email) do
+    Repo.get_by(User, email: email)
+  end
+
   @doc ~S"""
   Creates an organization with the given attributes.
   """
@@ -62,14 +72,21 @@ defmodule TuistCloud.Accounts do
   @doc """
   Creates a user with the given attributes and its associated account.
   """
-  def create_user(%{email: email}) do
+  def create_user(email, opts \\ []) do
     token = TuistCloud.Tokens.generate_authentication_token()
+    password = opts |> Keyword.get(:password, "")
+    confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
 
     {:ok, %{user: user}} =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(
         :user,
-        User.create_user_changeset(%User{}, %{email: email, token: token})
+        User.create_user_changeset(%User{}, %{
+          email: email,
+          token: token,
+          password: password,
+          confirmed_at: confirmed_at
+        })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
         name = email |> String.split("@") |> List.first()

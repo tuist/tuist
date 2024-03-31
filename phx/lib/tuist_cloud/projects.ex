@@ -31,8 +31,13 @@ defmodule TuistCloud.Projects do
     end
   end
 
-  def create_project(%{name: name, account: %{id: account_id}}) do
-    token = TuistCloud.Tokens.generate_authentication_token()
+  @spec create_project(%{
+          :account => %{:id => any(), optional(any()) => any()},
+          :name => any(),
+          optional(any()) => any()
+        }) :: any()
+  def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
+    token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_authentication_token())
 
     %Project{}
     |> Project.create_changeset(%{token: token, name: name, account_id: account_id})

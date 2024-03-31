@@ -5,7 +5,7 @@ defmodule TuistCloud.AccountsFixtures do
   alias TuistCloud.TestUtilities
 
   def user_fixture() do
-    Accounts.create_user(%{email: "#{TestUtilities.unique_integer()}@cloud.tuist.io"})
+    Accounts.create_user("#{TestUtilities.unique_integer()}@cloud.tuist.io")
   end
 
   def organization_fixture() do

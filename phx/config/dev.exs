@@ -2,8 +2,6 @@ import Config
 
 # Configure your database
 config :tuist_cloud, TuistCloud.Repo,
-  username: "postgres",
-  password: "postgres",
   hostname: "localhost",
   database: "tuistcloud_development",
   stacktrace: true,

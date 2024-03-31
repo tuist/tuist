@@ -71,7 +71,8 @@ defmodule TuistCloud.MixProject do
       {:open_api_spex, "~> 3.18"},
       {:ymlr, "~> 2.0"},
       {:poison, "~> 5.0"},
-      {:oban, "~> 2.17"}
+      {:oban, "~> 2.17"},
+      {:bcrypt_elixir, "~> 2.0"}
     ]
   end
 
