@@ -9,3 +9,6 @@ traefik = "3.0.0-rc1"
 
 [plugins]
 traefik = "https://github.com/Dabolus/asdf-traefik"
+
+[env]
+TUIST_CLOUD_HOSTED = 1
