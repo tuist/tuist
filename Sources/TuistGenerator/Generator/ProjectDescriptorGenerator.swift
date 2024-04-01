@@ -145,6 +145,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
 
+        groups.removeEmptyAuxiliaryGroups()
+
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
         return ProjectDescriptor(
             path: project.path,
