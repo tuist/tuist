@@ -366,7 +366,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                         .objcHeaderFileContent(
                             targetName: target.name,
                             bundleName: "\(project.name)_\(target.name)",
-                            target: target
+                            target: target,
+                            projectName: project.name
                         )
                         .data(using: .utf8)
                 ),
@@ -375,7 +376,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                     contents: ResourcesProjectMapper
                         .objcImplementationFileContent(
                             targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)"
+                            bundleName: "\(project.name)_\(target.name)",
+                            projectName: project.name
                         )
                         .data(using: .utf8)
                 ),

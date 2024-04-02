@@ -66,8 +66,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         if target.supportsSources,
-           target.sources.contains(where: { $0.path.extension == "swift" }),
-           !target.sources.contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
+           target.sources.containsSwiftFiles,
+           target.resources.containsBundleAccessedResources
         {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
@@ -78,10 +78,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
-           target.supportsSources,
-           target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
-           !target.resources.filter({ $0.path.extension != "xcprivacy" }).isEmpty
+        if target.supportsSources,
+           target.sources.containsObjcFiles,
+           target.resources.containsBundleAccessedResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -140,7 +139,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let content: String = ResourcesProjectMapper.objcHeaderFileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target
+            target: target,
+            projectName: project.name
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -154,7 +154,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_")
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            projectName: project.name
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -218,15 +219,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 fatalError("unable to find bundle named \(bundleName)")
             }()
             }
-
-            // MARK: - Objective-C Bundle Accessor
-
-            @objc
-            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-            @objc public class var bundle: Bundle {
-                return .module
-            }
-            }
             // swiftlint:enable all
             // swiftformat:enable all
 
@@ -249,15 +241,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             ), the bundle for classes within this module can be used directly.
             static let module = Bundle(for: BundleFinder.self)
             }
-
-            // MARK: - Objective-C Bundle Accessor
-
-            @objc
-            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-            @objc public class var bundle: Bundle {
-                return .module
-            }
-            }
             // swiftlint:enable all
             // swiftformat:enable all
 
@@ -265,7 +248,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
     }
 
-    static func objcHeaderFileContent(targetName: String, bundleName _: String, target _: Target) -> String {
+    static func objcHeaderFileContent(
+        targetName: String,
+
+        bundleName _: String,
+        target _: Target,
+        projectName: String
+    ) -> String {
         return """
         #import <Foundation/Foundation.h>
 
@@ -273,9 +262,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         extern "C" {
         #endif
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+        NSBundle* \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE(void);
 
-        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+        #define SWIFTPM_MODULE_BUNDLE \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE()
 
         #if __cplusplus
         }
@@ -283,12 +272,17 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
-    static func objcImplementationFileContent(targetName: String, bundleName: String) -> String {
+    static func objcImplementationFileContent(
+        targetName: String,
+
+        bundleName: String,
+        projectName: String
+    ) -> String {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
+        NSBundle* \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE() {
             NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
 
             NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
@@ -296,5 +290,21 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             return bundle;
         }
         """
+    }
+}
+
+extension [SourceFile] {
+    fileprivate var containsObjcFiles: Bool {
+        contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" })
+    }
+
+    fileprivate var containsSwiftFiles: Bool {
+        contains(where: { $0.path.extension == "swift" })
+    }
+}
+
+extension [ResourceFileElement] {
+    fileprivate var containsBundleAccessedResources: Bool {
+        !filter { $0.path.extension != "xcprivacy" }.isEmpty
     }
 }
