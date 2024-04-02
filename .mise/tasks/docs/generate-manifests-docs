@@ -1,0 +1,7 @@
+#!/bin/bash
+# mise description="Generates the markdown documentation for the manifest files"
+
+set -euo pipefail
+
+tuist generate --no-open --no-binary-cache --path $MISE_PROJECT_ROOT
+sourcedocs generate -o $MISE_PROJECT_ROOT/docs/generated/ --module-name ProjectDescription -- -scheme Tuist-Workspace -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace

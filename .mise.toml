@@ -4,9 +4,11 @@ swiftlint = "0.54.0"
 swiftformat = "0.53.3"
 pnpm = "8.15.6"
 node = "20.12.0"
+sourcedocs = "2.0.1"
 
 [plugins]
 python = 'https://github.com/asdf-community/asdf-tuist'
+sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
 
 [tasks."tuist:edit"]
 description = "Edit the project using Tuist"

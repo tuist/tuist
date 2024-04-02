@@ -1,5 +1,5 @@
 #!/bin/bash
-# mise description="Builds the project."
+# mise description="Builds the documentation website."
 
 set -euo pipefail
 
