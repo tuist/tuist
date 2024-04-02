@@ -66,8 +66,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         if target.supportsSources,
-           target.sources.containsSwiftFiles,
-           target.resources.containsBundleAccessedResources
+           target.sources.containsSwiftFiles
         {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 

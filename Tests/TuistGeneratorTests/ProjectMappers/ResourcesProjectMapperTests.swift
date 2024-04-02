@@ -327,7 +327,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
 
-    func test_map_when_a_target_has_objc_source_files() throws {
+    func test_map_when_a_project_is_external_target_has_objc_source_files() throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
@@ -339,6 +339,42 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotProject: gotProject,
+            gotSideEffects: gotSideEffects
+        )
+    }
+
+    func test_map_when_a_project_is_not_external_target_has_objc_source_files() throws {
+        // Given
+        let sources: [SourceFile] = ["/ViewController.m"]
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let target = Target.test(product: .staticLibrary, sources: sources, resources: resources)
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotProject: gotProject,
+            gotSideEffects: gotSideEffects
+        )
+    }
+
+    // MARK: - Verifiers
+
+    private func verifyObjcBundleAccessor(
+        for target: Target,
+        gotTarget: Target,
+        gotProject _: Project,
+        gotSideEffects: [SideEffectDescriptor]
+    ) {
         XCTAssertEqual(
             gotTarget.settings?.base["GCC_PREFIX_HEADER"],
             .string(
