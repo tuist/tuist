@@ -91,7 +91,7 @@ extension SynthesizedResourceInterfaceTemplates {
         {% if param.lookupFunction %}
         return {{param.lookupFunction}}(name, family, path)
         {% else %}
-        return {{param.bundle|default:"Bundle.module"}}.url(forResource: path, withExtension: nil)
+        return {{param.bundle|default:"BundleToken.bundle"}}.url(forResource: path, withExtension: nil)
         {% endif %}
       }
     }

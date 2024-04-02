@@ -70,7 +70,7 @@ extension SynthesizedResourceInterfaceTemplates {
       }
 
       {{accessModifier}} func url(locale: Locale?) -> URL {
-        let bundle = {{param.bundle|default:"Bundle.module"}}
+        let bundle = {{param.bundle|default:"BundleToken.bundle"}}
         let url = bundle.url(
           forResource: name,
           withExtension: ext,
