@@ -2,6 +2,15 @@
 
 # `EnvironmentVariable`
 
+**Contents**
+
+- [Properties](#properties)
+  - `value`
+  - `isEnabled`
+- [Methods](#methods)
+  - `environmentVariable(value:isEnabled:)`
+  - `init(stringLiteral:)`
+
 ```swift
 public struct EnvironmentVariable: Equatable, Codable, Hashable, ExpressibleByStringLiteral
 ```

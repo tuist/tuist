@@ -2,6 +2,13 @@
 
 # `PluginLocation.LocationType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `local(path:)`
+  - `gitWithTag(url:tag:directory:releaseUrl:)`
+  - `gitWithSha(url:sha:directory:)`
+
 ```swift
 public enum LocationType: Codable, Equatable
 ```

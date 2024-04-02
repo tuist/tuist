@@ -2,6 +2,12 @@
 
 # `TargetScript.Order`
 
+**Contents**
+
+- [Cases](#cases)
+  - `pre`
+  - `post`
+
 ```swift
 public enum Order: String, Codable, Equatable
 ```

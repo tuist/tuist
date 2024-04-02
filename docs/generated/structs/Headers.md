@@ -2,6 +2,19 @@
 
 # `Headers`
 
+**Contents**
+
+- [Properties](#properties)
+  - `umbrellaHeader`
+  - `public`
+  - `private`
+  - `project`
+  - `exclusionRule`
+- [Methods](#methods)
+  - `headers(public:private:project:exclusionRule:)`
+  - `allHeaders(from:umbrella:private:)`
+  - `onlyHeaders(from:umbrella:private:)`
+
 ```swift
 public struct Headers: Codable, Equatable
 ```

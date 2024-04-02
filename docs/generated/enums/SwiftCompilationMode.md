@@ -2,6 +2,12 @@
 
 # `SwiftCompilationMode`
 
+**Contents**
+
+- [Cases](#cases)
+  - `singlefile`
+  - `wholemodule`
+
 ```swift
 public enum SwiftCompilationMode: String
 ```

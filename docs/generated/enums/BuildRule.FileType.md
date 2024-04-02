@@ -2,6 +2,56 @@
 
 # `BuildRule.FileType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `instrumentsPackageDefinition`
+  - `metalAIR`
+  - `machO`
+  - `machOObject`
+  - `siriKitIntent`
+  - `coreMLMachineLearning`
+  - `rcProjectDocument`
+  - `skyboxDocument`
+  - `interfaceBuilderStoryboard`
+  - `interfaceBuilder`
+  - `documentationCatalog`
+  - `coreMLMachineLearningModelPackage`
+  - `assemblyAsm`
+  - `assemblyAsmAsm`
+  - `llvmAssembly`
+  - `cSource`
+  - `clipsSource`
+  - `cppSource`
+  - `dtraceSource`
+  - `dylanSource`
+  - `fortranSource`
+  - `glslSource`
+  - `iigSource`
+  - `javaSource`
+  - `lexSource`
+  - `metalShaderSource`
+  - `migSource`
+  - `nasmAssembly`
+  - `openCLSource`
+  - `pascalSource`
+  - `protobufSource`
+  - `rezSource`
+  - `swiftSource`
+  - `yaccSource`
+  - `localizationString`
+  - `localizationStringDictionary`
+  - `xcAppExtensionPoints`
+  - `xcodeSpecificationPlist`
+  - `dae`
+  - `nib`
+  - `interfaceBuilderStoryboardPackage`
+  - `classModel`
+  - `dataModel`
+  - `dataModelVersion`
+  - `mappingModel`
+  - `sourceFilesWithNamesMatching`
+
 ```swift
 public enum FileType: Codable
 ```

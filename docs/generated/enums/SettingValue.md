@@ -2,6 +2,17 @@
 
 # `SettingValue`
 
+**Contents**
+
+- [Cases](#cases)
+  - `string(_:)`
+  - `array(_:)`
+- [Methods](#methods)
+  - `init(stringLiteral:)`
+  - `init(arrayLiteral:)`
+  - `init(booleanLiteral:)`
+  - `init(_:)`
+
 ```swift
 public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable,
     Codable

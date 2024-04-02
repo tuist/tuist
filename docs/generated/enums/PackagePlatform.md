@@ -2,6 +2,16 @@
 
 # `PackagePlatform`
 
+**Contents**
+
+- [Cases](#cases)
+  - `iOS`
+  - `macOS`
+  - `macCatalyst`
+  - `watchOS`
+  - `tvOS`
+  - `visionOS`
+
 ```swift
 public enum PackagePlatform: String, Codable, Equatable, CaseIterable
 ```

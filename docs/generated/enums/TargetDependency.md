@@ -2,6 +2,24 @@
 
 # `TargetDependency`
 
+**Contents**
+
+- [Cases](#cases)
+  - `target(name:condition:)`
+  - `project(target:path:condition:)`
+  - `framework(path:status:condition:)`
+  - `library(path:publicHeaders:swiftModuleMap:condition:)`
+  - `package(product:type:condition:)`
+  - `sdk(name:type:status:condition:)`
+  - `xcframework(path:status:condition:)`
+  - `xctest`
+  - `external(name:condition:)`
+- [Properties](#properties)
+  - `typeName`
+- [Methods](#methods)
+  - `sdk(name:type:condition:)`
+  - `target(_:condition:)`
+
 ```swift
 public enum TargetDependency: Codable, Hashable
 ```

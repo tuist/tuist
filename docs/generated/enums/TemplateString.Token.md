@@ -2,6 +2,11 @@
 
 # `TemplateString.Token`
 
+**Contents**
+
+- [Cases](#cases)
+  - `projectName`
+
 ```swift
 public enum Token: String, Equatable
 ```

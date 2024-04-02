@@ -2,6 +2,14 @@
 
 # `Entitlements`
 
+**Contents**
+
+- [Cases](#cases)
+  - `file(path:)`
+  - `dictionary(_:)`
+- [Properties](#properties)
+  - `path`
+
 ```swift
 public enum Entitlements: Codable, Equatable
 ```

@@ -2,6 +2,19 @@
 
 # `CompatibleXcodeVersions`
 
+**Contents**
+
+- [Cases](#cases)
+  - `all`
+  - `exact(_:)`
+  - `upToNextMajor(_:)`
+  - `upToNextMinor(_:)`
+  - `list(_:)`
+- [Methods](#methods)
+  - `init(arrayLiteral:)`
+  - `init(arrayLiteral:)`
+  - `init(stringLiteral:)`
+
 ```swift
 public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringInterpolation, Codable, Equatable
 ```

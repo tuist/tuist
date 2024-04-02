@@ -2,6 +2,16 @@
 
 # `RunActionOptions.GPUFrameCaptureMode`
 
+**Contents**
+
+- [Cases](#cases)
+  - `autoEnabled`
+  - `metal`
+  - `openGL`
+  - `disabled`
+- [Properties](#properties)
+  - `default`
+
 ```swift
 public enum GPUFrameCaptureMode: String, Codable, Equatable
 ```

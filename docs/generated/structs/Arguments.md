@@ -2,6 +2,14 @@
 
 # `Arguments`
 
+**Contents**
+
+- [Properties](#properties)
+  - `environmentVariables`
+  - `launchArguments`
+- [Methods](#methods)
+  - `arguments(environmentVariables:launchArguments:)`
+
 ```swift
 public struct Arguments: Equatable, Codable
 ```

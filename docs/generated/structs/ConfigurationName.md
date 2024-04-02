@@ -2,6 +2,16 @@
 
 # `ConfigurationName`
 
+**Contents**
+
+- [Properties](#properties)
+  - `rawValue`
+  - `debug`
+  - `release`
+- [Methods](#methods)
+  - `init(stringLiteral:)`
+  - `configuration(_:)`
+
 ```swift
 public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable
 ```

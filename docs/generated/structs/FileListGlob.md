@@ -2,6 +2,15 @@
 
 # `FileListGlob`
 
+**Contents**
+
+- [Properties](#properties)
+  - `glob`
+  - `excluding`
+- [Methods](#methods)
+  - `glob(_:excluding:)`
+  - `glob(_:excluding:)`
+
 ```swift
 public struct FileListGlob: Codable, Equatable
 ```

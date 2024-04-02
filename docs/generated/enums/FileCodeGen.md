@@ -2,6 +2,14 @@
 
 # `FileCodeGen`
 
+**Contents**
+
+- [Cases](#cases)
+  - `public`
+  - `private`
+  - `project`
+  - `disabled`
+
 ```swift
 public enum FileCodeGen: String, Codable, Equatable
 ```

@@ -2,6 +2,12 @@
 
 # `Project.Options.AutomaticSchemesOptions`
 
+**Contents**
+
+- [Cases](#cases)
+  - `enabled(targetSchemesGrouping:codeCoverageEnabled:testingOptions:testLanguage:testRegion:testScreenCaptureFormat:runLanguage:runRegion:)`
+  - `disabled`
+
 ```swift
 public enum AutomaticSchemesOptions: Codable, Equatable
 ```

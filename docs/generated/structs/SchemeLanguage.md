@@ -2,6 +2,14 @@
 
 # `SchemeLanguage`
 
+**Contents**
+
+- [Properties](#properties)
+  - `identifier`
+- [Methods](#methods)
+  - `init(identifier:)`
+  - `init(stringLiteral:)`
+
 ```swift
 public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral
 ```

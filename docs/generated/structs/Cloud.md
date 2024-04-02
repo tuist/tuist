@@ -2,6 +2,15 @@
 
 # `Cloud`
 
+**Contents**
+
+- [Properties](#properties)
+  - `url`
+  - `projectId`
+  - `options`
+- [Methods](#methods)
+  - `cloud(projectId:url:options:)`
+
 ```swift
 public struct Cloud: Codable, Equatable
 ```

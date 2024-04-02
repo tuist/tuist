@@ -2,6 +2,13 @@
 
 # `PlatformCondition`
 
+**Contents**
+
+- [Properties](#properties)
+  - `platformFilters`
+- [Methods](#methods)
+  - `when(_:)`
+
 ```swift
 public struct PlatformCondition: Codable, Hashable, Equatable
 ```

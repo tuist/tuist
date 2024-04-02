@@ -2,6 +2,15 @@
 
 # `SourceFilesList`
 
+**Contents**
+
+- [Properties](#properties)
+  - `globs`
+- [Methods](#methods)
+  - `sourceFilesList(globs:)`
+  - `sourceFilesList(globs:)`
+  - `paths(_:)`
+
 ```swift
 public struct SourceFilesList: Codable, Equatable
 ```

@@ -2,6 +2,12 @@
 
 # `FileElement`
 
+**Contents**
+
+- [Cases](#cases)
+  - `glob(pattern:)`
+  - `folderReference(path:)`
+
 ```swift
 public enum FileElement: Codable, Equatable
 ```

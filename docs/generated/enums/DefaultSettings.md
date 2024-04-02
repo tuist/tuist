@@ -2,6 +2,13 @@
 
 # `DefaultSettings`
 
+**Contents**
+
+- [Cases](#cases)
+  - `recommended(excluding:)`
+  - `essential(excluding:)`
+  - `none`
+
 ```swift
 public enum DefaultSettings: Codable, Equatable
 ```

@@ -2,6 +2,15 @@
 
 # `Template`
 
+**Contents**
+
+- [Properties](#properties)
+  - `description`
+  - `attributes`
+  - `items`
+- [Methods](#methods)
+  - `init(description:attributes:items:)`
+
 ```swift
 public struct Template: Codable, Equatable
 ```

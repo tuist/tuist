@@ -2,6 +2,15 @@
 
 # `Platform`
 
+**Contents**
+
+- [Cases](#cases)
+  - `iOS`
+  - `macOS`
+  - `watchOS`
+  - `tvOS`
+  - `visionOS`
+
 ```swift
 public enum Platform: String, Codable, Equatable, CaseIterable
 ```

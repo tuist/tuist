@@ -2,6 +2,21 @@
 
 # `BuildRule`
 
+**Contents**
+
+- [Properties](#properties)
+  - `compilerSpec`
+  - `filePatterns`
+  - `fileType`
+  - `name`
+  - `outputFiles`
+  - `inputFiles`
+  - `outputFilesCompilerFlags`
+  - `script`
+  - `runOncePerArchitecture`
+- [Methods](#methods)
+  - `buildRule(name:fileType:filePatterns:compilerSpec:inputFiles:outputFiles:outputFilesCompilerFlags:script:runOncePerArchitecture:)`
+
 ```swift
 public struct BuildRule: Codable, Equatable
 ```

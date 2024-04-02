@@ -2,6 +2,17 @@
 
 # `RunActionOptions`
 
+**Contents**
+
+- [Properties](#properties)
+  - `language`
+  - `region`
+  - `storeKitConfigurationPath`
+  - `simulatedLocation`
+  - `enableGPUFrameCaptureMode`
+- [Methods](#methods)
+  - `options(language:region:storeKitConfigurationPath:simulatedLocation:enableGPUFrameCaptureMode:)`
+
 ```swift
 public struct RunActionOptions: Equatable, Codable
 ```

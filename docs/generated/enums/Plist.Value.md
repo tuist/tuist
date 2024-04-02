@@ -2,6 +2,16 @@
 
 # `Plist.Value`
 
+**Contents**
+
+- [Cases](#cases)
+  - `string(_:)`
+  - `integer(_:)`
+  - `real(_:)`
+  - `boolean(_:)`
+  - `dictionary(_:)`
+  - `array(_:)`
+
 ```swift
 public indirect enum Value: Codable, Equatable
 ```

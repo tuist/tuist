@@ -2,6 +2,17 @@
 
 # `ArchiveAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `configuration`
+  - `revealArchiveInOrganizer`
+  - `customArchiveName`
+  - `preActions`
+  - `postActions`
+- [Methods](#methods)
+  - `archiveAction(configuration:revealArchiveInOrganizer:customArchiveName:preActions:postActions:)`
+
 ```swift
 public struct ArchiveAction: Equatable, Codable
 ```

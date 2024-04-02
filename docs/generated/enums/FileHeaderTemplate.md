@@ -2,6 +2,14 @@
 
 # `FileHeaderTemplate`
 
+**Contents**
+
+- [Cases](#cases)
+  - `file(_:)`
+  - `string(_:)`
+- [Methods](#methods)
+  - `init(stringLiteral:)`
+
 ```swift
 public enum FileHeaderTemplate: Codable, Equatable, ExpressibleByStringInterpolation
 ```

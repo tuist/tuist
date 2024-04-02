@@ -2,6 +2,13 @@
 
 # `AutomaticSchemesOptions.TargetSchemesGrouping`
 
+**Contents**
+
+- [Cases](#cases)
+  - `singleScheme`
+  - `byNameSuffix(build:test:run:)`
+  - `notGrouped`
+
 ```swift
 public enum TargetSchemesGrouping: Codable, Equatable
 ```

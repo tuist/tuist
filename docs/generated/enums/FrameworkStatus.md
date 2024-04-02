@@ -2,6 +2,12 @@
 
 # `FrameworkStatus`
 
+**Contents**
+
+- [Cases](#cases)
+  - `required`
+  - `optional`
+
 ```swift
 public enum FrameworkStatus: String, Codable, Hashable
 ```

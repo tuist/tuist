@@ -2,6 +2,26 @@
 
 # `RunActionOptions.SimulatedLocation`
 
+**Contents**
+
+- [Properties](#properties)
+  - `identifier`
+  - `gpxFile`
+  - `london`
+  - `johannesburg`
+  - `moscow`
+  - `mumbai`
+  - `tokyo`
+  - `sydney`
+  - `hongKong`
+  - `honolulu`
+  - `sanFrancisco`
+  - `mexicoCity`
+  - `newYork`
+  - `rioDeJaneiro`
+- [Methods](#methods)
+  - `custom(gpxFile:)`
+
 ```swift
 public struct SimulatedLocation: Codable, Equatable
 ```

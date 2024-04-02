@@ -2,6 +2,16 @@
 
 # `ExecutionAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `title`
+  - `scriptText`
+  - `target`
+  - `shellPath`
+- [Methods](#methods)
+  - `executionAction(title:scriptText:target:shellPath:)`
+
 ```swift
 public struct ExecutionAction: Equatable, Codable
 ```

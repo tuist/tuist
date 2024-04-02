@@ -2,6 +2,22 @@
 
 # `DeploymentTargets`
 
+**Contents**
+
+- [Properties](#properties)
+  - `iOS`
+  - `macOS`
+  - `watchOS`
+  - `tvOS`
+  - `visionOS`
+- [Methods](#methods)
+  - `multiplatform(iOS:macOS:watchOS:tvOS:visionOS:)`
+  - `iOS(_:)`
+  - `macOS(_:)`
+  - `watchOS(_:)`
+  - `tvOS(_:)`
+  - `visionOS(_:)`
+
 ```swift
 public struct DeploymentTargets: Hashable, Codable
 ```

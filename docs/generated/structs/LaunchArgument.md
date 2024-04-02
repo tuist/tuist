@@ -2,6 +2,14 @@
 
 # `LaunchArgument`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `isEnabled`
+- [Methods](#methods)
+  - `launchArgument(name:isEnabled:)`
+
 ```swift
 public struct LaunchArgument: Equatable, Codable
 ```

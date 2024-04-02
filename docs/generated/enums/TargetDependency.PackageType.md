@@ -2,6 +2,13 @@
 
 # `TargetDependency.PackageType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `runtime`
+  - `plugin`
+  - `macro`
+
 ```swift
 public enum PackageType: Codable, Hashable
 ```

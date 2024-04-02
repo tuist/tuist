@@ -2,6 +2,35 @@
 
 # `ResourceSynthesizer`
 
+**Contents**
+
+- [Properties](#properties)
+  - `templateType`
+  - `parser`
+  - `parserOptions`
+  - `extensions`
+- [Methods](#methods)
+  - `strings(parserOptions:)`
+  - `strings(plugin:parserOptions:)`
+  - `assets(parserOptions:)`
+  - `assets(plugin:parserOptions:)`
+  - `fonts(parserOptions:)`
+  - `fonts(plugin:parserOptions:)`
+  - `plists(parserOptions:)`
+  - `plists(plugin:parserOptions:)`
+  - `coreData(plugin:parserOptions:)`
+  - `coreData(parserOptions:)`
+  - `interfaceBuilder(plugin:parserOptions:)`
+  - `interfaceBuilder(parserOptions:)`
+  - `json(plugin:parserOptions:)`
+  - `json(parserOptions:)`
+  - `yaml(plugin:parserOptions:)`
+  - `yaml(parserOptions:)`
+  - `files(plugin:parserOptions:extensions:)`
+  - `files(parserOptions:extensions:)`
+  - `custom(plugin:parser:parserOptions:extensions:resourceName:)`
+  - `custom(name:parser:parserOptions:extensions:)`
+
 ```swift
 public struct ResourceSynthesizer: Codable, Equatable
 ```

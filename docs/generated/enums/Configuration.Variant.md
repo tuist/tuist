@@ -2,6 +2,12 @@
 
 # `Configuration.Variant`
 
+**Contents**
+
+- [Cases](#cases)
+  - `debug`
+  - `release`
+
 ```swift
 public enum Variant: String, Codable
 ```

@@ -2,6 +2,11 @@
 
 # `Cloud.Option`
 
+**Contents**
+
+- [Cases](#cases)
+  - `optional`
+
 ```swift
 public enum Option: String, Codable, Equatable
 ```

@@ -37,8 +37,11 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
+      - name: Up
+        script: |
+          mise run up
       - name: Build
-        script: bash ./make/tasks/github/build-docc.sh
+        script: mise run docs:build
     triggering:
       << : *branch_triggering
   unit_tests:

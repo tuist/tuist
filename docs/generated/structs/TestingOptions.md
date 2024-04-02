@@ -2,6 +2,15 @@
 
 # `TestingOptions`
 
+**Contents**
+
+- [Properties](#properties)
+  - `rawValue`
+  - `parallelizable`
+  - `randomExecutionOrdering`
+- [Methods](#methods)
+  - `init(rawValue:)`
+
 ```swift
 public struct TestingOptions: OptionSet, Codable, Equatable
 ```

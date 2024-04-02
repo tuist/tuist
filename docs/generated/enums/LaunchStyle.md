@@ -2,6 +2,12 @@
 
 # `LaunchStyle`
 
+**Contents**
+
+- [Cases](#cases)
+  - `automatically`
+  - `waitForExecutableToBeLaunched`
+
 ```swift
 public enum LaunchStyle: Codable
 ```

@@ -2,6 +2,12 @@
 
 # `ResourceSynthesizer.TemplateType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `plugin(name:resourceName:)`
+  - `defaultTemplate(resourceName:)`
+
 ```swift
 public enum TemplateType: Codable, Equatable
 ```

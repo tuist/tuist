@@ -2,6 +2,12 @@
 
 # `Template.Attribute`
 
+**Contents**
+
+- [Cases](#cases)
+  - `required(_:)`
+  - `optional(_:default:)`
+
 ```swift
 public enum Attribute: Codable, Equatable
 ```

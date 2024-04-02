@@ -2,6 +2,17 @@
 
 # `PlatformFilter`
 
+**Contents**
+
+- [Cases](#cases)
+  - `ios`
+  - `macos`
+  - `tvos`
+  - `catalyst`
+  - `driverkit`
+  - `watchos`
+  - `visionos`
+
 ```swift
 public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable
 ```

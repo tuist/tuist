@@ -2,6 +2,23 @@
 
 # `RunAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `configuration`
+  - `attachDebugger`
+  - `customLLDBInitFile`
+  - `preActions`
+  - `postActions`
+  - `executable`
+  - `arguments`
+  - `options`
+  - `diagnosticsOptions`
+  - `expandVariableFromTarget`
+  - `launchStyle`
+- [Methods](#methods)
+  - `runAction(configuration:attachDebugger:customLLDBInitFile:preActions:postActions:executable:arguments:options:diagnosticsOptions:expandVariableFromTarget:launchStyle:)`
+
 ```swift
 public struct RunAction: Equatable, Codable
 ```

@@ -2,6 +2,17 @@
 
 # `Configuration`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `variant`
+  - `settings`
+  - `xcconfig`
+- [Methods](#methods)
+  - `debug(name:settings:xcconfig:)`
+  - `release(name:settings:xcconfig:)`
+
 ```swift
 public struct Configuration: Equatable, Codable
 ```

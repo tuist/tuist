@@ -2,6 +2,13 @@
 
 # `MergedBinaryType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `disabled`
+  - `automatic`
+  - `manual(mergeableDependencies:)`
+
 ```swift
 public enum MergedBinaryType: Equatable, Codable
 ```

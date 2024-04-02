@@ -2,6 +2,12 @@
 
 # `ScreenCaptureFormat`
 
+**Contents**
+
+- [Cases](#cases)
+  - `screenshots`
+  - `screenRecording`
+
 ```swift
 public enum ScreenCaptureFormat: String, Codable
 ```

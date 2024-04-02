@@ -2,6 +2,18 @@
 
 # `SourceFileGlob`
 
+**Contents**
+
+- [Properties](#properties)
+  - `glob`
+  - `excluding`
+  - `compilerFlags`
+  - `codeGen`
+  - `compilationCondition`
+- [Methods](#methods)
+  - `glob(_:excluding:compilerFlags:codeGen:compilationCondition:)`
+  - `glob(_:excluding:compilerFlags:codeGen:compilationCondition:)`
+
 ```swift
 public struct SourceFileGlob: Codable, Equatable
 ```

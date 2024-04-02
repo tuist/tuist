@@ -2,6 +2,17 @@
 
 # `SchemeDiagnosticsOptions`
 
+**Contents**
+
+- [Properties](#properties)
+  - `addressSanitizerEnabled`
+  - `detectStackUseAfterReturnEnabled`
+  - `threadSanitizerEnabled`
+  - `mainThreadCheckerEnabled`
+  - `performanceAntipatternCheckerEnabled`
+- [Methods](#methods)
+  - `options(addressSanitizerEnabled:detectStackUseAfterReturnEnabled:threadSanitizerEnabled:mainThreadCheckerEnabled:performanceAntipatternCheckerEnabled:)`
+
 ```swift
 public struct SchemeDiagnosticsOptions: Equatable, Codable
 ```

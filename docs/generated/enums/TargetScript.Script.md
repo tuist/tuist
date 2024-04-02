@@ -2,6 +2,13 @@
 
 # `TargetScript.Script`
 
+**Contents**
+
+- [Cases](#cases)
+  - `tool(path:args:)`
+  - `scriptPath(path:args:)`
+  - `embedded(_:)`
+
 ```swift
 public enum Script: Equatable, Codable
 ```

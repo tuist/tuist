@@ -2,6 +2,17 @@
 
 # `Version`
 
+**Contents**
+
+- [Properties](#properties)
+  - `major`
+  - `minor`
+  - `patch`
+  - `prereleaseIdentifiers`
+  - `buildMetadataIdentifiers`
+- [Methods](#methods)
+  - `init(_:_:_:prereleaseIdentifiers:buildMetadataIdentifiers:)`
+
 ```swift
 public struct Version: Hashable, Codable
 ```

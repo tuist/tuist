@@ -2,6 +2,16 @@
 
 # `Package.Requirement`
 
+**Contents**
+
+- [Cases](#cases)
+  - `upToNextMajor(from:)`
+  - `upToNextMinor(from:)`
+  - `range(from:to:)`
+  - `exact(_:)`
+  - `branch(_:)`
+  - `revision(_:)`
+
 ```swift
 public enum Requirement: Codable, Equatable
 ```

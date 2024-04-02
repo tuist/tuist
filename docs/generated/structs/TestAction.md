@@ -2,6 +2,24 @@
 
 # `TestAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `testPlans`
+  - `targets`
+  - `arguments`
+  - `configuration`
+  - `attachDebugger`
+  - `expandVariableFromTarget`
+  - `preActions`
+  - `postActions`
+  - `options`
+  - `diagnosticsOptions`
+  - `skippedTests`
+- [Methods](#methods)
+  - `targets(_:arguments:configuration:attachDebugger:expandVariableFromTarget:preActions:postActions:options:diagnosticsOptions:skippedTests:)`
+  - `testPlans(_:configuration:attachDebugger:preActions:postActions:)`
+
 ```swift
 public struct TestAction: Equatable, Codable
 ```

@@ -2,6 +2,23 @@
 
 # `Project`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `organizationName`
+  - `options`
+  - `packages`
+  - `targets`
+  - `schemes`
+  - `settings`
+  - `fileHeaderTemplate`
+  - `additionalFiles`
+  - `resourceSynthesizers`
+  - `containsExternalDependencies`
+- [Methods](#methods)
+  - `init(name:organizationName:options:packages:settings:targets:schemes:fileHeaderTemplate:additionalFiles:resourceSynthesizers:)`
+
 ```swift
 public struct Project: Codable, Equatable
 ```

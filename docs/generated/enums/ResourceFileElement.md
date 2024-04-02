@@ -2,6 +2,12 @@
 
 # `ResourceFileElement`
 
+**Contents**
+
+- [Cases](#cases)
+  - `glob(pattern:excluding:tags:inclusionCondition:)`
+  - `folderReference(path:tags:inclusionCondition:)`
+
 ```swift
 public enum ResourceFileElement: Codable, Equatable
 ```

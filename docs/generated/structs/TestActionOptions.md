@@ -2,6 +2,17 @@
 
 # `TestActionOptions`
 
+**Contents**
+
+- [Properties](#properties)
+  - `language`
+  - `region`
+  - `preferredScreenCaptureFormat`
+  - `coverage`
+  - `codeCoverageTargets`
+- [Methods](#methods)
+  - `options(language:region:preferredScreenCaptureFormat:coverage:codeCoverageTargets:)`
+
 ```swift
 public struct TestActionOptions: Equatable, Codable
 ```

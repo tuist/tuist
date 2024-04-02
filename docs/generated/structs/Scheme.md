@@ -2,6 +2,21 @@
 
 # `Scheme`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `shared`
+  - `hidden`
+  - `buildAction`
+  - `testAction`
+  - `runAction`
+  - `archiveAction`
+  - `profileAction`
+  - `analyzeAction`
+- [Methods](#methods)
+  - `scheme(name:shared:hidden:buildAction:testAction:runAction:archiveAction:profileAction:analyzeAction:)`
+
 ```swift
 public struct Scheme: Equatable, Codable
 ```

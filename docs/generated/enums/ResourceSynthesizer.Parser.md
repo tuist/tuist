@@ -2,6 +2,19 @@
 
 # `ResourceSynthesizer.Parser`
 
+**Contents**
+
+- [Cases](#cases)
+  - `strings`
+  - `assets`
+  - `plists`
+  - `fonts`
+  - `coreData`
+  - `interfaceBuilder`
+  - `json`
+  - `yaml`
+  - `files`
+
 ```swift
 public enum Parser: String, Codable
 ```

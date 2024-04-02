@@ -2,6 +2,17 @@
 
 # `ProfileAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `configuration`
+  - `preActions`
+  - `postActions`
+  - `executable`
+  - `arguments`
+- [Methods](#methods)
+  - `profileAction(configuration:preActions:postActions:executable:arguments:)`
+
 ```swift
 public struct ProfileAction: Equatable, Codable
 ```

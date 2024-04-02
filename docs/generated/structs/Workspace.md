@@ -2,6 +2,18 @@
 
 # `Workspace`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `projects`
+  - `schemes`
+  - `fileHeaderTemplate`
+  - `additionalFiles`
+  - `generationOptions`
+- [Methods](#methods)
+  - `init(name:projects:schemes:fileHeaderTemplate:additionalFiles:generationOptions:)`
+
 ```swift
 public struct Workspace: Codable, Equatable
 ```

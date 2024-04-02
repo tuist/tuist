@@ -2,6 +2,12 @@
 
 # `SDKStatus`
 
+**Contents**
+
+- [Cases](#cases)
+  - `required`
+  - `optional`
+
 ```swift
 public enum SDKStatus: String, Codable, Hashable
 ```

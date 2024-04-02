@@ -2,6 +2,17 @@
 
 # `Config`
 
+**Contents**
+
+- [Properties](#properties)
+  - `generationOptions`
+  - `compatibleXcodeVersions`
+  - `plugins`
+  - `cloud`
+  - `swiftVersion`
+- [Methods](#methods)
+  - `init(compatibleXcodeVersions:cloud:swiftVersion:plugins:generationOptions:)`
+
 ```swift
 public struct Config: Codable, Equatable
 ```

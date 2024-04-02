@@ -2,6 +2,13 @@
 
 # `AnalyzeAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `configuration`
+- [Methods](#methods)
+  - `analyzeAction(configuration:)`
+
 ```swift
 public struct AnalyzeAction: Equatable, Codable
 ```

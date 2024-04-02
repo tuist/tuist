@@ -2,6 +2,17 @@
 
 # `Config.GenerationOptions`
 
+**Contents**
+
+- [Properties](#properties)
+  - `resolveDependenciesWithSystemScm`
+  - `disablePackageVersionLocking`
+  - `clonedSourcePackagesDirPath`
+  - `staticSideEffectsWarningTargets`
+  - `enforceExplicitDependencies`
+- [Methods](#methods)
+  - `options(resolveDependenciesWithSystemScm:disablePackageVersionLocking:clonedSourcePackagesDirPath:staticSideEffectsWarningTargets:enforceExplicitDependencies:)`
+
 ```swift
 public struct GenerationOptions: Codable, Equatable
 ```

@@ -2,6 +2,12 @@
 
 # `SDKType`
 
+**Contents**
+
+- [Cases](#cases)
+  - `library`
+  - `framework`
+
 ```swift
 public enum SDKType: String, Codable, Hashable
 ```

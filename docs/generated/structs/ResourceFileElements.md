@@ -2,6 +2,13 @@
 
 # `ResourceFileElements`
 
+**Contents**
+
+- [Properties](#properties)
+  - `resources`
+- [Methods](#methods)
+  - `resources(_:)`
+
 ```swift
 public struct ResourceFileElements: Codable, Equatable
 ```

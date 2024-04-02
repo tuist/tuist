@@ -2,6 +2,14 @@
 
 # `Template.Item`
 
+**Contents**
+
+- [Properties](#properties)
+  - `path`
+  - `contents`
+- [Methods](#methods)
+  - `item(path:contents:)`
+
 ```swift
 public struct Item: Codable, Equatable
 ```

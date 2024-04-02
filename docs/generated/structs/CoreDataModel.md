@@ -2,6 +2,14 @@
 
 # `CoreDataModel`
 
+**Contents**
+
+- [Properties](#properties)
+  - `path`
+  - `currentVersion`
+- [Methods](#methods)
+  - `coreDataModel(_:currentVersion:)`
+
 ```swift
 public struct CoreDataModel: Codable, Equatable
 ```

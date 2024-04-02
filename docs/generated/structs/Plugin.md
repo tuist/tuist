@@ -2,6 +2,13 @@
 
 # `Plugin`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+- [Methods](#methods)
+  - `init(name:)`
+
 ```swift
 public struct Plugin: Codable, Equatable
 ```

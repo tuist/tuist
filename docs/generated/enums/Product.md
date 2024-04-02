@@ -2,6 +2,30 @@
 
 # `Product`
 
+**Contents**
+
+- [Cases](#cases)
+  - `app`
+  - `staticLibrary`
+  - `dynamicLibrary`
+  - `framework`
+  - `staticFramework`
+  - `unitTests`
+  - `uiTests`
+  - `bundle`
+  - `commandLineTool`
+  - `appClip`
+  - `appExtension`
+  - `watch2App`
+  - `watch2Extension`
+  - `tvTopShelfExtension`
+  - `messagesExtension`
+  - `stickerPackExtension`
+  - `xpc`
+  - `systemExtension`
+  - `extensionKitExtension`
+  - `macro`
+
 ```swift
 public enum Product: String, Codable, Equatable
 ```

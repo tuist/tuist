@@ -2,6 +2,12 @@
 
 # `DebugInformationFormat`
 
+**Contents**
+
+- [Cases](#cases)
+  - `dwarf`
+  - `dwarfWithDsym`
+
 ```swift
 public enum DebugInformationFormat: String
 ```

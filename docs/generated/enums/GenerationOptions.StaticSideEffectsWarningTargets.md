@@ -2,6 +2,13 @@
 
 # `GenerationOptions.StaticSideEffectsWarningTargets`
 
+**Contents**
+
+- [Cases](#cases)
+  - `all`
+  - `none`
+  - `excluding(_:)`
+
 ```swift
 public enum StaticSideEffectsWarningTargets: Codable, Equatable
 ```

@@ -2,6 +2,20 @@
 
 # `Project.Options`
 
+**Contents**
+
+- [Properties](#properties)
+  - `automaticSchemesOptions`
+  - `defaultKnownRegions`
+  - `developmentRegion`
+  - `disableBundleAccessors`
+  - `disableShowEnvironmentVarsInScriptPhases`
+  - `disableSynthesizedResourceAccessors`
+  - `textSettings`
+  - `xcodeProjectName`
+- [Methods](#methods)
+  - `options(automaticSchemesOptions:defaultKnownRegions:developmentRegion:disableBundleAccessors:disableShowEnvironmentVarsInScriptPhases:disableSynthesizedResourceAccessors:textSettings:xcodeProjectName:)`
+
 ```swift
 public struct Options: Codable, Equatable
 ```

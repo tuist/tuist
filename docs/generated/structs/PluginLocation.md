@@ -2,6 +2,15 @@
 
 # `PluginLocation`
 
+**Contents**
+
+- [Properties](#properties)
+  - `type`
+- [Methods](#methods)
+  - `local(path:)`
+  - `git(url:tag:directory:releaseUrl:)`
+  - `git(url:sha:directory:)`
+
 ```swift
 public struct PluginLocation: Codable, Equatable
 ```

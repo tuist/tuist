@@ -2,6 +2,13 @@
 
 # `FileList`
 
+**Contents**
+
+- [Properties](#properties)
+  - `globs`
+- [Methods](#methods)
+  - `list(_:)`
+
 ```swift
 public struct FileList: Codable, Equatable
 ```

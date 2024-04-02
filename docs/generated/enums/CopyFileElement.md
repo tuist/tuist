@@ -2,6 +2,12 @@
 
 # `CopyFileElement`
 
+**Contents**
+
+- [Cases](#cases)
+  - `glob(pattern:condition:)`
+  - `folderReference(path:condition:)`
+
 ```swift
 public enum CopyFileElement: Codable, Equatable
 ```

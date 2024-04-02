@@ -2,6 +2,12 @@
 
 # `Package`
 
+**Contents**
+
+- [Cases](#cases)
+  - `remote(url:requirement:)`
+  - `local(path:)`
+
 ```swift
 public enum Package: Equatable, Codable
 ```

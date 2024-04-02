@@ -2,6 +2,16 @@
 
 # `Project.Options.TextSettings`
 
+**Contents**
+
+- [Properties](#properties)
+  - `usesTabs`
+  - `indentWidth`
+  - `tabWidth`
+  - `wrapsLines`
+- [Methods](#methods)
+  - `textSettings(usesTabs:indentWidth:tabWidth:wrapsLines:)`
+
 ```swift
 public struct TextSettings: Codable, Equatable
 ```

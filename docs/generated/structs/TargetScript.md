@@ -2,6 +2,32 @@
 
 # `TargetScript`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `script`
+  - `order`
+  - `inputPaths`
+  - `inputFileListPaths`
+  - `outputPaths`
+  - `outputFileListPaths`
+  - `basedOnDependencyAnalysis`
+  - `runForInstallBuildsOnly`
+  - `shellPath`
+  - `dependencyFile`
+- [Methods](#methods)
+  - `pre(path:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `pre(path:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `post(path:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `post(path:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `pre(tool:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `pre(tool:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `post(tool:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `post(tool:arguments:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `pre(script:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+  - `post(script:name:inputPaths:inputFileListPaths:outputPaths:outputFileListPaths:basedOnDependencyAnalysis:runForInstallBuildsOnly:shellPath:dependencyFile:)`
+
 ```swift
 public struct TargetScript: Codable, Equatable
 ```

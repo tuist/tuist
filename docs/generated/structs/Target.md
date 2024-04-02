@@ -2,6 +2,34 @@
 
 # `Target`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `destinations`
+  - `product`
+  - `productName`
+  - `bundleId`
+  - `deploymentTargets`
+  - `infoPlist`
+  - `sources`
+  - `resources`
+  - `copyFiles`
+  - `headers`
+  - `entitlements`
+  - `scripts`
+  - `dependencies`
+  - `settings`
+  - `coreDataModels`
+  - `environmentVariables`
+  - `launchArguments`
+  - `additionalFiles`
+  - `buildRules`
+  - `mergedBinaryType`
+  - `mergeable`
+- [Methods](#methods)
+  - `target(name:destinations:product:productName:bundleId:deploymentTargets:infoPlist:sources:resources:copyFiles:headers:entitlements:scripts:dependencies:settings:coreDataModels:environmentVariables:launchArguments:additionalFiles:buildRules:mergedBinaryType:mergeable:)`
+
 ```swift
 public struct Target: Codable, Equatable
 ```

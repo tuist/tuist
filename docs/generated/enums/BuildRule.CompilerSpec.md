@@ -2,6 +2,60 @@
 
 # `BuildRule.CompilerSpec`
 
+**Contents**
+
+- [Cases](#cases)
+  - `appIntentsMetadataExtractor`
+  - `appShortcutStringsMetadataExtractor`
+  - `appleClang`
+  - `assetCatalogCompiler`
+  - `codeSign`
+  - `compileRealityComposerProject`
+  - `compileSceneKitShaders`
+  - `compileSkybox`
+  - `compileUSDZ`
+  - `compressPNG`
+  - `copyPlistFile`
+  - `copySceneKitAssets`
+  - `copyStringsFile`
+  - `copyTiffFile`
+  - `coreDataMappingModelCompiler`
+  - `coreMLModelCompiler`
+  - `dataModelCompiler`
+  - `defaultCompiler`
+  - `dTrace`
+  - `generateSpriteKitTextureAtlas`
+  - `iconutil`
+  - `instrumetsPackageBuilder`
+  - `intentDefinitionCompiler`
+  - `interfaceBuilderNIBPostprocessor`
+  - `interfaceBuilderStoryboardCompiler`
+  - `interfaceBuilderStoryboardLinker`
+  - `interfaceBuilderStoryboardPostprocessor`
+  - `interfaceBuilderXIBCompiler`
+  - `ioKitInterfaceGenerator`
+  - `lex`
+  - `lsRegisterURL`
+  - `metalCompiler`
+  - `metalLinker`
+  - `mig`
+  - `nasm`
+  - `nmedit`
+  - `openCL`
+  - `osaCompile`
+  - `pbxcp`
+  - `processSceneKitDocument`
+  - `processXCAppExtensionPoints`
+  - `rez`
+  - `stripSymbols`
+  - `swiftCompiler`
+  - `swiftABIBaselineGenerator`
+  - `swiftFrameworkABIChecker`
+  - `textBasedAPITool`
+  - `unifdef`
+  - `yacc`
+  - `customScript`
+
 ```swift
 public enum CompilerSpec: Codable
 ```

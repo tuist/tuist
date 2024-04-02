@@ -2,6 +2,13 @@
 
 # `TemplateString.StringInterpolation`
 
+**Contents**
+
+- [Methods](#methods)
+  - `init(literalCapacity:interpolationCount:)`
+  - `appendLiteral(_:)`
+  - `appendInterpolation(_:)`
+
 ```swift
 public struct StringInterpolation: StringInterpolationProtocol
 ```

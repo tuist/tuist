@@ -2,6 +2,17 @@
 
 # `PackageSettings`
 
+**Contents**
+
+- [Properties](#properties)
+  - `productTypes`
+  - `productDestinations`
+  - `baseSettings`
+  - `targetSettings`
+  - `projectOptions`
+- [Methods](#methods)
+  - `init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:)`
+
 ```swift
 public struct PackageSettings: Codable, Equatable
 ```

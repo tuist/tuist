@@ -2,6 +2,16 @@
 
 # `TargetReference`
 
+**Contents**
+
+- [Properties](#properties)
+  - `projectPath`
+  - `targetName`
+- [Methods](#methods)
+  - `init(stringLiteral:)`
+  - `project(path:target:)`
+  - `target(_:)`
+
 ```swift
 public struct TargetReference: Hashable, Codable, ExpressibleByStringInterpolation
 ```

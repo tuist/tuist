@@ -2,6 +2,19 @@
 
 # `Path`
 
+**Contents**
+
+- [Properties](#properties)
+  - `type`
+  - `pathString`
+  - `callerPath`
+- [Methods](#methods)
+  - `path(_:)`
+  - `relativeToCurrentFile(_:callerPath:)`
+  - `relativeToManifest(_:)`
+  - `relativeToRoot(_:)`
+  - `init(stringLiteral:)`
+
 ```swift
 public struct Path: ExpressibleByStringInterpolation, Codable, Hashable
 ```

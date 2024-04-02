@@ -2,6 +2,21 @@
 
 # `CopyFilesAction.Destination`
 
+**Contents**
+
+- [Cases](#cases)
+  - `absolutePath`
+  - `productsDirectory`
+  - `wrapper`
+  - `executables`
+  - `resources`
+  - `javaResources`
+  - `frameworks`
+  - `sharedFrameworks`
+  - `sharedSupport`
+  - `plugins`
+  - `other`
+
 ```swift
 public enum Destination: String, Codable, Equatable
 ```

@@ -2,6 +2,24 @@
 
 # `CopyFilesAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `name`
+  - `destination`
+  - `subpath`
+  - `files`
+- [Methods](#methods)
+  - `productsDirectory(name:subpath:files:)`
+  - `wrapper(name:subpath:files:)`
+  - `executables(name:subpath:files:)`
+  - `resources(name:subpath:files:)`
+  - `javaResources(name:subpath:files:)`
+  - `frameworks(name:subpath:files:)`
+  - `sharedFrameworks(name:subpath:files:)`
+  - `sharedSupport(name:subpath:files:)`
+  - `plugins(name:subpath:files:)`
+
 ```swift
 public struct CopyFilesAction: Codable, Equatable
 ```

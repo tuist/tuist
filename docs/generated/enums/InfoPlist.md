@@ -2,6 +2,16 @@
 
 # `InfoPlist`
 
+**Contents**
+
+- [Cases](#cases)
+  - `file(path:)`
+  - `dictionary(_:)`
+  - `extendingDefault(with:)`
+- [Properties](#properties)
+  - `default`
+  - `path`
+
 ```swift
 public enum InfoPlist: Codable, Equatable
 ```

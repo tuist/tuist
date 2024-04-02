@@ -2,6 +2,16 @@
 
 # `Parser.Option`
 
+**Contents**
+
+- [Cases](#cases)
+  - `string(_:)`
+  - `integer(_:)`
+  - `double(_:)`
+  - `boolean(_:)`
+  - `dictionary(_:)`
+  - `array(_:)`
+
 ```swift
 public enum Option: Equatable, Codable
 ```

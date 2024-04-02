@@ -2,6 +2,16 @@
 
 # `Settings`
 
+**Contents**
+
+- [Properties](#properties)
+  - `base`
+  - `configurations`
+  - `defaultSettings`
+- [Methods](#methods)
+  - `settings(base:debug:release:defaultSettings:)`
+  - `settings(base:configurations:defaultSettings:)`
+
 ```swift
 public struct Settings: Equatable, Codable
 ```

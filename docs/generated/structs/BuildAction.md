@@ -2,6 +2,16 @@
 
 # `BuildAction`
 
+**Contents**
+
+- [Properties](#properties)
+  - `targets`
+  - `preActions`
+  - `postActions`
+  - `runPostActionsOnFailure`
+- [Methods](#methods)
+  - `buildAction(targets:preActions:postActions:runPostActionsOnFailure:)`
+
 ```swift
 public struct BuildAction: Equatable, Codable
 ```

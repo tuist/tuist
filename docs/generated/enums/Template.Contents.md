@@ -2,6 +2,13 @@
 
 # `Template.Contents`
 
+**Contents**
+
+- [Cases](#cases)
+  - `string(_:)`
+  - `file(_:)`
+  - `directory(_:)`
+
 ```swift
 public enum Contents: Codable, Equatable
 ```

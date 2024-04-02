@@ -2,6 +2,12 @@
 
 # `Headers.AutomaticExclusionRule`
 
+**Contents**
+
+- [Cases](#cases)
+  - `projectExcludesPrivateAndPublic`
+  - `publicExcludesPrivateAndProject`
+
 ```swift
 public enum AutomaticExclusionRule: Int, Codable
 ```

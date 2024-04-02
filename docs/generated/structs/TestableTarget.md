@@ -2,6 +2,17 @@
 
 # `TestableTarget`
 
+**Contents**
+
+- [Properties](#properties)
+  - `target`
+  - `isSkipped`
+  - `isParallelizable`
+  - `isRandomExecutionOrdering`
+- [Methods](#methods)
+  - `testableTarget(target:isSkipped:isParallelizable:isRandomExecutionOrdering:)`
+  - `init(stringLiteral:)`
+
 ```swift
 public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolation
 ```

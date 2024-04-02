@@ -2,6 +2,21 @@
 
 # `Destination`
 
+**Contents**
+
+- [Cases](#cases)
+  - `iPhone`
+  - `iPad`
+  - `mac`
+  - `macWithiPadDesign`
+  - `macCatalyst`
+  - `appleWatch`
+  - `appleTv`
+  - `appleVision`
+  - `appleVisionWithiPadDesign`
+- [Properties](#properties)
+  - `platform`
+
 ```swift
 public enum Destination: String, Codable, Equatable, CaseIterable
 ```
