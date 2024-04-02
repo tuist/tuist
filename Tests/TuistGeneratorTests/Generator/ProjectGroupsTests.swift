@@ -120,6 +120,49 @@ final class ProjectGroupsTests: XCTestCase {
         ])
     }
 
+    func test_removeEmptyAuxiliaryGroups_removesEmptyGroups() throws {
+        // Given
+        let project = Project.test()
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+
+        // When
+        subject.removeEmptyAuxiliaryGroups()
+
+        // Then
+        let paths = subject.sortedMain.children.map(\.nameOrPath)
+        XCTAssertEqual(paths, [
+            "Project",
+            "Products",
+        ])
+    }
+
+    func test_removeEmptyAuxiliaryGroups_preservesNonEmptyGroups() throws {
+        // Given
+        let project = Project.test()
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+
+        addFile(to: subject.frameworks)
+        addFile(to: subject.cachedFrameworks)
+
+        // When
+        subject.removeEmptyAuxiliaryGroups()
+
+        // Then
+        let paths = subject.sortedMain.children.map(\.nameOrPath)
+        XCTAssertEqual(paths, [
+            "Project",
+            "Frameworks",
+            "Cache",
+            "Products",
+        ])
+    }
+
     func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(
             project: project,
@@ -212,5 +255,13 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(main.indentWidth)
         XCTAssertNil(main.tabWidth)
         XCTAssertNil(main.wrapsLines)
+    }
+
+    // MARK: - Helpers
+
+    private func addFile(to group: PBXGroup) {
+        let file = PBXFileReference()
+        pbxproj.add(object: file)
+        group.children.append(file)
     }
 }
