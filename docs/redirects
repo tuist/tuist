@@ -1,0 +1,8 @@
+/documentation/tuist  -> /
+/documentation/tuist/installation -> /tuist/users/installation
+/documentation/tuist/command-line-interface -> /tuist/users/cli
+/documentation/tuist/project-structure -> /tuist/users-project-structure
+
+/documentation/tuist/tuist-cloud -> /tuist-cloud/users
+/documentation/tuist/binary-caching -> /tuist-cloud/users/binary-caching
+/documentation/tuist/binary-caching -> /tuist-cloud/users/selective-testing
