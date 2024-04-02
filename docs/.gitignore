@@ -173,3 +173,5 @@ Temporary Items
 # End of https://www.toptal.com/developers/gitignore/api/osx,node
 
 .vitepress/cache/
+
+docs/generated

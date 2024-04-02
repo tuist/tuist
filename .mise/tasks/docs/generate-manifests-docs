@@ -4,5 +4,5 @@
 set -euo pipefail
 
 tuist generate --no-open --no-binary-cache --path $MISE_PROJECT_ROOT
-sourcedocs generate -o $MISE_PROJECT_ROOT/docs/generated/ --clean --table-of-contents --module-name ProjectDescription -- -scheme Tuist-Workspace -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace 
+sourcedocs generate -o $MISE_PROJECT_ROOT/docs/docs/generated/ --clean --table-of-contents --module-name ProjectDescription -- -scheme Tuist-Workspace -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace 
 rm $MISE_PROJECT_ROOT/docs/generated/README.md

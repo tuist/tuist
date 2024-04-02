@@ -186,6 +186,7 @@ export default defineConfig({
             },
             {
               text: "Project Description",
+              collapsed: true,
               items: projectDescriptionTypesDataLoader.load().map((item) => {
                 return {
                   text: item.title,
