@@ -1,10 +1,30 @@
 # Changelog
 
+## 4.9.0 - 2024-04-02
+
+### Tuist
+
+#### Changed
+
+- Improve the error message when parsing malformed property list files. [#6122](https://github.com/tuist/tuist/pull/6122) by [@pepicrft](https://github.com/pepicrft)
+- Filter out empty auxiliary groups [#6142](https://github.com/tuist/tuist/pull/6142) by [@kwridan](https://github.com/kwridan)
+
+#### Fixed
+
+- Fix SPM integration of the latest version of swift-testing [#6121](https://github.com/tuist/tuist/pull/6121) by [@fortmarek](https://github.com/fortmarek)
+- Fix adding newline at the end of tuist version in `.mise.toml` file [#6127](https://github.com/tuist/tuist/pull/6127) by [@dxmvsh](https://github.com/dxmvsh)
+- Fix running Tuist.graph() in a Tuist task [#6129](https://github.com/tuist/tuist/pull/6129) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.8.1 - 2024-03-27
 
 ### Tuist
 
 #### Fixed
+
 - Fix released binaries missing `x86_64` Swift module interfaces for `ProjectDescription.framework`.
 
 ### Tuist Cloud
