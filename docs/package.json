@@ -4,6 +4,7 @@
   "description": "Tuist's documentation website",
   "license": "MIT",
   "devDependencies": {
+    "fast-glob": "^3.3.2",
     "vitepress": "^1.0.1"
   },
   "scripts": {
