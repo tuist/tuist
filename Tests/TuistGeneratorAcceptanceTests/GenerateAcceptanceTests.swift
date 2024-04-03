@@ -129,6 +129,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "App.app",
             destination: "Debug-iphonesimulator"
         )
+        try XCTAssertDirectoryContentEqual(
+            fixturePath.appending(components: "Derived", "PrivacyManifests", "App"),
+            [
+                "PrivacyInfo.xcprivacy",
+            ]
+        )
     }
 }
 
