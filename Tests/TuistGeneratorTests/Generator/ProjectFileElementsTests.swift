@@ -393,10 +393,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             entitlements: .file(path: try AbsolutePath(validating: "/project/app.entitlements")),
             settings: settings,
             sources: [SourceFile(path: try AbsolutePath(validating: "/project/file.swift"))],
-            resources: [
-                .file(path: try AbsolutePath(validating: "/project/image.png")),
-                .folderReference(path: try AbsolutePath(validating: "/project/reference")),
-            ],
+            resources: .resources(
+                [
+                    .file(path: try AbsolutePath(validating: "/project/image.png")),
+                    .folderReference(path: try AbsolutePath(validating: "/project/reference")),
+                ]
+            ),
             copyFiles: [
                 CopyFilesAction(
                     name: "Copy Templates",

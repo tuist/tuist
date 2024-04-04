@@ -108,10 +108,12 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let target = Target.test(
             infoPlist: .file(path: infoPlistPath),
-            resources: [
-                .file(path: infoPlistPath),
-                .file(path: googeServiceInfoPlistPath),
-            ]
+            resources: .resources(
+                [
+                    .file(path: infoPlistPath),
+                    .file(path: googeServiceInfoPlistPath),
+                ]
+            )
         )
 
         let got = subject.lint(target: target)
@@ -134,7 +136,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
         let path = try! AbsolutePath(validating: "/App.entitlements")
-        let target = Target.test(resources: [.file(path: path)])
+        let target = Target.test(resources: .resources([.file(path: path)]))
 
         let got = subject.lint(target: target)
 
@@ -178,8 +180,8 @@ final class TargetLinterTests: TuistUnitTestCase {
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
 
-        let staticLibrary = Target.test(product: .staticLibrary, resources: [element])
-        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
+        let staticLibrary = Target.test(product: .staticLibrary, resources: .resources([element]))
+        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: .resources([element]))
 
         let staticResult = subject.lint(target: staticLibrary)
         XCTContainsLintingIssue(
@@ -208,7 +210,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             sources: [
                 SourceFile(path: "/path/to/some/source.swift"),
             ],
-            resources: []
+            resources: .resources([])
         )
 
         // When
@@ -230,7 +232,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             destinations: .macOS,
             product: .bundle,
             sources: [],
-            resources: []
+            resources: .resources([])
         )
 
         // When
@@ -245,9 +247,11 @@ final class TargetLinterTests: TuistUnitTestCase {
         let bundle = Target.empty(
             destinations: .iOS,
             product: .bundle,
-            resources: [
-                .file(path: "/path/to/some/asset.png"),
-            ]
+            resources: .resources(
+                [
+                    .file(path: "/path/to/some/asset.png"),
+                ]
+            )
         )
 
         // When

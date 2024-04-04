@@ -3195,7 +3195,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
-private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
+private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
     let fullPath: String
     if let customPath {
         fullPath = customPath

@@ -82,19 +82,21 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let targetA = Target.test(
             name: "TargetA",
-            resources: [
-                .folderReference(path: aAssets),
-                .file(path: frenchStrings),
-                .file(path: frenchStringsDict),
-                .file(path: englishStrings),
-                .file(path: englishStringsDict),
-                .file(path: emptyPlist),
-                .file(path: environmentPlist),
-                .file(path: ttfFont),
-                .file(path: otfFont),
-                .file(path: ttcFont),
-                .file(path: lottieFile),
-            ]
+            resources: .resources(
+                [
+                    .folderReference(path: aAssets),
+                    .file(path: frenchStrings),
+                    .file(path: frenchStringsDict),
+                    .file(path: englishStrings),
+                    .file(path: englishStringsDict),
+                    .file(path: emptyPlist),
+                    .file(path: environmentPlist),
+                    .file(path: ttfFont),
+                    .file(path: otfFont),
+                    .file(path: ttcFont),
+                    .file(path: lottieFile),
+                ]
+            )
         )
 
         let resourceSynthesizers: [ResourceSynthesizer] = [
@@ -331,19 +333,21 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let targetA = Target.test(
             name: "TargetA",
-            resources: [
-                .folderReference(path: aAssets),
-                .file(path: frenchStrings),
-                .file(path: frenchStringsDict),
-                .file(path: englishStrings),
-                .file(path: englishStringsDict),
-                .file(path: emptyPlist),
-                .file(path: environmentPlist),
-                .file(path: ttfFont),
-                .file(path: otfFont),
-                .file(path: ttcFont),
-                .file(path: lottieFile),
-            ]
+            resources: .resources(
+                [
+                    .folderReference(path: aAssets),
+                    .file(path: frenchStrings),
+                    .file(path: frenchStringsDict),
+                    .file(path: englishStrings),
+                    .file(path: englishStringsDict),
+                    .file(path: emptyPlist),
+                    .file(path: environmentPlist),
+                    .file(path: ttfFont),
+                    .file(path: otfFont),
+                    .file(path: ttcFont),
+                    .file(path: lottieFile),
+                ]
+            )
         )
 
         let resourceSynthesizers: [ResourceSynthesizer] = [
@@ -418,9 +422,11 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             targets: [
                 .test(
                     name: "TargetA",
-                    resources: [
-                        .file(path: ttfFont),
-                    ]
+                    resources: .resources(
+                        [
+                            .file(path: ttfFont),
+                        ]
+                    )
                 ),
             ],
             resourceSynthesizers: makeResourceSynthesizers()
@@ -455,9 +461,11 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             targets: [
                 .test(
                     name: "TargetA",
-                    resources: [
-                        .file(path: ttfFont),
-                    ]
+                    resources: .resources(
+                        [
+                            .file(path: ttfFont),
+                        ]
+                    )
                 ),
             ],
             resourceSynthesizers: makeResourceSynthesizers()
