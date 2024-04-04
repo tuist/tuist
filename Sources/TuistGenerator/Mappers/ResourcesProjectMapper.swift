@@ -199,7 +199,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             }
         }
         if bundleAccessorsOptions.publicAccessors,
-           !target.containsPublicResourceFile {
+           !target.containsPublicResourceFile
+        {
             content += publicBundleAccessorString(for: target)
         }
         content += """
@@ -346,6 +347,6 @@ extension [ResourceFileElement] {
 
 extension Target {
     fileprivate var containsPublicResourceFile: Bool {
-       sources.contains(where: { $0.path.basename == "\(name)Resources.swift" })
-   }
+        sources.contains(where: { $0.path.basename == "\(name)Resources.swift" })
+    }
 }
