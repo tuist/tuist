@@ -102,10 +102,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotSideEffects, [])
     }
 
-    func testMap_whenNoSwiftSources() throws {
+    func test_map_when_no_sources() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.m"], resources: resources)
+        let target = Target.test(product: .staticLibrary, sources: [], resources: resources)
         project = Project.test(
             targets: [target]
         )

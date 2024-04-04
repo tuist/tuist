@@ -354,7 +354,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             case .local:
                 automaticSchemesOptions = .enabled()
             }
-            options = .options(
+            options = .projectOptions(
                 automaticSchemesOptions: automaticSchemesOptions,
                 disableSynthesizedResourceAccessors: true
             )

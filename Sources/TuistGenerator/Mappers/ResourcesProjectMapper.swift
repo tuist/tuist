@@ -198,7 +198,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 content += swiftFrameworkBundleAccessorString(for: target)
             }
         }
-        if bundleAccessorsOptions.publicAccessors {
+        if bundleAccessorsOptions.publicAccessors,
+           !target.containsPublicResourceFile {
             content += publicBundleAccessorString(for: target)
         }
         content += """
@@ -341,4 +342,10 @@ extension [ResourceFileElement] {
     fileprivate var containsBundleAccessedResources: Bool {
         !filter { $0.path.extension != "xcprivacy" }.isEmpty
     }
+}
+
+extension Target {
+    fileprivate var containsPublicResourceFile: Bool {
+       sources.contains(where: { $0.path.basename == "\(name)Resources.swift" })
+   }
 }

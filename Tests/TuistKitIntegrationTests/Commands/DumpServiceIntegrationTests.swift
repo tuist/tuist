@@ -61,7 +61,10 @@ final class DumpServiceTests: TuistTestCase {
                 "testingOptions": 0
               }
             },
-            "bundleAccessorsOptions": 3,
+            "bundleAccessorsOptions": {
+              "internalAccessors": true,
+              "publicAccessors": true
+            },
             "disableShowEnvironmentVarsInScriptPhases": false,
             "disableSynthesizedResourceAccessors": false,
             "textSettings": {
