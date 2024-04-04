@@ -160,7 +160,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
-        let filename = "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)"
+        let filename = "TuistBundle+\(target.name.uppercasingFirst).\(fileExtension)"
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
 
