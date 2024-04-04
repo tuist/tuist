@@ -46,7 +46,10 @@ extension Project {
                 automaticSchemesOptions: automaticSchemesOptions,
                 defaultKnownRegions: defaultKnownRegions,
                 developmentRegion: developmentRegion,
-                bundleAccessorsOptions: BundleAccessorOptions(internalAccessors: !disableBundleAccessors, publicAccessors: !disableBundleAccessors),
+                bundleAccessorsOptions: BundleAccessorOptions(
+                    internalAccessors: !disableBundleAccessors,
+                    publicAccessors: !disableBundleAccessors
+                ),
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
@@ -149,14 +152,14 @@ extension Project.Options {
         /// Indicates wether or not to generate internal bundle accessors.
         /// This allows compliance with SPM bundle accessors code-generation.
         public let internalAccessors: Bool
-        
+
         /// Indicates wether or not to generate public bundle accessors.
         /// such that consumers outside the target can access resources using that bundle from outside the Project targets
         public let publicAccessors: Bool
-    
+
         /// Indicates if any of the options are enabled
         public var enabled: Bool { internalAccessors || publicAccessors }
-        
+
         /// Initialization function for the BundleAccessorOptions
         /// - Parameters:
         ///   - internalAccessors: Indicates wether or not to generate internal bundle accessors.
@@ -165,7 +168,7 @@ extension Project.Options {
             self.internalAccessors = internalAccessors
             self.publicAccessors = publicAccessors
         }
-        
+
         public static let `default` = BundleAccessorOptions(internalAccessors: true, publicAccessors: true)
     }
 }
