@@ -85,7 +85,7 @@ public struct Project: Codable, Equatable {
     public init(
         name: String,
         organizationName: String? = nil,
-        options: Options = .options(),
+        options: Options = .projectOptions(),
         packages: [Package] = [],
         settings: Settings? = nil,
         targets: [Target] = [],

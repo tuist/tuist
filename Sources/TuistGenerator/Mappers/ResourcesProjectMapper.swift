@@ -12,7 +12,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard !project.options.bundleAccessorsOptions.isEmpty else {
+        guard project.options.bundleAccessorsOptions.enabled else {
             return (project, [])
         }
 
@@ -69,16 +69,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        let includeObjcBundleAccessor = project.options.bundleAccessorsOptions.contains(.objc)
-        let conflictsWithObjectiveCBundleAccessor = target.sources
-            .contains(where: { $0.path.basename == "\(target.name)Resources.swift" })
-        let skipBundleAccessor = conflictsWithObjectiveCBundleAccessor && includeObjcBundleAccessor
-        let qualifiesForBundleAccessors = target.supportsSources && target.sources
-            .contains(where: { $0.path.extension == "swift" })
-
-        let shouldSynthesizeBundleAccessor = qualifiesForBundleAccessors && !skipBundleAccessor
-
-        if shouldSynthesizeBundleAccessor {
+        if target.supportsSources,
+           target.sources.containsSwiftFiles 
+        {
             let (filePath, data) = synthesizedSwiftFile(
                 bundleName: bundleName,
                 target: target,
@@ -92,10 +85,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
-           target.supportsSources,
-           target.sources.contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" }),
-           !target.resources.filter({ $0.path.extension != "xcprivacy" }).isEmpty
+        if target.supportsSources,
+           target.sources.containsObjcFiles,
+           target.resources.containsBundleAccessedResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -188,7 +180,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         targetName _: String,
         bundleName: String,
         target: Target,
-        bundleAccessorsOptions: Project.Options.BundleAccessorOptions = [.swift, .objc]
+        bundleAccessorsOptions: Project.Options.BundleAccessorOptions = .default
     ) -> String {
         var content = """
         // swiftlint:disable all
@@ -197,17 +189,17 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         import Foundation
         """
         if !target.supportsResources {
-            if bundleAccessorsOptions.contains(.swift) {
+            if bundleAccessorsOptions.internalAccessors {
                 content += swiftSPMBundleAccessorString(for: target, and: bundleName)
             }
 
         } else {
-            if bundleAccessorsOptions.contains(.swift) {
+            if bundleAccessorsOptions.internalAccessors {
                 content += swiftFrameworkBundleAccessorString(for: target)
             }
         }
-        if bundleAccessorsOptions.contains(.objc) {
-            content += objectiveCBundleAccessorString(for: target)
+        if bundleAccessorsOptions.publicAccessors {
+            content += publicBundleAccessorString(for: target)
         }
         content += """
         // swiftlint:enable all
@@ -250,7 +242,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
-    private static func objectiveCBundleAccessorString(for target: Target) -> String {
+    private static func publicBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Objective-C Bundle Accessor
 
@@ -267,7 +259,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
 
-        // MARK: - Swift Bundle Accessor
+        // MARK: - Swift Bundle Accessor - for SPM
 
         private class BundleFinder {}
 
@@ -319,7 +311,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func swiftFrameworkBundleAccessorString(for target: Target) -> String {
         """
 
-        // MARK: - Swift Bundle Accessor
+        // MARK: - Swift Bundle Accessor for Frameworks
 
         private class BundleFinder {}
 
@@ -332,5 +324,21 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         """
+    }
+}
+
+extension [SourceFile] {
+    fileprivate var containsObjcFiles: Bool {
+        contains(where: { $0.path.extension == "m" || $0.path.extension == "mm" })
+    }
+
+    fileprivate var containsSwiftFiles: Bool {
+        contains(where: { $0.path.extension == "swift" })
+    }
+}
+
+extension [ResourceFileElement] {
+    fileprivate var containsBundleAccessedResources: Bool {
+        !filter { $0.path.extension != "xcprivacy" }.isEmpty
     }
 }

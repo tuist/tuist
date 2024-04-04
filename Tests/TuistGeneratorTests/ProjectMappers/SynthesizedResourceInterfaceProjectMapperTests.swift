@@ -412,7 +412,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let project: Project = .test(
             options: .test(
-                bundleAccessorsOptions: .all,
+                bundleAccessorsOptions: .default,
                 disableSynthesizedResourceAccessors: false
             ),
             targets: [
@@ -449,7 +449,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let project: Project = .test(
             options: .test(
-                bundleAccessorsOptions: [],
+                bundleAccessorsOptions: .disabled,
                 disableSynthesizedResourceAccessors: false
             ),
             targets: [

@@ -69,6 +69,6 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGroupi
 
 extension TuistGraph.Project.Options.BundleAccessorOptions {
     static func from(_ options: ProjectDescription.Project.Options.BundleAccessorOptions) -> Self {
-        TuistGraph.Project.Options.BundleAccessorOptions(rawValue: options.rawValue)
+        TuistGraph.Project.Options.BundleAccessorOptions(internalAccessors: options.internalAccessors, publicAccessors: options.publicAccessors)
     }
 }

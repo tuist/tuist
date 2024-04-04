@@ -82,6 +82,6 @@ extension ProjectDescription.ScreenCaptureFormat {
 
 extension ProjectDescription.Project.Options.BundleAccessorOptions {
     static func from(_ options: TuistGraph.Project.Options.BundleAccessorOptions) -> Self {
-        ProjectDescription.Project.Options.BundleAccessorOptions(rawValue: options.rawValue)
+        ProjectDescription.Project.Options.BundleAccessorOptions(internalAccessors: options.internalAccessors, publicAccessors: options.publicAccessors)
     }
 }

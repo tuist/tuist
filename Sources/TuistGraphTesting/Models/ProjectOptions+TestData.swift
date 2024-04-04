@@ -16,7 +16,7 @@ extension Project.Options {
 
     public static func test(
         automaticSchemesOptions: AutomaticSchemesOptions = automaticSchemesOptions(),
-        bundleAccessorsOptions: BundleAccessorOptions = .all,
+        bundleAccessorsOptions: BundleAccessorOptions = .default,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
         disableSynthesizedResourceAccessors: Bool = false,
         textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)

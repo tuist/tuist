@@ -14,7 +14,7 @@ extension Project {
 
         /// Disables generating Bundle accessors.
         @available(*, deprecated, message: "Please use `bundleAccessorsOptions` instead")
-        public var disableBundleAccessors: Bool { bundleAccessorsOptions.isEmpty }
+        public var disableBundleAccessors: Bool { !bundleAccessorsOptions.enabled }
 
         /// Defines if and how bundle accessors are generated
         public var bundleAccessorsOptions: BundleAccessorOptions
@@ -42,15 +42,11 @@ extension Project {
             textSettings: TextSettings = .textSettings(),
             xcodeProjectName: String? = nil
         ) -> Self {
-            var bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc]
-            if disableBundleAccessors {
-                bundleAccessorsOptions = []
-            }
             return self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
                 defaultKnownRegions: defaultKnownRegions,
                 developmentRegion: developmentRegion,
-                bundleAccessorsOptions: bundleAccessorsOptions,
+                bundleAccessorsOptions: BundleAccessorOptions(internalAccessors: !disableBundleAccessors, publicAccessors: !disableBundleAccessors),
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
@@ -62,7 +58,7 @@ extension Project {
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
             developmentRegion: String? = nil,
-            bundleAccessorsOptions: BundleAccessorOptions = [.swift, .objc],
+            bundleAccessorsOptions: BundleAccessorOptions = .default,
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
@@ -147,21 +143,29 @@ extension Project.Options {
 // MARK: - BundleAccessorOptions
 
 extension Project.Options {
-    /// Defines if and how bundle accessors are generated
-    public struct BundleAccessorOptions: OptionSet, Codable {
-        public let rawValue: Int
-
-        public init(rawValue: Int) {
-            self.rawValue = rawValue
+    /// Defines if and how bundle accessors are generated.
+    /// Note these definitions are project wise, i.e no fine control per target.
+    public struct BundleAccessorOptions: Codable, Hashable {
+        /// Indicates wether or not to generate internal bundle accessors.
+        /// This allows compliance with SPM bundle accessors code-generation.
+        public let internalAccessors: Bool
+        
+        /// Indicates wether or not to generate public bundle accessors.
+        /// such that consumers outside the target can access resources using that bundle from outside the Project targets
+        public let publicAccessors: Bool
+    
+        /// Indicates if any of the options are enabled
+        public var enabled: Bool { internalAccessors || publicAccessors }
+        
+        /// Initialization function for the BundleAccessorOptions
+        /// - Parameters:
+        ///   - internalAccessors: Indicates wether or not to generate internal bundle accessors.
+        ///   - publicAccessors: Indicates wether or not to generate public bundle accessors.
+        public init(internalAccessors: Bool, publicAccessors: Bool) {
+            self.internalAccessors = internalAccessors
+            self.publicAccessors = publicAccessors
         }
-
-        /// Enables bundle accessor for swift run time
-        public static let swift = BundleAccessorOptions(rawValue: 1 << 0)
-
-        /// Enables bundle accessor for Objective-C runtime
-        public static let objc = BundleAccessorOptions(rawValue: 1 << 1)
-
-        /// All Options
-        public static let all: BundleAccessorOptions = [.swift, .objc]
+        
+        public static let `default` = BundleAccessorOptions(internalAccessors: true, publicAccessors: true)
     }
 }
