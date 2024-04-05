@@ -34,6 +34,17 @@ class ProjectGroups {
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
 
+    private var auxiliaryGroups: [PBXGroup] {
+        // List of groups Xcode doesn't have by default if empty
+        //
+        // Note: The`Products` group is always included in the pbxproj but Xcode
+        // hides it in the UI if its empty.
+        [
+            frameworks,
+            cachedFrameworks,
+        ]
+    }
+
     // MARK: - Init
 
     private init(
@@ -65,6 +76,13 @@ class ProjectGroups {
             throw ProjectGroupsError.missingGroup(name)
         }
         return group
+    }
+
+    func removeEmptyAuxiliaryGroups() {
+        for emptyGroup in auxiliaryGroups.filter(\.children.isEmpty) {
+            sortedMain.children.removeAll(where: { $0 == emptyGroup })
+            pbxproj.delete(object: emptyGroup)
+        }
     }
 
     static func generate(
