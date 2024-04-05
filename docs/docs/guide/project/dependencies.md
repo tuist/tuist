@@ -1,5 +1,6 @@
 ---
 title: Dependencies
+description: Learn how to declare dependencies in your Tuist project.
 ---
 
 # Dependencies

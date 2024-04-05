@@ -148,6 +148,10 @@ export default defineConfig({
               text: "Synthesized files",
               link: "/guide/project/synthesized-files",
             },
+            {
+              text: "Dynamic configuration",
+              link: "/guide/project/dynamic-configuration",
+            },
           ],
         },
         {

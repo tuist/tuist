@@ -1,5 +1,6 @@
 ---
 title: Synthesized files
+description: Learn about synthesized files in Tuist projects.
 ---
 
 # Synthesized files

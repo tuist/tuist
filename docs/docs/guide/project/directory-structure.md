@@ -1,5 +1,6 @@
 ---
 title: Directory structure
+description: Learn about the structure of Tuist projects and how to organize them.
 ---
 
 # Directory structure
