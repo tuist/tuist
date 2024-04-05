@@ -4,7 +4,7 @@ import Foundation
 public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public var resources: [ResourceFileElement]
-  
+
     /// Define your apps privacy manifest
     public var privacyManifest: PrivacyManifest?
 

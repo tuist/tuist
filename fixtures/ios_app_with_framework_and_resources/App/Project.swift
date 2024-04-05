@@ -34,9 +34,9 @@ let project = Project(
                         [
                             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
                             "NSPrivacyAccessedAPITypeReasons": [
-                                "CA92.1"
-                            ]
-                        ]
+                                "CA92.1",
+                            ],
+                        ],
                     ]
                 )
             ),
