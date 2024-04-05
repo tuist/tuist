@@ -245,21 +245,29 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         }
 
         if !frameworkReferences.isEmpty {
-            let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
+            for reference in frameworkReferences {
+                guard case let GraphDependencyReference.framework(path, _, _, _, _, _, _, _, _) = reference
+                else {
+                    preconditionFailure("reference need to be of type framework")
+                    break
+                }
 
-            let script = try embedScriptGenerator.script(
-                sourceRootPath: sourceRootPath,
-                frameworkReferences: frameworkReferences,
-                includeSymbolsInFileLists: !target.product.testsBundle
-            )
+                let precompiledEmbedPhase =
+                    PBXShellScriptBuildPhase(name: "Embed Precompiled Framework \(path.components.last ?? path.pathString)")
+                let script = try embedScriptGenerator.script(
+                    sourceRootPath: sourceRootPath,
+                    frameworkReferences: [reference],
+                    includeSymbolsInFileLists: !target.product.testsBundle
+                )
 
-            precompiledEmbedPhase.shellScript = script.script
-            precompiledEmbedPhase.inputPaths = script.inputPaths
-                .map { "$(SRCROOT)/\($0.pathString)" }
-            precompiledEmbedPhase.outputPaths = script.outputPaths
+                precompiledEmbedPhase.shellScript = script.script
+                precompiledEmbedPhase.inputPaths = script.inputPaths
+                    .map { "$(SRCROOT)/\($0.pathString)" }
+                precompiledEmbedPhase.outputPaths = script.outputPaths
 
-            pbxproj.add(object: precompiledEmbedPhase)
-            pbxTarget.buildPhases.append(precompiledEmbedPhase)
+                pbxproj.add(object: precompiledEmbedPhase)
+                pbxTarget.buildPhases.append(precompiledEmbedPhase)
+            }
         }
 
         pbxproj.add(object: embedPhase)

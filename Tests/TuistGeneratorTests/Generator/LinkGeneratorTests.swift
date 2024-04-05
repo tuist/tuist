@@ -60,7 +60,8 @@ final class LinkGeneratorTests: XCTestCase {
     func test_generateEmbedPhase() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.testFramework())
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/frameworks/first.framework"))
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/frameworks/second.framework"))
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
             productName: "Test.framework"
@@ -95,10 +96,16 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
-        XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
+        XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Framework first.framework")
         XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
         XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/frameworks/A.framework"])
         XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
+
+        let secondBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.dropFirst().first as? PBXShellScriptBuildPhase
+        XCTAssertEqual(secondBuildPhase?.name, "Embed Precompiled Framework second.framework")
+        XCTAssertEqual(secondBuildPhase?.shellScript, "script")
+        XCTAssertEqual(secondBuildPhase?.inputPaths, ["$(SRCROOT)/frameworks/A.framework"])
+        XCTAssertEqual(secondBuildPhase?.outputPaths, ["output/A.framework"])
 
         let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
         XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
