@@ -7,7 +7,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         switch self {
         case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
-             let .xcframework(_, _, _, _, _, condition),
+             let .xcframework(_, _, _, _, _, _, condition),
              let .bundle(_, condition),
              let .product(_, _, condition),
              let .sdk(_, _, _, condition):
@@ -20,6 +20,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case macro(path: AbsolutePath)
     case xcframework(
         path: AbsolutePath,
+        linking: BinaryLinking,
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
         binaryPath: AbsolutePath,
@@ -73,6 +74,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .xcframework(xcframework):
             self = .xcframework(
                 path: xcframework.path,
+                linking: xcframework.linking,
                 infoPlist: xcframework.infoPlist,
                 primaryBinaryPath: xcframework.primaryBinaryPath,
                 binaryPath: xcframework.primaryBinaryPath,
@@ -96,7 +98,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return path
         case let .library(path, _, _, _, _):
             return path
-        case let .xcframework(path, _, _, _, _, _):
+        case let .xcframework(path, _, _, _, _, _, _):
             return path
         default:
             return nil
@@ -124,6 +126,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .macro(path: path)
             case .xcframework(
                 path: let path,
+                linking: _,
                 infoPlist: _,
                 primaryBinaryPath: _,
                 binaryPath: _,

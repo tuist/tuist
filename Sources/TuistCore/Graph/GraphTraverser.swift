@@ -1155,6 +1155,7 @@ public class GraphTraverser: GraphTraversing {
         case let .xcframework(xcframework):
             return .xcframework(
                 path: xcframework.path,
+                linking: xcframework.linking,
                 infoPlist: xcframework.infoPlist,
                 primaryBinaryPath: xcframework.primaryBinaryPath,
                 binaryPath: xcframework.primaryBinaryPath,
