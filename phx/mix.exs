@@ -72,7 +72,7 @@ defmodule TuistCloud.MixProject do
       {:ymlr, "~> 2.0"},
       {:poison, "~> 5.0"},
       {:oban, "~> 2.17"},
-      {:bcrypt_elixir, "~> 2.0"}
+      {:bcrypt_elixir, "~> 3.0"}
     ]
   end
 
