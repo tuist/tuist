@@ -128,10 +128,10 @@ export default defineConfig({
         {
           text: "Automation",
           items: [
-            { text: "Generate" },
-            { text: "Build" },
-            { text: "Test" },
-            { text: "Run" },
+            { text: "Generate", link: "/guide/automation/generate" },
+            { text: "Build", link: "/guide/automation/build" },
+            { text: "Test", link: "/guide/automation/test" },
+            { text: "Run", link: "/guide/automation/run" },
             { text: "Graph", link: "/guide/automation/graph" },
             { text: "Clean", link: "/guide/automation/clean" },
           ],
