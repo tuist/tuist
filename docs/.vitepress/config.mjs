@@ -175,15 +175,16 @@ export default defineConfig({
         {
           text: "Reference",
           items: [
-            {
-              text: "CLI",
-              items: cliDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/cli/${item.command}`,
-                };
-              }),
-            },
+            // TODO
+            // {
+            //   text: "CLI",
+            //   items: cliDataLoader.load().map((item) => {
+            //     return {
+            //       text: item.title,
+            //       link: `/reference/cli/${item.command}`,
+            //     };
+            //   }),
+            // },
             {
               text: "Project Description",
               collapsed: true,
