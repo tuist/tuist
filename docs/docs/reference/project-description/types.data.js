@@ -17,6 +17,7 @@ export default {
       .sort();
     return files.map((file) => {
       return {
+        category: path.basename(path.dirname(file)),
         title: path.basename(file).replace(".md", ""),
         name: path.basename(file).replace(".md", "").toLowerCase(),
         description: "",

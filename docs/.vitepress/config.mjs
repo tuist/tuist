@@ -1,7 +1,32 @@
 import { defineConfig } from "vitepress";
-import cliDataLoader from "../docs/reference/cli/commands.data";
 import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
 import examplesDataLoader from "../docs/reference/examples/examples.data";
+
+const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
+
+const projectDescriptionSidebar = {
+  text: "Project Description",
+  items: [],
+};
+
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+}
+
+["structs", "enums", "extensions", "typealiases"].forEach((category) => {
+  if (projectDescriptionTypesData.find((item) => item.category === category)) {
+    projectDescriptionSidebar.items.push({
+      text: capitalize(category),
+      collapsed: true,
+      items: projectDescriptionTypesData
+        .filter((item) => item.category === category)
+        .map((item) => ({
+          text: item.title,
+          link: `/reference/project-description/${item.name}`,
+        })),
+    });
+  }
+});
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -185,16 +210,7 @@ export default defineConfig({
             //     };
             //   }),
             // },
-            {
-              text: "Project Description",
-              collapsed: true,
-              items: projectDescriptionTypesDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/project-description/${item.name}`,
-                };
-              }),
-            },
+            projectDescriptionSidebar,
             {
               text: "Examples",
               items: examplesDataLoader.load().map((item) => {
