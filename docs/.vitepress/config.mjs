@@ -133,7 +133,7 @@ export default defineConfig({
             { text: "Test" },
             { text: "Run" },
             { text: "Graph", link: "/guide/automation/graph" },
-            { text: "Clean" },
+            { text: "Clean", link: "/guide/automation/clean" },
           ],
         },
         {
