@@ -117,10 +117,11 @@ export default defineConfig({
                 },
                 {
                   text: "Migrate from .xcodeproj",
-                  link: "/guide/introduction/adopting-tuist/swift-package",
+                  link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
                 },
                 {
                   text: "Migrate local Swift Packages",
+                  link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
                 },
                 {
                   text: "Migrate from XcodeGen",
@@ -128,7 +129,7 @@ export default defineConfig({
                 },
                 {
                   text: "Migrate from Bazel",
-                  link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
+                  link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
                 },
               ],
             },
