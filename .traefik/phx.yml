@@ -1,7 +1,7 @@
 http:
   routers:
     phx:
-      rule: "PathPrefix(`/phoenix/live_reload`) || PathPrefix(`/live`) || PathPrefix(`/assets/v2`) || PathPrefix(`/v2`) || Path(`/api-docs`) || Path(`/api/openapi`) || Path(`/api/cache`) || Path(`/api/cache/exists`) || Path(`/api/cache/multipart/generate-url`) || Path(`/api/cache/multipart/start`) || Path(`/api/cache/multipart/complete`)"
+      rule: "PathPrefix(`/v2`) || PathPrefix(`/phoenix/live_reload`) || PathPrefix(`/live`) || PathPrefix(`/assets/v2`) || Path(`/api-docs`) || Path(`/api/openapi`) || Path(`/api/cache`) || Path(`/api/cache/exists`) || Path(`/api/cache/multipart/generate-url`) || Path(`/api/cache/multipart/start`) || Path(`/api/cache/multipart/complete`)"
       service: phx
 
   services:

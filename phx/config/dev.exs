@@ -53,6 +53,7 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/static/v2/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/tuist_cloud_web/(controllers|live|components)/.*(ex|heex)$"
     ]

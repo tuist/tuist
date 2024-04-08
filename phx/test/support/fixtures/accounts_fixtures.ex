@@ -8,7 +8,8 @@ defmodule TuistCloud.AccountsFixtures do
     Accounts.create_user("#{TestUtilities.unique_integer()}@cloud.tuist.io")
   end
 
-  def organization_fixture() do
-    Accounts.create_organization(%{name: "#{TestUtilities.unique_integer()}"})
+  def organization_fixture(opts \\ []) do
+    name = Keyword.get(opts, :name, "#{TestUtilities.unique_integer()}")
+    Accounts.create_organization(%{name: name})
   end
 end

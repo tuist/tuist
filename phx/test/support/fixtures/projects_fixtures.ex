@@ -4,12 +4,10 @@ defmodule TuistCloud.ProjectsFixtures do
   import TuistCloud.TestUtilities
   alias TuistCloud.Repo
   alias TuistCloud.Projects
-  alias TuistCloud.Projects.Project
 
-  @spec project_fixture(attrs :: [{:account_id, String.t()}]) :: Project.t()
-  def project_fixture(attrs \\ []) do
+  def project_fixture(opts \\ []) do
     account_id =
-      Keyword.get_lazy(attrs, :account_id, fn ->
+      Keyword.get_lazy(opts, :account_id, fn ->
         organization_id = TuistCloud.AccountsFixtures.organization_fixture().id
 
         Repo.get_by!(TuistCloud.Accounts.Account,
@@ -18,8 +16,10 @@ defmodule TuistCloud.ProjectsFixtures do
         ).id
       end)
 
+    name = Keyword.get(opts, :name, "#{unique_integer()}")
+
     Projects.create_project(%{
-      name: "#{unique_integer()}",
+      name: name,
       account: %{id: account_id}
     })
   end

@@ -43,5 +43,8 @@
   "elixirLS.projectDir": "./phx",
   "emmet.includeLanguages": {
     "html-eex": "html"
+  },
+  "[elixir]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls"
   }
 }

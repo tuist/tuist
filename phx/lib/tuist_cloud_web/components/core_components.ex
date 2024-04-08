@@ -160,18 +160,6 @@ defmodule TuistCloudWeb.CoreComponents do
         <%= gettext("Attempting to reconnect") %>
         <.icon name="hero-arrow-path" class="ml-1 h-3 w-3 animate-spin" />
       </.flash>
-
-      <.flash
-        id="server-error"
-        kind={:error}
-        title={gettext("Something went wrong!")}
-        phx-disconnected={show(".phx-server-error #server-error")}
-        phx-connected={hide("#server-error")}
-        hidden
-      >
-        <%= gettext("Hang in there while we get back on track") %>
-        <.icon name="hero-arrow-path" class="ml-1 h-3 w-3 animate-spin" />
-      </.flash>
     </div>
     """
   end

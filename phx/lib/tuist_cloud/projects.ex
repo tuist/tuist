@@ -10,17 +10,26 @@ defmodule TuistCloud.Projects do
     Repo.get_by(Project, token: token)
   end
 
-  def get_project_by_slug(slug) do
-    [account_name, project_name] = String.split(slug, "/")
+  def get_project_by_id(project_id) do
+    Repo.get_by(Project, project_id: project_id)
+  end
 
+  def get_project_by_account_and_project_name(account_name, project_name) do
     with {:account, %{id: account_id}} <- {:account, Repo.get_by(Account, name: account_name)},
-         {:project, project} <-
-           {:project, Repo.get_by(Project, name: project_name, account_id: account_id)} do
+    {:project, project} <-
+      {:project, Repo.get_by(Project, name: project_name, account_id: account_id)} do
       project
     else
       {:account, nil} -> nil
       {:project, nil} -> nil
     end
+  end
+
+  def get_project_by_slug(slug) do
+    [account_name, project_name] = String.split(slug, "/")
+
+    project = get_project_by_account_and_project_name(account_name, project_name)
+    project
   end
 
   def get_project_slug_from_id(id) do

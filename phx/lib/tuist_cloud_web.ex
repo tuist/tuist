@@ -17,7 +17,7 @@ defmodule TuistCloudWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt v2)
 
   def router do
     quote do
@@ -85,6 +85,7 @@ defmodule TuistCloudWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import TuistCloudWeb.CoreComponents
+      import TuistCloudWeb.Components.Icons
       import TuistCloudWeb.Gettext
 
       # Shortcut for generating JS commands

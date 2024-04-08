@@ -42,7 +42,7 @@ defmodule TuistCloud.AuthorizationTest do
   test "can.read.project.cache when the subject is a user that belongs to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
-    account = Accounts.account_from_organization(organization)
+    account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, :user)
@@ -54,7 +54,7 @@ defmodule TuistCloud.AuthorizationTest do
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
-    account = Accounts.account_from_organization(organization)
+    account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
 
@@ -65,7 +65,7 @@ defmodule TuistCloud.AuthorizationTest do
   test "can.write.project.cache when the subject is a user that belongs to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
-    account = Accounts.account_from_organization(organization)
+    account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, :user)
@@ -77,7 +77,7 @@ defmodule TuistCloud.AuthorizationTest do
   test "can.write.project.cache when the subject is a user that doesn't belong to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
-    account = Accounts.account_from_organization(organization)
+    account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
 

@@ -41,10 +41,9 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx
-            deps
-            _build
-            _site
+            phx/deps
+            phx/_build
+            phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
       - working-directory: phx
         run: mix deps.get
@@ -68,10 +67,9 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx
-            deps
-            _build
-            _site
+            phx/deps
+            phx/_build
+            phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
       - working-directory: phx
         run: mix deps.get

@@ -24,6 +24,10 @@ defmodule TuistCloud.Accounts do
     Repo.get(Account, id)
   end
 
+  def get_tuist_user() do
+    Repo.get_by(User, email: "tuist@tuist.io")
+  end
+
   @doc ~S"""
   Given an id, it returns the organization associated with it.
   """
@@ -112,7 +116,16 @@ defmodule TuistCloud.Accounts do
     end
   end
 
-  def account_from_organization(%Organization{} = organization) do
+  def get_account_from_user(%User{} = user) do
+    query =
+      from a in Account,
+        where: a.owner_type == "User" and a.owner_id == ^user.id
+
+    query |> Repo.one()
+  end
+
+
+  def get_account_from_organization(%Organization{} = organization) do
     query =
       from a in Account,
         where: a.owner_type == "Organization" and a.owner_id == ^organization.id
