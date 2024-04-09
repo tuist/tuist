@@ -1,0 +1,25 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: docs-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: jdx/mise-action@v2
+        with:
+            experimental: true
+      - run: pnpm install
+      - run: mise run build

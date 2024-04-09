@@ -37,8 +37,12 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
-      - name: Build
-        script: bash ./make/tasks/github/build-docc.sh
+      - name: Up
+        script: mise run up
+      - name: Generate manifest docs
+        script: mise run docs:generate-manifests-docs
+      - name: Build the documentation
+        script: mise run docs:build
     triggering:
       << : *branch_triggering
   unit_tests:
@@ -112,14 +116,16 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
-      - name: Lint
-        script: bash ./make/tasks/github/build-docc.sh
+      - script: mise run up
+      - name: Generate manifest docs
+        script: mise run docs:generate-manifests-docs
+      - name: Build the documentation
+        script: mise run docs:build
       - name: Fix permissions
         script: sudo chown -R $USER .build/documentation
       - name: Deploy to Cloudflare Pages
         script: |
-          mise install node@latest
-          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
+          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs docs/.vitepress/dist
     triggering:
       events:
         - push

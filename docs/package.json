@@ -1,0 +1,20 @@
+{
+  "name": "@tuist/docs",
+  "private": true,
+  "description": "Tuist's documentation website",
+  "license": "MIT",
+  "devDependencies": {
+    "execa": "^8.0.1",
+    "fast-glob": "^3.3.2",
+    "vitepress": "^1.0.1"
+  },
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main"
+  },
+  "dependencies": {
+    "wrangler": "^3.37.0"
+  }
+}

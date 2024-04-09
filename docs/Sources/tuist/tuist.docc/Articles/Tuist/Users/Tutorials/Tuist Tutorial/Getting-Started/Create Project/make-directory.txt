@@ -1,3 +1,0 @@
-% mkdir MyApp
-% cd MyApp
-
