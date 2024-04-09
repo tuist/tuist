@@ -1,5 +1,4 @@
-nav {
-  display: flex;
+.sidebar {
   flex-wrap: wrap;
   flex-grow: 1;
   padding: var(--spacing-4xl) var(--spacing-3xl);
@@ -69,15 +68,15 @@ nav li {
   flex-grow: 1;
 }
 
+.sidebar__footer__user-info > * + * {
+  margin-block-start: var(--spacing-none);
+}
+
 .sidebar__footer__user-info__signout-button {
   display: flex;
 }
 
-
-nav a,
-p {
-  color: var(--text-secondary);
-  text-decoration: none;
+.sidebar__navigation-list a {
   margin-top: var(--spacing-xxs);
 }
 
@@ -106,4 +105,16 @@ footer .user-info {
   display: flex;
   flex-direction: column;
   align-items: start;
+}
+
+#projects-dropdown {
+  margin-top: var(--spacing-xl);
+}
+
+#projects-dropdown-button {
+  width: 100%;
+
+  & > span {
+    flex-grow: 1;
+  }
 }

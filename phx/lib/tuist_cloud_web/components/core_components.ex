@@ -18,6 +18,69 @@ defmodule TuistCloudWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
   import TuistCloudWeb.Gettext
+  import TuistCloudWeb.Components.Icons
+
+  @doc"""
+  Renders a dropdown picker
+  """
+
+  attr(:id, :string, required: true)
+  slot(:inner_block, required: true)
+  slot(:content, required: true)
+
+  def dropdown_picker(assigns) do
+    ~H"""
+    <div class="dropdown" id={"#{@id}"}>
+      <.button
+        class="dropdown-button"
+        variant="secondary"
+        size="medium"
+        id={"#{@id}-button"}
+        aria-expanded="false"
+        phx-click={JS.toggle(to: "##{@id}-menu")}
+        phx-click-away={JS.hide(to: "##{@id}-menu")}
+        phx-window-keydown={JS.hide(to: "##{@id}-menu")}
+        phx-key="Escape"
+      >
+        <%= render_slot(@inner_block) %>
+        <:icon><.chevron_down /></:icon>
+      </.button>
+
+      <div id={"#{@id}-menu"} hidden>
+      <nav class="dropdown-menu">
+        <%= render_slot(@content) %>
+      </nav>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a button.
+
+  ## Examples
+
+      <.button>Send!</.button>
+      <.button phx-click="go">Send!</.button>
+  """
+  attr(:variant, :string, default: "primary")
+  attr(:size, :string, default: "medium")
+  attr(:rest, :global, include: ~w(disabled form name value))
+
+  slot(:inner_block, required: false)
+  slot(:icon, doc: "the slot for an icon")
+
+  def button(assigns) do
+    ~H"""
+    <button
+      class={"button--#{@variant} button--#{@size}"}
+      {@rest}
+    >
+      <span class={"text--#{@size}"}><%= render_slot(@inner_block) %></span>
+      <%= render_slot(@icon) %>
+    </button>
+    """
+  end
 
   @doc """
   Renders a modal.
@@ -197,36 +260,6 @@ defmodule TuistCloudWeb.CoreComponents do
         </div>
       </div>
     </.form>
-    """
-  end
-
-  @doc """
-  Renders a button.
-
-  ## Examples
-
-      <.button>Send!</.button>
-      <.button phx-click="go" class="ml-2">Send!</.button>
-  """
-  attr :type, :string, default: nil
-  attr :class, :string, default: nil
-  attr :rest, :global, include: ~w(disabled form name value)
-
-  slot :inner_block, required: true
-
-  def button(assigns) do
-    ~H"""
-    <button
-      type={@type}
-      class={[
-        "phx-submit-loading:opacity-75 rounded-lg bg-zinc-900 hover:bg-zinc-700 py-2 px-3",
-        "text-sm font-semibold leading-6 text-white active:text-white/80",
-        @class
-      ]}
-      {@rest}
-    >
-      <%= render_slot(@inner_block) %>
-    </button>
     """
   end
 

@@ -40,4 +40,17 @@ defmodule TuistCloud.AccountsTest do
     # When
     assert Accounts.user?(user, organization) == true
   end
+
+  test "get all organization accounts for a given user" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    Accounts.add_user_to_organization(user, organization, :user)
+
+    # When
+    got = Accounts.get_user_organization_accounts(user)
+
+    # Then
+    assert organization == hd(got).organization
+  end
 end

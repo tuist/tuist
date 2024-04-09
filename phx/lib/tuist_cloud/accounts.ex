@@ -4,7 +4,7 @@ defmodule TuistCloud.Accounts do
   """
   alias TuistCloud.Accounts.UserRole
   alias TuistCloud.Repo
-  alias TuistCloud.Accounts.{User, Account, Organization, Role}
+  alias TuistCloud.Accounts.{User, Account, Organization, Role, OrganizationAccount}
   import Ecto.Query, only: [from: 2]
 
   def update_account_cache_upload_event_count(%Account{} = account, count) do
@@ -124,7 +124,6 @@ defmodule TuistCloud.Accounts do
     query |> Repo.one()
   end
 
-
   def get_account_from_organization(%Organization{} = organization) do
     query =
       from a in Account,
@@ -183,6 +182,24 @@ defmodule TuistCloud.Accounts do
     end
   end
 
+  def get_user_organization_accounts(%User{id: user_id}) do
+    query =
+      from u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        join: o in Organization,
+        on: o.id == r.resource_id,
+        join: a in Account,
+        on: a.owner_type == "Organization" and a.owner_id == o.id,
+        where: u.user_id == ^user_id and r.resource_type == "Organization",
+        select: {o, a}
+
+    Repo.all(query)
+    |> Enum.map(fn {organization, account} ->
+      %OrganizationAccount{organization: organization, account: account}
+    end)
+  end
+
   def admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
       from u in UserRole,
@@ -205,5 +222,9 @@ defmodule TuistCloud.Accounts do
             r.resource_id == ^organization_id
 
     query |> Repo.exists?()
+  end
+
+  def get_role_by_id(id) do
+    Repo.get(Role, id)
   end
 end

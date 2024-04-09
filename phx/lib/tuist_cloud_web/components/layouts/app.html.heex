@@ -1,16 +1,21 @@
 <main>
   <div>
-    <.flash_group flash={@flash} />
     <nav class="sidebar">
       <div class="nav-logo">
         <img class="nav-logo__image" src="/v2/images/tuist_logo_32x32@2x.png" alt="Tuist Cloud Icon" style="width: 32px;" />
         <h6 class="bold">Tuist Cloud</h6>
       </div>
-      <dropdown-l placeholder="tuist/tuist">
-        <dropdown-option-l value="option-1">
-          Option 1
-        </dropdown-option-l>
-      </dropdown-l>
+      <.dropdown_picker id="projects-dropdown">
+      <%= "#{@current_owner}/#{@current_project}" %>
+      <:content>
+        <%= for project <- @projects do %>
+          <% [owner_handle, project_handle] = project.handle |> String.split("/") %>
+          <a href={~p"/v2/#{owner_handle}/#{project_handle}"}>
+            <%= project.handle %>
+          </a>
+        <% end %>
+      </:content>
+    </.dropdown_picker>
       <ul class="sidebar__navigation-list">
         <li>
           <a href={~p"/v2/#{@current_owner}/#{@current_project}"}>
@@ -26,10 +31,10 @@
         </li>
       </ul>
       <footer class="sidebar__footer">
-        <stack-l space="var(--spacing-none)" class="sidebar__footer__user-info">
-          <p class="text--sm text--semibold color--text-secondary"><%= @current_account.name %></p>
-          <p class="text--xs text--semibold color--text-tertiary"><%= @current_user.email %></p>
-        </stack-l>
+        <div class="stack sidebar__footer__user-info">
+          <p class="text--small font--semibold color--text-secondary"><%= @current_account.name %></p>
+          <p class="text--extraSmall font--semibold color--text-tertiary"><%= @current_user.email %></p>
+        </div>
         <button class="button--sm button--tertiary button--icon-only">
           <a href="/users/sign_out" data-method="delete"><.log_out /></a>
         </button>

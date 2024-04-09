@@ -32,6 +32,10 @@ defmodule TuistCloudWeb.HomeLive do
       |> assign(:current_owner, params["owner"])
       |> assign(:current_project, params["project"])
       |> assign(:page_title, gettext("Dashboard") <> " - #{slug}")
+      |> assign(
+        :projects,
+        Projects.get_all_project_accounts(user)
+      )
       |> assign(:build_average_durations, build_average_durations)
       |> assign(
         :build_total_average_duration,

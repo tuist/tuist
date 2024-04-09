@@ -3,8 +3,11 @@ defmodule TuistCloud.Projects do
   A module to deal with projects in the system.
   """
   alias TuistCloud.Repo
-  alias TuistCloud.Accounts.Account
+  alias TuistCloud.Accounts
+  alias TuistCloud.Accounts.{Account, ProjectAccount}
   alias TuistCloud.Projects.Project
+
+  import Ecto.Query
 
   def get_project_by_token(token) do
     Repo.get_by(Project, token: token)
@@ -16,8 +19,8 @@ defmodule TuistCloud.Projects do
 
   def get_project_by_account_and_project_name(account_name, project_name) do
     with {:account, %{id: account_id}} <- {:account, Repo.get_by(Account, name: account_name)},
-    {:project, project} <-
-      {:project, Repo.get_by(Project, name: project_name, account_id: account_id)} do
+         {:project, project} <-
+           {:project, Repo.get_by(Project, name: project_name, account_id: account_id)} do
       project
     else
       {:account, nil} -> nil
@@ -38,6 +41,32 @@ defmodule TuistCloud.Projects do
     else
       nil
     end
+  end
+
+  def get_all_project_accounts(user) do
+    user_account = Accounts.get_account_from_user(user)
+
+    organization_account_ids =
+      Accounts.get_user_organization_accounts(user)
+      |> Enum.map(& &1.account.id)
+
+    account_ids = [user_account.id | organization_account_ids]
+
+    query =
+      from p in Project,
+        join: a in Account,
+        on: p.account_id == a.id,
+        where: p.account_id in ^account_ids,
+        select: {p, a}
+
+    Repo.all(query)
+    |> Enum.map(fn {project, account} ->
+      %ProjectAccount{
+        handle: "#{account.name}/#{project.name}",
+        project: project,
+        account: account
+      }
+    end)
   end
 
   @spec create_project(%{

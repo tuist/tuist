@@ -1,4 +1,5 @@
 defmodule TuistCloud.ProjectsTest do
+  alias TuistCloud.Accounts.ProjectAccount
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.Projects
@@ -16,5 +17,23 @@ defmodule TuistCloud.ProjectsTest do
 
     # Then
     assert got == project
+  end
+
+  test "returns all projects associated with a user" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, :user)
+    organization_two = AccountsFixtures.organization_fixture()
+    account_two = Accounts.get_account_from_organization(organization_two)
+    ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+    # When
+    got = Projects.get_all_project_accounts(user)
+
+    # Then
+    assert [%ProjectAccount{handle: "#{account.name}/#{project.name}", account: account, project: project}] == got
   end
 end

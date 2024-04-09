@@ -59,6 +59,7 @@
   --fg-secondary: var(--gray-300);
   --fg-suceess-primary: var(--success-500);
   --fg-success-secondary: var(--success-400);
+  --fg-quaternary: var(--gray-400);
 
   /* Background color */
 
@@ -73,6 +74,12 @@
   --border-tertiary: var(--gray-800);
 
   /* Button color */
+  --button-secondary-bg: var(--gray-900);
+  --button-secondary-bg-hover: var(--gray-800);
+  --button-secondary-fg: var(--gray-300);
+  --button-secondary-fg-hover: var(--gray-100);
+  --button-secondary-border: var(--gray-700);
+  --button-secondary-border-hover: var(--gray-700);
   --button-tertiary-fg: var(--gray-400);
   --button-tertiary-fg-hover: var(--gray-100);
   --button-tertiary-bg-hover: var(--gray-800);
@@ -114,6 +121,34 @@ body {
   margin: 0;
   font-family: "Inter", sans-serif;
   background-color: var(--bg-primary);
+}
+
+.button--medium {
+  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--spacing-xs);
+}
+
+.button--secondary {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-fg);
+  justify-content: center;
+  border: 1px solid var(--button-secondary-border);
+}
+
+.button--secondary svg {
+  stroke: var(--button-secondary-fg);
+  height: 20px;
+  width: 20px;
+}
+
+.button--secondary:hover {
+  color: var(--button-secondary-fg-hover);
+  background-color: var(--button-secondary-bg-hover);
+  border-color: var(--button-secondary-border-hover);
+}
+
+.button--secondary:hover svg {
+  stroke: var(--button-secondary-fg-hover);
 }
 
 .button--tertiary svg {
@@ -158,19 +193,19 @@ body {
 
 /* Fonts */
 
-.text--regular {
+.font--regular {
   font-weight: 400;
 }
 
-.text--medium {
+.font--medium {
   font-weight: 500;
 }
 
-.text--semibold {
+.font--semibold {
   font-weight: 600;
 }
 
-.text--bold {
+.font--bold {
   font-weight: 700;
 }
 
@@ -232,37 +267,44 @@ p {
   display: flex;
 }
 
-.text--xl {
+.text--extraLarge {
   font-size: 1.25rem;
   line-height: 1.875rem;
 }
 
-.text--lg {
+.text--large {
   font-size: 1.125rem;
   line-height: 1.75rem;
 }
 
-.text--md {
+.text--medium {
   font-size: 1rem;
   line-height: 1.5rem;
 }
 
-.text--sm {
+.text--small {
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
-.text--xs {
+.text--extraSmall {
   font-size: 0.75rem;
   line-height: 1.125rem;
 }
 
+a {
+  text-decoration: none;
+  color: var(--text-secondary);
+  display: flex;
+  padding: 0;
+}
+
+p {
+  color: var(--text-secondary);
+}
 /* Buttons */
 
 button {
-  font-size: var(--tuist-font-size-small);
-  background-color: var(--tuist-color-neutral-200);
-  color: var(--text-inverse);
   transition-property: color,background-color;
   transition-timing-function: cubic-bezier(.4,0,.2,1);
   transition-duration: .15s;
@@ -272,11 +314,17 @@ button {
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
+
+  &:hover {
+    background-color: var(--tuist-color-neutral-300);
+    color: var(--text-on-color);
+  }
 }
 
-button:hover {
-  background-color: var(--tuist-color-neutral-300);
-  color: var(--text-on-color);
+button svg {
+  transition-property: stroke;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
+  transition-duration: .15s;
 }
 
 button.ghost {
@@ -289,13 +337,61 @@ button.ghost:hover {
 
 /* Stack */
 
-stack-l {
+.stack {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
 }
 
-stack-l > * + * {
-  margin-block-start: var(--spacing-2xl);
+/* Dropdown */
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  left: 0;
+  margin-top: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  gap: 0;
+  background-color: var(--bg-primary);
+
+  & a:first-child {
+    border-left: 1px solid var(--border-secondary);
+    border-right: 1px solid var(--border-secondary);
+    border-top: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  & a:last-child {
+    border-left: 1px solid var(--border-secondary);
+    border-right: 1px solid var(--border-secondary);
+    border-bottom: 1px solid var(--border-secondary);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  & a {
+    border-left: 1px solid var(--border-secondary);
+    border-right: 1px solid var(--border-secondary);
+    padding: var(--spacing-lg) var(--spacing-lg);
+    background-color: transparent;
+    transition-property: color, background-color;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 0.15s;
+    cursor: pointer;
+    border-width: 0;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.dropdown-menu svg {
+  stroke: var(--fg-quaternary);
 }
 
