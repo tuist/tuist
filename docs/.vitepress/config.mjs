@@ -90,7 +90,7 @@ export default defineConfig({
     },
     nav: [
       { text: "Guide", link: "/guide/introduction/what-is-tuist" },
-      { text: "Reference", link: "/reference/cli/generate" },
+      { text: "Reference", link: "/reference/project-description/project" },
       { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
