@@ -119,6 +119,6 @@ let project = Project(
     schemes: schemes(),
     additionalFiles: [
         "CHANGELOG.md",
-        "README.md"
+        "README.md",
     ]
 )
