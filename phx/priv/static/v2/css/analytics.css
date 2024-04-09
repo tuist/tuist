@@ -74,9 +74,28 @@
 }
 
 .analytics-section__header__change svg {
-  stroke: var(--fg-success-secondary);
   width: 20px;
   height: 20px;
+}
+
+.analytics-section__header__change--positive {
+  & svg {
+    stroke: var(--fg-success-secondary);
+  }
+
+  & span {
+    color: var(--fg-success-secondary);
+  }
+}
+
+.analytics-section__header__change--negative {
+  & svg {
+    stroke: var(--fg-error-secondary);
+  }
+
+  & span {
+    color: var(--fg-error-secondary);
+  }
 }
 
 chart-l {

@@ -9,6 +9,31 @@ defmodule TuistCloud.CommandEvents do
   alias TuistCloud.Time
   import Ecto.Query
 
+  @doc """
+  Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
+
+  Returns 0 if the previous value is 0 or if the current value is 0.
+  """
+  def get_trend(
+    opts
+  ) do
+    previous_value = Keyword.get(opts, :previous_value)
+    current_value = Keyword.get(opts, :current_value)
+    case {previous_value, current_value} do
+      {+0.0, _} ->
+        0.0
+
+      {_, +0.0} ->
+        0.0
+
+      {previous_value, current_value} ->
+        Float.round(
+          current_value / previous_value * 100,
+          1
+        ) - 100.0
+    end
+  end
+
   def get_total_command_period_average_duration(
         name,
         project_id,

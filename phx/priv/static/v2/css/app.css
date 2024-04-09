@@ -59,6 +59,8 @@
   --fg-secondary: var(--gray-300);
   --fg-suceess-primary: var(--success-500);
   --fg-success-secondary: var(--success-400);
+  --fg-error-primary: var(--error-600);
+  --fg-error-secondary: var(--error-500);
   --fg-quaternary: var(--gray-400);
 
   /* Background color */
@@ -327,20 +329,83 @@ button svg {
   transition-duration: .15s;
 }
 
-button.ghost {
-  background-color: transparent;
-}
-
-button.ghost:hover {
-  background-color: var(--tuist-color-neutral-300);
-}
-
 /* Stack */
 
 .stack {
   display: flex;
-  flex-direction: column;
   justify-content: flex-start;
+}
+
+.stack--horizontal {
+  flex-direction: row;
+}
+
+.stack--vertical {
+  flex-direction: column;
+}
+
+.stack--xxs > * + * {
+  margin-top: var(--spacing-xxs);
+}
+
+.stack--xs > * + * {
+  margin-top: var(--spacing-xs);
+}
+
+.stack--sm > * + * {
+  margin-top: var(--spacing-sm);
+}
+
+.stack--md > * + * {
+  margin-top: var(--spacing-md);
+}
+
+.stack--lg > * + * {
+  margin-top: var(--spacing-lg);
+}
+
+.stack--xl > * + * {
+  margin-top: var(--spacing-xl);
+}
+
+.stack--2xl > * + * {
+  margin-top: var(--spacing-2xl);
+}
+
+.stack--3xl > * + * {
+  margin-top: var(--spacing-3xl);
+}
+
+.stack--4xl > * + * {
+  margin-top: var(--spacing-4xl);
+}
+
+.stack--5xl > * + * {
+  margin-top: var(--spacing-5xl);
+}
+
+.stack--6xl > * + * {
+  margin-top: var(--spacing-6xl);
+}
+
+.stack--7xl > * + * {
+  margin-top: var(--spacing-7xl);
+}
+
+.stack--8xl > * + * {
+  margin-top: var(--spacing-8xl);
+}
+
+.stack--9xl > * + * {
+  margin-top: var(--spacing-9xl);
+}
+
+.stack--10xl > * + * {
+  margin-top: var(--spacing-10xl);
+}
+
+.stack--11xl > * + * {
+  margin-top: var(--spacing-11xl);
 }
 
 /* Dropdown */

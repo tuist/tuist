@@ -173,4 +173,28 @@ defmodule TuistCloud.CommandEventsTest do
     assert got[~D[2024-04-30]].value == 15
     assert got[~D[2024-01-29]].value == 0
   end
+
+  test "returns a trend when current_value is smaller" do
+    # Given / When
+    got = CommandEvents.get_trend(previous_value: 20.0, current_value: 10.0)
+
+    # Then
+    assert got == -50.0
+  end
+
+  test "returns a trend when current_value is bigger" do
+    # Given / When
+    got = CommandEvents.get_trend(previous_value: 10.0, current_value: 20.0)
+
+    # Then
+    assert got == 100.0
+  end
+
+  test "returns 0.0 for a trend if previous value is 0.0" do
+    # Given / When
+    got = CommandEvents.get_trend(previous_value: 0.0, current_value: 20.0)
+
+    # Then
+    assert got == 0.0
+  end
 end

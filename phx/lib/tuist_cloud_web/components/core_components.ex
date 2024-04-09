@@ -20,6 +20,23 @@ defmodule TuistCloudWeb.CoreComponents do
   import TuistCloudWeb.Gettext
   import TuistCloudWeb.Components.Icons
 
+  @doc """
+  Renders a stack component
+  """
+
+  attr(:direction, :string, default: "vertical")
+  attr(:gap, :string, default: "xs")
+  slot(:inner_block, required: true)
+
+  def stack(assigns) do
+    ~H"""
+    <div class={"stack stack--#{@direction} stack--#{@gap}"}>
+      <%= render_slot(@inner_block) %>
+    </div>
+    """
+  end
+
+
   @doc"""
   Renders a dropdown picker
   """
