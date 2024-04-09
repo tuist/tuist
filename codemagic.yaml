@@ -121,8 +121,6 @@ workflows:
         script: mise run docs:generate-manifests-docs
       - name: Build the documentation
         script: mise run docs:build
-      - name: Fix permissions
-        script: sudo chown -R $USER .build/documentation
       - name: Deploy to Cloudflare Pages
         script: |
           mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs docs/.vitepress/dist
