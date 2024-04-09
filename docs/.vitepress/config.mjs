@@ -202,12 +202,7 @@ export default defineConfig({
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "algolia",
-      options: {
-        appId: "...",
-        apiKey: "...",
-        indexName: "...",
-      },
+      provider: "local",
     },
     nav: [
       { text: "Guide", link: "/" },
