@@ -8,6 +8,11 @@ import fg from "fast-glob";
 const rootDirectory = path.join(import.meta.dirname, "../..");
 const docsDirectory = path.join(import.meta.dirname, "..");
 
+await execa("tuist", ["install"], {
+  cwd: rootDirectory,
+  stdio: "inherit",
+});
+
 await execa("tuist", ["generate", "--no-open", "--no-binary-cache"], {
   cwd: rootDirectory,
   stdio: "inherit",
