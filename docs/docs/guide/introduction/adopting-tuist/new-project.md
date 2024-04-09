@@ -1,5 +1,6 @@
 ---
 title: Create a new project
+description: Learn how to create a new project with Tuist.
 next: 
     text: "Directory structure"
     link: /guide/project/directory-structure

@@ -1,5 +1,6 @@
 ---
 title: What is Tuist Cloud
+titleTemplate: ':title - Tuist Cloud'
 description: Learn about Tuist Cloud, a service that provides a set of features to enhance the development experience with Tuist.
 ---
 

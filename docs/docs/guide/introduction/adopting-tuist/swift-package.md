@@ -1,6 +1,9 @@
 ---
 title: Use Tuist with a Swift Package
 description: Assess the impact of Tuist and Tuist Cloud in your projects by using it with an existing Swift Package.
+next: 
+    text: "Directory structure"
+    link: /guide/project/directory-structure
 ---
 
 # Using Tuist with a Swift Package <Badge type="warning" text="beta" />

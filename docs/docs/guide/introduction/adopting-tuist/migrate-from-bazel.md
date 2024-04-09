@@ -1,6 +1,9 @@
 ---
 title: Migrate from Bazel
 description: Learn how to migrate your projects from Bazel to Tuist.
+next: 
+    text: "Directory structure"
+    link: /guide/project/directory-structure
 ---
 
 # Migrate from Bazel

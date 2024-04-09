@@ -1,6 +1,9 @@
 ---
 title: Migrate from .xcodeproj
 description: Assess the impact of Tuist and Tuist Cloud in your projects by using it with an existing Swift Package.
+next: 
+    text: "Directory structure"
+    link: /guide/project/directory-structure
 ---
 
 # Migrate from .xcodeproj

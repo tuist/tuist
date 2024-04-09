@@ -1,6 +1,8 @@
 import { defineConfig } from "vitepress";
 import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
 import examplesDataLoader from "../docs/reference/examples/examples.data";
+import * as path from "node:path";
+import * as fs from "node:fs/promises";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
@@ -40,6 +42,16 @@ export default defineConfig({
       label: "English",
       lange: "en",
     },
+  },
+  sitemap: {
+    hostname: "https://docs.tuist.io",
+  },
+  async buildEnd({ outDir }) {
+    const redirectsPath = path.join(outDir, "_redirects");
+    const redirects = `
+    /home301 / 301
+    `;
+    fs.writeFile(redirectsPath, redirects);
   },
   themeConfig: {
     logo: "/logo.png",

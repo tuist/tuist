@@ -1,5 +1,6 @@
 ---
 title: The cost of convenience
+description: Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it.
 ---
 
 # The cost of convenience

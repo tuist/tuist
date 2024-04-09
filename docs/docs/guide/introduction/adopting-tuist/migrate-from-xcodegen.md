@@ -1,6 +1,9 @@
 ---
 title: Migrate from XcodeGen
 description: Learn how to migrate your projects from XcodeGen to Tuist.
+next: 
+    text: "Directory structure"
+    link: /guide/project/directory-structure
 ---
 
 # Migrate from XcodeGen

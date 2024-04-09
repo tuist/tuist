@@ -1,6 +1,9 @@
 ---
 title: Migrate local Swift Packages
 description: Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects.
+next: 
+    text: "Directory structure"
+    link: /guide/project/directory-structure
 ---
 
 # Migrate local Swift Packages
