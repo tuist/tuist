@@ -47,15 +47,35 @@ export default defineConfig({
       provider: "local",
     },
     nav: [
-      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Guide", link: "/guide/introduction/what-is-tuist" },
       { text: "Reference", link: "/reference/cli/generate" },
+      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
+      { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
     ],
     editLink: {
       pattern: "https://github.com/tuist/docs/edit/main/docs/:path",
     },
     sidebar: {
+      "/contributors": [
+        {
+          text: "Contributors",
+          items: [
+            {
+              text: "Get started",
+              link: "/contributors/get-started",
+            },
+            {
+              text: "Issue reporting",
+              link: "/contributors/issue-reporting",
+            },
+            {
+              text: "Code reviews",
+              link: "/contributors/code-reviews",
+            },
+          ],
+        },
+      ],
       "/cloud": [
         {
           text: "Tuist Cloud",
@@ -153,6 +173,14 @@ export default defineConfig({
               text: "Dynamic configuration",
               link: "/guide/project/dynamic-configuration",
             },
+            {
+              text: "Templates",
+              link: "/guide/project/templates",
+            },
+            {
+              text: "Plugins",
+              link: "/guide/project/plugins",
+            },
           ],
         },
         {
@@ -169,10 +197,10 @@ export default defineConfig({
         {
           text: "Scale",
           items: [
-            {
-              text: "Xcode",
-              link: "/guide/scale/xcode",
-            },
+            // {
+            //   text: "Xcode",
+            //   link: "/guide/scale/xcode",
+            // },
             {
               text: "µFeatures architecture",
               link: "/guide/scale/ufeatures-architecture",
@@ -186,18 +214,9 @@ export default defineConfig({
         {
           text: "Extensions",
           items: [
-            {
-              text: "Types",
-              collapsed: true,
-              items: [
-                { text: "Tasks" },
-                { text: "Templates" },
-                { text: "Resource synthesizers" },
-              ],
-            },
-            {
-              text: "Sharing (plugins)",
-            },
+            { text: "Tasks", link: "/guide/extensions/tasks" },
+            { text: "Templates" },
+            { text: "Resource synthesizers" },
           ],
         },
       ],
