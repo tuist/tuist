@@ -73,6 +73,10 @@ export default defineConfig({
               text: "Code reviews",
               link: "/contributors/code-reviews",
             },
+            {
+              text: "Principles",
+              link: "/contributors/principles",
+            },
           ],
         },
       ],
