@@ -30,6 +30,124 @@ function capitalize(text) {
   }
 });
 
+const guideSidebar = [
+  {
+    text: "Introduction",
+    items: [
+      {
+        text: "What is Tuist?",
+        link: "/",
+      },
+      {
+        text: "The cost of convenience",
+        link: "/guide/introduction/cost-of-convenience",
+      },
+      {
+        text: "Installation",
+        link: "/guide/introduction/installation",
+      },
+      {
+        text: "Adopting Tuist",
+        collapsed: true,
+        items: [
+          {
+            text: "Create a project",
+            link: "/guide/introduction/adopting-tuist/new-project",
+          },
+          {
+            text: "Use it with a Swift Package",
+            link: "/guide/introduction/adopting-tuist/swift-package",
+          },
+          {
+            text: "Migrate from .xcodeproj",
+            link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
+          },
+          {
+            text: "Migrate local Swift Packages",
+            link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
+          },
+          {
+            text: "Migrate from XcodeGen",
+            link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
+          },
+          {
+            text: "Migrate from Bazel",
+            link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
+          },
+        ],
+      },
+      {
+        text: "From v3 to v4",
+        link: "/guide/introduction/from-v3-to-v4",
+      },
+    ],
+  },
+  {
+    text: "Project",
+    items: [
+      {
+        text: "Directory structure",
+        link: "/guide/project/directory-structure",
+      },
+      { text: "Editing", link: "/guide/project/editing" },
+      { text: "Dependencies", link: "/guide/project/dependencies" },
+      { text: "Code sharing", link: "/guide/project/code-sharing" },
+      {
+        text: "Synthesized files",
+        link: "/guide/project/synthesized-files",
+      },
+      {
+        text: "Dynamic configuration",
+        link: "/guide/project/dynamic-configuration",
+      },
+      {
+        text: "Templates",
+        link: "/guide/project/templates",
+      },
+      {
+        text: "Plugins",
+        link: "/guide/project/plugins",
+      },
+    ],
+  },
+  {
+    text: "Automation",
+    items: [
+      { text: "Generate", link: "/guide/automation/generate" },
+      { text: "Build", link: "/guide/automation/build" },
+      { text: "Test", link: "/guide/automation/test" },
+      { text: "Run", link: "/guide/automation/run" },
+      { text: "Graph", link: "/guide/automation/graph" },
+      { text: "Clean", link: "/guide/automation/clean" },
+    ],
+  },
+  {
+    text: "Scale",
+    items: [
+      // {
+      //   text: "Xcode",
+      //   link: "/guide/scale/xcode",
+      // },
+      {
+        text: "µFeatures architecture",
+        link: "/guide/scale/ufeatures-architecture",
+      },
+      {
+        text: "Tuist Cloud",
+        link: "/cloud/what-is-cloud",
+      },
+    ],
+  },
+  {
+    text: "Extensions",
+    items: [
+      { text: "Tasks", link: "/guide/extensions/tasks" },
+      { text: "Templates" },
+      { text: "Resource synthesizers" },
+    ],
+  },
+];
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Tuist",
@@ -48,9 +166,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `
-    
-/ /guide/introduction/what-is-tuist 301
+    const redirects = `    
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -86,10 +202,15 @@ export default defineConfig({
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "local",
+      provider: "algolia",
+      options: {
+        appId: "...",
+        apiKey: "...",
+        indexName: "...",
+      },
     },
     nav: [
-      { text: "Guide", link: "/guide/introduction/what-is-tuist" },
+      { text: "Guide", link: "/" },
       { text: "Reference", link: "/reference/project-description/project" },
       { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Contributors", link: "/contributors/get-started" },
@@ -149,123 +270,8 @@ export default defineConfig({
           ],
         },
       ],
-      "/guide/": [
-        {
-          text: "Introduction",
-          items: [
-            {
-              text: "What is Tuist?",
-              link: "/guide/introduction/what-is-tuist",
-            },
-            {
-              text: "The cost of convenience",
-              link: "/guide/introduction/cost-of-convenience",
-            },
-            {
-              text: "From v3 to v4",
-              link: "/guide/introduction/from-v3-to-v4",
-            },
-            {
-              text: "Installation",
-              link: "/guide/introduction/installation",
-            },
-            {
-              text: "Adopting Tuist",
-              collapsed: true,
-              items: [
-                {
-                  text: "Create a project",
-                  link: "/guide/introduction/adopting-tuist/new-project",
-                },
-                {
-                  text: "Use it with a Swift Package",
-                  link: "/guide/introduction/adopting-tuist/swift-package",
-                },
-                {
-                  text: "Migrate from .xcodeproj",
-                  link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
-                },
-                {
-                  text: "Migrate local Swift Packages",
-                  link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
-                },
-                {
-                  text: "Migrate from XcodeGen",
-                  link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
-                },
-                {
-                  text: "Migrate from Bazel",
-                  link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
-                },
-              ],
-            },
-          ],
-        },
-        {
-          text: "Project",
-          items: [
-            {
-              text: "Directory structure",
-              link: "/guide/project/directory-structure",
-            },
-            { text: "Editing", link: "/guide/project/editing" },
-            { text: "Dependencies", link: "/guide/project/dependencies" },
-            { text: "Code sharing", link: "/guide/project/code-sharing" },
-            {
-              text: "Synthesized files",
-              link: "/guide/project/synthesized-files",
-            },
-            {
-              text: "Dynamic configuration",
-              link: "/guide/project/dynamic-configuration",
-            },
-            {
-              text: "Templates",
-              link: "/guide/project/templates",
-            },
-            {
-              text: "Plugins",
-              link: "/guide/project/plugins",
-            },
-          ],
-        },
-        {
-          text: "Automation",
-          items: [
-            { text: "Generate", link: "/guide/automation/generate" },
-            { text: "Build", link: "/guide/automation/build" },
-            { text: "Test", link: "/guide/automation/test" },
-            { text: "Run", link: "/guide/automation/run" },
-            { text: "Graph", link: "/guide/automation/graph" },
-            { text: "Clean", link: "/guide/automation/clean" },
-          ],
-        },
-        {
-          text: "Scale",
-          items: [
-            // {
-            //   text: "Xcode",
-            //   link: "/guide/scale/xcode",
-            // },
-            {
-              text: "µFeatures architecture",
-              link: "/guide/scale/ufeatures-architecture",
-            },
-            {
-              text: "Tuist Cloud",
-              link: "/cloud/what-is-cloud",
-            },
-          ],
-        },
-        {
-          text: "Extensions",
-          items: [
-            { text: "Tasks", link: "/guide/extensions/tasks" },
-            { text: "Templates" },
-            { text: "Resource synthesizers" },
-          ],
-        },
-      ],
+      "/guide/": guideSidebar,
+      "/": guideSidebar,
       "/reference/": [
         {
           text: "Reference",
