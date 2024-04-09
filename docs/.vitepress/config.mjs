@@ -49,7 +49,37 @@ export default defineConfig({
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `
-    /home301 / 301
+    
+/ /guide/introduction/what-is-tuist 301
+/documentation/tuist/installation /guide/introduction/installation 301
+/documentation/tuist/project-structure /guide/project/directory-structure 301
+/documentation/tuist/command-line-interface /guide/automation/generate 301
+/documentation/tuist/dependencies /guide/project/dependencies 301
+/documentation/tuist/sharing-code-across-manifests /guide/project/code-sharing 301
+/documentation/tuist/synthesized-files /guide/project/synthesized-files 301
+/documentation/tuist/migration-guidelines /guide/introduction/adopting-tuist/migrate-from-xcodeproj 301
+/tutorials/tuist-tutorials /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/install  /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/create-project  /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/external-dependencies /guide/introduction/adopting-tuist/new-project 301
+/documentation/tuist/generation-environment /guide/project/dynamic-configuration 301
+/documentation/tuist/using-plugins /guide/project/plugins 301
+/documentation/tuist/creating-plugins /guide/project/plugins 301
+/documentation/tuist/task /guide/project/plugins 301
+/documentation/tuist/tuist-cloud /cloud/what-is-cloud 301
+/documentation/tuist/tuist-cloud-get-started /cloud/get-started 301
+/documentation/tuist/binary-caching /cloud/binary-caching 301
+/documentation/tuist/selective-testing /cloud/selective-testing 301
+/tutorials/tuist-cloud-tutorials /cloud/on-premise 301
+/tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
+/tutorials/tuist/enterprise-environment /cloud/on-premise 301
+/tutorials/tuist/enterprise-deployment /cloud/on-premise 301
+/documentation/tuist/get-started-as-contributor /contributors/get-started 301
+/documentation/tuist/manifesto /contributors/principles 301
+/documentation/tuist/code-reviews /contributors/code-reviews 301
+/documentation/tuist/reporting-bugs /contributors/issue-reporting 301
+/documentation/tuist/championing-projects /contributors/get-started 301
+/documentation/tuist/* /reference/project-description/:splat 301
     `;
     fs.writeFile(redirectsPath, redirects);
   },
