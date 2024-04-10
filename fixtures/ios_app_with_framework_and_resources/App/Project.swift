@@ -25,7 +25,7 @@ let project = Project(
                     .folderReference(path: "Examples"),
                     .folderReference(path: "ODRExamples", tags: ["tag1", "tag2"]),
                 ],
-                privacyManifest: .init(
+                privacyManifest: .privacyManifest(
                     tracking: false,
                     trackingDomains: [],
                     collectedDataTypes: [
