@@ -175,7 +175,7 @@ final class TargetGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
         let target = Target.test(
             sources: [],
-            resources: .resources([]),
+            resources: .init([]),
             scripts: [
                 TargetScript(
                     name: "post",

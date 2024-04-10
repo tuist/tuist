@@ -393,7 +393,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             entitlements: .file(path: try AbsolutePath(validating: "/project/app.entitlements")),
             settings: settings,
             sources: [SourceFile(path: try AbsolutePath(validating: "/project/file.swift"))],
-            resources: .resources(
+            resources: .init(
                 [
                     .file(path: try AbsolutePath(validating: "/project/image.png")),
                     .folderReference(path: try AbsolutePath(validating: "/project/reference")),

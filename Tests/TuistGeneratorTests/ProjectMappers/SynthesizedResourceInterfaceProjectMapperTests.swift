@@ -82,7 +82,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let targetA = Target.test(
             name: "TargetA",
-            resources: .resources(
+            resources: .init(
                 [
                     .folderReference(path: aAssets),
                     .file(path: frenchStrings),
@@ -333,7 +333,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let targetA = Target.test(
             name: "TargetA",
-            resources: .resources(
+            resources: .init(
                 [
                     .folderReference(path: aAssets),
                     .file(path: frenchStrings),
@@ -422,7 +422,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             targets: [
                 .test(
                     name: "TargetA",
-                    resources: .resources(
+                    resources: .init(
                         [
                             .file(path: ttfFont),
                         ]
@@ -461,7 +461,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             targets: [
                 .test(
                     name: "TargetA",
-                    resources: .resources(
+                    resources: .init(
                         [
                             .file(path: ttfFont),
                         ]

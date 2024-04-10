@@ -60,7 +60,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         entitlements: Entitlements? = nil,
         settings: Settings? = nil,
         sources: [SourceFile] = [],
-        resources: ResourceFileElements = .resources([]),
+        resources: ResourceFileElements = .init([]),
         copyFiles: [CopyFilesAction] = [],
         headers: Headers? = nil,
         coreDataModels: [CoreDataModel] = [],

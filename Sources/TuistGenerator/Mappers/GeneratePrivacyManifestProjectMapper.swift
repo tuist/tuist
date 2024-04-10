@@ -7,16 +7,8 @@ import XcodeProj
 
 /// A project mapper that generates derived privacyManifest files for targets that define it as a dictonary.
 public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {
-    private let derivedDirectoryName: String
-    private let privacyManifestDirectoryName: String
-
-    public init(
-        derivedDirectoryName: String = Constants.DerivedDirectory.name,
-        privacyManifestDirectoryName: String = Constants.DerivedDirectory.privacyManifest
-    ) {
-        self.derivedDirectoryName = derivedDirectoryName
-        self.privacyManifestDirectoryName = privacyManifestDirectoryName
-    }
+    
+    public init() {}
 
     // MARK: - ProjectMapping
 
@@ -54,7 +46,7 @@ public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {
         )
 
         let privacyManifestPath = project.path
-            .appending(component: derivedDirectoryName)
+            .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.privacyManifest)
             .appending(component: target.name)
             .appending(component: "PrivacyInfo.xcprivacy")

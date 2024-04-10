@@ -33,7 +33,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .resources(resources))
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
         project = Project.test(targets: [target])
 
         // Got
@@ -86,7 +86,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, resources: .resources(resources))
+        let target = Target.test(product: .staticLibrary, resources: .init(resources))
         project = Project.test(
             options: .test(
                 disableBundleAccessors: true
@@ -105,7 +105,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func testMap_whenNoSwiftSources() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.m"], resources: .resources(resources))
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.m"], resources: .init(resources))
         project = Project.test(
             targets: [target]
         )
@@ -193,7 +193,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_resources_and_supports_them() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: .resources(resources))
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: .init(resources))
         project = Project.test(targets: [target])
 
         // Got
@@ -268,7 +268,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_has_no_resources() throws {
         // Given
         let resources: [ResourceFileElement] = []
-        let target = Target.test(product: .framework, resources: .resources(resources))
+        let target = Target.test(product: .framework, resources: .init(resources))
         project = Project.test(targets: [target])
 
         // Got
@@ -285,7 +285,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .file(path: "/Some/ResourceA"),
             .file(path: "/Some/ResourceB"),
         ]
-        let target = Target.test(product: .bundle, resources: .resources(resources))
+        let target = Target.test(product: .bundle, resources: .init(resources))
         project = Project.test(targets: [target])
 
         // Got
@@ -303,7 +303,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             name: "test-tuist",
             product: .staticLibrary,
             sources: ["/Absolute/File.swift"],
-            resources: .resources(resources)
+            resources: .init(resources)
         )
         project = Project.test(targets: [target])
 
@@ -331,7 +331,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: sources, resources: .resources(resources))
+        let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
 
         // Got

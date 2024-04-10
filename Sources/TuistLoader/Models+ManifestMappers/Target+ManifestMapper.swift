@@ -153,7 +153,7 @@ extension TuistGraph.Target {
         }
 
         var invalidResourceGlobs: [InvalidGlob] = []
-        var filteredResources: TuistGraph.ResourceFileElements = .resources([], privacyManifest: privacyManifest)
+        var filteredResources: TuistGraph.ResourceFileElements = .init([], privacyManifest: privacyManifest)
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
