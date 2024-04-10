@@ -41,5 +41,6 @@ let package = Package(
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
         .package(url: "https://github.com/kishikawakatsumi/UICKeyChainStore", exact: "2.2.1"),
+        .package(url: "https://github.com/QMUI/LookinServer", from: "1.2.8"),
     ]
 )

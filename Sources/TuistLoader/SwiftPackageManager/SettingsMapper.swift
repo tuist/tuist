@@ -34,18 +34,43 @@ struct SettingsMapper {
 
     // swiftlint:disable:next function_body_length
     func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
+        let platformSettings = try settingsForPlatform(platform?.platformName)
+
+        return try map(
+            settings: platformSettings,
+            headerSearchPaths: headerSearchPaths,
+            defines: ["SWIFT_PACKAGE": "1"],
+            swiftDefines: "SWIFT_PACKAGE"
+        )
+    }
+
+    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
+        var resolvedSettings = try settingsDictionaryForPlatform(nil)
+
+        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
+            let platformSettings = try settingsDictionaryForPlatform(platform)
+            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
+        }
+
+        return resolvedSettings
+    }
+
+    private func map(
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        headerSearchPaths: [String] = [],
+        defines: [String: String] = [:],
+        swiftDefines: String = ""
+    ) throws -> TuistGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
-        var defines = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines = "SWIFT_PACKAGE"
+        var defines = defines
+        var swiftDefines = swiftDefines
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
         var settingsDictionary = TuistGraph.SettingsDictionary()
-        let platformSettings = try settingsForPlatform(platform?.platformName)
-
-        for setting in platformSettings {
+        for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
@@ -113,15 +138,14 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
-        var resolvedSettings = try settingsDictionaryForPlatform(nil)
-
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
-            let platformSettings = try settingsDictionaryForPlatform(platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
-        }
-
-        return resolvedSettings
+    func settingsForBuildConfiguration(
+        _ buildConfiguration: String
+    ) throws -> TuistGraph.SettingsDictionary {
+        try map(
+            settings: settings.filter { setting in
+                return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
+            }
+        )
     }
 }
 
