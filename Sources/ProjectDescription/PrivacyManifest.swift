@@ -24,9 +24,12 @@ public struct PrivacyManifest: Codable, Equatable {
 
     /// Returns a PrivacyManifest.
     /// - Parameter tracking: A Boolean that indicates whether your app or third-party SDK uses data for tracking.
-    /// - Parameter trackingDomains: An array of strings that lists the internet domains your app or third-party SDK connects to that engage in tracking.
-    /// - Parameter collectedDataTypes: An array of dictionaries that describes the data types your app or third-party SDK collects.
-    /// - Parameter accessedApiTypes: An array of dictionaries that describe the API types your app or third-party SDK accesses that have
+    /// - Parameter trackingDomains: An array of strings that lists the internet domains your app or third-party SDK connects to
+    /// that engage in tracking.
+    /// - Parameter collectedDataTypes: An array of dictionaries that describes the data types your app or third-party SDK
+    /// collects.
+    /// - Parameter accessedApiTypes: An array of dictionaries that describe the API types your app or third-party SDK accesses
+    /// that have
     /// been designated as APIs that require reasons to access.
     /// - Returns: PrivacyManifest.
     public static func privacyManifest(

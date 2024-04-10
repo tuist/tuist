@@ -57,14 +57,18 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
         // Then
         XCTAssertContainsElementOfType(got, GenerateInfoPlistProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
-    }    
+    }
 
     func test_default_contains_the_generate_privacy_manifest_mapper() {
         // When
         let got = subject.default()
 
         // Then
-        XCTAssertContainsElementOfType(got, GeneratePrivacyManifestProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
+        XCTAssertContainsElementOfType(
+            got,
+            GeneratePrivacyManifestProjectMapper.self,
+            after: DeleteDerivedDirectoryProjectMapper.self
+        )
     }
 
     func test_default_contains_the_ide_template_macros_mapper() {

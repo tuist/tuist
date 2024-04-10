@@ -8,7 +8,7 @@ public struct PrivacyManifest: Codable, Equatable {
     public var collectedDataTypes: [[String: Plist.Value]]
 
     public var accessedApiTypes: [[String: Plist.Value]]
-    
+
     public init(
         tracking: Bool,
         trackingDomains: [String],
