@@ -49,11 +49,14 @@ We recommend following a naming convention for targets, something that you can e
 | `Feature` | `FeatureInterface` | Source code and resources |
 | `FeatureInterface` | - | Public interface and models |
 | `FeatureTests` | `Feature`, `FeatureTesting` | Unit and integration tests |
-| `FeatureTesting` | `Feature` | Testing data and mocks |
+| `FeatureTesting` | `FeatureInterface` | Testing data and mocks |
 | `FeatureExample` | `FeatureTesting`, `Feature` | Example app |
 
+> [!TIP] UI Previews
+> `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
+
 > [!IMPORTANT] COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-> Alternatively, you can use compiler directives to include test data and mocks in the mani feature target when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
+> Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
 
 ## Why a µFeature
 
