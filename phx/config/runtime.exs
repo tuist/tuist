@@ -150,3 +150,10 @@ if TuistCloud.Environment.s3_configured?(secrets) do
       region: "auto"
     ]
 end
+
+# Stripe config
+if TuistCloud.Environment.stripe_configured?(secrets) do
+  config :stripity_stripe,
+    api_key: TuistCloud.Environment.stripe_api_key(secrets),
+    signing_secret: TuistCloud.Environment.stripe_endpoint_secret(secrets)
+end

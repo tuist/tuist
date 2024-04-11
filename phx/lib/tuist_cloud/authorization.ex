@@ -4,7 +4,7 @@ defmodule TuistCloud.Authorization do
   """
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts
-  alias TuistCloud.Accounts.User
+  alias TuistCloud.Accounts.{User, Account}
 
   def can(%User{} = user, :read, %Project{} = project, :cache) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
@@ -12,6 +12,10 @@ defmodule TuistCloud.Authorization do
 
   def can(%User{} = user, :write, %Project{} = project, :cache) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def can(%User{} = user, :update, %Account{} = account, :billing) do
+    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
 
   def can(%Project{} = authenticated_project, :read, %Project{} = project, :cache) do

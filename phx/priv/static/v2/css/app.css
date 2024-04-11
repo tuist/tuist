@@ -54,6 +54,11 @@
   --text-tertiary: var(--gray-400);
   --text-success-primary: var(--success-400);
 
+  --text-brand-primary: var(--gray-50);
+  --text-brand-secondary: var(--gray-300);
+  --text-brand-tertiary: var(--gray-400);
+  --text-brand-tertiary_alt: var(--gray-50);
+
   /* Foreground color */
   --fg-primary: var(--white);
   --fg-secondary: var(--gray-300);
@@ -191,6 +196,22 @@ body {
 
 .color--text-success-primary {
   color: var(--text-success-primary);
+}
+
+.color--text-brand-primary {
+  color: var(--text-brand-primary);
+}
+
+.color--text-brand-secondary {
+  color: var(--text-brand-secondary);
+}
+
+.color--text-brand-tertiary {
+  color: var(--text-brand-tertiary);
+}
+
+.color--text-brand-tertiary_alt {
+  color: var(--text-brand-tertiary_alt);
 }
 
 /* Fonts */
@@ -459,4 +480,3 @@ button svg {
 .dropdown-menu svg {
   stroke: var(--fg-quaternary);
 }
-

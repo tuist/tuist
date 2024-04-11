@@ -3,6 +3,7 @@ defmodule TuistCloudWeb.HomeLive do
   alias TuistCloud.Projects
   alias TuistCloud.CommandEvents
   alias TuistCloud.Time
+  alias TuistCloud.Authorization
 
   def mount(params, _session, socket) do
     user = current_user()
@@ -105,6 +106,10 @@ defmodule TuistCloudWeb.HomeLive do
       |> assign(
         :cache_hit_rate_delta,
         Float.round(cache_hit_rate_delta, 1)
+      )
+      |> assign(
+        :can_update_billing,
+        Authorization.can(user, :update, account, :billing)
       )
     }
   end

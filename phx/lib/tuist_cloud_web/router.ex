@@ -76,7 +76,9 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :browser, :authenticated]
 
     live_session :authenticated do
+      get "/:account_name/billing", BillingController, :billing_plan
       live "/:owner/:project", HomeLive
     end
+
   end
 end

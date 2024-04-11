@@ -14,12 +14,17 @@ defmodule TuistCloud.CommandEvents do
 
   Returns 0 if the previous value is 0 or if the current value is 0.
   """
-  def get_trend(
-    opts
-  ) do
+  def get_trend(opts) do
     previous_value = Keyword.get(opts, :previous_value)
     current_value = Keyword.get(opts, :current_value)
+
     case {previous_value, current_value} do
+      {0, _} ->
+        0.0
+
+      {_, 0} ->
+        0.0
+
       {+0.0, _} ->
         0.0
 

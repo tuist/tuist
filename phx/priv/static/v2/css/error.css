@@ -1,0 +1,17 @@
+.error-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: start;
+  padding-left: var(--spacing-9xl);
+  max-width: 60%;
+}
+
+.error-page__title {
+  margin-top: var(--spacing-lg);
+}
+
+.error-page__home-button {
+  margin-top: var(--spacing-6xl);
+}

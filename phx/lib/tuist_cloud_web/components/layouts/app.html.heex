@@ -23,12 +23,14 @@
               <p class="text-md semibold"><%= gettext "Dashboard" %></p>
           </a>
         </li>
+        <%= if @can_update_billing do %>
         <li>
-          <a href={~p"/v2/#{@current_owner}/#{@current_project}"}>
-              <.layers_three />
-              <p class="text-md semibold"><%= gettext "Projects" %></p>
+          <a href={~p"/v2/#{@current_owner}/billing"} target="_blank">
+              <.credit_card />
+              <p class="text-md semibold"><%= gettext "Billing" %></p>
           </a>
         </li>
+        <% end %>
       </ul>
       <footer class="sidebar__footer">
         <div class="stack sidebar__footer__user-info">

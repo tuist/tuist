@@ -83,6 +83,7 @@ defmodule TuistCloudWeb.CoreComponents do
   attr(:variant, :string, default: "primary")
   attr(:size, :string, default: "medium")
   attr(:rest, :global, include: ~w(disabled form name value))
+  attr(:class, :string, default: "")
 
   slot(:inner_block, required: false)
   slot(:icon, doc: "the slot for an icon")
@@ -90,7 +91,7 @@ defmodule TuistCloudWeb.CoreComponents do
   def button(assigns) do
     ~H"""
     <button
-      class={"button--#{@variant} button--#{@size}"}
+      class={"button--#{@variant} button--#{@size} #{@class}"}
       {@rest}
     >
       <span class={"text--#{@size}"}><%= render_slot(@inner_block) %></span>

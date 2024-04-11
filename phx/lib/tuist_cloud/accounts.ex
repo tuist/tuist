@@ -5,6 +5,7 @@ defmodule TuistCloud.Accounts do
   alias TuistCloud.Accounts.UserRole
   alias TuistCloud.Repo
   alias TuistCloud.Accounts.{User, Account, Organization, Role, OrganizationAccount}
+  alias TuistCloud.Billing
   import Ecto.Query, only: [from: 2]
 
   def update_account_cache_upload_event_count(%Account{} = account, count) do
@@ -24,6 +25,11 @@ defmodule TuistCloud.Accounts do
     Repo.get(Account, id)
   end
 
+  def get_account_by_handle(handle) do
+    Repo.get_by(Account, name: handle)
+  end
+
+  # This method should be deleted once we implement auth properly
   def get_tuist_user() do
     Repo.get_by(User, email: "tuist@tuist.io")
   end
@@ -81,6 +87,8 @@ defmodule TuistCloud.Accounts do
     password = opts |> Keyword.get(:password, "")
     confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
 
+    name = email |> String.split("@") |> List.first()
+
     {:ok, %{user: user}} =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(
@@ -93,13 +101,14 @@ defmodule TuistCloud.Accounts do
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
-        name = email |> String.split("@") |> List.first()
+        customer_id = create_customer_when_billing_enabled(name, email)
 
         repo.insert(
           Account.create_changeset(%Account{}, %{
             owner_type: "User",
             owner_id: user_id,
-            name: name
+            name: name,
+            customer_id: customer_id
           })
         )
       end)
@@ -132,11 +141,9 @@ defmodule TuistCloud.Accounts do
     query |> Repo.one()
   end
 
-  def owns_account_or_belongs_to_account_organization?(user, %{id: account_id} = _account) do
+  def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
     with {:account, %Account{} = account} <- {:account, account_id |> get_account_by_id()},
          {:organization, organization} <- {:organization, organization_from_account(account)} do
-      is_user_account = account.owner_type == "User" and account.owner_id == user.id
-
       belongs_to_account_organization =
         if organization != nil do
           admin?(user, organization) or user?(user, organization)
@@ -144,10 +151,27 @@ defmodule TuistCloud.Accounts do
           false
         end
 
-      is_user_account or belongs_to_account_organization
+      owns_account?(user, account) or belongs_to_account_organization
     else
       {:account, nil} -> false
     end
+  end
+
+  def owns_account_or_is_admin_to_account_organization?(user, account) do
+    organization = organization_from_account(account)
+
+    is_admin_to_account_organization =
+      if organization != nil do
+        admin?(user, organization)
+      else
+        false
+      end
+
+    owns_account?(user, account) or is_admin_to_account_organization
+  end
+
+  defp owns_account?(user, account) do
+    account.owner_type == "User" and account.owner_id == user.id
   end
 
   def add_user_to_organization(
@@ -226,5 +250,13 @@ defmodule TuistCloud.Accounts do
 
   def get_role_by_id(id) do
     Repo.get(Role, id)
+  end
+
+  defp create_customer_when_billing_enabled(name, email) do
+    if Billing.enabled? do
+      Billing.create_customer(name: name, email: email)
+    else
+      nil
+    end
   end
 end

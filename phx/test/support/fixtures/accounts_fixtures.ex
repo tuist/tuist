@@ -4,8 +4,9 @@ defmodule TuistCloud.AccountsFixtures do
   alias TuistCloud.Accounts
   alias TuistCloud.TestUtilities
 
-  def user_fixture() do
-    Accounts.create_user("#{TestUtilities.unique_integer()}@cloud.tuist.io")
+  def user_fixture(opts \\ []) do
+    email = Keyword.get(opts, :email, "#{TestUtilities.unique_integer()}@cloud.tuist.io")
+    Accounts.create_user(email)
   end
 
   def organization_fixture(opts \\ []) do

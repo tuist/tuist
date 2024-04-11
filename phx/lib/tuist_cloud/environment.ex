@@ -81,6 +81,23 @@ defmodule TuistCloud.Environment do
       (!on_premise?() or s3_bucket_name(secrets) != nil)
   end
 
+  def stripe_api_key(secrets \\ secrets()) do
+    get([:stripe, :secret_key], secrets)
+  end
+
+  def stripe_publishable_key(secrets \\ secrets()) do
+    get([:stripe, :publishable_key], secrets)
+  end
+
+  def stripe_endpoint_secret(secrets \\ secrets()) do
+    get([:stripe, :endpoint_secret], secrets)
+  end
+
+  def stripe_configured?(secrets \\ secrets()) do
+    stripe_api_key(secrets) != nil && stripe_publishable_key(secrets) != nil &&
+      stripe_endpoint_secret(secrets) != nil
+  end
+
   def app_signal_push_api_key(secrets \\ secrets()) do
     get([:app_signal, :push_api_key], secrets)
   end
