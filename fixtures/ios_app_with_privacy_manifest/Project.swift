@@ -25,8 +25,8 @@ let project = Project(
                             "NSPrivacyCollectedDataTypeLinked": false,
                             "NSPrivacyCollectedDataTypeTracking": false,
                             "NSPrivacyCollectedDataTypePurposes": [
-                                "NSPrivacyCollectedDataTypePurposeAppFunctionality"
-                            ]
+                                "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+                            ],
                         ],
                     ],
                     accessedApiTypes: [
