@@ -19,22 +19,30 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    // `nil` means settings without a condition
-    private func settingsForPlatform(_ platformName: String?) throws
-        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
-    {
-        settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                return setting.condition?.platformNames.contains(platformName) == true
-            } else {
-                return !setting.hasConditions
-            }
+    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
+        var resolvedSettings = try settingsDictionary()
+
+        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
+            let platformSettings = try settingsDictionary(for: platform)
+            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
         }
+
+        return resolvedSettings
+    }
+
+    func settingsForBuildConfiguration(
+        _ buildConfiguration: String
+    ) throws -> TuistGraph.SettingsDictionary {
+        try map(
+            settings: settings.filter { setting in
+                return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
+            }
+        )
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
-        let platformSettings = try settingsForPlatform(platform?.platformName)
+    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> TuistGraph.SettingsDictionary {
+        let platformSettings = try settings(for: platform?.platformName)
 
         return try map(
             settings: platformSettings,
@@ -42,17 +50,6 @@ struct SettingsMapper {
             defines: ["SWIFT_PACKAGE": "1"],
             swiftDefines: "SWIFT_PACKAGE"
         )
-    }
-
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
-        var resolvedSettings = try settingsDictionaryForPlatform(nil)
-
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
-            let platformSettings = try settingsDictionaryForPlatform(platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
-        }
-
-        return resolvedSettings
     }
 
     private func map(
@@ -138,14 +135,17 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    func settingsForBuildConfiguration(
-        _ buildConfiguration: String
-    ) throws -> TuistGraph.SettingsDictionary {
-        try map(
-            settings: settings.filter { setting in
-                return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
+    // `nil` means settings without a condition
+    private func settings(for platformName: String?) throws
+        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+    {
+        settings.filter { setting in
+            if let platformName, setting.hasConditions {
+                return setting.condition?.platformNames.contains(platformName) == true
+            } else {
+                return !setting.hasConditions
             }
-        )
+        }
     }
 }
 
