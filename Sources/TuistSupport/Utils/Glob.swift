@@ -113,15 +113,37 @@ public class Glob: Collection {
     }
 
     private func expandGlobstar(pattern: String) -> [String] {
-        guard pattern.contains("**") else {
+        // Split pattern string by slash to find globstar.
+        let patternComponents = pattern.components(separatedBy: "/")
+
+        // We are only interested in the first globstar since that is where we want to separate the pattern string.
+        guard let pivot = patternComponents.firstIndex(of: "**") else {
             return [pattern]
         }
 
         var results = [String]()
-        var parts = pattern.components(separatedBy: "**")
-        let firstPart = parts.removeFirst()
-        var lastPart = parts.joined(separator: "**")
 
+        // Part before the first globstar
+        let firstPartLowerBound = 0
+        let firstPartUpperBound = pivot
+        let firstPartComponents: ArraySlice<String> = if firstPartLowerBound < firstPartUpperBound {
+            patternComponents[firstPartLowerBound ..< firstPartUpperBound]
+        } else {
+            []
+        }
+        let firstPart = firstPartComponents.joined(separator: "/")
+
+        // Part after the first globstar
+        let lastPartLowerBound = pivot + 1
+        let lastPartUpperBound = patternComponents.count
+        let lastPartComponents: ArraySlice<String> = if lastPartLowerBound < lastPartUpperBound {
+            patternComponents[lastPartLowerBound ..< lastPartUpperBound]
+        } else {
+            []
+        }
+        var lastPart = lastPartComponents.joined(separator: "/")
+
+        // Find subdirectories
         let fileManager = FileManager.default
 
         var directories = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: firstPart)
