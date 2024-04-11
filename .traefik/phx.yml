@@ -1,10 +1,10 @@
 http:
   routers:
     phx:
-      rule: "PathPrefix(`/v2`) || PathPrefix(`/phoenix/live_reload`) || PathPrefix(`/live`) || PathPrefix(`/assets/v2`) || Path(`/api-docs`) || Path(`/api/openapi`) || PathRegexp(`^//?api/cache.*$`)"
+      rule: "PathPrefix(`/v2`) || PathPrefix(`/phoenix/live_reload`) || PathPrefix(`/live`) || PathPrefix(`/assets/v2`) || Path(`/api-docs`) || Path(`/api/openapi`)"
       service: phx
-      middlewares:
-        - strip-double-slash
+      # middlewares:
+      #   - strip-double-slash
 
   services:
     phx:
@@ -13,8 +13,8 @@ http:
         - url: "http://127.0.0.1:4000/"
         passHostHeader: true
 
-  middlewares:
-    strip-double-slash:
-      replacePathRegex:
-        regex: "^//([^/].*)"
-        replacement: "/$$1"
+  # middlewares:
+  #   strip-double-slash:
+  #     replacePathRegex:
+  #       regex: "^//([^/].*)"
+  #       replacement: "/$$1"

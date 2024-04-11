@@ -3,8 +3,8 @@ http:
     rails:
       rule: "PathPrefix(`/`)"
       service: rails
-      middlewares:
-        - strip-double-slash
+      # middlewares:
+      #   - strip-double-slash
 
   services:
     rails:
@@ -13,8 +13,8 @@ http:
         - url: "http://127.0.0.1:3000/"
         passHostHeader: true
 
-  middlewares:
-    strip-double-slash:
-      replacePathRegex:
-        regex: "^//([^/].*)"
-        replacement: "/$$1"
+  # middlewares:
+  #   strip-double-slash:
+  #     replacePathRegex:
+  #       regex: "^//([^/].*)"
+  #       replacement: "/$$1"
