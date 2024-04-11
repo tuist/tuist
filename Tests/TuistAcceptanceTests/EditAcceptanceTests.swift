@@ -48,6 +48,14 @@ final class EditAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
     }
 }
 
+final class EditAcceptanceTestAppWithOnDemandResources: TuistAcceptanceTestCase {
+    func test_app_with_on_demand_resources() async throws {
+        try setUpFixture(.iosAppWithOnDemandResources)
+        try await run(EditCommand.self)
+        try build(scheme: "Manifests")
+    }
+}
+
 extension TuistAcceptanceTestCase {
     fileprivate func build(scheme: String) throws {
         try System.shared.runAndPrint(

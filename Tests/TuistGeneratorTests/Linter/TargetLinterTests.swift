@@ -454,4 +454,23 @@ final class TargetLinterTests: TuistUnitTestCase {
             severity: .warning
         ))
     }
+
+    func test_lint_when_target_has_invalid_on_demand_resources_tags() throws {
+        // Given
+        let target = Target.empty(
+            onDemandResourcesTags: .init(
+                initialInstall: ["tag1", "tag2"],
+                prefetchOrder: ["tag2", "tag3"]
+            )
+        )
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(got, .init(
+            reason: "Prefetched Order Tag \"tag2\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
+            severity: .warning
+        ))
+    }
 }

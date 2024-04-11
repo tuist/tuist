@@ -46,6 +46,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var prune: Bool
     public let mergedBinaryType: MergedBinaryType
     public let mergeable: Bool
+    public let onDemandResourcesTags: OnDemandResourcesTags?
 
     // MARK: - Init
 
@@ -75,7 +76,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         buildRules: [BuildRule] = [],
         prune: Bool = false,
         mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        onDemandResourcesTags: OnDemandResourcesTags? = nil
     ) {
         self.name = name
         self.product = product
@@ -103,6 +105,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.prune = prune
         self.mergedBinaryType = mergedBinaryType
         self.mergeable = mergeable
+        self.onDemandResourcesTags = onDemandResourcesTags
     }
 
     /// Target can be included in the link phase of other targets

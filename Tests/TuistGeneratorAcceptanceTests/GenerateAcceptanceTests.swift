@@ -138,6 +138,36 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithOnDemandResources: TuistAcceptanceTestCase {
+    func test_ios_app_with_on_demand_resources() async throws {
+        try setUpFixture(.iosAppWithOnDemandResources)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        let pbxprojPath = xcodeprojPath.appending(component: "project.pbxproj")
+        let data = try Data(contentsOf: pbxprojPath.url)
+        let pbxProj = try PBXProj(data: data)
+        let attributes = try XCTUnwrap(pbxProj.projects.first?.attributes)
+        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"] as? [String])
+        let givenTags = [
+            "ar-resource-group",
+            "cube-texture",
+            "data",
+            "data file",
+            "datafile",
+            "datafolder",
+            "image",
+            "image-stack",
+            "json",
+            "nestedimage",
+            "newfolder",
+            "sprite",
+            "tag with space",
+            "texture",
+        ]
+        XCTAssertEqual(knownAssetTags, givenTags)
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithPrivacyManifest: TuistAcceptanceTestCase {
     func test_ios_app_with_privacy_manifest() async throws {
         try setUpFixture(.iosAppWithPrivacyManifest)

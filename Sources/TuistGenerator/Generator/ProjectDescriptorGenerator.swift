@@ -295,12 +295,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     private func generateAttributes(project: Project) -> [String: Any] {
         var attributes: [String: Any] = [:]
 
-        /// ODR tags
-        let tags = project.targets.map { $0.resources.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
-        let uniqueTags = Set(tags).sorted()
-
-        if !uniqueTags.isEmpty {
-            attributes["KnownAssetTags"] = uniqueTags
+        // On Demand Resources tags
+        if let knownAssetTags = try? KnownAssetTagsGenerator().generate(project: project), !knownAssetTags.isEmpty {
+            attributes["KnownAssetTags"] = knownAssetTags
         }
 
         // BuildIndependentTargetsInParallel

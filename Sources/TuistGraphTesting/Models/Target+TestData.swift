@@ -139,7 +139,8 @@ extension Target {
         environmentVariables: [String: EnvironmentVariable] = [:],
         filesGroup: ProjectGroup = .group(name: "Project"),
         dependencies: [TargetDependency] = [],
-        rawScriptBuildPhases: [RawScriptBuildPhase] = []
+        rawScriptBuildPhases: [RawScriptBuildPhase] = [],
+        onDemandResourcesTags: OnDemandResourcesTags? = nil
     ) -> Target {
         Target(
             name: name,
@@ -160,7 +161,8 @@ extension Target {
             environmentVariables: environmentVariables,
             filesGroup: filesGroup,
             dependencies: dependencies,
-            rawScriptBuildPhases: rawScriptBuildPhases
+            rawScriptBuildPhases: rawScriptBuildPhases,
+            onDemandResourcesTags: onDemandResourcesTags
         )
     }
 
