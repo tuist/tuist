@@ -20,6 +20,14 @@ let project = Project(
                     tracking: false,
                     trackingDomains: [],
                     collectedDataTypes: [
+                        [
+                            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
+                            "NSPrivacyCollectedDataTypeLinked": false,
+                            "NSPrivacyCollectedDataTypeTracking": false,
+                            "NSPrivacyCollectedDataTypePurposes": [
+                                "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+                            ]
+                        ],
                     ],
                     accessedApiTypes: [
                         [
