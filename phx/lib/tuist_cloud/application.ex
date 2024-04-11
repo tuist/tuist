@@ -8,7 +8,11 @@ defmodule TuistCloud.Application do
   def start(_type, _args) do
     Environment.decrypt_secrets() |> Environment.put_application_secrets()
 
-    Appsignal.Phoenix.LiveView.attach()
+    if not Environment.on_premise?() do
+      Appsignal.Phoenix.LiveView.attach()
+      Appsignal.Logger.Handler.add("phoenix")
+    end
+
     Oban.Telemetry.attach_default_logger()
 
     children = [
