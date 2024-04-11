@@ -139,7 +139,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
 }
 
 final class GenerateAcceptanceTestiOSAppWithPrivacyManifest: TuistAcceptanceTestCase {
-    func test_ios_app_with_framework_and_resources() async throws {
+    func test_ios_app_with_privacy_manifest() async throws {
         try setUpFixture(.iosAppWithPrivacyManifest)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
