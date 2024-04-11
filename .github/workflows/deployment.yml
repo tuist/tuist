@@ -47,7 +47,7 @@ jobs:
         run: flyctl deploy --remote-only -c fly.canary.toml --build-arg RAILS_ENV=canary --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: macos-13
+    runs-on: macos-14
     timeout-minutes: 20
     needs: canary
     steps:
