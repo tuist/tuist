@@ -69,7 +69,7 @@ extension ProjectAutomation.Target {
             product: target.product.rawValue,
             bundleId: target.bundleId,
             sources: target.sources.map(\.path.pathString),
-            resources: target.resources.map(\.path.pathString),
+            resources: target.resources.resources.map(\.path.pathString),
             settings: ProjectAutomation.Settings.from(target.settings),
             dependencies: dependencies
         )
