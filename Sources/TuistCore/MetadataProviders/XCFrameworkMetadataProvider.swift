@@ -54,9 +54,9 @@ public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCFrameworkMetadataProviding {
-    let fileHandler: FileHandling
+    private let fileHandler: FileHandling
 
-    public init(fileHandler: FileHandling = FileHandler.shared) {
+    override public init(fileHandler: FileHandling = FileHandler.shared) {
         self.fileHandler = fileHandler
         super.init()
     }

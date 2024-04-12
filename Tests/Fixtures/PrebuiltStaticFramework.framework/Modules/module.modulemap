@@ -1,0 +1,4 @@
+framework module PrebuiltStaticFramework {
+  header "PrebuiltStaticFramework-Swift.h"
+  requires objc
+}

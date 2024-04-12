@@ -50,12 +50,26 @@ public protocol PrecompiledMetadataProviding {
 /// - https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
 
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
+    private let fileHandler: FileHandling
+
+    init(
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
+        self.fileHandler = fileHandler
+    }
+
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let metadata = try readMetadatas(binaryPath: binaryPath)
         return metadata.map(\.0)
     }
 
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
+        // If a framework is static, it's not embedded in the app bundle which leads to the `.xcprivacy` being missed when
+        // generating the privacy report.
+        // Apple seems to choose a different linking type when `.xcprivacy` is present
+        if fileHandler.exists(binaryPath.parentDirectory.appending(component: "PrivacyInfo.xcprivacy")) {
+            return .dynamic
+        }
         let metadata = try readMetadatas(binaryPath: binaryPath)
         return metadata.contains { $0.1 == BinaryLinking.dynamic } ? .dynamic : .static
     }

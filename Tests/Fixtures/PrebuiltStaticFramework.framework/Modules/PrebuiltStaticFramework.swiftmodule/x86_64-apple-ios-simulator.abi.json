@@ -1,0 +1,76 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "PrebuiltStaticFramework"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "StaticFrameworkClass",
+        "printedName": "StaticFrameworkClass",
+        "children": [
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "StaticFrameworkClass",
+                "printedName": "PrebuiltStaticFramework.StaticFrameworkClass",
+                "usr": "s:23PrebuiltStaticFramework0bC5ClassC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:23PrebuiltStaticFramework0bC5ClassCACycfc",
+            "mangledName": "$s23PrebuiltStaticFramework0bC5ClassCACycfc",
+            "moduleName": "PrebuiltStaticFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Function",
+            "name": "hello",
+            "printedName": "hello()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:23PrebuiltStaticFramework0bC5ClassC5helloSSyF",
+            "mangledName": "$s23PrebuiltStaticFramework0bC5ClassC5helloSSyF",
+            "moduleName": "PrebuiltStaticFramework",
+            "isOpen": true,
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:23PrebuiltStaticFramework0bC5ClassC",
+        "mangledName": "$s23PrebuiltStaticFramework0bC5ClassC",
+        "moduleName": "PrebuiltStaticFramework",
+        "isOpen": true,
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": []
+}

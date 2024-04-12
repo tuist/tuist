@@ -46,7 +46,7 @@ public protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class LibraryMetadataProvider: PrecompiledMetadataProvider, LibraryMetadataProviding {
-    override public init() {
+    public init() {
         super.init()
     }
 

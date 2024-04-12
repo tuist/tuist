@@ -50,7 +50,7 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
-    override public init() {
+    public init() {
         super.init()
     }
 

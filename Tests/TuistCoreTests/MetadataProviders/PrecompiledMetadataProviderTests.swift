@@ -96,4 +96,20 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(linking, BinaryLinking.static)
         XCTAssertEqual(uuids, Set())
     }
+
+    func test_metadata_static_framework_with_privacy_manifest() throws {
+        // Given
+        let binaryPath =
+            fixturePath(path: try RelativePath(validating: "PrebuiltStaticFramework.framework/PrebuiltStaticFramework"))
+
+        // When
+        let architectures = try subject.architectures(binaryPath: binaryPath)
+        let linking = try subject.linking(binaryPath: binaryPath)
+        let uuids = try subject.uuids(binaryPath: binaryPath)
+
+        // Then
+        XCTAssertEqual(architectures, [.x8664, .arm64])
+        XCTAssertEqual(linking, BinaryLinking.dynamic)
+        XCTAssertEqual(uuids, Set())
+    }
 }
