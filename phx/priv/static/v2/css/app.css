@@ -480,3 +480,38 @@ button svg {
 .dropdown-menu svg {
   stroke: var(--fg-quaternary);
 }
+
+/* Button group */
+
+.button-group {
+  display: flex;
+  & button {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 0;
+    padding: var(--spacing-md) var(--spacing-xl);
+    color: var(--text-secondary);
+  }
+
+  & button:hover {
+    background-color: var(--bg-primary-hover);
+    color: var(--text-secondary-hover);
+  }
+
+  & button:first-child {
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+  }
+
+  & button:not(:last-child) {
+    border-right: 0;
+  }
+
+  & button:last-child {
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
+  & .button-group__button--selected {
+    background-color: var(--bg-active);
+  }
+}
+

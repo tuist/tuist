@@ -26,18 +26,18 @@ defmodule TuistCloudWeb.CoreComponents do
 
   attr(:direction, :string, default: "vertical")
   attr(:gap, :string, default: "xs")
+  attr(:class, :string, default: "")
   slot(:inner_block, required: true)
 
   def stack(assigns) do
     ~H"""
-    <div class={"stack stack--#{@direction} stack--#{@gap}"}>
+    <div class={"stack stack--#{@direction} stack--#{@gap} #{@class}"}>
       <%= render_slot(@inner_block) %>
     </div>
     """
   end
 
-
-  @doc"""
+  @doc """
   Renders a dropdown picker
   """
 
@@ -64,9 +64,9 @@ defmodule TuistCloudWeb.CoreComponents do
       </.button>
 
       <div id={"#{@id}-menu"} hidden>
-      <nav class="dropdown-menu">
-        <%= render_slot(@content) %>
-      </nav>
+        <nav class="dropdown-menu">
+          <%= render_slot(@content) %>
+        </nav>
       </div>
     </div>
     """
@@ -97,6 +97,42 @@ defmodule TuistCloudWeb.CoreComponents do
       <span class={"text--#{@size}"}><%= render_slot(@inner_block) %></span>
       <%= render_slot(@icon) %>
     </button>
+    """
+  end
+
+  @doc """
+  Renders a button group.
+
+  ## Examples
+
+  <.button_group selected_key="button_1">
+    <:button key="button_1">Button 1</:button>
+    <:button key="button_2">Button 2</:button>
+  </.button_group>
+  """
+  slot(:button, required: false) do
+    attr(:key, :string, required: true)
+  end
+
+  attr(:selected_key, :string, required: true)
+
+  def button_group(assigns) do
+    ~H"""
+    <div class="button-group">
+      <%= for button <- @button do %>
+        <button class={
+          if button.key == @selected_key do
+            "button-group__button--selected"
+          else
+            ""
+          end
+        }>
+          <span class="text--small font--semibold">
+            <%= render_slot(button) %>
+          </span>
+        </button>
+      <% end %>
+    </div>
     """
   end
 

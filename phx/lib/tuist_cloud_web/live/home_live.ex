@@ -8,47 +8,8 @@ defmodule TuistCloudWeb.HomeLive do
   def mount(params, _session, socket) do
     user = current_user()
     account = current_account(user)
+    project = current_project(params)
 
-    project =
-      Projects.get_project_by_account_and_project_name(params["owner"], params["project"])
-
-    build_average_durations =
-      TuistCloud.CommandEvents.get_command_average(
-        "build",
-        project.id
-      )
-
-    build_total_average_duration =
-      TuistCloud.CommandEvents.get_total_command_period_average_duration(
-        "build",
-        project.id
-      )
-
-    previous_build_total_average_duration =
-      TuistCloud.CommandEvents.get_total_command_period_average_duration(
-        "build",
-        project.id,
-        start_date: Date.add(Time.utc_now(), -60),
-        end_date: Date.add(Time.utc_now(), -30)
-      )
-
-    build_average_duration_delta = CommandEvents.get_trend(
-      previous_value: previous_build_total_average_duration,
-      current_value: build_total_average_duration
-    )
-
-    current_cache_hit_rate = TuistCloud.CommandEvents.get_cache_hit_rate(project.id)
-    previous_cache_hit_rate = TuistCloud.CommandEvents.get_cache_hit_rate(
-      project.id,
-      start_date: Date.add(Time.utc_now(), -60),
-      end_date: Date.add(Time.utc_now(), -30)
-    )
-    cache_hit_rate_delta = CommandEvents.get_trend(
-      previous_value: previous_cache_hit_rate,
-      current_value: current_cache_hit_rate
-    )
-
-    cache_hit_rates = Map.values(TuistCloud.CommandEvents.get_cache_hit_rates(project.id))
     slug = Projects.get_project_slug_from_id(project.id)
 
     {
@@ -60,58 +21,64 @@ defmodule TuistCloudWeb.HomeLive do
       |> assign(:current_project, params["project"])
       |> assign(:page_title, gettext("Dashboard") <> " - #{slug}")
       |> assign(
+        :date_range,
+        params["date_range"]
+      )
+      |> assign(
         :projects,
         Projects.get_all_project_accounts(user)
-      )
-      |> assign(:build_average_durations, build_average_durations)
-      |> assign(
-        :build_total_average_duration,
-        "#{Float.round(build_total_average_duration, 1)} s"
-      )
-      |> assign(
-        :build_average_duration_delta,
-        build_average_duration_delta
-      )
-      |> assign(
-        :dates,
-        Jason.encode!(
-          Enum.map(
-            Map.values(build_average_durations),
-            &Calendar.strftime(&1.date, "%b %d")
-          )
-        )
-      )
-      |> assign(
-        :build_average_duration_values,
-        Jason.encode!(
-          Enum.map(
-            Map.values(build_average_durations),
-            &round(&1.value)
-          )
-        )
-      )
-      |> assign(
-        :cache_hit_rates,
-        Jason.encode!(
-          Enum.map(
-            cache_hit_rates,
-            &round(&1.value * 100)
-          )
-        )
-      )
-      |> assign(
-        :cache_hit_rate,
-        "#{round(current_cache_hit_rate * 100)} %"
-      )
-      |> assign(
-        :cache_hit_rate_delta,
-        Float.round(cache_hit_rate_delta, 1)
       )
       |> assign(
         :can_update_billing,
         Authorization.can(user, :update, account, :billing)
       )
     }
+  end
+
+  def handle_params(params, _uri, socket) do
+    project = current_project(params)
+
+    date_range = if is_nil(params["date_range"]) do
+      "last_30_days"
+    else
+      params["date_range"]
+    end
+
+    start_date =
+      case date_range do
+        "last_12_months" -> Date.add(Time.utc_now(), -365)
+        "last_90_days" -> Date.add(Time.utc_now(), -90)
+        "last_30_days" -> Date.add(Time.utc_now(), -30)
+        "last_7_days" -> Date.add(Time.utc_now(), -7)
+      end
+
+    {
+      :noreply,
+      socket
+      |> assign(
+        :build_duration_analytics,
+        CommandEvents.get_command_duration_analytics(
+          "build",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :cache_hit_rate_analytics,
+        CommandEvents.get_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :date_range,
+        date_range
+      )
+    }
+  end
+
+  def current_project(params) do
+    Projects.get_project_by_account_and_project_name(params["owner"], params["project"])
   end
 
   def current_user do

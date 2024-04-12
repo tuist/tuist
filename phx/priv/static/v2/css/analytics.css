@@ -8,10 +8,7 @@
 }
   
 .analytics__header-section {
-  display: flex;
-  flex-direction: row;
   align-items: start;
-  gap: var(--spacing-3xl);
 }
 
 .analytics__header-section__title {

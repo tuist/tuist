@@ -37,7 +37,7 @@ defmodule TuistCloud.CommandEventsTest do
       )
 
     # Then
-    assert got == 1.0
+    assert got == 1000.0
   end
 
   test "returns average duration for the last thirty days" do
@@ -84,6 +84,52 @@ defmodule TuistCloud.CommandEventsTest do
     assert got[~D[2024-04-29]].value == 0
   end
 
+  test "returns duration analytics for the last thirty days" do
+    # Given
+    TuistCloud.Time
+    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+    project = ProjectsFixtures.project_fixture()
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      duration: 2000,
+      created_at: ~N[2024-04-30 03:00:00]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      duration: 1000,
+      created_at: ~N[2024-04-30 03:00:00]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      duration: 1500,
+      created_at: ~N[2024-04-05 00:00:00]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      duration: 2000,
+      created_at: ~N[2024-03-05 00:00:00]
+    )
+
+    # When
+    got = CommandEvents.get_command_duration_analytics("generate", project_id: project.id, start_date: Date.add(Time.utc_now(), -30))
+
+    # Then
+    assert got.average_durations[~D[2024-04-05]].value == 1500
+    assert got.average_durations[~D[2024-04-30]].value == 1500
+    assert got.average_durations[~D[2024-04-29]].value == 0
+    assert got.trend == -25.0
+    assert got.total_average_duration == 1500
+  end
+
   test "returns cache hit rates for the last thirty days" do
     # Given
     TuistCloud.Time
@@ -119,12 +165,16 @@ defmodule TuistCloud.CommandEventsTest do
     )
 
     # When
-    got = CommandEvents.get_cache_hit_rates(project.id)
-    got_cache_hit_rate = CommandEvents.get_cache_hit_rate(project.id)
+    got =
+      CommandEvents.get_cache_hit_rate_analytics(
+        project_id: project.id,
+        start_date: Date.add(Time.utc_now(), -30),
+        end_date: DateTime.to_date(Time.utc_now())
+      )
 
     # Then
-    assert got[~D[2024-04-30]].value == 0.5
-    assert got_cache_hit_rate == 0.5
+    assert got.cache_hit_rates[~D[2024-04-30]].value == 0.5
+    assert got.cache_hit_rate == 0.5
   end
 
   test "returns average duration for the last year" do
@@ -197,6 +247,7 @@ defmodule TuistCloud.CommandEventsTest do
     # Then
     assert got == 0
   end
+
   test "returns 0 for a trend if both values are 0" do
     # Given / When
     got = CommandEvents.get_trend(previous_value: 0.0, current_value: 0)

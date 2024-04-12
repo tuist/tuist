@@ -9,6 +9,69 @@ defmodule TuistCloud.CommandEvents do
   alias TuistCloud.Time
   import Ecto.Query
 
+  def get_command_duration_analytics(
+        name,
+        opts
+      ) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    previous_total_average_duration =
+      TuistCloud.CommandEvents.get_total_command_period_average_duration(
+        name,
+        project_id,
+        start_date: Date.add(start_date, -days_delta),
+        end_date: start_date
+      )
+
+    total_average_duration =
+      TuistCloud.CommandEvents.get_total_command_period_average_duration(
+        name,
+        project_id,
+        start_date: start_date,
+        end_date: end_date
+      )
+
+    average_durations =
+      TuistCloud.CommandEvents.get_command_average(
+        name,
+        project_id,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period
+      )
+
+    sorted_average_durations =  Enum.sort(Map.values(average_durations), &(&1.date >= &2.date))
+
+    %{
+      trend:
+        get_trend(
+          previous_value: previous_total_average_duration,
+          current_value: total_average_duration
+        ),
+      total_average_duration: total_average_duration,
+      average_durations: average_durations,
+      dates:
+        get_formatted_dates(
+          Enum.map(
+            sorted_average_durations,
+            & &1.date
+          ),
+          date_period
+        ),
+      values:
+        Enum.map(
+          sorted_average_durations,
+          & &1.value
+        )
+    }
+  end
+
   @doc """
   Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
 
@@ -58,7 +121,7 @@ defmodule TuistCloud.CommandEvents do
           command_events,
           & &1.duration
         )
-      ) / 1000 / length(command_events)
+      ) / length(command_events)
     end
   end
 
@@ -69,12 +132,13 @@ defmodule TuistCloud.CommandEvents do
       ) do
     start_date = opts |> Keyword.get(:start_date, Date.add(Time.utc_now(), -30))
     end_date = opts |> Keyword.get(:end_date, DateTime.to_date(Time.utc_now()))
+    date_period = opts |> Keyword.get(:date_period, :day)
 
     command_events =
       get_command_events(project_id, name: name, start_date: start_date, end_date: end_date)
 
     command_events_grouped =
-      command_events_grouped_by_date(command_events, start_date: start_date, end_date: end_date)
+      command_events_grouped_by_date(command_events, date_period: date_period)
 
     command_event_averages =
       Map.new(command_events_grouped, fn {date, events} ->
@@ -89,7 +153,16 @@ defmodule TuistCloud.CommandEvents do
       end)
 
     Map.new(
-      Date.range(start_date, end_date),
+      Date.range(start_date, end_date)
+      |> Enum.filter(fn date ->
+        case date_period do
+          :month ->
+            date.day == 1
+
+          :day ->
+            true
+        end
+      end),
       fn date ->
         command_event_average = command_event_averages[date]
 
@@ -101,13 +174,71 @@ defmodule TuistCloud.CommandEvents do
     )
   end
 
-  def get_cache_hit_rates(project_id, opts \\ []) do
-    start_date = opts |> Keyword.get(:start_date, Date.add(Time.utc_now(), -30))
-    end_date = DateTime.to_date(Time.utc_now())
+  def get_cache_hit_rate_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(Time.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    current_cache_hit_rate =
+      get_cache_hit_rate(
+        project_id,
+        start_date: start_date,
+        end_date: end_date
+      )
+
+    previous_cache_hit_rate =
+      get_cache_hit_rate(
+        project_id,
+        start_date: Date.add(start_date, -days_delta),
+        end_date: start_date
+      )
+
+    cache_hit_rates =
+      get_cache_hit_rates(project_id,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period
+      )
+
+    sorted_cache_hit_rates =  Enum.sort(Map.values(cache_hit_rates), &(&1.date >= &2.date))
+
+    %{
+      trend:
+        get_trend(
+          previous_value: previous_cache_hit_rate,
+          current_value: current_cache_hit_rate
+        ),
+      cache_hit_rate: current_cache_hit_rate,
+      cache_hit_rates: cache_hit_rates,
+      dates:
+        get_formatted_dates(
+          Enum.map(
+            sorted_cache_hit_rates,
+            & &1.date
+          ),
+          date_period
+        ),
+      values:
+        Enum.map(
+          sorted_cache_hit_rates,
+          & &1.value
+        )
+    }
+  end
+
+  defp get_cache_hit_rates(project_id, opts) do
+    start_date = opts |> Keyword.get(:start_date)
+    end_date = opts |> Keyword.get(:end_date)
+    date_period = opts |> Keyword.get(:date_period)
+
     command_events = get_command_events(project_id, start_date: start_date, end_date: end_date)
 
     command_events_grouped =
-      command_events_grouped_by_date(command_events, start_date: start_date, end_date: end_date)
+      command_events_grouped_by_date(command_events, date_period: date_period)
 
     command_event_cache_hit_rates =
       Map.new(command_events_grouped, fn {date, events} ->
@@ -122,7 +253,16 @@ defmodule TuistCloud.CommandEvents do
       end)
 
     Map.new(
-      Date.range(start_date, end_date),
+      Date.range(start_date, end_date)
+      |> Enum.filter(fn date ->
+        case date_period do
+          :month ->
+            date.day == 1
+
+          :day ->
+            true
+        end
+      end),
       fn date ->
         command_event_average = command_event_cache_hit_rates[date]
 
@@ -134,7 +274,7 @@ defmodule TuistCloud.CommandEvents do
     )
   end
 
-  def get_cache_hit_rate(project_id, opts \\ []) do
+  defp get_cache_hit_rate(project_id, opts) do
     start_date = opts |> Keyword.get(:start_date, Date.add(Time.utc_now(), -30))
     end_date = DateTime.to_date(Time.utc_now())
     command_events = get_command_events(project_id, start_date: start_date, end_date: end_date)
@@ -226,19 +366,43 @@ defmodule TuistCloud.CommandEvents do
   end
 
   defp command_events_grouped_by_date(command_events, opts) do
-    start_date = opts |> Keyword.get(:start_date)
-    end_date = opts |> Keyword.get(:end_date)
+    date_period = opts |> Keyword.get(:date_period)
 
     Enum.group_by(command_events, fn e ->
       date = NaiveDateTime.to_date(e.created_at)
 
-      if Date.diff(end_date, start_date) >= 365 do
-        date.month
-      else
-        date
-      end
+      case date_period do
+        :month ->
+          Date.new!(date.year, date.month, 1)
 
-      NaiveDateTime.to_date(e.created_at)
+        :day ->
+          date
+      end
     end)
+  end
+
+  defp date_period(opts) do
+    start_date = opts |> Keyword.get(:start_date)
+    end_date = opts |> Keyword.get(:end_date)
+    days_delta = Date.diff(end_date, start_date)
+
+    if days_delta >= 60 do
+        :month
+    else
+        :day
+    end
+  end
+
+  defp get_formatted_dates(dates, date_period) do
+    Enum.map(
+      dates,
+      case date_period do
+        :month ->
+          &Calendar.strftime(&1, "%b %Y")
+
+        :day ->
+          &Calendar.strftime(&1, "%b %d")
+      end
+    )
   end
 end

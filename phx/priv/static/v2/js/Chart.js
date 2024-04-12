@@ -26,6 +26,7 @@ class ChartComponent extends HTMLElement {
     const options = {
       series: [this.data],
       chart: {
+        height: '400px',
         type: 'area',
         toolbar: {
           show: false,
@@ -55,7 +56,10 @@ class ChartComponent extends HTMLElement {
       },
       xaxis: {
         categories: this.data.labels,
-        tickAmount: this.data.labels.length / 2,
+        tickAmount:
+          this.data.labels.length > 12
+            ? this.data.labels.length / 2
+            : this.data.labels.length,
         axisTicks: {
           show: false,
         },
