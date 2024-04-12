@@ -5,6 +5,7 @@ traefik = "3.0.0-rc1"
 "flyctl" = "0.1.104"
 "erlang" = "26.2.1"
 "go" = "1.22.0"
+"rust" = "1.77.2"
 "go:github.com/DarthSim/hivemind" = "v1.1.0"
 
 [plugins]

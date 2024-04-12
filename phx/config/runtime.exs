@@ -157,3 +157,21 @@ if TuistCloud.Environment.stripe_configured?(secrets) do
     api_key: TuistCloud.Environment.stripe_api_key(secrets),
     signing_secret: TuistCloud.Environment.stripe_endpoint_secret(secrets)
 end
+
+# License
+if TuistCloud.Environment.on_premise?() do
+  with {:license, {:ok, license}} <- {:license, TuistCloud.Native.license()},
+       {:expired, false} <- {:expired, TuistCloud.Native.License.expired?(license)} do
+    config :tuist_cloud, :license, license
+  else
+    {:license, {:error, error}} ->
+      raise """
+      We couldn't boot up the server because we couldn't load the license due to the following error: #{error}
+      """
+
+    {:expired, true} ->
+      raise """
+      The license has expired. Please contact contact@tuist.io to renew it.
+      """
+  end
+end

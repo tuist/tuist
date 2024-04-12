@@ -30,6 +30,10 @@ defmodule TuistCloudWeb.Router do
     plug TuistCloudWeb.AuthenticationPlug, :load_authenticated_subject
   end
 
+  pipeline :on_premise_api do
+    plug TuistCloudWeb.OnPremiseLicensePlug, :api
+  end
+
   scope "/" do
     pipe_through [:open_api, :browser]
 
@@ -39,7 +43,7 @@ defmodule TuistCloudWeb.Router do
   end
 
   scope "/api", TuistCloudWeb.API do
-    pipe_through [:open_api, :authenticated_api]
+    pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     get "/cache", CacheController, :download
     get "/cache/exists", CacheController, :exists
@@ -79,6 +83,5 @@ defmodule TuistCloudWeb.Router do
       get "/:account_name/billing", BillingController, :billing_plan
       live "/:owner/:project", HomeLive
     end
-
   end
 end

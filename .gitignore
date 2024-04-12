@@ -51,3 +51,4 @@ vendor/bundle
 !/app/assets/builds/.keep
 
 /config/credentials/development.key
+phx/priv/native/libtuistcloud_native.so

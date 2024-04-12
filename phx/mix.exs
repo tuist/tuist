@@ -73,7 +73,8 @@ defmodule TuistCloud.MixProject do
       {:poison, "~> 5.0"},
       {:oban, "~> 2.17"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:stripity_stripe, "~> 3.1"}
+      {:stripity_stripe, "~> 3.1"},
+      {:rustler, "~> 0.32.0"}
     ]
   end
 

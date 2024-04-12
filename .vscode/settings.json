@@ -46,5 +46,11 @@
   },
   "[elixir]": {
     "editor.defaultFormatter": "JakeBecker.elixir-ls"
+  },
+  "rust-analyzer.linkedProjects": [
+    "phx/native/tuistcloud_native/Cargo.toml"
+  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
   }
 }

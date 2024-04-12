@@ -16,3 +16,9 @@ config :swoosh, local: false
 
 # Do not print debug messages in production
 config :logger, level: :info
+
+# Native
+config :tuist_cloud, TuistCloud.Native,
+  crate: :tuistcloud_native,
+  skip_compilation?: true,
+  load_from: {:tuist_cloud, "priv/native/libtuistcloud_native"}

@@ -11,6 +11,14 @@ ARG DEBIAN_VERSION=buster-20231009-slim
 ARG PHX_BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG MIX_ENV="prod"
 
+FROM rust:1.68.0 as rust
+# install build dependencies
+RUN apt-get update -y && apt-get install -y build-essential git \
+    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+WORKDIR /app
+COPY phx/native/tuistcloud_native ./
+RUN cargo rustc --release
+
 FROM ${PHX_BUILDER_IMAGE} as phx-builder
 ARG MIX_ENV="prod"
 RUN apt-get update -y && apt-get install -y build-essential git openssl1.1 \
@@ -28,6 +36,7 @@ COPY phx/priv priv
 COPY phx/lib lib
 COPY phx/assets assets
 RUN mix assets.deploy
+COPY --from=rust /app/target/release/libtuistcloud_native.so priv/native/libtuistcloud_native.so
 RUN mix compile
 COPY phx/config/runtime.exs config/
 COPY phx/rel rel

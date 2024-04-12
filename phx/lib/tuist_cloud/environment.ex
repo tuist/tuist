@@ -26,6 +26,22 @@ defmodule TuistCloud.Environment do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0"))
   end
 
+  def license_features() do
+    Application.get_env(:tuist_cloud, :license).features
+  end
+
+  def license_expiration_date() do
+    Date.from_iso8601(Application.get_env(:tuist_cloud, :license).expiration_date)
+  end
+
+  def license_expired?() do
+    TuistCloud.Native.License.expired?(Application.get_env(:tuist_cloud, :license))
+  end
+
+  def license_expiration_days_span() do
+    Date.diff(license_expiration_date(), Date.utc_today())
+  end
+
   def version() do
     version = get([:version])
 
