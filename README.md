@@ -33,13 +33,13 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-Check out [the project "Get Started" guide](https://docs.tuist.io/documentation/tuist) to learn more about Tuist and all its features.
+Check out [the project "Adopting Tuist" guide](https://docs.tuist.io/guide/introduction/adopting-tuist/new-project) to learn more about Tuist and all its features.
 
 ## 📝 Documentation
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
 
-You can check out [the project documentation](https://docs.tuist.io/documentation/tuist/).
+You can check out [the project documentation](https://docs.tuist.io).
 
 ### 🔬 Sample projects
 
