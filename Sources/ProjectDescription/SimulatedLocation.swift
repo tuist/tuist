@@ -64,6 +64,6 @@ public struct SimulatedLocation: Codable, Equatable {
     }
 
     public static var rioDeJaneiro: SimulatedLocation {
-        .init(identifier: "Rio De Janeiro, Brazil")
+        .init(identifier: "Rio de Janeiro, Brazil")
     }
 }
