@@ -376,7 +376,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(targets: [target, testTarget])
 
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            targets: [
+                TestableTarget(
+                    target: TargetReference(projectPath: project.path, name: "AppTests"),
+                    simulatedLocation: .reference("Rio de Janeiro, Brazil")
+                ),
+            ],
             arguments: nil
         )
 
@@ -418,6 +423,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildableReference = testable.buildableReference
 
         XCTAssertEqual(testable.skipped, false)
+        XCTAssertEqual(testable.locationScenarioReference?.referenceType, "1")
+        XCTAssertEqual(testable.locationScenarioReference?.identifier, "Rio de Janeiro, Brazil")
         XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
         XCTAssertEqual(buildableReference.blueprintName, "AppTests")

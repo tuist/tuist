@@ -13,14 +13,30 @@ extension TuistGraph.TestableTarget {
         manifest: ProjectDescription.TestableTarget,
         generatorPaths: GeneratorPaths
     ) throws -> TuistGraph.TestableTarget {
-        TestableTarget(
-            target: TuistGraph.TargetReference(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath(manifest.target.projectPath),
-                name: manifest.target.targetName
-            ),
+        let target = TuistGraph.TargetReference(
+            projectPath: try generatorPaths.resolveSchemeActionProjectPath(manifest.target.projectPath),
+            name: manifest.target.targetName
+        )
+
+        var simulatedLocation: TuistGraph.SimulatedLocation?
+
+        if let manifestLocation = manifest.simulatedLocation {
+            switch (manifestLocation.identifier, manifestLocation.gpxFile) {
+            case let (identifier?, .none):
+                simulatedLocation = .reference(identifier)
+            case let (.none, gpxFile?):
+                simulatedLocation = .gpxFile(try generatorPaths.resolveSchemeActionProjectPath(gpxFile))
+            default:
+                break
+            }
+        }
+
+        return TestableTarget(
+            target: target,
             skipped: manifest.isSkipped,
             parallelizable: manifest.isParallelizable,
-            randomExecutionOrdering: manifest.isRandomExecutionOrdering
+            randomExecutionOrdering: manifest.isRandomExecutionOrdering,
+            simulatedLocation: simulatedLocation
         )
     }
 }
