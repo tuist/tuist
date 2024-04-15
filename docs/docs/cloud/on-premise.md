@@ -49,6 +49,17 @@ The configuration of the service is done at runtime through environment variable
 > [!NOTE] LAUNCH CHECKS
 > The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
 
+### License configuration
+
+As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_LICENSE` | The license provided after signing the service level agreement | Yes | | `******` |
+
+> [!IMPORTANT] EXPIRATION DATE
+> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with Tuist Cloud if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
+
 ### Base environment configuration
 
 | Environment variable | Description | Required | Default | Example |
