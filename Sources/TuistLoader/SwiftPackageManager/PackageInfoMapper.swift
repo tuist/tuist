@@ -282,6 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
                     "Testing", // https://github.com/apple/swift-testing
+                    "Cuckoo", // https://github.com/Brightify/Cuckoo
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }

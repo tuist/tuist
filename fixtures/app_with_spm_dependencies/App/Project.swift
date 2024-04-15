@@ -58,6 +58,7 @@ let project = Project(
                 .target(name: "AppKit"),
                 .external(name: "Nimble"),
                 .external(name: "Testing"),
+                .external(name: "Cuckoo"),
             ],
             settings: .targetSettings
         ),
