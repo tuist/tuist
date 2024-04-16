@@ -7,9 +7,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     // Note: The `.docc` file type is technically both a valid source extension and folder extension
     //       in order to compile the documentation archive (including Tutorials, Articles, etc.)
+    public static let validSourceCompatibleFolderExtensions: [String] = [
+        "playground", "rcproject", "mlpackage", "docc", "xcmappingmodel",
+    ]
     public static let validSourceExtensions: [String] = [
-        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
-        "playground", "rcproject", "mlpackage",
+        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "metal", "mlmodel",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",

@@ -45,13 +45,21 @@ final class TargetTests: TuistUnitTestCase {
                 "d",
                 "s",
                 "intentdefinition",
-                "xcmappingmodel",
                 "metal",
                 "mlmodel",
-                "docc",
+            ]
+        )
+    }
+
+    func test_validSourceCompatibleFolderExtensions() {
+        XCTAssertEqual(
+            Target.validSourceCompatibleFolderExtensions,
+            [
                 "playground",
                 "rcproject",
                 "mlpackage",
+                "docc",
+                "xcmappingmodel",
             ]
         )
     }

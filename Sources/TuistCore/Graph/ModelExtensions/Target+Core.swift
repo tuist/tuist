@@ -83,9 +83,15 @@ extension Target {
                 .subtracting(excluded)
                 .filter { path in
                     guard let `extension` = path.extension else { return false }
-                    guard !FileHandler.shared.isFolder(path) else { return false }
-                    return Target.validSourceExtensions
-                        .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+
+                    if FileHandler.shared.isFolder(path) {
+                        // If path points to a directory, we need to check if extension is source compatible.
+                        return Target.validSourceCompatibleFolderExtensions
+                            .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+                    } else {
+                        return Target.validSourceExtensions
+                            .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+                    }
                 }
                 .forEach { sourceFiles[$0] = SourceFile(
                     path: $0,
