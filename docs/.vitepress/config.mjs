@@ -86,6 +86,10 @@ const guideSidebar = [
     text: "Project",
     items: [
       {
+        text: "Manifests",
+        link: "/guide/project/manifests",
+      },
+      {
         text: "Directory structure",
         link: "/guide/project/directory-structure",
       },
