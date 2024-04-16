@@ -1,5 +1,5 @@
 {
-  "originHash" : "071a3a0f66bb6580be6edf4c8b990dc0c5a70027c14d28e6efe4656031012117",
+  "originHash" : "d97ce5778061e5c442f34dc995c6b958648d4f6c778b322c7334b33b5231fd13",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -44,6 +44,15 @@
       "state" : {
         "revision" : "9dc9cbe4bc45c65164fa653a563d8d8db61b09bb",
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "cuckoo",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Brightify/Cuckoo.git",
+      "state" : {
+        "revision" : "0cfbb729d0aced6494c19c58c0c31ea16d1cbf66",
+        "version" : "1.10.4"
       }
     },
     {
