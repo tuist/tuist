@@ -76,8 +76,8 @@ extension SettingsDictionary {
 public struct Configuration: Equatable, Codable {
     // MARK: - Attributes
 
-    public let settings: SettingsDictionary
-    public let xcconfig: AbsolutePath?
+    public var settings: SettingsDictionary
+    public var xcconfig: AbsolutePath?
 
     // MARK: - Init
 

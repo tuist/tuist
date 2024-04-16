@@ -1,4 +1,5 @@
 {
+  "originHash" : "d97ce5778061e5c442f34dc995c6b958648d4f6c778b322c7334b33b5231fd13",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -43,6 +44,15 @@
       "state" : {
         "revision" : "9dc9cbe4bc45c65164fa653a563d8d8db61b09bb",
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "cuckoo",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Brightify/Cuckoo.git",
+      "state" : {
+        "revision" : "0cfbb729d0aced6494c19c58c0c31ea16d1cbf66",
+        "version" : "1.10.4"
       }
     },
     {
@@ -97,6 +107,15 @@
       "state" : {
         "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
         "version" : "17.7.3"
+      }
+    },
+    {
+      "identity" : "lookinserver",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/QMUI/LookinServer",
+      "state" : {
+        "revision" : "e553d1b689d147817dc54ad5c28fcff71e860101",
+        "version" : "1.2.8"
       }
     },
     {
@@ -370,5 +389,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

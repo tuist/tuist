@@ -19,33 +19,55 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    // `nil` means settings without a condition
-    private func settingsForPlatform(_ platformName: String?) throws
-        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
-    {
-        settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                return setting.condition?.platformNames.contains(platformName) == true
-            } else {
-                return !setting.hasConditions
-            }
+    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
+        var resolvedSettings = try settingsDictionary()
+
+        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
+            let platformSettings = try settingsDictionary(for: platform)
+            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
         }
+
+        return resolvedSettings
+    }
+
+    func settingsForBuildConfiguration(
+        _ buildConfiguration: String
+    ) throws -> TuistGraph.SettingsDictionary {
+        try map(
+            settings: settings.filter { setting in
+                return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
+            }
+        )
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
+    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> TuistGraph.SettingsDictionary {
+        let platformSettings = try settings(for: platform?.platformName)
+
+        return try map(
+            settings: platformSettings,
+            headerSearchPaths: headerSearchPaths,
+            defines: ["SWIFT_PACKAGE": "1"],
+            swiftDefines: "SWIFT_PACKAGE"
+        )
+    }
+
+    private func map(
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        headerSearchPaths: [String] = [],
+        defines: [String: String] = [:],
+        swiftDefines: String = ""
+    ) throws -> TuistGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
-        var defines = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines = "SWIFT_PACKAGE"
+        var defines = defines
+        var swiftDefines = swiftDefines
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
         var settingsDictionary = TuistGraph.SettingsDictionary()
-        let platformSettings = try settingsForPlatform(platform?.platformName)
-
-        for setting in platformSettings {
+        for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
@@ -113,15 +135,17 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
-        var resolvedSettings = try settingsDictionaryForPlatform(nil)
-
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
-            let platformSettings = try settingsDictionaryForPlatform(platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
+    // `nil` means settings without a condition
+    private func settings(for platformName: String?) throws
+        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+    {
+        settings.filter { setting in
+            if let platformName, setting.hasConditions {
+                return setting.condition?.platformNames.contains(platformName) == true
+            } else {
+                return !setting.hasConditions
+            }
         }
-
-        return resolvedSettings
     }
 }
 
