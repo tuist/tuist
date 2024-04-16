@@ -255,6 +255,21 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
         try await run(BuildCommand.self, "App-Debug")
         try await run(BuildCommand.self, "App-Release")
         try await run(BuildCommand.self, "App-Local")
+
+        let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
+
+        try XCTAssertSimulatedLocationAdded(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "App-Debug",
+            testTarget: "AppTests",
+            simulatedLocation: "Rio de Janeiro, Brazil"
+        )
+        try XCTAssertSimulatedLocationAdded(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "App-Release",
+            testTarget: "AppTests",
+            simulatedLocation: "Grand Canyon.gpx"
+        )
     }
 }
 

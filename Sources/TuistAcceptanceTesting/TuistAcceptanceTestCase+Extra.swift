@@ -78,4 +78,58 @@ extension TuistAcceptanceTestCase {
             return
         }
     }
+
+    /// Asserts that a simulated location has been added to a specific testable target.
+    /// - Parameters:
+    ///   - xcodeprojPath: A path to specify `.xcodeproj` file if it is in a different path.
+    ///   - scheme: A specific scheme name.
+    ///   - testTarget: A specific test target name.
+    ///   - simulatedLocation: A simulated location. This value can be passed a `location string` or a `GPX filename`.
+    ///   For example, "Rio de Janeiro, Brazil" or "Grand Canyon.gpx".
+    public func XCTAssertSimulatedLocationAdded(
+        xcodeprojPath: AbsolutePath? = nil,
+        scheme: String,
+        testTarget: String,
+        simulatedLocation: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        if let xcodeprojPath {
+            self.xcodeprojPath = xcodeprojPath
+        }
+
+        let xcodeproj = try XcodeProj(pathString: self.xcodeprojPath.pathString)
+
+        guard let scheme = xcodeproj.sharedData?.schemes
+            .filter({ $0.name == scheme })
+            .first
+        else {
+            XCTFail(
+                "The '\(scheme)' scheme doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        guard let testableTarget = scheme.testAction?.testables
+            .filter({ $0.buildableReference.blueprintName == testTarget })
+            .first
+        else {
+            XCTFail(
+                "The '\(testTarget)' testable target doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        XCTAssertEqual(
+            testableTarget.locationScenarioReference?.identifier.contains(simulatedLocation),
+            true,
+            "The '\(testableTarget)' testable target doesn't have simulated location set.",
+            file: file,
+            line: line
+        )
+    }
 }
