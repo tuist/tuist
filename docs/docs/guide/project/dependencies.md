@@ -179,8 +179,7 @@ tuist generate
 ```
 
 > [!WARNING] BUILD AND TEST
-> If you build and test your project through `tuist build` and `tuist test`
-> <!-- TODO: Document how to have a wrapper script that runs carthage update -->
+> If you build and test your project through `tuist build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before `tuist build` or `tuist test` are run.
 
 ### CocoaPods
 

@@ -20,7 +20,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: []
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(resolvedSettings, [
             "GCC_PREPROCESSOR_DEFINITIONS": .array(["$(inherited)",
@@ -44,7 +44,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"],
@@ -72,7 +72,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["HEADER_SEARCH_PATHS"],
@@ -93,7 +93,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
@@ -112,7 +112,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["OTHER_CFLAGS"],
@@ -131,7 +131,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["OTHER_CPLUSPLUSFLAGS"],
@@ -152,7 +152,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["OTHER_SWIFT_FLAGS"],
@@ -176,7 +176,7 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let resolvedSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             resolvedSettings["OTHER_LDFLAGS"],
@@ -204,14 +204,14 @@ final class SettingsMapperTests: XCTestCase {
             settings: settings
         )
 
-        let allPlatformSettings = try mapper.settingsDictionaryForPlatform(nil)
+        let allPlatformSettings = try mapper.settingsDictionary()
 
         XCTAssertEqual(
             allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
 
-        let iosPlatformSettings = try mapper.settingsDictionaryForPlatform(.ios)
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .ios)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],

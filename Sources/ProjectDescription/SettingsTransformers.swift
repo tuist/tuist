@@ -55,6 +55,9 @@ extension SettingsDictionary {
     }
 
     /// Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`
+    /// - Parameters:
+    ///   - devTeam: Your Apple Developer Team ID. See
+    /// [here](https://developer.apple.com/help/account/manage-your-team/locate-your-team-id/) how you can find it.
     public func automaticCodeSigning(devTeam: String) -> SettingsDictionary {
         merging([
             "CODE_SIGN_STYLE": "Automatic",
