@@ -47,7 +47,7 @@ let workspace = Workspace(
 ```
 
 > [!NOTE]
-> Tuist will resolve the dependency graph and include the projects of the dependencies in the workspace. You don't need to include them manually.
+> Tuist will resolve the dependency graph and include the projects of the dependencies in the workspace. You don't need to include them manually. This is necessary for the build system to resolve the dependencies correctly.
 
 ### Multi or mono-project
 
