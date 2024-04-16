@@ -14,7 +14,7 @@ public struct RunActionOptions: Equatable, Codable {
     public var storeKitConfigurationPath: Path?
 
     /// A simulated GPS location to use when running the app.
-    public var simulatedLocation: SimulatedLocation?
+    public var simulatedLocation: ProjectDescription.SimulatedLocation?
 
     /// Configure your project to work with the Metal frame debugger.
     public var enableGPUFrameCaptureMode: GPUFrameCaptureMode
@@ -40,7 +40,7 @@ public struct RunActionOptions: Equatable, Codable {
         language: SchemeLanguage? = nil,
         region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil,
+        simulatedLocation: ProjectDescription.SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) {
         self.language = language
@@ -74,7 +74,7 @@ public struct RunActionOptions: Equatable, Codable {
         language: SchemeLanguage? = nil,
         region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil,
+        simulatedLocation: ProjectDescription.SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) -> Self {
         self.init(
@@ -98,4 +98,9 @@ extension RunActionOptions {
             .autoEnabled
         }
     }
+}
+
+extension RunActionOptions {
+    @available(*, deprecated, message: "Use ProjectDescription.SimulatedLocation directly instead.")
+    public typealias SimulatedLocation = ProjectDescription.SimulatedLocation
 }
