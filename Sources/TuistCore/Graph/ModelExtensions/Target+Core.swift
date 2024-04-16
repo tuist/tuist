@@ -83,6 +83,7 @@ extension Target {
                 .subtracting(excluded)
                 .filter { path in
                     guard let `extension` = path.extension else { return false }
+                    guard !FileHandler.shared.isFolder(path) else { return false }
                     return Target.validSourceExtensions
                         .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
                 }
