@@ -1,3 +1,4 @@
+import Cuckoo
 import Nimble
 import Testing
 

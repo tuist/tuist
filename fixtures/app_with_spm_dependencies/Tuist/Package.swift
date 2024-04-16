@@ -41,5 +41,7 @@ let package = Package(
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
         .package(url: "https://github.com/kishikawakatsumi/UICKeyChainStore", exact: "2.2.1"),
+        // Has XCTest API in a non-test target. Tuist will add Test Search path to support it
+        .package(url: "https://github.com/Brightify/Cuckoo.git", exact: "1.10.4"),
     ]
 )
