@@ -3,7 +3,21 @@ title: What is Tuist?
 description: Learn about Tuist, a tool that simplifies the complexities of modularization, optimizes workflows, and democratizes the evolution of Xcode projects.
 ---
 
-# Tuist
+<style module>
+.header {
+  width: 100%;
+  text-align: center;
+}
+.header_logo {
+  width: 200px;
+  margin: 0 auto;
+}
+</style>
+
+<div :class="$style.header">
+    <img src="./tuxie.png" :class="$style.header_logo"/>
+    <h1>Tuist</h1>
+</div>
 
 As Xcode projects expand, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
 

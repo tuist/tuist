@@ -31,7 +31,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var settings: Settings?
     public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
-    public var resources: [ResourceFileElement]
+    public var resources: ResourceFileElements
     public var copyFiles: [CopyFilesAction]
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
@@ -60,7 +60,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         entitlements: Entitlements? = nil,
         settings: Settings? = nil,
         sources: [SourceFile] = [],
-        resources: [ResourceFileElement] = [],
+        resources: ResourceFileElements = .init([]),
         copyFiles: [CopyFilesAction] = [],
         headers: Headers? = nil,
         coreDataModels: [CoreDataModel] = [],

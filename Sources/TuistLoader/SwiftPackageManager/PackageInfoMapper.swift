@@ -282,6 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
                     "Testing", // https://github.com/apple/swift-testing
+                    "Cuckoo", // https://github.com/Brightify/Cuckoo
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -500,7 +501,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var headers: ProjectDescription.Headers?
         var sources: SourceFilesList?
-        var resources: ResourceFileElements?
+        var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
             headers = try Headers.from(moduleMap: moduleMap)
@@ -762,7 +763,7 @@ extension SourceFilesList {
     }
 }
 
-extension ResourceFileElements {
+extension ProjectDescription.ResourceFileElements {
     fileprivate static func from(
         sources: [String]?,
         resources: [PackageInfo.Target.Resource],

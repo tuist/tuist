@@ -33,13 +33,13 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-Check out [the project "Get Started" guide](https://docs.tuist.io/documentation/tuist) to learn more about Tuist and all its features.
+Check out [the project "Adopting Tuist" guide](https://docs.tuist.io/guide/introduction/adopting-tuist/new-project) to learn more about Tuist and all its features.
 
 ## 📝 Documentation
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
 
-You can check out [the project documentation](https://docs.tuist.io/documentation/tuist/).
+You can check out [the project documentation](https://docs.tuist.io).
 
 ### 🔬 Sample projects
 
@@ -521,6 +521,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/PushedCrayon"><img src="https://avatars.githubusercontent.com/u/37077444?v=4" width="100px;" alt=""/><br /><sub><b>PushedCrayon</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://stefanomondino.com"><img src="https://avatars.githubusercontent.com/u/1691903?v=4" width="100px;" alt=""/><br /><sub><b>Stefano Mondino</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/leszko11"><img src="https://avatars.githubusercontent.com/u/23533452?v=4" width="100px;" alt=""/><br /><sub><b>Łukasz Lech</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/costapombo"><img src="https://avatars.githubusercontent.com/u/31352351?v=4" width="100px;" alt=""/><br /><sub><b>costapombo</b></sub></a></td>
     </tr>
   </tbody>
 </table>

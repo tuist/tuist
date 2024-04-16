@@ -212,7 +212,7 @@ export default defineConfig({
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
     ],
     editLink: {
-      pattern: "https://github.com/tuist/docs/edit/main/docs/:path",
+      pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
     },
     sidebar: {
       "/contributors": [
