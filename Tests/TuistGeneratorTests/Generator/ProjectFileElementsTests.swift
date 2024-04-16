@@ -972,6 +972,66 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [])
     }
+
+    func test_gpxFilesForRunAction() {
+        // Given
+        let schemes: [Scheme] = [
+            .test(runAction: nil),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/A"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/B"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .reference("London, England"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/C"))
+            )),
+        ]
+        let filesGroup: ProjectGroup = .group(name: "Project")
+
+        // When
+        let gpxFiles = subject.gpxFilesForRunAction(in: schemes, filesGroup: filesGroup)
+
+        // Then
+        XCTAssertEqual(gpxFiles, [
+            GroupFileElement(path: "/gpx/A", group: filesGroup),
+            GroupFileElement(path: "/gpx/B", group: filesGroup),
+            GroupFileElement(path: "/gpx/C", group: filesGroup),
+        ])
+    }
+
+    func test_gpxFilesForTestAction() {
+        // Given
+        let schemes: [Scheme] = [
+            .test(testAction: nil),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/A")),
+            ])),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/B")),
+                .test(simulatedLocation: .reference("London, England")),
+            ])),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/C")),
+                .test(simulatedLocation: .gpxFile("/gpx/D")),
+            ])),
+        ]
+        let filesGroup: ProjectGroup = .group(name: "Project")
+
+        // When
+        let gpxFiles = subject.gpxFilesForTestAction(in: schemes, filesGroup: filesGroup)
+
+        // Then
+        XCTAssertEqual(gpxFiles, [
+            GroupFileElement(path: "/gpx/A", group: filesGroup),
+            GroupFileElement(path: "/gpx/B", group: filesGroup),
+            GroupFileElement(path: "/gpx/C", group: filesGroup),
+            GroupFileElement(path: "/gpx/D", group: filesGroup),
+        ])
+    }
 }
 
 extension PBXGroup {

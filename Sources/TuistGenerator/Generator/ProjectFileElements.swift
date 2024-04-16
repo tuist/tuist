@@ -127,31 +127,10 @@ class ProjectFileElements {
         // Add the .gpx files if needed. GPS Exchange files must be added to the
         // project/workspace so that the scheme can correctly reference them.
         // In case the configuration already contains such file, we should avoid adding it twice
-        let runActionGPXFiles = project.schemes.compactMap { scheme -> GroupFileElement? in
-            guard case let .gpxFile(path) = scheme.runAction?.options.simulatedLocation else {
-                return nil
-            }
-
-            return GroupFileElement(path: path, group: project.filesGroup)
-        }
-
+        let runActionGPXFiles = gpxFilesForRunAction(in: project.schemes, filesGroup: project.filesGroup)
         fileElements.formUnion(runActionGPXFiles)
 
-        let testActionGPXFiles = project.schemes.compactMap { scheme -> [GroupFileElement] in
-            guard let testAction = scheme.testAction else { return [] }
-
-            let elements = testAction.targets.compactMap { target -> GroupFileElement? in
-                guard case let .gpxFile(path) = target.simulatedLocation else {
-                    return nil
-                }
-
-                return GroupFileElement(path: path, group: project.filesGroup)
-            }
-
-            return elements
-        }
-        .flatMap { $0 }
-
+        let testActionGPXFiles = gpxFilesForTestAction(in: project.schemes, filesGroup: project.filesGroup)
         fileElements.formUnion(testActionGPXFiles)
 
         return fileElements
@@ -755,5 +734,38 @@ class ProjectFileElements {
         default:
             return nil
         }
+    }
+
+    /// Finds and returns the gpx files used by the Run Action for all schemes.
+    func gpxFilesForRunAction(in schemes: [Scheme], filesGroup: ProjectGroup) -> [GroupFileElement] {
+        let gpxFiles = schemes.compactMap { scheme -> GroupFileElement? in
+            guard case let .gpxFile(path) = scheme.runAction?.options.simulatedLocation else {
+                return nil
+            }
+
+            return GroupFileElement(path: path, group: filesGroup)
+        }
+
+        return gpxFiles
+    }
+
+    /// Finds and returns the gpx files used by the Test Action for all schemes.
+    func gpxFilesForTestAction(in schemes: [Scheme], filesGroup: ProjectGroup) -> [GroupFileElement] {
+        let gpxFiles = schemes.compactMap { scheme -> [GroupFileElement] in
+            guard let testAction = scheme.testAction else { return [] }
+
+            let elements = testAction.targets.compactMap { target -> GroupFileElement? in
+                guard case let .gpxFile(path) = target.simulatedLocation else {
+                    return nil
+                }
+
+                return GroupFileElement(path: path, group: filesGroup)
+            }
+
+            return elements
+        }
+        .flatMap { $0 }
+
+        return gpxFiles
     }
 }
