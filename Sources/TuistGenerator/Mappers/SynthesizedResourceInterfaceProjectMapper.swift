@@ -153,7 +153,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources.resources
-            .map(\.path)
+            .map(\.path) + target.coreDataModels.map(\.path)
 
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }

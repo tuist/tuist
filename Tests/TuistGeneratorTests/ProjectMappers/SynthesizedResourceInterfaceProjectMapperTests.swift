@@ -58,6 +58,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
         let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
+        let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
+        let coreDataModelVersionFile = targetAPath.appending(components: "CoreDataModel.xcdatamodeld", "CoreDataModel.xcdatamodel")
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
@@ -65,6 +67,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         try fileHandler.touch(frenchStringsDict)
         try fileHandler.touch(englishStrings)
         try fileHandler.touch(englishStringsDict)
+        try fileHandler.touch(coreDataModelVersionFile)
         try fileHandler.write("a", path: frenchStrings, atomically: true)
         try fileHandler.write("a", path: frenchStringsDict, atomically: true)
         try fileHandler.write("a", path: englishStrings, atomically: true)
@@ -79,6 +82,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         try fileHandler.write("a", path: lottieFile, atomically: true)
         let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
         try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+        let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
+        try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
+        try fileHandler.createFolder(coreDataModelFolder)
+        try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -96,7 +103,16 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     .file(path: ttcFont),
                     .file(path: lottieFile),
                 ]
-            )
+            ),
+            coreDataModels: [
+                CoreDataModel(
+                    path: coreDataModelFolder,
+                    versions: [
+                        coreDataModelVersionFile
+                    ],
+                    currentVersion: "CoreDataModel"
+                )
+            ]
         )
 
         let resourceSynthesizers: [ResourceSynthesizer] = [
@@ -154,6 +170,17 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ],
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)
+            ),
+            .init(
+                parser: .coreData,
+                parserOptions: [
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
+                ],
+                extensions: ["xcdatamodeld"],
+                template: .file(coreDataTemplatePath)
             ),
         ]
 
@@ -207,6 +234,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         contents: "TargetA/LottieAnimation.lottie".data(using: .utf8)
                     )
                 ),
+                .file(
+                    FileDescriptor(
+                        path: derivedSourcesPath.appending(component: "TuistCoreData+TargetA.swift"),
+                        contents: "TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)
+                    )
+                ),
             ]
         )
         XCTAssertEqual(
@@ -250,8 +283,15 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                                 compilerFlags: nil,
                                 contentHash: try contentHasher.hash("TargetA/LottieAnimation.lottie".data(using: .utf8)!)
                             ),
+                            SourceFile(
+                                path: derivedSourcesPath
+                                    .appending(component: "TuistCoreData+TargetA.swift"),
+                                compilerFlags: nil,
+                                contentHash: try contentHasher.hash("TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)!)
+                            ),
                         ],
-                        resources: targetA.resources
+                        resources: targetA.resources,
+                        coreDataModels: targetA.coreDataModels
                     ),
                 ],
                 resourceSynthesizers: resourceSynthesizers
@@ -265,6 +305,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 SynthesizedResourceInterfaceTemplates.plistsTemplate,
                 SynthesizedResourceInterfaceTemplates.fontsTemplate,
                 "lottie template",
+                "core data template",
             ]
         )
         [
@@ -273,6 +314,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             ResourceSynthesizer.Parser.plists,
             ResourceSynthesizer.Parser.fonts,
             ResourceSynthesizer.Parser.json,
+            ResourceSynthesizer.Parser.coreData,
         ].forEach { parser in
             XCTAssertEqual(
                 parserOptionsStrings[parser],
@@ -309,6 +351,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let otfFont = targetAPath.appending(component: "otfFont.otf")
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
         let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
+        let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
+        let coreDataModelVersionFile = targetAPath.appending(components: "CoreDataModel.xcdatamodeld", "CoreDataModel.xcdatamodel")
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
@@ -330,6 +374,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         try fileHandler.write("a", path: lottieFile, atomically: true)
         let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
         try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+        let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
+        try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
+        try fileHandler.createFolder(coreDataModelFolder)
+        try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -380,6 +428,17 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 parserOptions: [:],
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)
+            ),
+            .init(
+                parser: .coreData,
+                parserOptions: [
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
+                ],
+                extensions: ["xcdatamodeld"],
+                template: .file(coreDataTemplatePath)
             ),
         ]
 
