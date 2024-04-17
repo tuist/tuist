@@ -59,7 +59,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
         let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
         let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
-        let coreDataModelVersionFile = targetAPath.appending(components: "CoreDataModel.xcdatamodeld", "CoreDataModel.xcdatamodel")
+        let coreDataModelVersionFile = targetAPath.appending(
+            components: "CoreDataModel.xcdatamodeld",
+            "CoreDataModel.xcdatamodel"
+        )
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
@@ -108,10 +111,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 CoreDataModel(
                     path: coreDataModelFolder,
                     versions: [
-                        coreDataModelVersionFile
+                        coreDataModelVersionFile,
                     ],
                     currentVersion: "CoreDataModel"
-                )
+                ),
             ]
         )
 
@@ -352,7 +355,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
         let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
         let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
-        let coreDataModelVersionFile = targetAPath.appending(components: "CoreDataModel.xcdatamodeld", "CoreDataModel.xcdatamodel")
+        let coreDataModelVersionFile = targetAPath.appending(
+            components: "CoreDataModel.xcdatamodeld",
+            "CoreDataModel.xcdatamodel"
+        )
 
         try fileHandler.createFolder(aAssets)
         try fileHandler.touch(aAsset)
