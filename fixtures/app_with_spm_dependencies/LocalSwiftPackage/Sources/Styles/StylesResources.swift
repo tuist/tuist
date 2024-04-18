@@ -8,10 +8,3 @@ public class StylesResources: NSObject {
         return .module
     }
 }
-
-#if !SIWFT_PACKAGE
-    private class BundleFinder {}
-    extension Foundation.Bundle {
-        static let module = Bundle(for: BundleFinder.self)
-    }
-#endif
