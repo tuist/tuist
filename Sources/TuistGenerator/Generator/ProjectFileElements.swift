@@ -173,7 +173,7 @@ class ProjectFileElements {
         // Elements
         var elements = Set<GroupFileElement>()
         elements.formUnion(files.map { GroupFileElement(path: $0, group: target.filesGroup) })
-        elements.formUnion(target.resources.map {
+        elements.formUnion(target.resources.resources.map {
             GroupFileElement(
                 path: $0.path,
                 group: target.filesGroup,

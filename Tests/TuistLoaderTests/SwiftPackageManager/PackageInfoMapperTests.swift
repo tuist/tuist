@@ -611,6 +611,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(tool: .c, name: .define, condition: nil, value: ["FOO1=\"BAR1\""]),
                                 .init(tool: .cxx, name: .define, condition: nil, value: ["FOO2=\"BAR2\""]),
                                 .init(tool: .cxx, name: .define, condition: nil, value: ["FOO3=3"]),
+                                .init(
+                                    tool: .cxx,
+                                    name: .define,
+                                    condition: PackageInfo.PackageConditionDescription(
+                                        platformNames: [],
+                                        config: "debug"
+                                    ),
+                                    value: ["FOO_DEBUG=1"]
+                                ),
                             ]
                         ),
                     ],
@@ -621,7 +630,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -629,6 +638,23 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
+                        baseSettings: .settings(
+                            configurations: [
+                                .debug(
+                                    name: .debug,
+                                    settings: [
+                                        "GCC_PREPROCESSOR_DEFINITIONS": [
+                                            "$(inherited)",
+                                            "FOO_DEBUG=1",
+                                        ],
+                                    ]
+                                ),
+                                .release(
+                                    name: .release,
+                                    settings: [:]
+                                ),
+                            ]
+                        ),
                         customSettings: [
                             "GCC_PREPROCESSOR_DEFINITIONS": [
                                 // Escaped
@@ -1064,7 +1090,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -3199,7 +3225,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
-private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
+private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
     let fullPath: String
     if let customPath {
         fullPath = customPath

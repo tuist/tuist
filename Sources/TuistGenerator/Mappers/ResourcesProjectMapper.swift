@@ -31,7 +31,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
-        if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
+        if target.resources.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -59,7 +59,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup
             )
-            modifiedTarget.resources = []
+            modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
             modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
             additionalTargets.append(resourcesTarget)
@@ -159,7 +159,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     private func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
-        let filename = "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)"
+        let filename = "TuistBundle+\(target.name.uppercasingFirst).\(fileExtension)"
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
 
@@ -310,9 +310,9 @@ extension [SourceFile] {
     }
 }
 
-extension [ResourceFileElement] {
+extension ResourceFileElements {
     fileprivate var containsBundleAccessedResources: Bool {
-        !filter { $0.path.extension != "xcprivacy" }.isEmpty
+        !resources.filter { $0.path.extension != "xcprivacy" }.isEmpty
     }
 }
 

@@ -39,6 +39,7 @@ let project = Project(
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebasePerformance", condition: .when([.ios])),
                 .external(name: "FirebaseRemoteConfig"),
+                .external(name: "FirebaseInAppMessaging-Beta"),
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
             ]
         ),

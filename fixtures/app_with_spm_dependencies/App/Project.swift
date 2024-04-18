@@ -44,6 +44,7 @@ let project = Project(
                 .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
+                .external(name: "LookinServer"),
             ],
             settings: .targetSettings
         ),
@@ -58,6 +59,7 @@ let project = Project(
                 .target(name: "AppKit"),
                 .external(name: "Nimble"),
                 .external(name: "Testing"),
+                .external(name: "Cuckoo"),
             ],
             settings: .targetSettings
         ),

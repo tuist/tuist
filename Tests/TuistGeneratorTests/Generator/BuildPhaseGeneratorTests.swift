@@ -475,7 +475,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generateResourcesBuildPhase(
             path: "/path",
-            target: .test(resources: resources),
+            target: .test(resources: .init(resources)),
             graphTraverser: graphTraverser,
             pbxTarget: nativeTarget,
             fileElements: fileElements,
@@ -524,7 +524,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generateResourcesBuildPhase(
             path: "/path",
-            target: .test(resources: files.map { .file(path: $0) }),
+            target: .test(resources: .init(files.map { .file(path: $0) })),
             graphTraverser: GraphTraverser(graph: .test(path: path)),
             pbxTarget: nativeTarget,
             fileElements: fileElements,
@@ -572,7 +572,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // When
         try subject.generateResourcesBuildPhase(
             path: "/path",
-            target: .test(resources: resourceFiles.map { .file(path: $0) }),
+            target: .test(resources: .init(resourceFiles.map { .file(path: $0) })),
             graphTraverser: GraphTraverser(graph: .test(path: path)),
             pbxTarget: nativeTarget,
             fileElements: fileElements,
@@ -591,7 +591,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             versions: [try AbsolutePath(validating: "/Model.xcdatamodeld/1.xcdatamodel")],
             currentVersion: "1"
         )
-        let target = Target.test(resources: [], coreDataModels: [coreDataModel])
+        let target = Target.test(resources: .init([]), coreDataModels: [coreDataModel])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
 
@@ -627,7 +627,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let path = try AbsolutePath(validating: "/image.png")
-        let target = Target.test(resources: [.file(path: path)])
+        let target = Target.test(resources: .init([.file(path: path)]))
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
         let fileElement = PBXFileReference()
@@ -664,7 +664,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .file(path: "/file.type", tags: ["fileTag"]),
             .folderReference(path: "/folder", tags: ["folderTag"]),
         ]
-        let target = Target.test(resources: resources)
+        let target = Target.test(resources: .init(resources))
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
 
@@ -714,7 +714,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .file(path: "/visionOS.type", inclusionCondition: .when([.visionos])),
             .file(path: "/watchOS.type", inclusionCondition: .when([.watchos])),
         ]
-        let target = Target.test(resources: resources)
+        let target = Target.test(resources: .init(resources))
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
 
@@ -1234,7 +1234,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
             sources: [],
-            resources: [],
+            resources: .init([]),
             scripts: [
                 TargetScript(
                     name: "post",
@@ -1309,7 +1309,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
             sources: [],
-            resources: [],
+            resources: .init([]),
             scripts: [
                 TargetScript(
                     name: "post",
@@ -1375,7 +1375,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
             sources: [],
-            resources: [],
+            resources: .init([]),
             scripts: [
                 TargetScript(
                     name: "post",

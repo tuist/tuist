@@ -117,7 +117,7 @@ class TargetLinter: TargetLinting {
     private func lintCopiedFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let files = target.resources.map(\.path)
+        let files = target.resources.resources.map(\.path)
         let entitlements = files.filter { $0.pathString.contains(".entitlements") }
 
         if let targetInfoPlistPath = target.infoPlist?.path, files.contains(targetInfoPlistPath) {
@@ -193,7 +193,7 @@ class TargetLinter: TargetLinting {
             return []
         }
 
-        if target.resources.isEmpty == false {
+        if target.resources.resources.isEmpty == false {
             return [
                 LintingIssue(
                     reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",

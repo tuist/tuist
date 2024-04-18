@@ -129,6 +129,26 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "App.app",
             destination: "Debug-iphonesimulator"
         )
+        try XCTAssertDirectoryContentEqual(
+            fixturePath.appending(components: "App", "Derived", "PrivacyManifests", "App"),
+            [
+                "PrivacyInfo.xcprivacy",
+            ]
+        )
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithPrivacyManifest: TuistAcceptanceTestCase {
+    func test_ios_app_with_privacy_manifest() async throws {
+        try setUpFixture(.iosAppWithPrivacyManifest)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try XCTAssertDirectoryContentEqual(
+            fixturePath.appending(components: "Derived", "PrivacyManifests", "MyApp"),
+            [
+                "PrivacyInfo.xcprivacy",
+            ]
+        )
     }
 }
 

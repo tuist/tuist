@@ -282,6 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
                     "Testing", // https://github.com/apple/swift-testing
+                    "Cuckoo", // https://github.com/Brightify/Cuckoo
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -500,7 +501,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var headers: ProjectDescription.Headers?
         var sources: SourceFilesList?
-        var resources: ResourceFileElements?
+        var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
             headers = try Headers.from(moduleMap: moduleMap)
@@ -762,7 +763,7 @@ extension SourceFilesList {
     }
 }
 
-extension ResourceFileElements {
+extension ProjectDescription.ResourceFileElements {
     fileprivate static func from(
         sources: [String]?,
         resources: [PackageInfo.Target.Resource],
@@ -996,7 +997,26 @@ extension ProjectDescription.Settings {
             mappedSettingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .from(settings: baseSettings, adding: mappedSettingsDictionary, packageFolder: packageFolder)
+        let configurations: [ProjectDescription.Configuration] = try baseSettings.configurations
+            .map { buildConfiguration, configuration in
+                var configuration = configuration ?? Configuration(settings: [:])
+                configuration.settings = configuration.settings.merging(
+                    try mapper.settingsForBuildConfiguration(buildConfiguration.name),
+                    uniquingKeysWith: { $1 }
+                )
+                return .from(
+                    buildConfiguration: buildConfiguration,
+                    configuration: configuration,
+                    packageFolder: packageFolder
+                )
+            }
+
+        return .settings(
+            base: .from(settingsDictionary: baseSettings.base).merging(mappedSettingsDictionary, uniquingKeysWith: { $1 }),
+            configurations: configurations
+                .sorted { $0.name.rawValue < $1.name.rawValue },
+            defaultSettings: .from(defaultSettings: baseSettings.defaultSettings)
+        )
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -1081,24 +1101,6 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
-    }
-}
-
-extension ProjectDescription.Settings {
-    public static func from(
-        settings: TuistGraph.Settings,
-        adding: ProjectDescription.SettingsDictionary,
-        packageFolder: AbsolutePath
-    ) -> Self {
-        .settings(
-            base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
-            configurations: settings.configurations
-                .map { buildConfiguration, configuration in
-                    .from(buildConfiguration: buildConfiguration, configuration: configuration, packageFolder: packageFolder)
-                }
-                .sorted { $0.name.rawValue < $1.name.rawValue },
-            defaultSettings: .from(defaultSettings: settings.defaultSettings)
-        )
     }
 }
 
