@@ -60,6 +60,19 @@ class ProjectLinter: ProjectLinting {
             .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
             .filter { $0.value > 1 }
             .keys
+
+        let duplicatedTargetProductNames = project.targets
+            .reduce(into: [String: Int]()) {
+                let destinations = $1.destinations.sorted(by: { a, b in
+                    a.rawValue < b.rawValue
+                }).map(\.rawValue).joined(separator: ",")
+                print(destinations)
+                let key = $1.productName + " -- " + destinations
+                $0[key] = ($0[key] ?? 0) + 1
+            }
+            .filter { $0.value > 1 }
+            .keys
+
         if !duplicatedTargets.isEmpty {
             let issue = LintingIssue(
                 reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
@@ -67,6 +80,15 @@ class ProjectLinter: ProjectLinting {
             )
             issues.append(issue)
         }
+
+        if !duplicatedTargetProductNames.isEmpty {
+            let issue = LintingIssue(
+                reason: "Targets with product names and destinations \(duplicatedTargetProductNames.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
+                severity: .error
+            )
+            issues.append(issue)
+        }
+
         return issues
     }
 }
