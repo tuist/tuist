@@ -127,7 +127,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target
+            target: target,
+            in: project
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -138,8 +139,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let content: String = ResourcesProjectMapper.objcHeaderFileContent(
             targetName: target.name,
             bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target,
-            projectName: project.name
+            target: target
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -153,8 +153,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            projectName: project.name
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_")
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -165,94 +164,35 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
+    static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
+        var content = """
+        // swiftlint:disable all
+        // swift-format-ignore-file
+        // swiftformat:disable all
+        import Foundation
+        """
         if !target.supportsResources {
-            return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
-
-            // MARK: - Swift Bundle Accessor
-
-            private class BundleFinder {}
-
-            extension Foundation.Bundle {
-            /// Since \(targetName) is a \(
-                target
-                    .product
-            ), the bundle containing the resources is copied into the final product.
-            static let module: Bundle = {
-                let bundleName = "\(bundleName)"
-
-                var candidates = [
-                    Bundle.main.resourceURL,
-                    Bundle(for: BundleFinder.self).resourceURL,
-                    Bundle.main.bundleURL,
-                ]
-
-                // This is a fix to make Previews work with bundled resources.
-                // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
-                // which is located under the derived data directory after building the project.
-                if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
-                    candidates.append(URL(fileURLWithPath: override))
-
-                    // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
-                    // where the bundles are only available in the framework's directory that is actively being previewed.
-                    // Since we don't know which framework this is, we also need to look in all the framework subpaths.
-                    if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
-                        for subpath in subpaths {
-                            if subpath.hasSuffix(".framework") {
-                                candidates.append(URL(fileURLWithPath: override + "/" + subpath))
-                            }
-                        }
-                    }
-                }
-
-                for candidate in candidates {
-                    let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
-                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                        return bundle
-                    }
-                }
-                fatalError("unable to find bundle named \(bundleName)")
-            }()
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
-
-            """
+            content += swiftSPMBundleAccessorString(for: target, and: bundleName)
         } else {
-            return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
-
-            // MARK: - Swift Bundle Accessor
-
-            private class BundleFinder {}
-
-            extension Foundation.Bundle {
-            /// Since \(targetName) is a \(
-                target
-                    .product
-            ), the bundle for classes within this module can be used directly.
-            static let module = Bundle(for: BundleFinder.self)
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
-
-            """
+            content += swiftFrameworkBundleAccessorString(for: target)
         }
+
+        // Add public accessors only for non external projects
+        if !project.isExternal, !target.sourcesContainsPublicResourceClassName {
+            content += publicBundleAccessorString(for: target)
+        }
+
+        content += """
+        // swiftlint:enable all
+        // swiftformat:enable all
+        """
+        return content
     }
 
     static func objcHeaderFileContent(
         targetName: String,
-
         bundleName _: String,
-        target _: Target,
-        projectName: String
+        target _: Target
     ) -> String {
         return """
         #import <Foundation/Foundation.h>
@@ -261,9 +201,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         extern "C" {
         #endif
 
-        NSBundle* \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
 
-        #define SWIFTPM_MODULE_BUNDLE \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE()
+        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
 
         #if __cplusplus
         }
@@ -273,20 +213,88 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     static func objcImplementationFileContent(
         targetName: String,
-
-        bundleName: String,
-        projectName: String
+        bundleName: String
     ) -> String {
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
-        NSBundle* \(projectName)_\(targetName)_SWIFTPM_MODULE_BUNDLE() {
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
             NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
 
             NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
 
             return bundle;
+        }
+        """
+    }
+
+    private static func publicBundleAccessorString(for target: Target) -> String {
+        """
+        // MARK: - Objective-C Bundle Accessor
+        @objc
+        public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+        @objc public class var bundle: Bundle {
+            return .module
+        }
+        }
+        """
+    }
+
+    private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
+        """
+        // MARK: - Swift Bundle Accessor - for SPM
+        private class BundleFinder {}
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(
+            target
+                .product
+        ), the bundle containing the resources is copied into the final product.
+        static let module: Bundle = {
+            let bundleName = "\(bundleName)"
+            var candidates = [
+                Bundle.main.resourceURL,
+                Bundle(for: BundleFinder.self).resourceURL,
+                Bundle.main.bundleURL,
+            ]
+            // This is a fix to make Previews work with bundled resources.
+            // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
+            // which is located under the derived data directory after building the project.
+            if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
+                candidates.append(URL(fileURLWithPath: override))
+                // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
+                // where the bundles are only available in the framework's directory that is actively being previewed.
+                // Since we don't know which framework this is, we also need to look in all the framework subpaths.
+                if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                    for subpath in subpaths {
+                        if subpath.hasSuffix(".framework") {
+                            candidates.append(URL(fileURLWithPath: override + "/" + subpath))
+                        }
+                    }
+                }
+            }
+            for candidate in candidates {
+                let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                    return bundle
+                }
+            }
+            fatalError("unable to find bundle named \(bundleName)")
+        }()
+        }
+        """
+    }
+
+    private static func swiftFrameworkBundleAccessorString(for target: Target) -> String {
+        """
+        // MARK: - Swift Bundle Accessor for Frameworks
+        private class BundleFinder {}
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(
+            target
+                .product
+        ), the bundle for classes within this module can be used directly.
+        static let module = Bundle(for: BundleFinder.self)
         }
         """
     }
@@ -305,5 +313,11 @@ extension [SourceFile] {
 extension [ResourceFileElement] {
     fileprivate var containsBundleAccessedResources: Bool {
         !filter { $0.path.extension != "xcprivacy" }.isEmpty
+    }
+}
+
+extension Target {
+    fileprivate var sourcesContainsPublicResourceClassName: Bool {
+        sources.contains(where: { $0.path.basename == "\(name)Resources.swift" })
     }
 }
