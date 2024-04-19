@@ -134,7 +134,20 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return isTestsBundle && hasHost
         }
 
-        let links = linkedBy.subtracting(hostedTestBundles)
+        /// Targets with a dependency on macros should skip traversal.
+        let targetsWithMacros = linkedBy.filter { dependency -> Bool in
+            guard case let .target(name, path) = dependency else {
+                return false
+            }
+
+            let hasMacros = graphTraverser.allTargetDependencies(path: path, name: name)
+                .contains(where: { $0.target.product == .macro })
+            return hasMacros
+        }
+
+        let links = linkedBy
+            .subtracting(hostedTestBundles)
+            .subtracting(targetsWithMacros)
 
         guard links.count > 1 else {
             return []
