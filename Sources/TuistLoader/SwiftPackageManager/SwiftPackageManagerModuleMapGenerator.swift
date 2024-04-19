@@ -87,7 +87,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
             }
             try write(
-                moduleMapContent: umbrellaHeaderModuleMap(umbrellaHeaderPath: umbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
+                moduleMapContent: umbrellaHeaderModuleMap(
+                    umbrellaHeaderPath: umbrellaHeaderPath,
+                    sanitizedModuleName: sanitizedModuleName
+                ),
                 to: generatedModuleMapPath,
                 atomically: true
             )
@@ -98,7 +101,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
             }
             try write(
-                moduleMapContent: umbrellaHeaderModuleMap(umbrellaHeaderPath: nestedUmbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
+                moduleMapContent: umbrellaHeaderModuleMap(
+                    umbrellaHeaderPath: nestedUmbrellaHeaderPath,
+                    sanitizedModuleName: sanitizedModuleName
+                ),
                 to: generatedModuleMapPath,
                 atomically: true
             )
@@ -126,10 +132,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             return .none
         }
     }
-    
-    
+
     /// Write our modulemap to disk if it is distinct from what already exists.
-    /// This addresses an issue with dependencies that are included in a precompiled header. https://github.com/tuist/tuist/issues/6211
+    /// This addresses an issue with dependencies that are included in a precompiled header.
+    /// https://github.com/tuist/tuist/issues/6211
     /// - Parameters:
     ///   - moduleMapContent: contents of the moduleMap file to write
     ///   - path: destination to write file contents to

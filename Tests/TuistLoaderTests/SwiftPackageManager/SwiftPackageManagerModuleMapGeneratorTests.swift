@@ -8,7 +8,7 @@ import XCTest
 class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     private var subject: SwiftPackageManagerModuleMapGenerator!
     private var hasher: MockContentHasher!
-    
+
     override func setUp() {
         super.setUp()
         hasher = MockContentHasher()
@@ -41,7 +41,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             moduleMapPath: "/Absolute/PackageDir/Derived/Module.modulemap"
         ))
     }
-    
+
     private func test_generate(for moduleMap: ModuleMap) throws {
         var writeCount = 0
         fileHandler.stubContentsOfDirectory = { _ in
@@ -89,7 +89,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 XCTFail("FileHandler.write should not be called")
                 return
             }
-           
+
             XCTAssertEqual(content, expectedContent)
             XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
@@ -101,7 +101,8 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         )
 
         // Set hasher for path on disk
-        hasher.stubHashForPath["/Absolute/PackageDir/Derived/Module.modulemap"] = try hasher.hash( self.expectedContent(for: moduleMap) ?? "")
+        hasher.stubHashForPath["/Absolute/PackageDir/Derived/Module.modulemap"] = try hasher
+            .hash(expectedContent(for: moduleMap) ?? "")
         // generate a 2nd time to validate that we dont write content that is already on disk
         let _ = try subject.generate(
             packageDirectory: "/Absolute/PackageDir",
@@ -117,7 +118,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(writeCount, 1)
         }
     }
-    
+
     private func expectedContent(for moduleMap: ModuleMap) -> String? {
         let expectedContent: String
         switch moduleMap {
