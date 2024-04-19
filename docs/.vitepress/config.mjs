@@ -101,6 +101,10 @@ const guideSidebar = [
         link: "/guide/project/dynamic-configuration",
       },
       {
+        text: "Secrets management",
+        link: "/guide/project/secrets-management",
+      },
+      {
         text: "Templates",
         link: "/guide/project/templates",
       },
