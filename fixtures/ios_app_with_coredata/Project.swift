@@ -16,5 +16,6 @@ let project = Project(
                 .coreDataModel("CoreData/Unversioned.xcdatamodeld"),
             ]
         ),
-    ]
+    ],
+    resourceSynthesizers: .default + [.coreData()]
 )
