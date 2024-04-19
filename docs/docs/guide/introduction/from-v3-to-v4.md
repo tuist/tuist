@@ -9,7 +9,7 @@ With the release of [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0)
 
 ### Dropped version management through `tuistenv`
 
-Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that would get rename to `tuist` at installation time. The tool would take care of installing and activating versions of Tuist ensuring determinsm across environments. With the aim of reducing the feature surface of Tuist, we decided to drop `tuistenv` in favor of [Mise](https://mise.jdx.dev/), a tool that does the same job but is more flexible and can be used across different tools. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that would get renamed to `tuist` at installation time. The tool would take care of installing and activating versions of Tuist ensuring determinism across environments. With the aim of reducing the feature surface of Tuist, we decided to drop `tuistenv` in favor of [Mise](https://mise.jdx.dev/), a tool that does the same job but is more flexible and can be used across different tools. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
 
 ::: code-group
 
