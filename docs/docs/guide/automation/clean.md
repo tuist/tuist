@@ -21,7 +21,7 @@ The following are the categories of caches that Tuist manages:
 | `manifests` |  JSON-serialized manifest files to speed up project generation | Global | 
 | `dependencies` | SPM dependencies fetched by Tuist | Project |
 
-You can can pass one or multiple categories to the `tuist clean` command. For example, to clean the `binaries` and `plugins` categories, you can run:
+You can pass one or multiple categories to the `tuist clean` command. For example, to clean the `binaries` and `plugins` categories, you can run:
 
 ::: code-group
 ```bash [Clean plugins and binaries]

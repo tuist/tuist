@@ -5,7 +5,7 @@ description: Tuist provides a command to output and visualize a project graph
 
 # Graph
 
-One of the advantages of extracting the project graph from from its implicitly codified form in Xcode projects and workspaces, is that Tuist knows it ahead of time and can provides useful features to developers. One of those features is the ability to export and visualize the graph through the `tuist graph` command.
+One of the advantages of extracting the project graph from its implicitly codified form in Xcode projects and workspaces, is that Tuist knows it ahead of time and can provide useful features to developers. One of those features is the ability to export and visualize the graph through the `tuist graph` command.
 
 ## Graph image
 
@@ -40,4 +40,4 @@ You can use some flags to filter nodes from the graph:
 - `--platform`:  A platform to filter. Only targets for this platform will be showed in the graph. Available platforms: `ios`, `macos`, `tvos`, `watchos`
 
 > [!NOTE] PLANNED IMPROVEMENTS
-> The filtering options are not flexible enough and can grow into an incosistent filtering interface. We are aware of that and we have plans to come up with a language that's universal across various commands.
+> The filtering options are not flexible enough and can grow into an inconsistent filtering interface. We are aware of that and we have plans to come up with a language that's universal across various commands.

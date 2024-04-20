@@ -522,6 +522,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://stefanomondino.com"><img src="https://avatars.githubusercontent.com/u/1691903?v=4" width="100px;" alt=""/><br /><sub><b>Stefano Mondino</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/leszko11"><img src="https://avatars.githubusercontent.com/u/23533452?v=4" width="100px;" alt=""/><br /><sub><b>Łukasz Lech</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/costapombo"><img src="https://avatars.githubusercontent.com/u/31352351?v=4" width="100px;" alt=""/><br /><sub><b>costapombo</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/isavynskyi"><img src="https://avatars.githubusercontent.com/u/18377497?v=4" width="100px;" alt=""/><br /><sub><b>Ihor Savynskyi</b></sub></a></td>
     </tr>
   </tbody>
 </table>
