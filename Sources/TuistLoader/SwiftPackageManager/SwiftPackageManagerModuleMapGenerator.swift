@@ -86,7 +86,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
             }
-            try write(
+            try writeIfDifferent(
                 moduleMapContent: umbrellaHeaderModuleMap(
                     umbrellaHeaderPath: umbrellaHeaderPath,
                     sanitizedModuleName: sanitizedModuleName
@@ -100,7 +100,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
             }
-            try write(
+            try writeIfDifferent(
                 moduleMapContent: umbrellaHeaderModuleMap(
                     umbrellaHeaderPath: nestedUmbrellaHeaderPath,
                     sanitizedModuleName: sanitizedModuleName
@@ -125,7 +125,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     export *
                 }
                 """
-            try write(moduleMapContent: generatedModuleMapContent, to: generatedModuleMapPath, atomically: true)
+            try writeIfDifferent(moduleMapContent: generatedModuleMapContent, to: generatedModuleMapPath, atomically: true)
 
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {
