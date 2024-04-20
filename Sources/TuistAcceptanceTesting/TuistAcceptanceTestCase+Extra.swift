@@ -79,26 +79,22 @@ extension TuistAcceptanceTestCase {
         }
     }
 
-    /// Asserts that a simulated location has been added to a specific testable target.
+    /// Asserts that a simulated location is contained in a specific testable target.
     /// - Parameters:
-    ///   - xcodeprojPath: A path to specify `.xcodeproj` file if it is in a different path.
+    ///   - xcodeprojPath: A specific `.xcodeproj` file path.
     ///   - scheme: A specific scheme name.
     ///   - testTarget: A specific test target name.
     ///   - simulatedLocation: A simulated location. This value can be passed a `location string` or a `GPX filename`.
     ///   For example, "Rio de Janeiro, Brazil" or "Grand Canyon.gpx".
-    public func XCTAssertSimulatedLocationAdded(
-        xcodeprojPath: AbsolutePath? = nil,
+    public func XCTAssertContainsSimulatedLocation(
+        xcodeprojPath: AbsolutePath,
         scheme: String,
         testTarget: String,
         simulatedLocation: String,
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        if let xcodeprojPath {
-            self.xcodeprojPath = xcodeprojPath
-        }
-
-        let xcodeproj = try XcodeProj(pathString: self.xcodeprojPath.pathString)
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
 
         guard let scheme = xcodeproj.sharedData?.schemes
             .filter({ $0.name == scheme })

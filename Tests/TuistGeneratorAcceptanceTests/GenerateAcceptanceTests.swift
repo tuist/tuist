@@ -258,13 +258,13 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
 
         let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
 
-        try XCTAssertSimulatedLocationAdded(
+        try XCTAssertContainsSimulatedLocation(
             xcodeprojPath: xcodeprojPath,
             scheme: "App-Debug",
             testTarget: "AppTests",
             simulatedLocation: "Rio de Janeiro, Brazil"
         )
-        try XCTAssertSimulatedLocationAdded(
+        try XCTAssertContainsSimulatedLocation(
             xcodeprojPath: xcodeprojPath,
             scheme: "App-Release",
             testTarget: "AppTests",
