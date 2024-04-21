@@ -58,7 +58,18 @@ let project = Project(
             dependencies: [
                 .sdk(name: "CloudKit", type: .framework, status: .optional),
                 .sdk(name: "sqlite3", type: .library),
+                .target(name: "iOSFramework")
             ]
         ),
+        .target(
+            name: "iOSFramework",
+            destinations: [.iPad, .iPhone],
+            product: .framework,
+            bundleId: "io.tuist.iOSFramework",
+            infoPlist: "Support/Framework-Info.plist",
+            sources: [
+                .glob("iOSFramework/**"),
+            ]
+        )
     ]
 )

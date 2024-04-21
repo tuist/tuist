@@ -17,6 +17,15 @@ public struct GraphTargetReference: Equatable, Comparable, Hashable, CustomDebug
         self.condition = condition
     }
 
+    public func getCondition() -> PlatformCondition? {
+
+        let filters = target.destinations.map {
+            $0.platformFilter
+        }
+
+        return condition ?? .when(Set(filters))
+    }
+
     public static func < (lhs: GraphTargetReference, rhs: GraphTargetReference) -> Bool {
         lhs.graphTarget < rhs.graphTarget
 //        guard let

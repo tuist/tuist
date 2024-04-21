@@ -152,7 +152,8 @@ final class TargetGenerator: TargetGenerating {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
                 let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
-                pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
+                pbxTargetDependency?.applyCondition(dependency.getCondition(), applicableTo: targetSpec)
+                print(pbxTargetDependency)
             }
         }
     }
