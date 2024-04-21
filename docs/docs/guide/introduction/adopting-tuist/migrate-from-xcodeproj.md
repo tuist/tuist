@@ -10,14 +10,14 @@ next:
 
 Unless you [create a new project using Tuist](/guide/introduction/adopting-tuist/new-project), in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. **How tedious this process is, depends on how complex your projects are.**
 
-As you probably know, Xcode projects can become messy and complex over time: *groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some).* All that accumulated complexity makes it hard for us to provide a command that reliably ports migrates project.
+As you probably know, Xcode projects can become messy and complex over time: *groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some).* All that accumulated complexity makes it hard for us to provide a command that reliably migrates project.
 
 Moreover, **manual migration is an excellent exercise to clean up and simplify your projects.** Not only the developers in your project will be thankful for that, but Xcode, who will be faster processing and indexing them. Once you have fully adopted Tuist, it will make sure that projects are consistently defined and that they remain simple.
 
 In the aim of easing that work, we are giving you some guidelines based on the feedback that we have received from the users.
 
 > [!TIP] SCALING A MATURE IOS CODEBASE WITH TUIST
-> You won't be the first one to migrate a mature iOS codebase to Tuist.You can read how [Asana](https://asana.com/inside-asana/scaling-a-mature-ios-codebase-with-tuist) migrated theirs and the impact that it had on their development workflows, or how [Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7) evaluated Bazel, Tuist, and SPM and ultimately chose Tuist.
+> You won't be the first one to migrate a mature iOS codebase to Tuist. You can read how [Asana](https://asana.com/inside-asana/scaling-a-mature-ios-codebase-with-tuist) migrated theirs and the impact that it had on their development workflows, or how [Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7) evaluated Bazel, Tuist, and SPM and ultimately chose Tuist.
 
 ## Extract your build settings into `.xcconfig` files
 
@@ -71,4 +71,4 @@ They allow defining your own abstractions for defining your projects, and most i
 Here's a list of community-developed tools that can aid you on the migration process:
 
 - [xcdiff](https://github.com/bloomberg/xcdiff): A tool which helps you diff xcodeproj files.
-- [Xcode Build Settings](https://xcodebuildsettings.com/): A reference for all the build settings available and their meaning.
+- [Xcode Build Settings](https://developer.apple.com/documentation/xcode/build-settings-reference): A reference for all the build settings available and their meaning.

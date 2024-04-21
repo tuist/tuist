@@ -1318,6 +1318,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "isavynskyi",
+      "name": "Ihor Savynskyi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/18377497?v=4",
+      "profile": "https://github.com/isavynskyi",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
