@@ -52,4 +52,12 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertDoesntContainElementOfType(got, ExplicitDependencyGraphMapper.self)
     }
+
+    func test_default_contains_the_modulemap_mapper() {
+        // When
+        let got = subject.default(config: .test())
+
+        // Then
+        XCTAssertContainsElementOfType(got, ModuleMapMapper.self)
+    }
 }

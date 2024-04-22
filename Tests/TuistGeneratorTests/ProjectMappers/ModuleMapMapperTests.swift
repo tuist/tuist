@@ -70,12 +70,21 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
-            workspace: WorkspaceWithProjects(
+        let (gotGraph, gotSideEffects) = try subject.map(
+            graph: .test(
                 workspace: workspace,
                 projects: [
-                    projectA,
-                    projectB,
+                    projectAPath: projectA,
+                    projectBPath: projectB,
+                ],
+                targets: [
+                    projectAPath: [
+                        targetA.name: targetA,
+                    ],
+                    projectBPath: [
+                        targetB1.name: targetB1,
+                        targetB2.name: targetB2,
+                    ],
                 ]
             )
         )
@@ -96,7 +105,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     "-Xcc",
                     "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
                 ]),
-                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "\(projectBPath)/B1/include", "\(projectBPath)/B2/include"]),
+                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1/include", "$(SRCROOT)/../B/B2/include"]),
                 "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
@@ -116,7 +125,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             settings: .test(base: [
                 "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
                 "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
-                "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B1/include", "\(projectBPath)/B2/include"]),
+                "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B1/include", "$(SRCROOT)/B2/include"]),
                 "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
@@ -141,14 +150,23 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertBetterEqual(
-            gotWorkspaceWithProjects,
-            WorkspaceWithProjects(
+            Graph.test(
                 workspace: workspace,
                 projects: [
-                    mappedProjectA,
-                    mappedProjectB,
+                    projectAPath: mappedProjectA,
+                    projectBPath: mappedProjectB,
+                ],
+                targets: [
+                    projectAPath: [
+                        mappedTargetA.name: mappedTargetA,
+                    ],
+                    projectBPath: [
+                        mappedTargetB1.name: mappedTargetB1,
+                        mappedTargetB2.name: mappedTargetB2,
+                    ],
                 ]
-            )
+            ),
+            gotGraph
         )
         XCTAssertEqual(gotSideEffects, [])
     }
@@ -190,12 +208,20 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
-            workspace: WorkspaceWithProjects(
+        let (gotGraph, gotSideEffects) = try subject.map(
+            graph: .test(
                 workspace: workspace,
                 projects: [
-                    projectA,
-                    projectB,
+                    projectAPath: projectA,
+                    projectBPath: projectB,
+                ],
+                targets: [
+                    projectAPath: [
+                        targetA.name: targetA,
+                    ],
+                    projectBPath: [
+                        targetB.name: targetB,
+                    ],
                 ]
             )
         )
@@ -214,7 +240,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         "-Xcc",
                         "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
                     ]),
-                    "HEADER_SEARCH_PATHS": .array(["$(inherited)", "\(projectBPath)/B/include"]),
+                    "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B/include"]),
                     "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
                 ],
                 configurations: [:],
@@ -249,14 +275,22 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertBetterEqual(
-            gotWorkspaceWithProjects,
-            WorkspaceWithProjects(
+            Graph.test(
                 workspace: workspace,
                 projects: [
-                    mappedProjectA,
-                    mappedProjectB,
+                    projectAPath: mappedProjectA,
+                    projectBPath: mappedProjectB,
+                ],
+                targets: [
+                    projectAPath: [
+                        mappedTargetA.name: mappedTargetA,
+                    ],
+                    projectBPath: [
+                        mappedTargetB.name: mappedTargetB,
+                    ],
                 ]
-            )
+            ),
+            gotGraph
         )
         XCTAssertEqual(gotSideEffects, [])
     }

@@ -53,6 +53,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         config: Config
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
+        mappers.append(ModuleMapMapper())
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
         mappers.append(PruneOrphanExternalTargetsGraphMapper())
