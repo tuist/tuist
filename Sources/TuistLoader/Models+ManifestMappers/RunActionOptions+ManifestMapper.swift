@@ -14,7 +14,7 @@ extension TuistGraph.RunActionOptions {
     ) throws -> TuistGraph.RunActionOptions {
         var language: String?
         var storeKitConfigurationPath: AbsolutePath?
-        var simulatedLocation: SimulatedLocation?
+        var simulatedLocation: TuistGraph.SimulatedLocation?
         var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier

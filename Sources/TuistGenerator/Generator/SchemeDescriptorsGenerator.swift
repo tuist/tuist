@@ -298,11 +298,29 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+
+            var locationScenarioReference: XCScheme.LocationScenarioReference?
+
+            if let locationScenario = testableTarget.simulatedLocation {
+                var identifier = locationScenario.identifier
+
+                if case let .gpxFile(gpxPath) = locationScenario {
+                    let fileRelativePath = gpxPath.relative(to: graphTraverser.workspace.xcWorkspacePath)
+                    identifier = fileRelativePath.pathString
+                }
+
+                locationScenarioReference = .init(
+                    identifier: identifier,
+                    referenceType: locationScenario.referenceType
+                )
+            }
+
             let testable = XCScheme.TestableReference(
                 skipped: testableTarget.isSkipped,
                 parallelizable: testableTarget.isParallelizable,
                 randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
                 buildableReference: reference,
+                locationScenarioReference: locationScenarioReference,
                 skippedTests: skippedTests
             )
             testables.append(testable)
