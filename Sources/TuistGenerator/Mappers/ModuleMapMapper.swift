@@ -45,7 +45,7 @@ enum ModuleMapMapperError: FatalError {
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
 /// not portable, as the modulemap could contain absolute paths.
-public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this type_body_length
+public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherLinkerFlagsSetting = "OTHER_LDFLAGS"
@@ -65,36 +65,32 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
     public init() {}
 
     // swiftlint:disable function_body_length
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         logger
             .debug(
-                "Transforming workspace \(workspace.workspace.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
+                "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )
 
-        let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>] = [:]
-        for project in workspace.projects {
-            for target in project.targets {
-                try Self.dependenciesModuleMaps(
-                    workspace: workspace,
-                    project: project,
-                    target: target,
-                    targetToDependenciesMetadata: &targetToDependenciesMetadata,
-                    projectsByPath: projectsByPath,
-                    targetsByName: targetsByName
-                )
-            }
+        let graphTraverser = GraphTraverser(graph: graph)
+        for target in graphTraverser.allTargets() {
+            try Self.dependenciesModuleMaps(
+                graph: graph,
+                target: target,
+                targetToDependenciesMetadata: &targetToDependenciesMetadata
+            )
         }
 
-        var mappedWorkspace = workspace
-        for projectIndex in 0 ..< workspace.projects.count {
-            var mappedProject = workspace.projects[projectIndex]
-            for targetIndex in 0 ..< mappedProject.targets.count {
-                var mappedTarget = mappedProject.targets[targetIndex]
-                let targetID = TargetID(projectPath: mappedProject.path, targetName: mappedTarget.name)
-                var mappedSettingsDictionary = mappedTarget.settings?.base ?? [:]
+        var graph = graph
+
+        graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
+            var project = project
+            project.targets = project.targets.map { target in
+                var target = target
+                let targetID = TargetID(projectPath: project.path, targetName: target.name)
+                var mappedSettingsDictionary = target.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true) else { continue }
+                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true) else { return target }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
@@ -132,17 +128,21 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
                     mappedSettingsDictionary[Self.otherLinkerFlagsSetting] = updatedOtherLinkerFlags
                 }
 
-                let targetSettings = mappedTarget.settings ?? Settings(
+                let targetSettings = target.settings ?? Settings(
                     base: [:],
                     configurations: [:],
-                    defaultSettings: mappedProject.settings.defaultSettings
+                    defaultSettings: project.settings.defaultSettings
                 )
-                mappedTarget.settings = targetSettings.with(base: mappedSettingsDictionary)
-                mappedProject.targets[targetIndex] = mappedTarget
+                target.settings = targetSettings.with(base: mappedSettingsDictionary)
+
+                graph.targets[project.path]?[target.name] = target
+
+                return target
             }
-            mappedWorkspace.projects[projectIndex] = mappedProject
-        }
-        return (mappedWorkspace, [])
+
+            return (projectPath, project)
+        })
+        return (graph, [])
     } // swiftlint:enable function_body_length
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
@@ -164,41 +164,40 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToDependenciesMetadata` is also used as cache to avoid recomputing the set for already computed targets.
     private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
-        workspace: WorkspaceWithProjects,
-        project: Project,
-        target: Target,
-        targetToDependenciesMetadata: inout [TargetID: Set<DependencyMetadata>],
-        projectsByPath: [AbsolutePath: Project],
-        targetsByName: [String: Target]
+        graph: Graph,
+        target: GraphTarget,
+        targetToDependenciesMetadata: inout [TargetID: Set<DependencyMetadata>]
     ) throws {
-        let targetID = TargetID(projectPath: project.path, targetName: target.name)
+        let targetID = TargetID(projectPath: target.path, targetName: target.target.name)
         if targetToDependenciesMetadata[targetID] != nil {
             // already computed
             return
         }
 
+        let graphTraverser = GraphTraverser(graph: graph)
+
         var dependenciesMetadata: Set<DependencyMetadata> = []
-        for dependency in target.dependencies {
+        for dependency in target.target.dependencies {
             let dependentProject: Project
-            let dependentTarget: Target
+            let dependentTarget: GraphTarget
             switch dependency {
             case let .target(name, _):
-                guard let dependentTargetFromName = targetsByName[name] else {
+                guard let dependentTargetFromName = graphTraverser.target(path: target.path, name: name) else {
                     throw ModuleMapMapperError.invalidTargetDependency(
-                        sourceProject: project.path,
-                        sourceTarget: target.name,
+                        sourceProject: target.project.path,
+                        sourceTarget: target.target.name,
                         dependentTarget: name
                     )
                 }
-                dependentProject = project
+                dependentProject = target.project
                 dependentTarget = dependentTargetFromName
             case let .project(name, path, _):
-                guard let dependentProjectFromPath = projectsByPath[path],
-                      let dependentTargetFromName = targetsByName[name]
+                guard let dependentProjectFromPath = graph.projects[path],
+                      let dependentTargetFromName = graphTraverser.target(path: path, name: name)
                 else {
                     throw ModuleMapMapperError.invalidProjectTargetDependency(
-                        sourceProject: project.path,
-                        sourceTarget: target.name,
+                        sourceProject: target.project.path,
+                        sourceTarget: target.target.name,
                         dependentProject: path,
                         dependentTarget: name
                     )
@@ -210,18 +209,15 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
             }
 
             try Self.dependenciesModuleMaps(
-                workspace: workspace,
-                project: dependentProject,
+                graph: graph,
                 target: dependentTarget,
-                targetToDependenciesMetadata: &targetToDependenciesMetadata,
-                projectsByPath: projectsByPath,
-                targetsByName: targetsByName
+                targetToDependenciesMetadata: &targetToDependenciesMetadata
             )
 
             // direct dependency module map
             let dependencyModuleMapPath: AbsolutePath?
 
-            if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
+            if case let .string(dependencyModuleMap) = dependentTarget.target.settings?.base[Self.modulemapFileSetting] {
                 let pathString = dependentProject.path.pathString
                 dependencyModuleMapPath = try AbsolutePath(
                     validating: dependencyModuleMap
@@ -234,7 +230,7 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
             }
 
             var headerSearchPaths: [String]
-            switch dependentTarget.settings?.base[Self.headerSearchPaths] ?? .array([]) {
+            switch dependentTarget.target.settings?.base[Self.headerSearchPaths] ?? .array([]) {
             case let .array(values):
                 headerSearchPaths = values
             case let .string(value):
@@ -254,7 +250,7 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
             }
 
             // indirect dependency module maps
-            let dependentTargetID = TargetID(projectPath: dependentProject.path, targetName: dependentTarget.name)
+            let dependentTargetID = TargetID(projectPath: dependentProject.path, targetName: dependentTarget.target.name)
             if let indirectDependencyMetadata = targetToDependenciesMetadata[dependentTargetID] {
                 dependenciesMetadata.formUnion(indirectDependencyMetadata)
             }
@@ -289,7 +285,10 @@ public final class ModuleMapMapper: WorkspaceMapping { // swiftlint:disable:this
 
         for headerSearchPath in dependenciesHeaderSearchPaths.sorted() {
             mappedHeaderSearchPaths.append(
-                headerSearchPath
+                (
+                    try? AbsolutePath(validating: headerSearchPath)
+                        .relative(to: targetID.projectPath).pathString
+                ).map { "$(SRCROOT)/\($0)" } ?? headerSearchPath
             )
         }
 
