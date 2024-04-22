@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.10.1 - 2024-04-22
+
+### Tuist
+
+#### Fixed
+
+- Fix regression in ModuleMapMapper due to outdated Graph properties [#6221](https://github.com/tuist/tuist/pull/6221) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.10.0 - 2024-04-22
 
 ### Tuist
