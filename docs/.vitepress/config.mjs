@@ -263,6 +263,10 @@ export default defineConfig({
               link: "/cloud/selective-testing",
             },
             {
+              text: "Hashing",
+              link: "/cloud/hashing",
+            },
+            {
               text: "On-premise",
               link: "/cloud/on-premise",
             },
