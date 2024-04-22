@@ -85,6 +85,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         targetB1.name: targetB1,
                         targetB2.name: targetB2,
                     ],
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB1.name, path: projectBPath),
+                    ],
+                    .target(name: targetB1.name, path: projectBPath): [
+                        .target(name: targetB2.name, path: projectBPath),
+                    ],
                 ]
             )
         )
@@ -164,6 +172,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         mappedTargetB1.name: mappedTargetB1,
                         mappedTargetB2.name: mappedTargetB2,
                     ],
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB1.name, path: projectBPath),
+                    ],
+                    .target(name: targetB1.name, path: projectBPath): [
+                        .target(name: targetB2.name, path: projectBPath),
+                    ],
                 ]
             ),
             gotGraph
@@ -221,6 +237,11 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     ],
                     projectBPath: [
                         targetB.name: targetB,
+                    ],
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB.name, path: projectBPath),
                     ],
                 ]
             )
@@ -287,6 +308,11 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     ],
                     projectBPath: [
                         mappedTargetB.name: mappedTargetB,
+                    ],
+                ],
+                dependencies: [
+                    .target(name: projectA.name, path: projectAPath): [
+                        .target(name: projectB.name, path: projectBPath),
                     ],
                 ]
             ),
