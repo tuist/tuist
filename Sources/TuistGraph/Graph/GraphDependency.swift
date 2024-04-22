@@ -212,7 +212,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         switch self {
         case .macro: return false
         case let .xcframework(xcframework):
-            return xcframework.linking == .dynamic || xcframework.isExternal
+            return xcframework
+                .linking == .dynamic ||
+                (xcframework.isExternal && xcframework.infoPlist.libraries.first?.path.extension == "framework")
         case let .framework(_, _, _, _, linking, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic

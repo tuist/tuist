@@ -1347,6 +1347,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let xcframeworkDependency = GraphDependency.testXCFramework(
             path: xcframeworkPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "MyFramework.framework")
+                    ),
+                ]
+            ),
             linking: .static,
             isExternal: true
         )
@@ -1364,6 +1371,41 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.first, GraphDependencyReference(xcframeworkDependency))
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsAStaticLibraryAndAnExternalXCFramework() throws {
+        // Given
+        let xcframeworkPath = try AbsolutePath(validating: "/test/test.xcframework")
+        let target = Target.test(name: "Main", platform: .iOS)
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let xcframeworkDependency = GraphDependency.testXCFramework(
+            path: xcframeworkPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "MyStaticLibrary.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            isExternal: true
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set(arrayLiteral: xcframeworkDependency),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_embeddableFrameworks_when_dependencyIsAnInternalXCFramework() throws {
