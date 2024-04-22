@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.10.0 - 2024-04-22
+
+### Tuist
+
+#### Added
+
+- Add support for privacy manifest file generation [#6117](https://github.com/tuist/tuist/pull/6117) by [@Lilfaen](https://github.com/Lilfaen)
+- Add simulated location support on testable target configuration [#6187](https://github.com/tuist/tuist/pull/6187) by [@woin2ee](https://github.com/woin2ee)
+
+#### Fixed
+
+- Fix resources filename mismatch when a dependency has a + [#6151](https://github.com/tuist/tuist/pull/6151) by [@fortmarek](https://github.com/fortmarek)
+- Fix integration of Cuckoo [#6195](https://github.com/tuist/tuist/pull/6195) by [@danibachar](https://github.com/danibachar)
+- Fix missing external target settings with config conditions [#6170](https://github.com/tuist/tuist/pull/6170) by [@fortmarek](https://github.com/fortmarek)
+- Skip rewriting modulemaps if not changed to fix issues with pch [#6212](https://github.com/tuist/tuist/pull/6212) by [@waltflanagan](https://github.com/waltflanagan)
+- Use relative paths instead of absolute paths for header search paths for modulemaps [#6218](https://github.com/tuist/tuist/pull/6218) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.9.0 - 2024-04-02
 
 ### Tuist
