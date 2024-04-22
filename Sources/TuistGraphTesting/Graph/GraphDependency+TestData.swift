@@ -39,7 +39,7 @@ extension GraphDependency {
             .appending(try! RelativePath(validating: "Test.xcframework/Test")),
         linking: BinaryLinking = .dynamic,
         status: FrameworkStatus = .required,
-        macroPath: AbsolutePath? = nil
+        isExternal: Bool = false
     ) -> GraphDependency {
         .xcframework(
             GraphDependency.XCFramework(
@@ -49,7 +49,7 @@ extension GraphDependency {
                 linking: linking,
                 mergeable: false,
                 status: status,
-                macroPath: macroPath
+                isExternal: isExternal
             )
         )
     }

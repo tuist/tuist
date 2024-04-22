@@ -391,7 +391,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                         linking: .dynamic,
                         mergeable: false,
                         status: .required,
-                        macroPath: nil
+                        isExternal: false
                     )
                 ),
             ]),
@@ -440,7 +440,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                         linking: .dynamic,
                         mergeable: true,
                         status: .required,
-                        macroPath: nil
+                        isExternal: false
                     )
                 ),
             ]),

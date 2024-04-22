@@ -90,7 +90,7 @@ extension ProjectAutomation.Target {
                 frameworkStatus = .required
             }
             return .framework(path: path.pathString, status: frameworkStatus)
-        case let .xcframework(path, status, _):
+        case let .xcframework(path, status, _, _):
             let frameworkStatus: ProjectAutomation.FrameworkStatus
             switch status {
             case .optional:
