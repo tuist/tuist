@@ -1,7 +1,6 @@
 default: &defaults
   # Your app's name
   name: "Tuist Cloud Rails"
-  push_api_key: 6a8e48b7-0688-44b3-9df9-f19b5a095edf
   request_headers:
     - HTTP_ACCEPT
     - HTTP_ACCEPT_CHARSET
@@ -50,12 +49,15 @@ development:
 
 staging:
   <<: *defaults
+  push_api_key: 9ac822a3-af7d-45c6-ae0b-1f5b1253f1c4
   active: <%= ENV.fetch("TUIST_CLOUD_HOSTED", "0") == "1" %>
 
 canary:
   <<: *defaults
+  push_api_key: 5500bd6a-16db-4cf4-b569-297f00a9854c
   active: <%= ENV.fetch("TUIST_CLOUD_HOSTED", "0") == "1" %>
 
 production:
   <<: *defaults
+  push_api_key: 1e548fb3-aee4-47b8-a7d9-8a2298f48f91
   active: <%= ENV.fetch("TUIST_CLOUD_HOSTED", "0") == "1" %>
