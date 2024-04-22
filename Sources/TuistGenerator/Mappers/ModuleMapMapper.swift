@@ -4,44 +4,6 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-enum ModuleMapMapperError: FatalError {
-    case invalidTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentTarget: String)
-    case invalidProjectTargetDependency(
-        sourceProject: AbsolutePath,
-        sourceTarget: String,
-        dependentProject: AbsolutePath,
-        dependentTarget: String
-    )
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .invalidTargetDependency, .invalidProjectTargetDependency: return .abort
-        }
-    }
-
-    /// Error description.
-    var description: String {
-        switch self {
-        case let .invalidTargetDependency(sourceProject, sourceTarget, dependentTarget):
-            return """
-            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' that can't be found. \
-            Please make sure your project configuration is correct.
-            """
-        case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
-            return """
-            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' of the project at path '\(
-                dependentProject
-                    .pathString
-            )' that can't be found. \
-            Please make sure your project configuration is correct.
-            """
-        }
-    }
-}
-
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
 /// not portable, as the modulemap could contain absolute paths.
@@ -177,48 +139,18 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         let graphTraverser = GraphTraverser(graph: graph)
 
         var dependenciesMetadata: Set<DependencyMetadata> = []
-        for dependency in target.target.dependencies {
-            let dependentProject: Project
-            let dependentTarget: GraphTarget
-            switch dependency {
-            case let .target(name, _):
-                guard let dependentTargetFromName = graphTraverser.target(path: target.path, name: name) else {
-                    throw ModuleMapMapperError.invalidTargetDependency(
-                        sourceProject: target.project.path,
-                        sourceTarget: target.target.name,
-                        dependentTarget: name
-                    )
-                }
-                dependentProject = target.project
-                dependentTarget = dependentTargetFromName
-            case let .project(name, path, _):
-                guard let dependentProjectFromPath = graph.projects[path],
-                      let dependentTargetFromName = graphTraverser.target(path: path, name: name)
-                else {
-                    throw ModuleMapMapperError.invalidProjectTargetDependency(
-                        sourceProject: target.project.path,
-                        sourceTarget: target.target.name,
-                        dependentProject: path,
-                        dependentTarget: name
-                    )
-                }
-                dependentProject = dependentProjectFromPath
-                dependentTarget = dependentTargetFromName
-            case .framework, .xcframework, .library, .package, .sdk, .xctest:
-                continue
-            }
-
+        for dependency in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) {
             try Self.dependenciesModuleMaps(
                 graph: graph,
-                target: dependentTarget,
+                target: dependency.graphTarget,
                 targetToDependenciesMetadata: &targetToDependenciesMetadata
             )
 
             // direct dependency module map
             let dependencyModuleMapPath: AbsolutePath?
 
-            if case let .string(dependencyModuleMap) = dependentTarget.target.settings?.base[Self.modulemapFileSetting] {
-                let pathString = dependentProject.path.pathString
+            if case let .string(dependencyModuleMap) = dependency.target.settings?.base[Self.modulemapFileSetting] {
+                let pathString = dependency.graphTarget.path.pathString
                 dependencyModuleMapPath = try AbsolutePath(
                     validating: dependencyModuleMap
                         .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
@@ -230,7 +162,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
             }
 
             var headerSearchPaths: [String]
-            switch dependentTarget.target.settings?.base[Self.headerSearchPaths] ?? .array([]) {
+            switch dependency.target.settings?.base[Self.headerSearchPaths] ?? .array([]) {
             case let .array(values):
                 headerSearchPaths = values
             case let .string(value):
@@ -238,7 +170,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
             }
 
             headerSearchPaths = headerSearchPaths.map {
-                let pathString = dependentProject.path.pathString
+                let pathString = dependency.graphTarget.path.pathString
                 return (
                     try? AbsolutePath(
                         validating: $0
@@ -250,7 +182,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
             }
 
             // indirect dependency module maps
-            let dependentTargetID = TargetID(projectPath: dependentProject.path, targetName: dependentTarget.target.name)
+            let dependentTargetID = TargetID(projectPath: dependency.graphTarget.path, targetName: dependency.target.name)
             if let indirectDependencyMetadata = targetToDependenciesMetadata[dependentTargetID] {
                 dependenciesMetadata.formUnion(indirectDependencyMetadata)
             }
