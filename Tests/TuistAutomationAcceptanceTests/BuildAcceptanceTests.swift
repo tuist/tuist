@@ -120,7 +120,23 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
         try setUpFixture(.multiplatformAppWithSdk)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "macos")
+        try System.shared.runAndPrint(
+            [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "build",
+                "-scheme",
+                "App",
+                "-workspace",
+                workspacePath.pathString,
+                "-destination",
+                "platform=macOS",
+                "CODE_SIGN_IDENTITY=\"\"",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }

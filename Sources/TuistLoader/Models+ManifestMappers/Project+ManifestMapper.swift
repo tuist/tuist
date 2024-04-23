@@ -33,7 +33,8 @@ extension TuistGraph.Project {
             try TuistGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                externalDependencies: externalDependencies,
+                isExternal: isExternal
             )
         }
 

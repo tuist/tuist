@@ -9,7 +9,14 @@ let debugScheme: Scheme = .scheme(
         preActions: [debugAction],
         runPostActionsOnFailure: true
     ),
-    testAction: TestAction.targets(["AppTests"]),
+    testAction: .targets(
+        [
+            .testableTarget(
+                target: "AppTests",
+                simulatedLocation: .rioDeJaneiro
+            ),
+        ]
+    ),
     runAction: .runAction(
         customLLDBInitFile: "../Scripts/lldb/_lldbinit",
         executable: "App",
@@ -27,7 +34,14 @@ let releaseScheme: Scheme = .scheme(
     name: "App-Release",
     shared: true,
     buildAction: .buildAction(targets: ["App"], preActions: [releaseAction]),
-    testAction: TestAction.targets(["AppTests"]),
+    testAction: .targets(
+        [
+            .testableTarget(
+                target: "AppTests",
+                simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx")
+            ),
+        ]
+    ),
     runAction: .runAction(
         executable: "App",
         options: .options(

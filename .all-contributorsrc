@@ -1127,7 +1127,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/81426024?v=4",
       "profile": "https://github.com/woin2ee",
       "contributions": [
-        "doc"
+        "doc",
+        "code"
       ]
     },
     {
@@ -1326,6 +1327,15 @@
       "profile": "https://github.com/isavynskyi",
       "contributions": [
         "doc"
+      ]
+    },
+    {
+      "login": "kapitoshka438",
+      "name": "Eduard Miniakhmetov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3232401?v=4",
+      "profile": "https://github.com/kapitoshka438",
+      "contributions": [
+        "code"
       ]
     }
   ],

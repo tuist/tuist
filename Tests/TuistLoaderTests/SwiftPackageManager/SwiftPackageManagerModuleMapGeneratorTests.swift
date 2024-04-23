@@ -1,4 +1,5 @@
 import TSCBasic
+import TuistCoreTesting
 import TuistSupportTesting
 import XCTest
 
@@ -6,10 +7,12 @@ import XCTest
 
 class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     private var subject: SwiftPackageManagerModuleMapGenerator!
+    private var hasher: MockContentHasher!
 
     override func setUp() {
         super.setUp()
-        subject = SwiftPackageManagerModuleMapGenerator()
+        hasher = MockContentHasher()
+        subject = SwiftPackageManagerModuleMapGenerator(contentHasher: hasher)
     }
 
     override func tearDown() {
@@ -40,7 +43,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     private func test_generate(for moduleMap: ModuleMap) throws {
-        var writeCalled = false
+        var writeCount = 0
         fileHandler.stubContentsOfDirectory = { _ in
             switch moduleMap {
             case .none:
@@ -81,41 +84,12 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             }
         }
         fileHandler.stubWrite = { content, path, atomically in
-            writeCalled = true
-            let expectedContent: String
-            switch moduleMap {
-            case .none, .custom:
+            writeCount += 1
+            guard let expectedContent = self.expectedContent(for: moduleMap) else {
                 XCTFail("FileHandler.write should not be called")
                 return
-            case let .header(umbrellaHeaderPath, moduleMapPath: _):
-                if umbrellaHeaderPath.parentDirectory.basename == "Module" {
-                    expectedContent = """
-                    framework module Module {
-                      umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
-
-                      export *
-                      module * { export * }
-                    }
-                    """
-                } else {
-                    expectedContent = """
-                    framework module Module {
-                      umbrella header "/Absolute/Public/Headers/Path/Module.h"
-
-                      export *
-                      module * { export * }
-                    }
-                    """
-                }
-            case .directory:
-                expectedContent = """
-                module Module {
-                    umbrella "/Absolute/Public/Headers/Path"
-                    export *
-                }
-
-                """
             }
+
             XCTAssertEqual(content, expectedContent)
             XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
@@ -125,12 +99,60 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             moduleName: "Module",
             publicHeadersPath: "/Absolute/Public/Headers/Path"
         )
+
+        // Set hasher for path on disk
+        hasher.stubHashForPath["/Absolute/PackageDir/Derived/Module.modulemap"] = try hasher
+            .hash(expectedContent(for: moduleMap) ?? "")
+        // generate a 2nd time to validate that we dont write content that is already on disk
+        let _ = try subject.generate(
+            packageDirectory: "/Absolute/PackageDir",
+            moduleName: "Module",
+            publicHeadersPath: "/Absolute/Public/Headers/Path"
+        )
+
         XCTAssertEqual(got, moduleMap)
         switch moduleMap {
         case .none, .custom:
-            XCTAssertFalse(writeCalled)
+            XCTAssertEqual(writeCount, 0)
         case .directory, .header:
-            XCTAssertTrue(writeCalled)
+            XCTAssertEqual(writeCount, 1)
         }
+    }
+
+    private func expectedContent(for moduleMap: ModuleMap) -> String? {
+        let expectedContent: String
+        switch moduleMap {
+        case .none, .custom:
+            return nil
+        case let .header(umbrellaHeaderPath, moduleMapPath: _):
+            if umbrellaHeaderPath.parentDirectory.basename == "Module" {
+                expectedContent = """
+                framework module Module {
+                  umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
+
+                  export *
+                  module * { export * }
+                }
+                """
+            } else {
+                expectedContent = """
+                framework module Module {
+                  umbrella header "/Absolute/Public/Headers/Path/Module.h"
+
+                  export *
+                  module * { export * }
+                }
+                """
+            }
+        case .directory:
+            expectedContent = """
+            module Module {
+                umbrella "/Absolute/Public/Headers/Path"
+                export *
+            }
+
+            """
+        }
+        return expectedContent
     }
 }

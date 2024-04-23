@@ -48,7 +48,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsSpecific(
-            try subject.load(path: xcframeworkPath, status: .required),
+            try subject.load(path: xcframeworkPath, status: .required, isExternal: false),
             XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath)
         )
     }
@@ -76,7 +76,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.load(path: xcframeworkPath, status: .required)
+        let got = try subject.load(path: xcframeworkPath, status: .required, isExternal: false)
 
         // Then
         XCTAssertEqual(
@@ -89,7 +89,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                     linking: linking,
                     mergeable: false,
                     status: .required,
-                    macroPath: nil
+                    isExternal: false
                 )
             )
         )

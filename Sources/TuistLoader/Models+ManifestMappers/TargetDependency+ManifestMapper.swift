@@ -29,7 +29,8 @@ extension TuistGraph.TargetDependency {
     static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        isExternal: Bool
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name, condition):
@@ -79,7 +80,8 @@ extension TuistGraph.TargetDependency {
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
                     status: .from(manifest: status),
-                    condition: condition?.asGraphCondition
+                    condition: condition?.asGraphCondition,
+                    isExternal: isExternal
                 ),
             ]
         case .xctest:

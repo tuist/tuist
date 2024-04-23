@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistGraph
 import TuistSupport
@@ -23,11 +24,13 @@ enum XCFrameworkLoaderError: FatalError, Equatable {
     }
 }
 
+@Mockable
 public protocol XCFrameworkLoading {
     /// Reads an existing xcframework and returns its in-memory representation, `GraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency
+    /// - Parameter isExternal: Whether the XCFramework comes from an external SPM project
+    func load(path: AbsolutePath, status: FrameworkStatus, isExternal: Bool) throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -44,7 +47,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
     }
 
-    public func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency {
+    public func load(path: AbsolutePath, status: FrameworkStatus, isExternal: Bool) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }
@@ -59,7 +62,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,
-            macroPath: metadata.macroPath
+            isExternal: isExternal
         )
         return .xcframework(xcframework)
     }
