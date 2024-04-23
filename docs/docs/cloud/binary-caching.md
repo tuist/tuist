@@ -26,9 +26,6 @@ tuist cache
 
 The command re-uses binaries to speed up the process.
 
-> [!TIP] CACHE WARMING IN CI ENVIRONMENTS 
-> We recommend setting up a CI pipeline exclusively to keep the cache warmed. That way developers in your team will have access to those binaries, thereby reducing their local build times.
-
 ## Using the cache binaries
 
 By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
@@ -75,3 +72,24 @@ The level of effectiveness that can be achieved with binary caching depends stro
 3. Split frequently-modified targets into smaller ones whose likelihood of change is lower.
 
 The above suggestions are part of the [µFeatures architecture](/guide/scale/ufeatures-architecture), which we propose as a way to structure your projects to maximize the benefits not only of binary caching but also of Xcode's capabilities.
+
+## Recommended setup
+
+We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch builds build incrementally upon them.
+
+> [!TIP] CACHE WARMING USES BINARIES
+> The `tuist cache` command also makes use of the binary cache to speed up the warming.
+
+The following are some examples of common workflows:
+
+### A developer starts to work on a new feature
+
+1. They create a new branch from `main`.
+2. They run `tuist generate`.
+3. Tuist the most recent binaries from `main` and generates the project with them.
+
+### A developer pushes changes upstream
+
+1. The CI pipeline will run `tuist build` or `tuist test` to build or test the project.
+2. The workflow will pull the most recent binaries from `main` and generate the project with them.
+3. It'll then build or test the project incrementally.
