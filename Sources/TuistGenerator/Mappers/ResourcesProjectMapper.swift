@@ -133,7 +133,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return (filePath, content.data(using: .utf8))
     }
 
-    private func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    private func synthesizedObjcHeaderFile(bundleName _: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
 
         let content: String = ResourcesProjectMapper.objcHeaderFileContent(targetName: target.name)
