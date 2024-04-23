@@ -16,6 +16,7 @@ import Sentry
 import SVProgressHUD
 import Yams
 import ZipArchive
+import IGListDiffKit
 
 public enum AppKit {
     public static func start() {
@@ -57,6 +58,9 @@ public enum AppKit {
 
         // Use MarkdownUI
         _ = BulletedList(of: [""])
+        
+        // Use IGListDiffKit
+        _ = IGListDiffOption(rawValue: 0)
     }
 }
 

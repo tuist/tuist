@@ -45,6 +45,7 @@ let project = Project(
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
                 .external(name: "LookinServer"),
+                .external(name: "IGListDiffKit"),
             ],
             settings: .targetSettings
         ),

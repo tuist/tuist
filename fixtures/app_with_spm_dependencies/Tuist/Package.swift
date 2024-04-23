@@ -44,5 +44,6 @@ let package = Package(
         .package(url: "https://github.com/QMUI/LookinServer", from: "1.2.8"),
         // Has XCTest API in a non-test target. Tuist will add Test Search path to support it
         .package(url: "https://github.com/Brightify/Cuckoo.git", exact: "1.10.4"),
+        .package(url: "https://github.com/Instagram/IGListKit", revision: "c9e045c9425a160871a7915260d07a6c273b548d"),
     ]
 )
