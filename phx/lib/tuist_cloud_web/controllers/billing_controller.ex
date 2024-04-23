@@ -15,7 +15,8 @@ defmodule TuistCloudWeb.BillingController do
       session = Billing.create_session(customer: account.customer_id)
       redirect(conn, external: session.url)
     else
-      raise TuistCloudWeb.Errors.UnauthorizedError, "You don't have permission to access this account."
+      raise TuistCloudWeb.Errors.UnauthorizedError,
+            "You don't have permission to access this account."
     end
   end
 

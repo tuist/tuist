@@ -27,7 +27,9 @@ defmodule TuistCloud.Accounts.Account do
   def create_changeset(account, attrs) do
     account
     |> cast(attrs, [:name, :owner_type, :owner_id, :customer_id])
-    |> validate_required([:name, :owner_type, :owner_id] ++ if Billing.enabled?, do: [:customer_id], else: [])
+    |> validate_required(
+      [:name, :owner_type, :owner_id] ++ if(Billing.enabled?(), do: [:customer_id], else: [])
+    )
     |> validate_inclusion(:owner_type, ["User", "Organization"])
     |> unique_constraint(:name)
     |> unique_constraint([:owner_id, :owner_type])

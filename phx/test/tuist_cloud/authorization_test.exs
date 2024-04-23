@@ -20,7 +20,6 @@ defmodule TuistCloud.AuthorizationTest do
     user_two = AccountsFixtures.user_fixture()
     account_two = Accounts.get_account_from_user(user_two)
 
-
     # When
     assert Authorization.can(user, :update, account_two, :billing) == false
   end

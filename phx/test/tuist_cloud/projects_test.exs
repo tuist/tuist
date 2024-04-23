@@ -34,6 +34,12 @@ defmodule TuistCloud.ProjectsTest do
     got = Projects.get_all_project_accounts(user)
 
     # Then
-    assert [%ProjectAccount{handle: "#{account.name}/#{project.name}", account: account, project: project}] == got
+    assert [
+             %ProjectAccount{
+               handle: "#{account.name}/#{project.name}",
+               account: account,
+               project: project
+             }
+           ] == got
   end
 end

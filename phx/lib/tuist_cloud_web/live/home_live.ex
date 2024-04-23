@@ -38,11 +38,12 @@ defmodule TuistCloudWeb.HomeLive do
   def handle_params(params, _uri, socket) do
     project = current_project(params)
 
-    date_range = if is_nil(params["date_range"]) do
-      "last_30_days"
-    else
-      params["date_range"]
-    end
+    date_range =
+      if is_nil(params["date_range"]) do
+        "last_30_days"
+      else
+        params["date_range"]
+      end
 
     start_date =
       case date_range do
@@ -150,6 +151,7 @@ defmodule TuistCloudWeb.HomeLive do
   attr :summary_value, :string, required: true
   attr :title, :string, required: true
   attr :type, :atom, default: :area
+
   def analytics_chart(assigns) do
     ~H"""
     <div class="analytics-section">
@@ -158,14 +160,14 @@ defmodule TuistCloudWeb.HomeLive do
         <div class="analytics-section__header__highlight">
           <h4 class="text--semibold color--text-primary"><%= @summary_value %></h4>
           <%= if @trend != 0 do %>
-          <div class={"analytics-section__header__change analytics-section__header__change--#{if @trend_positive do "positive" else "negative" end}"}>
+            <div class={"analytics-section__header__change analytics-section__header__change--#{if @trend_positive do "positive" else "negative" end}"}>
               <%= if @trend < 0 do %>
-              <.trend_down />
+                <.trend_down />
               <% else %>
-              <.trend_up />
+                <.trend_up />
               <% end %>
               <span class="text--medium font--medium"><%= abs(Float.round(@trend, 1)) %> %</span>
-          </div>
+            </div>
           <% end %>
         </div>
       </div>

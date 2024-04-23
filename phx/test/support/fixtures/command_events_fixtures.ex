@@ -11,15 +11,15 @@ defmodule TuistCloud.CommandEventsFixtures do
         TuistCloud.ProjectsFixtures.project_fixture().id
       end)
 
-      CommandEvents.create_command_event(%{
-        name: Keyword.get(attrs, :name),
-        duration: Keyword.get(attrs, :duration, 0),
-        tuist_version: "4.1.0",
-        project: %{id: project_id},
-        cacheable_targets: Keyword.get(attrs, :cacheable_targets, ""),
-        local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, ""),
-        remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, ""),
-        created_at: Keyword.get(attrs, :created_at, Time.utc_now())
-      })
+    CommandEvents.create_command_event(%{
+      name: Keyword.get(attrs, :name),
+      duration: Keyword.get(attrs, :duration, 0),
+      tuist_version: "4.1.0",
+      project: %{id: project_id},
+      cacheable_targets: Keyword.get(attrs, :cacheable_targets, ""),
+      local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, ""),
+      remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, ""),
+      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+    })
   end
 end

@@ -2,105 +2,132 @@
 
 <div class="analytics page">
   <.stack class="analytics__header-section" gap="3xl">
-    <h5 class="analytics__header-section__title"><%= gettext "Dashboard" %></h5>
+    <h5 class="analytics__header-section__title"><%= gettext("Dashboard") %></h5>
     <.button_group selected_key={@date_range}>
-      <:button key="last_7_days"><a href="?date_range=last_7_days"><%= gettext("7 days") %></a></:button>
-      <:button key="last_30_days"><a href="?date_range=last_30_days"><%= gettext("30 days") %></a></:button>
-      <:button key="last_12_months"><a href="?date_range=last_12_months"><%= gettext("12 months") %></a></:button>
+      <:button key="last_7_days">
+        <a href="?date_range=last_7_days"><%= gettext("7 days") %></a>
+      </:button>
+      <:button key="last_30_days">
+        <a href="?date_range=last_30_days"><%= gettext("30 days") %></a>
+      </:button>
+      <:button key="last_12_months">
+        <a href="?date_range=last_12_months"><%= gettext("12 months") %></a>
+      </:button>
     </.button_group>
   </.stack>
-  <.analytics_chart 
+  <.analytics_chart
     id="average-duration-chart"
-    title={gettext("Average build")} 
-    summary_value={gettext("%{duration} s", duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1))}
+    title={gettext("Average build")}
+    summary_value={
+      gettext("%{duration} s",
+        duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1)
+      )
+    }
     trend={@build_duration_analytics.trend}
     trend_positive={@build_duration_analytics.trend < 0}
   />
   <.analytics_chart
     id="build-runs-chart"
     type={:bar}
-    title={gettext("Build runs")} 
+    title={gettext("Build runs")}
     summary_value={gettext("%{runs_count} runs", runs_count: @build_runs_analytics.runs_count)}
     trend={@build_runs_analytics.trend}
     trend_positive={@build_runs_analytics.trend > 0}
   />
   <.analytics_chart
     id="cache-hit-rate-chart"
-    title={gettext("Cache hit rate")} 
-    summary_value={gettext("%{hit_rate} %", hit_rate: Float.round(@cache_hit_rate_analytics.cache_hit_rate * 100.0, 1))}
+    title={gettext("Cache hit rate")}
+    summary_value={
+      gettext("%{hit_rate} %",
+        hit_rate: Float.round(@cache_hit_rate_analytics.cache_hit_rate * 100.0, 1)
+      )
+    }
     trend={@cache_hit_rate_analytics.trend}
     trend_positive={@cache_hit_rate_analytics.trend > 0}
   />
-  <.analytics_chart 
+  <.analytics_chart
     id="average-test-duration-chart"
-    title={gettext("Average test")} 
-    summary_value={gettext("%{duration} s", duration: Float.round(@test_duration_analytics.total_average_duration / 1000, 1))}
+    title={gettext("Average test")}
+    summary_value={
+      gettext("%{duration} s",
+        duration: Float.round(@test_duration_analytics.total_average_duration / 1000, 1)
+      )
+    }
     trend={@test_duration_analytics.trend}
     trend_positive={@test_duration_analytics.trend < 0}
   />
   <.analytics_chart
     id="test-runs-chart"
     type={:bar}
-    title={gettext("Test runs")} 
+    title={gettext("Test runs")}
     summary_value={gettext("%{runs_count} runs", runs_count: @test_runs_analytics.runs_count)}
     trend={@test_runs_analytics.trend}
     trend_positive={@test_runs_analytics.trend > 0}
   />
-  <.analytics_chart 
+  <.analytics_chart
     id="average-cache-duration-chart"
-    title={gettext("Average cache")} 
-    summary_value={gettext("%{duration} s", duration: Float.round(@cache_duration_analytics.total_average_duration / 1000, 1))}
+    title={gettext("Average cache")}
+    summary_value={
+      gettext("%{duration} s",
+        duration: Float.round(@cache_duration_analytics.total_average_duration / 1000, 1)
+      )
+    }
     trend={@cache_duration_analytics.trend}
     trend_positive={@cache_duration_analytics.trend < 0}
   />
   <.analytics_chart
     id="cache-runs-chart"
     type={:bar}
-    title={gettext("Cache runs")} 
+    title={gettext("Cache runs")}
     summary_value={gettext("%{runs_count} runs", runs_count: @cache_runs_analytics.runs_count)}
     trend={@cache_runs_analytics.trend}
     trend_positive={@cache_runs_analytics.trend > 0}
   />
-  <.analytics_chart 
+  <.analytics_chart
     id="average-generate-duration-chart"
-    title={gettext("Average generation")} 
-    summary_value={gettext("%{duration} s", duration: Float.round(@generate_duration_analytics.total_average_duration / 1000, 1))}
+    title={gettext("Average generation")}
+    summary_value={
+      gettext("%{duration} s",
+        duration: Float.round(@generate_duration_analytics.total_average_duration / 1000, 1)
+      )
+    }
     trend={@generate_duration_analytics.trend}
     trend_positive={@generate_duration_analytics.trend < 0}
   />
   <.analytics_chart
     id="generate-runs-chart"
     type={:bar}
-    title={gettext("Generate runs")} 
+    title={gettext("Generate runs")}
     summary_value={gettext("%{runs_count} runs", runs_count: @generate_runs_analytics.runs_count)}
     trend={@generate_runs_analytics.trend}
     trend_positive={@generate_runs_analytics.trend > 0}
   />
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts">
+</script>
 <script>
-const averageDurationChart = document.querySelector("#average-duration-chart")
-averageDurationChart.data = {
-  name: "duration",
-  data: <%= raw Jason.encode!(@build_duration_analytics.values) %>,
-  labels: <%= raw Jason.encode!(@build_duration_analytics.dates) %>,
-};
-averageDurationChart.yLabelFormatter = (value) => { return `${(value / 1000).toFixed(1)} s` };
+  const averageDurationChart = document.querySelector("#average-duration-chart")
+  averageDurationChart.data = {
+    name: "duration",
+    data: <%= raw Jason.encode!(@build_duration_analytics.values) %>,
+    labels: <%= raw Jason.encode!(@build_duration_analytics.dates) %>,
+  };
+  averageDurationChart.yLabelFormatter = (value) => { return `${(value / 1000).toFixed(1)} s` };
 
-const buildRunsChart = document.querySelector("#build-runs-chart");
-buildRunsChart.data = {
-  name: "build runs",
-  data: <%= raw Jason.encode!(@build_runs_analytics.values) %>,
-  labels: <%= raw Jason.encode!(@build_runs_analytics.dates) %>,
-};
-buildRunsChart.yLabelFormatter = (value) => { return `${value}` };
+  const buildRunsChart = document.querySelector("#build-runs-chart");
+  buildRunsChart.data = {
+    name: "build runs",
+    data: <%= raw Jason.encode!(@build_runs_analytics.values) %>,
+    labels: <%= raw Jason.encode!(@build_runs_analytics.dates) %>,
+  };
+  buildRunsChart.yLabelFormatter = (value) => { return `${value}` };
 
-const cacheHitRateChart = document.querySelector("#cache-hit-rate-chart")
-cacheHitRateChart.data = {
-  name: "cache hit rate",
-  data: <%= raw Jason.encode!(@cache_hit_rate_analytics.values) %>,
-  labels: <%= raw Jason.encode!(@cache_hit_rate_analytics.dates) %>,
-};
-cacheHitRateChart.yLabelFormatter = (value) => { return `${(value * 100).toFixed(1)} %` }
+  const cacheHitRateChart = document.querySelector("#cache-hit-rate-chart")
+  cacheHitRateChart.data = {
+    name: "cache hit rate",
+    data: <%= raw Jason.encode!(@cache_hit_rate_analytics.values) %>,
+    labels: <%= raw Jason.encode!(@cache_hit_rate_analytics.dates) %>,
+  };
+  cacheHitRateChart.yLabelFormatter = (value) => { return `${(value * 100).toFixed(1)} %` }
 </script>

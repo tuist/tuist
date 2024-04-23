@@ -79,24 +79,33 @@ defmodule TuistCloud.CommandEvents do
     days_diff = Date.diff(end_date, start_date)
 
     date_period = date_period(start_date: start_date, end_date: end_date)
-    previous_command_runs = get_command_runs(
-      name,
-      project_id: project_id,
-      start_date: Date.add(start_date, -days_diff),
-      end_date: start_date,
-      date_period: date_period
-    )
-    command_runs = get_command_runs(
-      name,
-      project_id: project_id,
-      start_date: start_date,
-      end_date: end_date,
-      date_period: date_period
-    )
+
+    previous_command_runs =
+      get_command_runs(
+        name,
+        project_id: project_id,
+        start_date: Date.add(start_date, -days_diff),
+        end_date: start_date,
+        date_period: date_period
+      )
+
+    command_runs =
+      get_command_runs(
+        name,
+        project_id: project_id,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period
+      )
 
     runs_count = Enum.sum(Enum.map(command_runs, & &1.value))
+
     %{
-      trend: get_trend(previous_value: Enum.sum(Enum.map(previous_command_runs, & &1.value)), current_value: runs_count),
+      trend:
+        get_trend(
+          previous_value: Enum.sum(Enum.map(previous_command_runs, & &1.value)),
+          current_value: runs_count
+        ),
       runs_count: Enum.sum(Enum.map(command_runs, & &1.value)),
       values:
         Enum.map(

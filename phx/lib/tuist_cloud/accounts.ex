@@ -253,7 +253,7 @@ defmodule TuistCloud.Accounts do
   end
 
   defp create_customer_when_billing_enabled(name, email) do
-    if Billing.enabled? do
+    if Billing.enabled?() do
       Billing.create_customer(name: name, email: email)
     else
       nil

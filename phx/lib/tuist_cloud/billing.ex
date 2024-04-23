@@ -19,6 +19,6 @@ defmodule TuistCloud.Billing do
   end
 
   def enabled? do
-    Environment.stripe_configured?
+    Environment.stripe_configured?()
   end
 end

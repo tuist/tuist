@@ -90,10 +90,7 @@ defmodule TuistCloudWeb.CoreComponents do
 
   def button(assigns) do
     ~H"""
-    <button
-      class={"button--#{@variant} button--#{@size} #{@class}"}
-      {@rest}
-    >
+    <button class={"button--#{@variant} button--#{@size} #{@class}"} {@rest}>
       <span class={"text--#{@size}"}><%= render_slot(@inner_block) %></span>
       <%= render_slot(@icon) %>
     </button>

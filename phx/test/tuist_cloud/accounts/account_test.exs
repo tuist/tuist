@@ -9,7 +9,8 @@ defmodule TuistCloud.AccountTest do
     Billing
     |> stub(:enabled?, fn -> true end)
 
-    changeset = Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
+    changeset =
+      Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
 
     assert changeset.valid? == false
     assert "can't be blank" in errors_on(changeset).customer_id
@@ -20,7 +21,13 @@ defmodule TuistCloud.AccountTest do
     Billing
     |> stub(:enabled?, fn -> true end)
 
-    changeset = Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1, customer_id: "cus_123"})
+    changeset =
+      Account.create_changeset(%Account{}, %{
+        name: "Test",
+        owner_type: "User",
+        owner_id: 1,
+        customer_id: "cus_123"
+      })
 
     assert changeset.valid? == true
   end
@@ -30,7 +37,8 @@ defmodule TuistCloud.AccountTest do
     Billing
     |> stub(:enabled?, fn -> false end)
 
-    changeset = Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
+    changeset =
+      Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
 
     assert changeset.valid? == true
   end
