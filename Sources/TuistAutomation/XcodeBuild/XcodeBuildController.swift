@@ -196,11 +196,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     public func createXCFramework(
-        arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
+        arguments: [String],
         output: AbsolutePath
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
-        command.append(contentsOf: arguments.flatMap(\.xcodebuildArguments))
+        command.append(contentsOf: arguments)
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
 
