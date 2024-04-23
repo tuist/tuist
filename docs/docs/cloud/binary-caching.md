@@ -71,7 +71,7 @@ The above suggestions are part of the [µFeatures architecture](/guide/scale/ufe
 
 ## Recommended setup
 
-We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch builds build incrementally upon them.
+We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
 
 > [!TIP] CACHE WARMING USES BINARIES
 > The `tuist cache` command also makes use of the binary cache to speed up the warming.
