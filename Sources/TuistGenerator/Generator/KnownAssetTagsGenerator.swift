@@ -36,8 +36,9 @@ final class KnownAssetTagsGenerator: KnownAssetTagsGenerating {
         var assetContentsPaths: Set<Path> = []
         let decoder = JSONDecoder()
         for target in project.targets {
-            for resource in target.resources.resources {
-                guard let children = try? resource.path.path.recursiveChildren() else { continue }
+            let assetCatalogs = target.resources.resources.filter { $0.path.extension == "xcassets" }
+            for assetCatalog in assetCatalogs {
+                guard let children = try? assetCatalog.path.path.recursiveChildren() else { continue }
                 let contents = children.filter { $0.lastComponent == "Contents.json" }
                 for content in contents {
                     assetContentsPaths.insert(content)
