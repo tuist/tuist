@@ -136,11 +136,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
 
-        let content: String = ResourcesProjectMapper.objcHeaderFileContent(
-            targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
-            target: target
-        )
+        let content: String = ResourcesProjectMapper.objcHeaderFileContent(targetName: target.name)
         return (filePath, content.data(using: .utf8))
     }
 
@@ -190,9 +186,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     static func objcHeaderFileContent(
-        targetName: String,
-        bundleName _: String,
-        target _: Target
+        targetName: String
     ) -> String {
         return """
         #import <Foundation/Foundation.h>

@@ -400,7 +400,6 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         verifyObjcBundleAccessor(
             for: target,
             gotTarget: gotTarget,
-            gotProject: gotProject,
             gotSideEffects: gotSideEffects
         )
     }
@@ -420,7 +419,6 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         verifyObjcBundleAccessor(
             for: target,
             gotTarget: gotTarget,
-            gotProject: gotProject,
             gotSideEffects: gotSideEffects
         )
     }
@@ -454,7 +452,6 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     private func verifyObjcBundleAccessor(
         for target: Target,
         gotTarget: Target,
-        gotProject _: Project,
         gotSideEffects: [SideEffectDescriptor]
     ) {
         XCTAssertEqual(
@@ -481,11 +478,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                 FileDescriptor(
                     path: expectedBasePath.appending(component: "TuistBundle+\(target.name).h"),
                     contents: ResourcesProjectMapper
-                        .objcHeaderFileContent(
-                            targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)",
-                            target: target
-                        )
+                        .objcHeaderFileContent(targetName: target.name)
                         .data(using: .utf8)
                 ),
                 FileDescriptor(
