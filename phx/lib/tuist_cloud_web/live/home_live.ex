@@ -47,7 +47,6 @@ defmodule TuistCloudWeb.HomeLive do
     start_date =
       case date_range do
         "last_12_months" -> Date.add(Time.utc_now(), -365)
-        "last_90_days" -> Date.add(Time.utc_now(), -90)
         "last_30_days" -> Date.add(Time.utc_now(), -30)
         "last_7_days" -> Date.add(Time.utc_now(), -7)
       end
@@ -59,6 +58,62 @@ defmodule TuistCloudWeb.HomeLive do
         :build_duration_analytics,
         CommandEvents.get_command_duration_analytics(
           "build",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :build_runs_analytics,
+        CommandEvents.get_command_runs_analytics(
+          "build",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :cache_duration_analytics,
+        CommandEvents.get_command_duration_analytics(
+          "cache",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :cache_runs_analytics,
+        CommandEvents.get_command_runs_analytics(
+          "cache",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :test_duration_analytics,
+        CommandEvents.get_command_duration_analytics(
+          "test",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :test_runs_analytics,
+        CommandEvents.get_command_runs_analytics(
+          "test",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :generate_duration_analytics,
+        CommandEvents.get_command_duration_analytics(
+          "generate",
+          project_id: project.id,
+          start_date: start_date
+        )
+      )
+      |> assign(
+        :generate_runs_analytics,
+        CommandEvents.get_command_runs_analytics(
+          "generate",
           project_id: project.id,
           start_date: start_date
         )
@@ -87,5 +142,35 @@ defmodule TuistCloudWeb.HomeLive do
 
   def current_account(user) do
     user |> TuistCloud.Accounts.get_account_from_user()
+  end
+
+  attr :id, :string, required: true
+  attr :trend, :float, required: true
+  attr :trend_positive, :boolean, required: true
+  attr :summary_value, :string, required: true
+  attr :title, :string, required: true
+  attr :type, :atom, default: :area
+  def analytics_chart(assigns) do
+    ~H"""
+    <div class="analytics-section">
+      <div class="analytics-section__header">
+        <p class="text-sm font--medium"><%= @title %></p>
+        <div class="analytics-section__header__highlight">
+          <h4 class="text--semibold color--text-primary"><%= @summary_value %></h4>
+          <%= if @trend != 0 do %>
+          <div class={"analytics-section__header__change analytics-section__header__change--#{if @trend_positive do "positive" else "negative" end}"}>
+              <%= if @trend < 0 do %>
+              <.trend_down />
+              <% else %>
+              <.trend_up />
+              <% end %>
+              <span class="text--medium font--medium"><%= abs(Float.round(@trend, 1)) %> %</span>
+          </div>
+          <% end %>
+        </div>
+      </div>
+      <chart-l id={@id} type={@type}></chart-l>
+    </div>
+    """
   end
 end

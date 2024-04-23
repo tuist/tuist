@@ -46,7 +46,7 @@ defmodule TuistCloud.CommandEvents do
         date_period: date_period
       )
 
-    sorted_average_durations =  Enum.sort(Map.values(average_durations), &(&1.date >= &2.date))
+    sorted_average_durations = Enum.sort(Map.values(average_durations), &(&1.date >= &2.date))
 
     %{
       trend:
@@ -70,6 +70,79 @@ defmodule TuistCloud.CommandEvents do
           & &1.value
         )
     }
+  end
+
+  def get_command_runs_analytics(name, opts) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+    days_diff = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    previous_command_runs = get_command_runs(
+      name,
+      project_id: project_id,
+      start_date: Date.add(start_date, -days_diff),
+      end_date: start_date,
+      date_period: date_period
+    )
+    command_runs = get_command_runs(
+      name,
+      project_id: project_id,
+      start_date: start_date,
+      end_date: end_date,
+      date_period: date_period
+    )
+
+    runs_count = Enum.sum(Enum.map(command_runs, & &1.value))
+    %{
+      trend: get_trend(previous_value: Enum.sum(Enum.map(previous_command_runs, & &1.value)), current_value: runs_count),
+      runs_count: Enum.sum(Enum.map(command_runs, & &1.value)),
+      values:
+        Enum.map(
+          command_runs,
+          & &1.value
+        ),
+      dates:
+        get_formatted_dates(
+          Enum.map(
+            command_runs,
+            & &1.date
+          ),
+          date_period
+        )
+    }
+  end
+
+  defp get_command_runs(name, opts) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+    date_period = opts |> Keyword.get(:date_period)
+
+    command_events =
+      get_command_events(project_id, name: name, start_date: start_date, end_date: end_date)
+
+    command_events_grouped =
+      command_events_grouped_by_date(command_events, date_period: date_period)
+
+    command_events_with_all_dates =
+      Map.new(
+        date_range_for_date_period(date_period, start_date: start_date, end_date: end_date),
+        fn date ->
+          command_event_average = command_events_grouped[date]
+
+          case command_event_average do
+            nil -> {date, %{date: date, value: 0}}
+            runs -> {date, %{date: date, value: length(runs)}}
+          end
+        end
+      )
+
+    Enum.sort(
+      Map.values(command_events_with_all_dates),
+      &(&1.date >= &2.date)
+    )
   end
 
   @doc """
@@ -153,16 +226,7 @@ defmodule TuistCloud.CommandEvents do
       end)
 
     Map.new(
-      Date.range(start_date, end_date)
-      |> Enum.filter(fn date ->
-        case date_period do
-          :month ->
-            date.day == 1
-
-          :day ->
-            true
-        end
-      end),
+      date_range_for_date_period(date_period, start_date: start_date, end_date: end_date),
       fn date ->
         command_event_average = command_event_averages[date]
 
@@ -204,7 +268,7 @@ defmodule TuistCloud.CommandEvents do
         date_period: date_period
       )
 
-    sorted_cache_hit_rates =  Enum.sort(Map.values(cache_hit_rates), &(&1.date >= &2.date))
+    sorted_cache_hit_rates = Enum.sort(Map.values(cache_hit_rates), &(&1.date >= &2.date))
 
     %{
       trend:
@@ -381,15 +445,31 @@ defmodule TuistCloud.CommandEvents do
     end)
   end
 
+  defp date_range_for_date_period(date_period, opts) do
+    start_date = opts |> Keyword.get(:start_date)
+    end_date = opts |> Keyword.get(:end_date)
+
+    Date.range(start_date, end_date)
+    |> Enum.filter(fn date ->
+      case date_period do
+        :month ->
+          date.day == 1
+
+        :day ->
+          true
+      end
+    end)
+  end
+
   defp date_period(opts) do
     start_date = opts |> Keyword.get(:start_date)
     end_date = opts |> Keyword.get(:end_date)
     days_delta = Date.diff(end_date, start_date)
 
     if days_delta >= 60 do
-        :month
+      :month
     else
-        :day
+      :day
     end
   end
 

@@ -27,7 +27,7 @@ class ChartComponent extends HTMLElement {
       series: [this.data],
       chart: {
         height: '400px',
-        type: 'area',
+        type: this.type,
         toolbar: {
           show: false,
         },
@@ -41,7 +41,6 @@ class ChartComponent extends HTMLElement {
       },
       fill: {
         colors: [cssvar('--utility-brand-600')],
-        type: 'gradient',
         gradient: {
           shade: 'dark',
           type: 'vertical',
@@ -53,6 +52,9 @@ class ChartComponent extends HTMLElement {
       },
       grid: {
         borderColor: cssvar('--border-tertiary'),
+      },
+      tooltip: {
+        intersect: false,
       },
       xaxis: {
         categories: this.data.labels,
@@ -104,6 +106,14 @@ class ChartComponent extends HTMLElement {
 
   set yLabelFormatter(val) {
     return this.setAttribute(val);
+  }
+
+  get type() {
+    return this.getAttribute('type') || 'area';
+  }
+
+  set type(val) {
+    return this.setAttribute('type', val);
   }
 }
 
