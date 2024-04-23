@@ -82,7 +82,7 @@ The following are some examples of common workflows:
 
 1. They create a new branch from `main`.
 2. They run `tuist generate`.
-3. Tuist the most recent binaries from `main` and generates the project with them.
+3. Tuist pulls the most recent binaries from `main` and generates the project with them.
 
 ### A developer pushes changes upstream
 
