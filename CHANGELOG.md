@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.10.2 - 2024-04-23
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.10.1 - 2024-04-22
 
 ### Tuist
