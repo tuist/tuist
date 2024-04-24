@@ -32,6 +32,7 @@ defmodule TuistCloudWeb.Router do
 
   pipeline :on_premise_api do
     plug TuistCloudWeb.OnPremiseLicensePlug, :api
+    plug TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlug
   end
 
   scope "/" do

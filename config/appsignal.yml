@@ -17,6 +17,8 @@ default: &defaults
     - SERVER_PORT
     - SERVER_PROTOCOL
     - HTTP_X_REQUEST_ID
+    - HTTP_TUIST_CLOUD_CLI_VERSION
+    - HTTP_TUIST_CLOUD_CLI_RELEASE_DATE
 
   # Actions that should not be monitored by AppSignal
   # ignore_actions:

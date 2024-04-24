@@ -129,7 +129,14 @@ if !TuistCloud.Environment.on_premise?() do
     name: appsignal_name,
     push_api_key: TuistCloud.Environment.app_signal_push_api_key(secrets),
     env: env,
-    active: [:prod, :stag, :can] |> Enum.member?(env)
+    active: [:prod, :stag, :can] |> Enum.member?(env),
+    request_headers: ~w(
+      accept accept-charset accept-encoding accept-language cache-control
+      connection content-length path-info range request-method
+      request-uri server-name server-port server-protocol
+      x-request-id
+      x-tuist-cloud-cli-version x-tuist-cloud-cli-release-date
+    )
 else
   config :appsignal, :config,
     otp_app: :tuist_cloud,
