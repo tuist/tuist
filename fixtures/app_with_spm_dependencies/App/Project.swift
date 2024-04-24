@@ -16,6 +16,8 @@ let project = Project(
                 .target(name: "AppKit"),
                 .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
                 .external(name: "Styles"),
+                .external(name: "BrazeKit"),
+                .external(name: "BrazeUI"),
             ],
             settings: .targetSettings
         ),

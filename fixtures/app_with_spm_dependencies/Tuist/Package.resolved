@@ -1,5 +1,5 @@
 {
-  "originHash" : "d97ce5778061e5c442f34dc995c6b958648d4f6c778b322c7334b33b5231fd13",
+  "originHash" : "78f7dd0ebfab47739cc0e35c49d4996c86d420124374e3f4789e90b5a00daa6a",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "1120c26835925f8314d035127c580bc71689c620",
         "version" : "5.0.4"
+      }
+    },
+    {
+      "identity" : "braze-swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/braze-inc/braze-swift-sdk.git",
+      "state" : {
+        "revision" : "f893978502a08b02124d2d15c6117eb1a06b7f6f",
+        "version" : "8.4.0"
       }
     },
     {
@@ -179,6 +188,15 @@
       "state" : {
         "revision" : "eafdd3720a8cc750bdd38bf776082d2c8cf743fc",
         "version" : "10.46.0"
+      }
+    },
+    {
+      "identity" : "sdwebimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SDWebImage/SDWebImage.git",
+      "state" : {
+        "revision" : "f6afa0132961d593f07970d84e2d8b588c29ea04",
+        "version" : "5.19.1"
       }
     },
     {

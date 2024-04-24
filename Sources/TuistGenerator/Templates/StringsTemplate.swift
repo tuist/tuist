@@ -83,7 +83,7 @@ extension SynthesizedResourceInterfaceTemplates {
         {% if param.lookupFunction %}
         let format = {{ param.lookupFunction }}(key, table)
         {% else %}
-        let format = {{bundleToken}}.bundle.localizedString(forKey: key, value: nil, table: table)
+        let format = Bundle.module.localizedString(forKey: key, value: nil, table: table)
         {% endif %}
         return String(format: format, locale: Locale.current, arguments: args)
       }
