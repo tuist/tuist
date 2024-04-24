@@ -525,6 +525,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/isavynskyi"><img src="https://avatars.githubusercontent.com/u/18377497?v=4" width="100px;" alt=""/><br /><sub><b>Ihor Savynskyi</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kapitoshka438"><img src="https://avatars.githubusercontent.com/u/3232401?v=4" width="100px;" alt=""/><br /><sub><b>Eduard Miniakhmetov</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/alexfilimon"><img src="https://avatars.githubusercontent.com/u/19904867?v=4" width="100px;" alt=""/><br /><sub><b>Alexander Filimonov</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 
