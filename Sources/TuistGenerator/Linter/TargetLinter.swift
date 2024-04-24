@@ -295,10 +295,9 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintOnDemandResourcesTags(target: Target) -> [LintingIssue] {
-        guard let odrTags = target.onDemandResourcesTags else { return [] }
-        guard let initialInstall = odrTags.initialInstall, let prefetchOrder = odrTags.prefetchOrder else {
-            return []
-        }
+        guard let onDemandResourcesTags = target.onDemandResourcesTags else { return [] }
+        guard let initialInstall = onDemandResourcesTags.initialInstall else { return [] }
+        guard let prefetchOrder = onDemandResourcesTags.prefetchOrder else { return [] }
         let intersection = Set(initialInstall).intersection(Set(prefetchOrder))
         return intersection.map { tag in
             LintingIssue(

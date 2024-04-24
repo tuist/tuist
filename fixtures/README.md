@@ -157,6 +157,13 @@ An iOS application with local Swift package.
 
 An workspace that contains an application and frameworks that leverage multiple configurations (Debug, Beta and Release) each of which also has an associated xcconfig file within `ConfigurationFiles`.
 
+## ios_app_with_on_demand_resources
+
+An iOS applicaiton with on-demand resources. It contains file resources and asset catalogs associated with tags which in turn are distributed between three categories:
+- Initial install tags
+- Prefetch tag order
+- Dowloaded only on demand
+
 ## ios_app_with_remote_swift_package
 
 An iOS application with remote Swift package.

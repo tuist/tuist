@@ -20,7 +20,7 @@ let project = Project(
                 .glob(pattern: "AppWithOnDemandResources/on-demand-data.txt", tags: ["datafile"]),
             ],
             dependencies: [],
-            onDemandResourcesTags: .init(
+            onDemandResourcesTags: .tags(
                 initialInstall: ["json", "data file"],
                 prefetchOrder: ["image-stack", "image", "tag with space"]
             )

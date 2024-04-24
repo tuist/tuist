@@ -54,8 +54,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     /// Generator for the project schemes.
     let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
 
-    /// Generator for the project known asset tags associated with on-demand resources.
-    let knownAssetTagsGenerator: KnownAssetTagsGenerating
+    /// Fetcher for the project known asset tags associated with on-demand resources.
+    let knownAssetTagsFetcher: KnownAssetTagsFetching
 
     // MARK: - Init
 
@@ -65,17 +65,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemeDescriptorsGenerator: Generator for the project schemes.
-    ///   - knownAssetTagsGenerator: Generator for the project known asset tags associated with on-demand resources.
+    ///   - knownAssetTagsFetcher: Fetcher for the project known asset tags associated with on-demand resources.
     init(
         targetGenerator: TargetGenerating = TargetGenerator(),
         configGenerator: ConfigGenerating = ConfigGenerator(),
         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator(),
-        knownAssetTagsGenerator: KnownAssetTagsGenerating = KnownAssetTagsGenerator()
+        knownAssetTagsFetcher: KnownAssetTagsFetching = KnownAssetTagsFetcher()
     ) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
-        self.knownAssetTagsGenerator = knownAssetTagsGenerator
+        self.knownAssetTagsFetcher = knownAssetTagsFetcher
     }
 
     // MARK: - ProjectGenerating
@@ -302,7 +302,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         var attributes: [String: Any] = [:]
 
         // On Demand Resources tags
-        if let knownAssetTags = try? knownAssetTagsGenerator.generate(project: project), !knownAssetTags.isEmpty {
+        if let knownAssetTags = try? knownAssetTagsFetcher.fetch(project: project), !knownAssetTags.isEmpty {
             attributes["KnownAssetTags"] = knownAssetTags
         }
 

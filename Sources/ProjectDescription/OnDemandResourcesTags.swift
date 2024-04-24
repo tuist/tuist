@@ -5,8 +5,11 @@ public struct OnDemandResourcesTags: Codable, Equatable {
     /// Prefetched tag order associated with on demand resources
     public let prefetchOrder: [String]?
 
-    public init(initialInstall: [String]?, prefetchOrder: [String]?) {
-        self.initialInstall = initialInstall
-        self.prefetchOrder = prefetchOrder
+    /// Returns OnDemandResourcesTags.
+    /// - Parameter initialInstall: An array of strings that lists the tags assosiated with the Initial install tags category.
+    /// - Parameter prefetchOrder: An array of strings that lists the tags associated with the Prefetch tag order category.
+    /// - Returns: OnDemandResourcesTags.
+    public static func tags(initialInstall: [String]?, prefetchOrder: [String]?) -> Self {
+        OnDemandResourcesTags(initialInstall: initialInstall, prefetchOrder: prefetchOrder)
     }
 }
