@@ -12,6 +12,9 @@ As we advanced towards enhancing productivity, it became evident that **certain 
 
 Tuist Cloud, a closed-source paid service, enhances Tuist by adding server-requisite functionalities. Integration of Tuist projects with Tuist Cloud not only augments existing functionalities but also introduces new ones. This service encapsulates years of experience in developing tools for mobile developers at [Shopify](https://shopify.com) (e.g., [Mobile Tophat](https://shopify.engineering/mobile-tophatting-at-shopify-1), [Mobile Release Engineering at Scale](https://shopify.engineering/mobile-release-engineering-scale-shipit-mobile), [Scaling iOS CI with Anka](https://shopify.engineering/scaling-ios-ci-with-anka)) and is envisioned as **the copilot for your platform teams**. Our objective is to help organizations cultivate a productive development environment.
 
+> [!IMPORTANT] PROJECT ONBOARDING
+> Due to [Xcode's default to convenience](/guide/introduction/cost-of-convenience) your project might contain implicit configurations that can prevent some Tuist Cloud features from working as expected, and therefore require manual adjustments.
+
 ## Sustainability
 
 Similar to many other open-source projects, Tuist also necessitated full-time dedicated personnel to adequately meet the demand for support and feature requests. Tuist Cloud plays a crucial role in fulfilling this requirement by enabling the financing of full-time personnel for the project.

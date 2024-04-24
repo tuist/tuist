@@ -560,6 +560,17 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
                 resource: resource
             )
         }
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                fixturePath.appending(
+                    components: [
+                        "Derived",
+                        "Sources",
+                        "TuistCoreData+App.swift",
+                    ]
+                )
+            )
+        )
     }
 }
 

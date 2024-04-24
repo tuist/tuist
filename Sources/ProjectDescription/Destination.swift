@@ -39,7 +39,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case appleTv
     /// visionOS support
     case appleVision
-    /// visionOS support useing iPad design
+    /// visionOS support using iPad design
     case appleVisionWithiPadDesign
 
     /// SDK Platform of a destination
