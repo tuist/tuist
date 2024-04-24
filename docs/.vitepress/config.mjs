@@ -142,14 +142,6 @@ const guideSidebar = [
       },
     ],
   },
-  {
-    text: "Extensions",
-    items: [
-      { text: "Tasks", link: "/guide/extensions/tasks" },
-      { text: "Templates" },
-      { text: "Resource synthesizers" },
-    ],
-  },
 ];
 
 // https://vitepress.dev/reference/site-config
