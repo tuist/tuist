@@ -422,6 +422,24 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             gotSideEffects: gotSideEffects
         )
     }
+    
+    func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name() throws {
+        // Given
+        let projectName = "sdk-with-dash"
+        let targetName = "target-with-dash"
+        let expectedBundleName = "\(projectName)_\(targetName.replacingOccurrences(of: "-", with: "_"))"
+        let sources: [SourceFile] = ["/ViewController.m", "/ViewController2.swift"]
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), name: projectName, targets: [target])
+
+        // Got
+        let (gotProject, _) = try subject.map(project: project)
+        let bundleTarget = try XCTUnwrap(gotProject.targets.first(where: { $0.product == .bundle }))
+        
+        // Then
+        XCTAssertEqual(expectedBundleName, bundleTarget.name)
+    }
 
     // MARK: - Verifiers
 
