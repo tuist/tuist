@@ -70,7 +70,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
-        guard !target.resources.resources.isEmpty, target.supportsSources else { return (target, []) }
+        let resourcesForSynthesizersPaths = target.resources.resources
+            .map(\.path) + target.coreDataModels.map(\.path)
+        guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
         var target = target
 
@@ -153,7 +155,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources.resources
-            .map(\.path)
+            .map(\.path) + target.coreDataModels.map(\.path)
 
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }

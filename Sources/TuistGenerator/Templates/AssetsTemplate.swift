@@ -131,7 +131,7 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 11.3, *)
     {{accessModifier}} extension ARReferenceImage {
       static func referenceImages(in asset: {{arResourceGroupType}}) -> Set<ARReferenceImage> {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         return referenceImages(inGroupNamed: asset.name, bundle: bundle) ?? Set()
       }
     }
@@ -139,7 +139,7 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 12.0, *)
     {{accessModifier}} extension ARReferenceObject {
       static func referenceObjects(in asset: {{arResourceGroupType}}) -> Set<ARReferenceObject> {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         return referenceObjects(inGroupNamed: asset.name, bundle: bundle) ?? Set()
       }
     }
@@ -189,7 +189,7 @@ extension SynthesizedResourceInterfaceTemplates {
     {{accessModifier}} extension {{colorType}}.Color {
       @available(iOS 11.0, tvOS 11.0, watchOS 4.0, macOS 10.13, visionOS 1.0, *)
       convenience init?(asset: {{colorType}}) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         #if os(iOS) || os(tvOS) || os(visionOS)
         self.init(named: asset.name, in: bundle, compatibleWith: nil)
         #elseif os(macOS)
@@ -204,7 +204,7 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, visionOS 1.0, *)
     {{accessModifier}} extension SwiftUI.Color {
       init(asset: {{colorType}}) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         self.init(asset.name, bundle: bundle)
       }
     }
@@ -230,7 +230,7 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 9.0, macOS 10.11, visionOS 1.0, *)
     {{accessModifier}} extension NSDataAsset {
       convenience init?(asset: {{dataType}}) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         #if os(iOS) || os(tvOS) || os(visionOS)
         self.init(name: asset.name, bundle: bundle)
         #elseif os(macOS)
@@ -252,7 +252,7 @@ extension SynthesizedResourceInterfaceTemplates {
       #endif
 
       {{accessModifier}} var image: Image {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         #if os(iOS) || os(tvOS) || os(visionOS)
         let image = Image(named: name, in: bundle, compatibleWith: nil)
         #elseif os(macOS)
@@ -278,17 +278,17 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, visionOS 1.0, *)
     {{accessModifier}} extension SwiftUI.Image {
       init(asset: {{imageType}}) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         self.init(asset.name, bundle: bundle)
       }
 
       init(asset: {{imageType}}, label: Text) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         self.init(asset.name, bundle: bundle, label: label)
       }
 
       init(decorative asset: {{imageType}}) {
-        let bundle = {{bundleToken}}.bundle
+        let bundle = Bundle.module
         self.init(decorative: asset.name, bundle: bundle)
       }
     }

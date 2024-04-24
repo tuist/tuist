@@ -1,0 +1,10 @@
+import CoreData
+import Foundation
+
+{% for model in models %}
+{% for name, entity in model.entities %}
+@objc({{ entity.className }})
+public final class {{ entity.className }}: NSManagedObject {
+}
+{% endfor %}
+{% endfor %}
