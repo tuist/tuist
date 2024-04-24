@@ -13,7 +13,7 @@ defmodule TuistCloud.ProjectsTest do
     project = ProjectsFixtures.project_fixture(name: "tuist-project", account_id: account.id)
 
     # When
-    got = Projects.get_project_by_slug("tuist/tuist-project")
+    {:ok, got} = Projects.get_project_by_slug("tuist/tuist-project")
 
     # Then
     assert got == project
@@ -41,5 +41,9 @@ defmodule TuistCloud.ProjectsTest do
                project: project
              }
            ] == got
+  end
+
+  test "returns missing handle or project name" do
+    assert {:error, :missing_handle_or_project_name} == Projects.get_project_by_slug("tuist")
   end
 end

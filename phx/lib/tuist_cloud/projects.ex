@@ -29,10 +29,19 @@ defmodule TuistCloud.Projects do
   end
 
   def get_project_by_slug(slug) do
-    [account_name, project_name] = String.split(slug, "/")
+    if String.contains?(slug, "/") do
+      [account_name, project_name] = String.split(slug, "/")
 
-    project = get_project_by_account_and_project_name(account_name, project_name)
-    project
+      project = get_project_by_account_and_project_name(account_name, project_name)
+
+      if is_nil(project) do
+        {:error, :not_found}
+      else
+        {:ok, project}
+      end
+    else
+      {:error, :missing_handle_or_project_name}
+    end
   end
 
   def get_project_slug_from_id(id) do
@@ -69,11 +78,6 @@ defmodule TuistCloud.Projects do
     end)
   end
 
-  @spec create_project(%{
-          :account => %{:id => any(), optional(any()) => any()},
-          :name => any(),
-          optional(any()) => any()
-        }) :: any()
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_authentication_token())
 

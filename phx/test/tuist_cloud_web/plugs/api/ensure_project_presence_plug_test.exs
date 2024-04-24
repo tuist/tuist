@@ -29,6 +29,23 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlugTest do
 
     # Then
     assert conn.halted == true
-    assert json_response(conn, 404) == %{"message" => "The project was not found"}
+    assert json_response(conn, 404) == %{"message" => "The project non/existing was not found."}
+  end
+
+  test "errors and halts the connection if the project id is invalid" do
+    # Given
+    opts = EnsureProjectPresencePlug.init([])
+    conn = build_conn(:get, ~p"/api/cache", project_id: "only-project-name")
+
+    # When
+    conn = conn |> EnsureProjectPresencePlug.call(opts)
+
+    # Then
+    assert conn.halted == true
+
+    assert json_response(conn, 401) == %{
+             "message" =>
+               "The project id \"only-project-name\" is missing either organization/user name or a project name. Make sure it's in the format of organization-name/project-name."
+           }
   end
 end

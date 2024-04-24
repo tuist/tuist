@@ -25,15 +25,24 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
         %{query_params: %{"project_id" => project_slug}} = conn,
         _opts
       ) do
-    project = Projects.get_project_by_slug(project_slug)
+    case Projects.get_project_by_slug(project_slug) do
+      {:ok, project} ->
+        conn |> assign(@project_key, project)
 
-    if project do
-      conn |> assign(@project_key, project)
-    else
-      conn
-      |> put_status(404)
-      |> json(%{message: "The project was not found"})
-      |> halt()
+      {:error, :not_found} ->
+        conn
+        |> put_status(404)
+        |> json(%{message: "The project #{project_slug} was not found."})
+        |> halt()
+
+      {:error, :missing_handle_or_project_name} ->
+        conn
+        |> put_status(401)
+        |> json(%{
+          message:
+            "The project id \"#{project_slug}\" is missing either organization/user name or a project name. Make sure it's in the format of organization-name/project-name."
+        })
+        |> halt()
     end
   end
 end
