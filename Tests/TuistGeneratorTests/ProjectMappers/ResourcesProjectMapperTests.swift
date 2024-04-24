@@ -422,8 +422,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             gotSideEffects: gotSideEffects
         )
     }
-    
-    func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name() throws {
+
+    func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name(
+    ) throws {
         // Given
         let projectName = "sdk-with-dash"
         let targetName = "target-with-dash"
@@ -436,7 +437,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Got
         let (gotProject, _) = try subject.map(project: project)
         let bundleTarget = try XCTUnwrap(gotProject.targets.first(where: { $0.product == .bundle }))
-        
+
         // Then
         XCTAssertEqual(expectedBundleName, bundleTarget.name)
     }
