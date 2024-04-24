@@ -199,7 +199,7 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
-/documentation/tuist/* /reference/project-description/:splat 301
+/documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
   },
