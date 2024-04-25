@@ -36,7 +36,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
-        let bundleName = "\(project.name)_\(target.name)"
+        let bundleName = "\(project.name)_\(target.name.replacingOccurrences(of: "-", with: "_"))"
         var modifiedTarget = target
 
         if !target.supportsResources {
@@ -126,7 +126,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            bundleName: bundleName,
             target: target,
             in: project
         )
@@ -149,7 +149,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
-            bundleName: bundleName.replacingOccurrences(of: "-", with: "_")
+            bundleName: bundleName
         )
         return (filePath, content.data(using: .utf8))
     }
