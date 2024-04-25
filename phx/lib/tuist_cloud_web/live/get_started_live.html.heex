@@ -1,0 +1,85 @@
+<link phx-track-static rel="stylesheet" href={~p"/v2/css/get_started.css"} />
+
+<.stack class="get-started__page" gap="4xl">
+  <.decorative_background class="get-started__page__background" />
+  <.stack class="get-started__page__user-info" direction="horizontal">
+    <div class="spacer"></div>
+    <.stack class="get-started__page__user-info__titles" gap="none">
+      <p class="text--small font--semibold color--text-secondary"><%= @current_account.name %></p>
+      <p class="text--extraSmall font--semibold color--text-tertiary">
+        <%= @current_user.email %>
+      </p>
+    </.stack>
+    <button class="button--sm button--tertiary button--icon-only">
+      <.link href={~p"/v2/users/log_out"} method="delete"><.log_out /></.link>
+    </button>
+  </.stack>
+  <.stack class="get-started__page__header" gap="3xl">
+    <img
+      class="get-started__page__header__logo"
+      src="/v2/images/tuist_logo_32x32@2x.png"
+      alt="Tuist Cloud Icon"
+    />
+    <.stack gap="lg">
+      <h5 class="get-started__page__header__title font--semibold color--text-primary">
+        <%= gettext("Welcome to Tuist Cloud!") %>
+      </h5>
+      <p class="get-started__page__header__text text--medium color--text-tertiary">
+        <%= gettext("Let's get you started.") %>
+      </p>
+    </.stack>
+  </.stack>
+
+  <.card>
+    <.stack gap="2xl">
+      <.stack gap="l">
+        <.section_header title={gettext("Connect Tuist Cloud")} />
+        <p class="text--medium color--text-tertiary">
+          <%= gettext("To set up Tuist Cloud in your Tuist project is run:") %>
+        </p>
+      </.stack>
+      <code>
+        <span class="code-comment"># Initialize Tuist Cloud in your project</span> <br />
+        <span class="text-green-500 select-none">$&nbsp;</span><span class="code-executable">tuist&nbsp;</span>cloud init
+      </code>
+      <.stack gap="l">
+        <.section_header title={gettext("Connect Tuist Cloud")} />
+        <p class="text--medium color--text-tertiary">
+          <%= gettext(
+            "If you have a Tuist Cloud project, run the following command to connect to Tuist Cloud:"
+          ) %>
+        </p>
+      </.stack>
+      <code>
+        <span class="code-comment"># Authenticate with Tuist Cloud</span> <br />
+        <span class="text-green-500 select-none">$&nbsp;</span><span class="code-executable">tuist&nbsp;</span>cloud auth
+      </code>
+    </.stack>
+  </.card>
+  <.stack direction="horizontal" gap="4xl" class="get-started__page__more-cards">
+    <.more_card
+      title={gettext("Documentation")}
+      subtitle={gettext("Dive in to learn more about Tuist and Tuist Cloud.")}
+      link="https://docs.tuist.io/cloud/what-is-cloud.html"
+      link_text={gettext("Start learning")}
+    >
+      <:icon><.code /></:icon>
+    </.more_card>
+    <.more_card
+      title={gettext("Our blog")}
+      subtitle={gettext("Read the latest posts on our blog.")}
+      link="https://tuist.io/blog"
+      link_text={gettext("View latest posts")}
+    >
+      <:icon><.book_open /></:icon>
+    </.more_card>
+    <.more_card
+      title={gettext("Chat to us")}
+      subtitle={gettext("Can’t find what you’re looking for?.")}
+      link="https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw"
+      link_text={gettext("Join our Slack")}
+    >
+      <:icon><.message_chat /></:icon>
+    </.more_card>
+  </.stack>
+</.stack>

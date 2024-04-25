@@ -85,6 +85,7 @@ defmodule TuistCloudWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import TuistCloudWeb.CoreComponents
+      import TuistCloudWeb.AuthComponents
       import TuistCloudWeb.Components.Icons
       import TuistCloudWeb.Gettext
 

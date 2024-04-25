@@ -21,6 +21,36 @@ defmodule TuistCloudWeb.CoreComponents do
   import TuistCloudWeb.Components.Icons
 
   @doc """
+  Renders a section header
+  """
+
+  attr(:class, :string, default: "")
+  attr(:title, :string, required: true)
+
+  def section_header(assigns) do
+    ~H"""
+    <div class="section-header">
+      <p class="text--large color--text-primary font--semibold"><%= @title %></p>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a card component
+  """
+
+  attr(:class, :string, default: "")
+  slot(:inner_block, required: true)
+
+  def card(assigns) do
+    ~H"""
+    <div class={"card #{@class}"}>
+      <%= render_slot(@inner_block) %>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a stack component
   """
 
@@ -31,7 +61,7 @@ defmodule TuistCloudWeb.CoreComponents do
 
   def stack(assigns) do
     ~H"""
-    <div class={"stack stack--#{@direction} stack--#{@gap} #{@class}"}>
+    <div class={"stack stack--#{@direction} stack--#{@direction}--#{@gap} #{@class}"}>
       <%= render_slot(@inner_block) %>
     </div>
     """
@@ -91,8 +121,27 @@ defmodule TuistCloudWeb.CoreComponents do
   def button(assigns) do
     ~H"""
     <button class={"button--#{@variant} button--#{@size} #{@class}"} {@rest}>
-      <span class={"text--#{@size}"}><%= render_slot(@inner_block) %></span>
+      <span class={"text--#{@size} font--semibold"}><%= render_slot(@inner_block) %></span>
       <%= render_slot(@icon) %>
+    </button>
+    """
+  end
+
+  @doc """
+  Renders a social button
+  """
+
+  attr(:rest, :global, include: ~w(disabled form name value))
+  slot(:inner_block, required: false)
+  slot(:icon, required: true)
+
+  def social_button(assigns) do
+    ~H"""
+    <button class="social-button" class="auth-form__primary-action">
+      <.stack direction="horizontal" gap="lg">
+        <%= render_slot(@icon) %>
+        <span class="text--medium font--semibold"><%= render_slot(@inner_block) %></span>
+      </.stack>
     </button>
     """
   end
@@ -203,6 +252,22 @@ defmodule TuistCloudWeb.CoreComponents do
     """
   end
 
+  attr :kind, :atom, values: [:info, :error], doc: "the kind of badge"
+  attr :title, :string, required: true, doc: "the title of the badge"
+  attr :message, :string, required: true, doc: "the message of the badge"
+
+  def badge_group(assigns) do
+    ~H"""
+    <button class={"badge badge--#{@kind}"}>
+      <.stack class="text--extraSmall font--medium" direction="horizontal" gap="xs">
+        <span class="badge__type"><%= @title %></span>
+        <span class="badge__text"><%= @message %></span>
+        <.close />
+      </.stack>
+    </button>
+    """
+  end
+
   @doc """
   Renders flash notices.
 
@@ -228,22 +293,9 @@ defmodule TuistCloudWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class={[
-        "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
-        @kind == :info && "bg-emerald-50 text-emerald-800 ring-emerald-500 fill-cyan-900",
-        @kind == :error && "bg-rose-50 text-rose-900 shadow-md ring-rose-500 fill-rose-900"
-      ]}
       {@rest}
     >
-      <p :if={@title} class="flex items-center gap-1.5 text-sm font-semibold leading-6">
-        <.icon :if={@kind == :info} name="hero-information-circle-mini" class="h-4 w-4" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle-mini" class="h-4 w-4" />
-        <%= @title %>
-      </p>
-      <p class="mt-2 text-sm leading-5"><%= msg %></p>
-      <button type="button" class="group absolute top-1 right-1 p-2" aria-label={gettext("close")}>
-        <.icon name="hero-x-mark-solid" class="h-5 w-5 opacity-40 group-hover:opacity-70" />
-      </button>
+      <.badge_group kind={@kind} title={@title} message={msg} />
     </div>
     """
   end
@@ -256,25 +308,13 @@ defmodule TuistCloudWeb.CoreComponents do
       <.flash_group flash={@flash} />
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id}>
-      <.flash kind={:info} title={gettext("Success!")} flash={@flash} />
-      <.flash kind={:error} title={gettext("Error!")} flash={@flash} />
-      <.flash
-        id="client-error"
-        kind={:error}
-        title={gettext("We can't find the internet")}
-        phx-disconnected={show(".phx-client-error #client-error")}
-        phx-connected={hide("#client-error")}
-        hidden
-      >
-        <%= gettext("Attempting to reconnect") %>
-        <.icon name="hero-arrow-path" class="ml-1 h-3 w-3 animate-spin" />
-      </.flash>
-    </div>
+    <.stack class="flash-group">
+      <.flash kind={:info} title={gettext("Info")} flash={@flash} />
+      <.flash kind={:error} title={gettext("Error")} flash={@flash} />
+    </.stack>
     """
   end
 
@@ -380,18 +420,10 @@ defmodule TuistCloudWeb.CoreComponents do
       end)
 
     ~H"""
-    <div phx-feedback-for={@name}>
-      <label class="flex items-center gap-4 text-sm leading-6 text-zinc-600">
+    <div phx-feedback-for={@name} class="checkbox-container">
+      <label class="checkbox-container__label text--small font--medium color--text-secondary">
         <input type="hidden" name={@name} value="false" />
-        <input
-          type="checkbox"
-          id={@id}
-          name={@name}
-          value="true"
-          checked={@checked}
-          class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
-          {@rest}
-        />
+        <input type="checkbox" id={@id} name={@name} value="true" checked={@checked} {@rest} />
         <%= @label %>
       </label>
       <.error :for={msg <- @errors}><%= msg %></.error>
@@ -441,7 +473,7 @@ defmodule TuistCloudWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div phx-feedback-for={@name}>
+    <.stack gap="sm">
       <.label for={@id}><%= @label %></.label>
       <input
         type={@type}
@@ -449,15 +481,15 @@ defmodule TuistCloudWeb.CoreComponents do
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
-          "mt-2 block w-full rounded-lg text-zinc-900 focus:ring-0 sm:text-sm sm:leading-6",
-          "phx-no-feedback:border-zinc-300 phx-no-feedback:focus:border-zinc-400",
-          @errors == [] && "border-zinc-300 focus:border-zinc-400",
-          @errors != [] && "border-rose-400 focus:border-rose-400"
+          "text--medium",
+          @errors != [] && "input--error"
         ]}
         {@rest}
       />
-      <.error :for={msg <- @errors}><%= msg %></.error>
-    </div>
+      <p :for={msg <- @errors} class="color--text-error-primary text--small font--regular">
+        <%= msg %>
+      </p>
+    </.stack>
     """
   end
 
@@ -469,7 +501,7 @@ defmodule TuistCloudWeb.CoreComponents do
 
   def label(assigns) do
     ~H"""
-    <label for={@for} class="block text-sm font-semibold leading-6 text-zinc-800">
+    <label for={@for} class="text--small font--medium color--text-secondary">
       <%= render_slot(@inner_block) %>
     </label>
     """
@@ -743,5 +775,96 @@ defmodule TuistCloudWeb.CoreComponents do
   """
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
+  end
+
+  attr :class, :string, default: ""
+
+  def decorative_background(assigns) do
+    ~H"""
+    <svg
+      width="768"
+      height="520"
+      viewBox="0 0 768 520"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      class={@class}
+    >
+      <mask
+        id="mask0_5022_371856"
+        style="mask-type:alpha"
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="-248"
+        width="768"
+        height="768"
+      >
+        <rect
+          width="768"
+          height="768"
+          transform="translate(0 -248)"
+          fill="url(#paint0_radial_5022_371856)"
+        />
+      </mask>
+      <g mask="url(#mask0_5022_371856)">
+        <g clip-path="url(#clip0_5022_371856)">
+          <g clip-path="url(#clip1_5022_371856)">
+            <line x1="0.5" y1="-248" x2="0.5" y2="520" stroke="#1F242F" />
+            <line x1="48.5" y1="-248" x2="48.5" y2="520" stroke="#1F242F" />
+            <line x1="96.5" y1="-248" x2="96.5" y2="520" stroke="#1F242F" />
+            <line x1="144.5" y1="-248" x2="144.5" y2="520" stroke="#1F242F" />
+            <line x1="192.5" y1="-248" x2="192.5" y2="520" stroke="#1F242F" />
+            <line x1="240.5" y1="-248" x2="240.5" y2="520" stroke="#1F242F" />
+            <line x1="288.5" y1="-248" x2="288.5" y2="520" stroke="#1F242F" />
+            <line x1="336.5" y1="-248" x2="336.5" y2="520" stroke="#1F242F" />
+            <line x1="384.5" y1="-248" x2="384.5" y2="520" stroke="#1F242F" />
+            <line x1="432.5" y1="-248" x2="432.5" y2="520" stroke="#1F242F" />
+            <line x1="480.5" y1="-248" x2="480.5" y2="520" stroke="#1F242F" />
+            <line x1="528.5" y1="-248" x2="528.5" y2="520" stroke="#1F242F" />
+            <line x1="576.5" y1="-248" x2="576.5" y2="520" stroke="#1F242F" />
+            <line x1="624.5" y1="-248" x2="624.5" y2="520" stroke="#1F242F" />
+            <line x1="672.5" y1="-248" x2="672.5" y2="520" stroke="#1F242F" />
+            <line x1="720.5" y1="-248" x2="720.5" y2="520" stroke="#1F242F" />
+          </g>
+          <rect x="0.5" y="-247.5" width="767" height="767" stroke="#1F242F" />
+          <g clip-path="url(#clip2_5022_371856)">
+            <line y1="39.5" x2="768" y2="39.5" stroke="#1F242F" />
+            <line y1="87.5" x2="768" y2="87.5" stroke="#1F242F" />
+            <line y1="135.5" x2="768" y2="135.5" stroke="#1F242F" />
+            <line y1="183.5" x2="768" y2="183.5" stroke="#1F242F" />
+            <line y1="231.5" x2="768" y2="231.5" stroke="#1F242F" />
+            <line y1="279.5" x2="768" y2="279.5" stroke="#1F242F" />
+            <line y1="327.5" x2="768" y2="327.5" stroke="#1F242F" />
+            <line y1="375.5" x2="768" y2="375.5" stroke="#1F242F" />
+            <line y1="423.5" x2="768" y2="423.5" stroke="#1F242F" />
+            <line y1="471.5" x2="768" y2="471.5" stroke="#1F242F" />
+            <line y1="519.5" x2="768" y2="519.5" stroke="#1F242F" />
+          </g>
+          <rect x="0.5" y="-247.5" width="767" height="767" stroke="#1F242F" />
+        </g>
+      </g>
+      <defs>
+        <radialGradient
+          id="paint0_radial_5022_371856"
+          cx="0"
+          cy="0"
+          r="1"
+          gradientUnits="userSpaceOnUse"
+          gradientTransform="translate(384 384) rotate(90) scale(384 384)"
+        >
+          <stop />
+          <stop offset="1" stop-opacity="0" />
+        </radialGradient>
+        <clipPath id="clip0_5022_371856">
+          <rect width="768" height="768" fill="white" transform="translate(0 -248)" />
+        </clipPath>
+        <clipPath id="clip1_5022_371856">
+          <rect y="-248" width="768" height="768" fill="white" />
+        </clipPath>
+        <clipPath id="clip2_5022_371856">
+          <rect y="-248" width="768" height="768" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+    """
   end
 end

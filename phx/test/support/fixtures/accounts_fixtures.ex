@@ -5,12 +5,33 @@ defmodule TuistCloud.AccountsFixtures do
   alias TuistCloud.TestUtilities
 
   def user_fixture(opts \\ []) do
-    email = Keyword.get(opts, :email, "#{TestUtilities.unique_integer()}@cloud.tuist.io")
-    Accounts.create_user(email)
+    email = Keyword.get(opts, :email, unique_user_email())
+    password = Keyword.get(opts, :password, valid_user_password())
+    confirmed_at = Keyword.get(opts, :confirmed_at, DateTime.utc_now())
+
+    user = Accounts.create_user(email, password: password, confirmed_at: confirmed_at)
+
+    user
   end
 
   def organization_fixture(opts \\ []) do
     name = Keyword.get(opts, :name, "#{TestUtilities.unique_integer()}")
     Accounts.create_organization(%{name: name})
+  end
+
+  def unique_user_email, do: "#{TestUtilities.unique_integer()}@cloud.tuist.io"
+  def valid_user_password, do: "hello world!"
+
+  def valid_user_attributes(attrs \\ %{}) do
+    Enum.into(attrs, %{
+      email: unique_user_email(),
+      password: valid_user_password()
+    })
+  end
+
+  def extract_user_token(fun) do
+    {:ok, captured_email} = fun.(&"[TOKEN]#{&1}[TOKEN]")
+    [_, token | _] = String.split(captured_email.html_body, "[TOKEN]")
+    token
   end
 end

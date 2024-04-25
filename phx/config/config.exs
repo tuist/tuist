@@ -12,8 +12,21 @@ config :tuist_cloud,
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
+host =
+  cond do
+    config_env() == :stag -> "cloud-staging.tuist.io"
+    config_env() == :can -> "cloud-canary.tuist.io"
+    config_env() == :prod -> "cloud.tuist.io"
+    true -> "localhost"
+  end
+
 config :tuist_cloud, TuistCloudWeb.Endpoint,
-  url: [host: "localhost"],
+  url: [host: host],
+  check_origin: [
+    "https://cloud-staging.tuist.io",
+    "https://cloud-canary.tuist.io",
+    "https://cloud.tuist.io"
+  ],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: TuistCloudWeb.ErrorHTML, json: TuistCloudWeb.ErrorJSON],
@@ -56,6 +69,25 @@ config :tuist_cloud, Oban,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+  ]
+
+base_url =
+  cond do
+    config_env() == :prod -> "https://cloud.tuist.io/v2/users/auth"
+    config_env() == :stag -> "https://cloud-staging.tuist.io/v2/users/auth"
+    config_env() == :can -> "https://cloud-canary.tuist.io/v2/users/auth"
+    true -> "http://127.0.0.1:4000/v2/users/auth"
+  end
+
+config :ueberauth, Ueberauth,
+  base_path: "/v2/users/auth",
+  providers: [
+    github: {Ueberauth.Strategy.Github, [callback_url: "#{base_url}/github/callback"]},
+    google:
+      {Ueberauth.Strategy.Google,
+       [
+         callback_url: "#{base_url}/google/callback"
+       ]}
   ]
 
 # Import environment specific config. This must remain at the bottom

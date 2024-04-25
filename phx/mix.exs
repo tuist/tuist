@@ -50,6 +50,8 @@ defmodule TuistCloud.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.5"},
+      {:gen_smtp, "~> 1.2.0"},
+      {:tls_certificate_check, "~> 1.22"},
       {:finch, "~> 0.18"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
@@ -74,7 +76,10 @@ defmodule TuistCloud.MixProject do
       {:oban, "~> 2.17"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
-      {:rustler, "~> 0.32.0"}
+      {:rustler, "~> 0.32.0"},
+      {:ueberauth, "~> 0.10.8"},
+      {:ueberauth_github, "~> 0.8"},
+      {:ueberauth_google, "~> 0.10"}
     ]
   end
 

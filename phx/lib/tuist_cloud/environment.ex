@@ -68,7 +68,7 @@ defmodule TuistCloud.Environment do
   end
 
   def secret_key_base(secrets \\ secrets()) do
-    get([:secret_key_base], secrets)
+    get([:secret_key, :base], secrets)
   end
 
   def s3_access_key_id(secrets \\ secrets()) do
@@ -110,8 +110,80 @@ defmodule TuistCloud.Environment do
   end
 
   def stripe_configured?(secrets \\ secrets()) do
-    stripe_api_key(secrets) != nil && stripe_publishable_key(secrets) != nil &&
+    stripe_api_key(secrets) != nil and stripe_publishable_key(secrets) != nil and
       stripe_endpoint_secret(secrets) != nil
+  end
+
+  def github_oauth_id(secrets \\ secrets()) do
+    get([:github, :oauth_id], secrets)
+  end
+
+  def github_oauth_secret(secrets \\ secrets()) do
+    get([:github, :oauth_secret], secrets)
+  end
+
+  def github_configured?(secrets \\ secrets()) do
+    github_oauth_id(secrets) != nil and github_oauth_secret(secrets) != nil
+  end
+
+  def google_oauth_client_id(secrets \\ secrets()) do
+    get([:google, :oauth_client_id], secrets)
+  end
+
+  def google_oauth_client_secret(secrets \\ secrets()) do
+    get([:google, :oauth_client_secret], secrets)
+  end
+
+  def google_oauth_configured?(secrets \\ secrets()) do
+    google_oauth_client_id(secrets) != nil and google_oauth_client_secret(secrets) != nil
+  end
+
+  def okta_site(secrets \\ secrets()) do
+    get([:okta, :site], secrets)
+  end
+
+  def okta_client_secret(secrets \\ secrets()) do
+    get([:okta, :client_secret], secrets)
+  end
+
+  def okta_authorize_url(secrets \\ secrets()) do
+    get([:okta, :authorize_url], secrets)
+  end
+
+  def okta_token_url(secrets \\ secrets()) do
+    get([:okta, :token_url], secrets)
+  end
+
+  def okta_user_info_url(secrets \\ secrets()) do
+    get([:okta, :user_info_url], secrets)
+  end
+
+  def okta_event_hook_secret(secrets \\ secrets()) do
+    get([:okta, :event_hook_secret], secrets)
+  end
+
+  def okta_configured?(secrets \\ secrets()) do
+    okta_site(secrets) != nil and okta_client_secret(secrets) != nil and
+      okta_authorize_url(secrets) != nil and okta_token_url(secrets) != nil and
+      okta_user_info_url(secrets) != nil and okta_event_hook_secret(secrets) != nil and
+      okta_event_hook_secret(secrets) != nil
+  end
+
+  def smtp_domain(secrets \\ secrets()) do
+    get([:smtp_settings, :domain], secrets)
+  end
+
+  def smtp_user_name(secrets \\ secrets()) do
+    get([:smtp_settings, :user_name], secrets)
+  end
+
+  def smtp_password(secrets \\ secrets()) do
+    get([:smtp_settings, :password], secrets)
+  end
+
+  def smtp_configured?(secrets \\ secrets()) do
+    smtp_domain(secrets) != nil and smtp_user_name(secrets) != nil and
+      smtp_password(secrets) != nil
   end
 
   def app_signal_push_api_key(secrets \\ secrets()) do

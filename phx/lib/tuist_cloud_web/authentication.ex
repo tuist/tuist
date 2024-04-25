@@ -11,7 +11,13 @@ defmodule TuistCloudWeb.Authentication do
   def authenticated?(conn),
     do: authenticated_user(conn) != nil or authenticated_project(conn) != nil
 
-  def authenticated_user(conn), do: conn.assigns[@authenticated_user_key]
+  def authenticated_user(conn) do
+    if Map.has_key?(conn.assigns, :current_user) do
+      conn.assigns[:current_user]
+    else
+      conn.assigns[@authenticated_user_key]
+    end
+  end
 
   def authenticated_project(conn), do: conn.assigns[@authenticated_project_key]
 

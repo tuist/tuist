@@ -182,3 +182,31 @@ if TuistCloud.Environment.on_premise?() do
       """
   end
 end
+
+# Omniauth
+
+config :ueberauth, Ueberauth.Strategy.Github.OAuth,
+  client_id: TuistCloud.Environment.github_oauth_id(secrets),
+  client_secret: TuistCloud.Environment.github_oauth_secret(secrets)
+
+config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+  client_id: TuistCloud.Environment.google_oauth_client_id(secrets),
+  client_secret: TuistCloud.Environment.google_oauth_client_secret(secrets)
+
+# SMTP configuration
+if TuistCloud.Environment.smtp_configured?(secrets) do
+  relay =
+    cond do
+      [:prod] |> Enum.member?(env) -> "smtp.eu.mailgun.org"
+      [:stag, :can, :dev] |> Enum.member?(env) -> "smtp.mailgun.org"
+    end
+
+  config :tuist_cloud, TuistCloud.Mailer,
+    adapter: Swoosh.Adapters.SMTP,
+    port: 587,
+    relay: relay,
+    username: TuistCloud.Environment.smtp_user_name(secrets),
+    password: TuistCloud.Environment.smtp_password(secrets),
+    retries: 2,
+    tls: :always
+end

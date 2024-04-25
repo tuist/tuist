@@ -14,7 +14,18 @@ defmodule TuistCloud.Projects do
   end
 
   def get_project_by_id(project_id) do
-    Repo.get_by(Project, project_id: project_id)
+    Repo.get_by(Project, id: project_id)
+  end
+
+  def get_project_account_by_project_id(project_id) do
+    project = get_project_by_id(project_id)
+    account = Accounts.get_account_by_id(project.account_id)
+
+    %ProjectAccount{
+      handle: "#{account.name}/#{project.name}",
+      project: project,
+      account: account
+    }
   end
 
   def get_project_by_account_and_project_name(account_name, project_name) do
