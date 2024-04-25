@@ -107,27 +107,79 @@
 <script src="https://cdn.jsdelivr.net/npm/apexcharts">
 </script>
 <script>
-  const averageDurationChart = document.querySelector("#average-duration-chart")
-  averageDurationChart.data = {
-    name: "duration",
-    data: <%= raw Jason.encode!(@build_duration_analytics.values) %>,
-    labels: <%= raw Jason.encode!(@build_duration_analytics.dates) %>,
-  };
-  averageDurationChart.yLabelFormatter = (value) => { return `${(value / 1000).toFixed(1)} s` };
+  function setDurationChartData(id, data, labels) {
+    const durationChart = document.querySelector(id);
+    durationChart.data = {
+      name: <%= raw Jason.encode!(gettext("duration")) %>,
+      data: data,
+      labels: labels,
+    };
+    durationChart.yLabelFormatter = (value) => { return `${(value / 1000).toFixed(1)} s` };
+  }
 
-  const buildRunsChart = document.querySelector("#build-runs-chart");
-  buildRunsChart.data = {
-    name: "build runs",
-    data: <%= raw Jason.encode!(@build_runs_analytics.values) %>,
-    labels: <%= raw Jason.encode!(@build_runs_analytics.dates) %>,
-  };
-  buildRunsChart.yLabelFormatter = (value) => { return `${value}` };
+  function setRunsChartData(id, data, labels) {
+    const runsChart = document.querySelector(id);
+    runsChart.data = {
+      name: <%= raw Jason.encode!(gettext("runs")) %>,
+      data: data,
+      labels: labels,
+    };
+    runsChart.yLabelFormatter = (value) => { return `${value}` };
+  }
+
+  setDurationChartData(
+    "#average-duration-chart", 
+    <%= raw Jason.encode!(@build_duration_analytics.values) %>, 
+    <%= raw Jason.encode!(@build_duration_analytics.dates) %>
+  );
+
+  setRunsChartData(
+    "#build-runs-chart", 
+    <%= raw Jason.encode!(@build_runs_analytics.values) %>, 
+    <%= raw Jason.encode!(@build_runs_analytics.dates) %>
+  );
 
   const cacheHitRateChart = document.querySelector("#cache-hit-rate-chart")
   cacheHitRateChart.data = {
-    name: "cache hit rate",
+    name: <%= raw Jason.encode!(gettext("cache hit rate")) %>,
     data: <%= raw Jason.encode!(@cache_hit_rate_analytics.values) %>,
     labels: <%= raw Jason.encode!(@cache_hit_rate_analytics.dates) %>,
   };
   cacheHitRateChart.yLabelFormatter = (value) => { return `${(value * 100).toFixed(1)} %` }
+
+  setDurationChartData(
+    "#average-test-duration-chart", 
+    <%= raw Jason.encode!(@test_duration_analytics.values) %>,
+    <%= raw Jason.encode!(@test_duration_analytics.dates) %>
+  );
+
+  setRunsChartData(
+    "#test-runs-chart", 
+    <%= raw Jason.encode!(@test_runs_analytics.values) %>,
+    <%= raw Jason.encode!(@test_runs_analytics.dates) %>
+  );
+
+  setDurationChartData(
+    "#average-cache-duration-chart", 
+    <%= raw Jason.encode!(@cache_duration_analytics.values) %>,
+    <%= raw Jason.encode!(@cache_duration_analytics.dates) %>
+  );
+
+  setRunsChartData(
+    "#cache-runs-chart", 
+    <%= raw Jason.encode!(@cache_runs_analytics.values) %>,
+    <%= raw Jason.encode!(@cache_runs_analytics.dates) %>
+  );
+
+  setDurationChartData(
+    "#average-generate-duration-chart", 
+    <%= raw Jason.encode!(@generate_duration_analytics.values) %>,
+    <%= raw Jason.encode!(@generate_duration_analytics.dates) %>
+  );
+
+  setRunsChartData(
+    "#generate-runs-chart", 
+    <%= raw Jason.encode!(@generate_runs_analytics.values) %>,
+    <%= raw Jason.encode!(@generate_runs_analytics.dates) %>
+  );
 </script>
