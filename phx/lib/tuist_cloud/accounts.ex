@@ -11,7 +11,8 @@ defmodule TuistCloud.Accounts do
     Role,
     OrganizationAccount,
     UserRole,
-    Oauth2Identity
+    Oauth2Identity,
+    DeviceCode
   }
 
   alias TuistCloud.Billing
@@ -50,6 +51,31 @@ defmodule TuistCloud.Accounts do
   """
   def get_user_by_token(token) do
     Repo.get_by(User, token: token)
+  end
+
+  def get_device_code(code) do
+    Repo.get_by(DeviceCode, code: code)
+  end
+
+  def authenticate_device_code(code, %User{} = user) do
+    device_code = get_device_code(code)
+
+    {:ok, device_code} =
+      DeviceCode.authenticate_changeset(device_code, %{authenticated: true, user_id: user.id})
+      |> Repo.update()
+
+    device_code
+  end
+
+  def create_device_code(code, attrs \\ []) do
+    created_at = attrs |> Keyword.get(:created_at, DateTime.utc_now())
+
+    {:ok, device_code} =
+      Repo.insert(
+        DeviceCode.create_changeset(%DeviceCode{}, %{code: code, created_at: created_at})
+      )
+
+    device_code
   end
 
   @doc """

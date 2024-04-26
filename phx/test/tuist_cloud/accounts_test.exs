@@ -366,4 +366,20 @@ defmodule TuistCloud.AccountsTest do
       assert Accounts.find_oauth2_identity_by_user_id(user.id)
     end
   end
+
+  describe "authenticate_device_code/2" do
+    test "authenticates existing DeviceCode" do
+      # Given
+      device_code = Accounts.create_device_code("AOKJ-1234")
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      authenticated_device_code = Accounts.authenticate_device_code(device_code.code, user)
+
+      # Then
+      assert device_code.authenticated == false
+      assert authenticated_device_code.authenticated == true
+      assert authenticated_device_code.user_id == user.id
+    end
+  end
 end

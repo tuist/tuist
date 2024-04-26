@@ -1,6 +1,6 @@
 defmodule TuistCloudWeb.AuthController do
   @moduledoc """
-  Auth controller responsible for handling Ueberauth responses
+  Auth controller.
   """
 
   use TuistCloudWeb, :controller
@@ -28,5 +28,13 @@ defmodule TuistCloudWeb.AuthController do
     |> put_flash(:info, "Successfully authenticated.")
     |> TuistCloudWeb.UserAuth.log_in_user(user)
     |> redirect(to: ~p"/v2")
+  end
+
+  def authenticate(conn, params) do
+    device_code = params["device_code"]
+    Accounts.create_device_code(device_code)
+
+    conn
+    |> redirect(to: ~p"/auth/cli/success/#{device_code}")
   end
 end

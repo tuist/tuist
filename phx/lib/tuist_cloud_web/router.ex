@@ -62,6 +62,12 @@ defmodule TuistCloudWeb.Router do
     get "/openapi", OpenApiSpex.Plug.RenderSpec, []
   end
 
+  scope "/api", TuistCloudWeb.API do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/auth/device_code/:device_code", AuthController, :device_code
+  end
+
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:tuist_cloud, :dev_routes) do
     # If you want to use the LiveDashboard in production, you should put
@@ -121,6 +127,17 @@ defmodule TuistCloudWeb.Router do
     pipe_through :browser
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
+  end
+
+  scope "/auth/cli", TuistCloudWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :cli,
+      on_mount: [{TuistCloudWeb.UserAuth, :ensure_authenticated}] do
+      live "/success/:device_code", CLISuccessLive, :new
+    end
+
+    get "/:device_code", AuthController, :authenticate
   end
 
   # Authenticated routes
