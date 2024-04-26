@@ -19,19 +19,17 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required, isExternal: true)]],
-            isExternal: true
+            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .xcframework(path, status, _, isExternal) = got[0] else {
+        guard case let .xcframework(path, status, _) = got[0] else {
             XCTFail("Dependency should be xcframework")
             return
         }
         XCTAssertEqual(path, "/path.xcframework")
         XCTAssertEqual(status, .required)
-        XCTAssertTrue(isExternal)
     }
 
     func test_from_when_external_project() throws {
@@ -43,8 +41,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: ["library": [.project(target: "Target", path: "/Project")]],
-            isExternal: true
+            externalDependencies: ["library": [.project(target: "Target", path: "/Project")]]
         )
 
         // Then
@@ -68,22 +65,20 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             generatorPaths: generatorPaths,
             externalDependencies: [
                 "library": [
-                    .xcframework(path: "/path.xcframework", status: .required, isExternal: true),
+                    .xcframework(path: "/path.xcframework", status: .required),
                     .project(target: "Target", path: "/Project"),
                 ],
-            ],
-            isExternal: true
+            ]
         )
 
         // Then
         XCTAssertEqual(got.count, 2)
-        guard case let .xcframework(frameworkPath, status, _, isExternal) = got[0] else {
+        guard case let .xcframework(frameworkPath, status, _) = got[0] else {
             XCTFail("First dependency should be xcframework")
             return
         }
         XCTAssertEqual(frameworkPath, "/path.xcframework")
         XCTAssertEqual(status, .required)
-        XCTAssertTrue(isExternal)
 
         guard case let .project(target, path, _) = got[1] else {
             XCTFail("Dependency should be project")
@@ -102,8 +97,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            isExternal: false
+            externalDependencies: [:]
         )
 
         // Then
@@ -125,8 +119,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            isExternal: false
+            externalDependencies: [:]
         )
 
         // Then
@@ -148,8 +141,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            isExternal: false
+            externalDependencies: [:]
         )
 
         // Then
@@ -171,8 +163,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            isExternal: false
+            externalDependencies: [:]
         )
 
         // Then
@@ -194,8 +185,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            isExternal: false
+            externalDependencies: [:]
         )
 
         // Then

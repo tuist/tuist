@@ -9,7 +9,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         public let linking: BinaryLinking
         public let mergeable: Bool
         public let status: FrameworkStatus
-        public let isExternal: Bool
 
         public init(
             path: AbsolutePath,
@@ -18,7 +17,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             linking: BinaryLinking,
             mergeable: Bool,
             status: FrameworkStatus,
-            isExternal: Bool
+            macroPath _: AbsolutePath?
         ) {
             self.path = path
             self.infoPlist = infoPlist
@@ -26,7 +25,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             self.linking = linking
             self.mergeable = mergeable
             self.status = status
-            self.isExternal = isExternal
         }
 
         public var description: String {
@@ -208,13 +206,11 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
-    public var isPrecompiledAndEmbeddable: Bool {
+    public var isPrecompiledDynamicAndLinkable: Bool {
         switch self {
         case .macro: return false
         case let .xcframework(xcframework):
-            return xcframework
-                .linking == .dynamic ||
-                (xcframework.isExternal && xcframework.infoPlist.libraries.first?.path.extension == "framework")
+            return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
