@@ -253,7 +253,7 @@ public class GraphTraverser: GraphTraversing {
         /// Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: { $0.isPrecompiledAndEmbeddable },
+            test: { $0.isPrecompiledDynamicAndLinkable },
             skip: or(canDependencyEmbedProducts, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
@@ -362,7 +362,7 @@ public class GraphTraverser: GraphTraversing {
             }
 
         let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
-            .filter(\.isPrecompiledAndEmbeddable)
+            .filter(\.isPrecompiledDynamicAndLinkable)
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(precompiledLibrariesAndFrameworks)
@@ -525,7 +525,7 @@ public class GraphTraverser: GraphTraversing {
         let from = GraphDependency.target(name: name, path: path)
         let precompiledFrameworksPaths = filterDependencies(
             from: from,
-            test: { $0.isPrecompiledAndEmbeddable },
+            test: { $0.isPrecompiledDynamicAndLinkable },
             skip: canDependencyEmbedProducts
         )
         .lazy

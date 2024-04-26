@@ -89,8 +89,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                 try TuistGraph.TargetDependency.from(
                     manifest: targetDependencyManifest,
                     generatorPaths: GeneratorPaths(manifestDirectory: path),
-                    externalDependencies: [:], // externalDependencies manifest can't contain other external dependencies,
-                    isExternal: true
+                    externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies,
                 )
             }
         }

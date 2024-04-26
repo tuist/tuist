@@ -28,8 +28,7 @@ extension TuistGraph.Target {
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
-        isExternal: Bool
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
         let destinations = try TuistGraph.Destination.from(destinations: manifest.destinations)
@@ -44,8 +43,7 @@ extension TuistGraph.Target {
             try TuistGraph.TargetDependency.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies,
-                isExternal: isExternal
+                externalDependencies: externalDependencies
             )
         }
 

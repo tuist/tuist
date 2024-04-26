@@ -21,7 +21,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case target(name: String, condition: PlatformCondition? = nil)
     case project(target: String, path: AbsolutePath, condition: PlatformCondition? = nil)
     case framework(path: AbsolutePath, status: FrameworkStatus, condition: PlatformCondition? = nil)
-    case xcframework(path: AbsolutePath, status: FrameworkStatus, condition: PlatformCondition? = nil, isExternal: Bool = false)
+    case xcframework(path: AbsolutePath, status: FrameworkStatus, condition: PlatformCondition? = nil)
     case library(
         path: AbsolutePath,
         publicHeaders: AbsolutePath,
@@ -40,7 +40,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             condition
         case .framework(path: _, status: _, condition: let condition):
             condition
-        case .xcframework(path: _, status: _, condition: let condition, _):
+        case .xcframework(path: _, status: _, condition: let condition):
             condition
         case .library(path: _, publicHeaders: _, swiftModuleMap: _, condition: let condition):
             condition
@@ -60,8 +60,8 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             return .project(target: target, path: path, condition: condition)
         case .framework(path: let path, status: let status, condition: _):
             return .framework(path: path, status: status, condition: condition)
-        case .xcframework(path: let path, status: let status, condition: _, isExternal: let isExternal):
-            return .xcframework(path: path, status: status, condition: condition, isExternal: isExternal)
+        case .xcframework(path: let path, status: let status, condition: _):
+            return .xcframework(path: path, status: status, condition: condition)
         case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, condition: _):
             return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, condition: condition)
         case .package(product: let product, type: let type, condition: _):

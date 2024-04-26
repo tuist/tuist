@@ -162,12 +162,11 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcframework(frameworkPath, status, _, isExternal):
+        case let .xcframework(frameworkPath, status, _):
             return try loadXCFramework(
                 path: frameworkPath,
                 cache: cache,
-                status: status,
-                isExternal: isExternal
+                status: status
             )
 
         case let .sdk(name, status, _):
@@ -250,8 +249,7 @@ public final class GraphLoader: GraphLoading {
     private func loadXCFramework(
         path: AbsolutePath,
         cache: Cache,
-        status: FrameworkStatus,
-        isExternal: Bool
+        status: FrameworkStatus
     ) throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
@@ -268,7 +266,7 @@ public final class GraphLoader: GraphLoading {
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,
-            isExternal: isExternal
+            macroPath: metadata.macroPath
         ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework
