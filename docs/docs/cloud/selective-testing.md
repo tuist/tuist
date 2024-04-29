@@ -28,7 +28,7 @@ For example, assuming the following dependency graph:
 | ---- | --- | ---- |
 | `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted |
 | `FeatureA` is updated | The developer modifies the code of a target | Same as before |
-| `tuist test` invocation | Runs the tests in `FeatureBTests` because it hash has changed | The new hash of `FeatureBTests` is persisted |
+| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed | The new hash of `FeatureATests` is persisted |
 | `Core` is updated | The developer modifies the code of a target | Same as before |
 | `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
 
