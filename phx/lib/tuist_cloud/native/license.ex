@@ -5,6 +5,7 @@ defmodule TuistCloud.Native.License do
   defstruct [:id, :features, :expiration_date]
 
   def expired?(license) do
-    Date.utc_today() > Date.from_iso8601(license.expiration_date)
+    {:ok, expiration_date} = Date.from_iso8601(license.expiration_date)
+    Date.after?(TuistCloud.Date.utc_today(), expiration_date)
   end
 end

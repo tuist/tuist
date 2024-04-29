@@ -31,7 +31,10 @@ defmodule TuistCloud.Environment do
   end
 
   def license_expiration_date() do
-    Date.from_iso8601(Application.get_env(:tuist_cloud, :license).expiration_date)
+    {:ok, expiration_date} =
+      Date.from_iso8601(Application.get_env(:tuist_cloud, :license).expiration_date)
+
+    expiration_date
   end
 
   def license_expired?() do

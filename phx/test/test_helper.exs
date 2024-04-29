@@ -3,6 +3,7 @@ Mimic.copy(TuistCloud.Billing)
 Mimic.copy(TuistCloud.Environment)
 Mimic.copy(TuistCloud.Storage)
 Mimic.copy(TuistCloud.Time)
+Mimic.copy(TuistCloud.Date)
 Mimic.copy(:tls_certificate_check)
 
 ExUnit.start()

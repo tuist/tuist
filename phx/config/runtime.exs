@@ -54,7 +54,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       verify: :verify_none
     ]
 
-  host = System.fetch_env!("WEB_CONCURRENCY")
+  host = System.get_env("WEB_CONCURRENCY", 1)
   port = "4000"
 
   config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
