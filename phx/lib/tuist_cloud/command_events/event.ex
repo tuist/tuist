@@ -10,10 +10,16 @@ defmodule TuistCloud.CommandEvents.Event do
   schema "command_events" do
     field :name, :string
     field :duration, :integer
+    field :subcommand, :string
+    field :command_arguments, :string
     field :tuist_version, :string
+    field :swift_version, :string
+    field :macos_version, :string
     field :cacheable_targets, :string
     field :local_cache_target_hits, :string
     field :remote_cache_target_hits, :string
+    field :is_ci, :boolean
+    field :client_id, :string
     belongs_to :project, Project
 
     # Rails names the field "created_at"
@@ -30,11 +36,17 @@ defmodule TuistCloud.CommandEvents.Event do
     |> cast(attrs, [
       :project_id,
       :name,
+      :subcommand,
+      :command_arguments,
       :duration,
       :tuist_version,
+      :swift_version,
+      :macos_version,
       :cacheable_targets,
       :local_cache_target_hits,
       :remote_cache_target_hits,
+      :is_ci,
+      :client_id,
       :created_at
     ])
     |> validate_required([:project_id, :name])

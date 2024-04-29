@@ -9,6 +9,10 @@ defmodule TuistCloud.CommandEvents do
   alias TuistCloud.Time
   import Ecto.Query
 
+  def get_command_event_by_id(id) do
+    Repo.get(Event, id)
+  end
+
   def get_command_duration_analytics(
         name,
         opts
@@ -355,26 +359,40 @@ defmodule TuistCloud.CommandEvents do
     get_cache_hit_rate_for_command_events(command_events)
   end
 
-  def create_command_event(%{
-        name: name,
-        duration: duration,
-        tuist_version: tuist_version,
-        project: %{id: project_id},
-        cacheable_targets: cacheable_targets,
-        local_cache_target_hits: local_cache_target_hits,
-        remote_cache_target_hits: remote_cache_target_hits,
-        created_at: created_at
-      }) do
+  def create_command_event(
+        %{
+          name: name,
+          subcommand: subcommand,
+          command_arguments: command_arguments,
+          duration: duration,
+          tuist_version: tuist_version,
+          swift_version: swift_version,
+          macos_version: macos_version,
+          project_id: project_id,
+          cacheable_targets: cacheable_targets,
+          local_cache_target_hits: local_cache_target_hits,
+          remote_cache_target_hits: remote_cache_target_hits,
+          is_ci: is_ci,
+          client_id: client_id
+        },
+        attrs \\ []
+      ) do
     %Event{}
     |> Event.create_changeset(%{
       name: name,
+      subcommand: subcommand,
+      command_arguments: Enum.join(command_arguments, " "),
       duration: duration,
       tuist_version: tuist_version,
+      swift_version: swift_version,
+      macos_version: macos_version,
       project_id: project_id,
-      cacheable_targets: cacheable_targets,
-      local_cache_target_hits: local_cache_target_hits,
-      remote_cache_target_hits: remote_cache_target_hits,
-      created_at: created_at
+      cacheable_targets: Enum.join(cacheable_targets, ";"),
+      local_cache_target_hits: Enum.join(local_cache_target_hits, ";"),
+      remote_cache_target_hits: Enum.join(remote_cache_target_hits, ";"),
+      is_ci: is_ci,
+      client_id: client_id,
+      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     })
     |> Repo.insert!()
   end

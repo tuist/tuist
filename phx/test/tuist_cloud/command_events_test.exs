@@ -192,27 +192,27 @@ defmodule TuistCloud.CommandEventsTest do
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
       name: "generate",
-      cacheable_targets: "A;B;C;D",
-      local_cache_target_hits: "A",
-      remote_cache_target_hits: "C",
+      cacheable_targets: ["A", "B", "C", "D"],
+      local_cache_target_hits: ["A"],
+      remote_cache_target_hits: ["C"],
       created_at: ~N[2024-04-30 03:00:00]
     )
 
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
       name: "generate",
-      cacheable_targets: "A;B;C;D",
-      local_cache_target_hits: "E;F",
-      remote_cache_target_hits: "",
+      cacheable_targets: ["A", "B", "C", "D"],
+      local_cache_target_hits: ["E", "F"],
+      remote_cache_target_hits: [],
       created_at: ~N[2024-04-30 03:00:00]
     )
 
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
       name: "generate",
-      cacheable_targets: "A;B",
-      local_cache_target_hits: "",
-      remote_cache_target_hits: "B",
+      cacheable_targets: ["A", "B"],
+      local_cache_target_hits: [],
+      remote_cache_target_hits: ["B"],
       created_at: ~N[2024-04-30 03:00:00]
     )
 

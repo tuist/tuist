@@ -49,6 +49,7 @@ defmodule TuistCloudWeb.Router do
   scope "/api", TuistCloudWeb.API do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
+    post "/analytics", AnalyticsController, :create
     get "/cache", CacheController, :download
     get "/cache/exists", CacheController, :exists
     post "/cache/multipart/start", CacheController, :multipart_start

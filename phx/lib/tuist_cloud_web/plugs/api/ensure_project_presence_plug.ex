@@ -22,9 +22,24 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
   end
 
   def call(
+        %{
+          body_params: %{
+            project_id: project_id
+          }
+        } = conn,
+        _opts
+      ) do
+    assign_request_project_to_conn(project_id, conn)
+  end
+
+  def call(
         %{query_params: %{"project_id" => project_slug}} = conn,
         _opts
       ) do
+    assign_request_project_to_conn(project_slug, conn)
+  end
+
+  defp assign_request_project_to_conn(project_slug, conn) do
     case Projects.get_project_by_slug(project_slug) do
       {:ok, project} ->
         conn |> assign(@project_key, project)
