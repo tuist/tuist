@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.11.0 - 2024-04-29
+
+### Tuist
+
+#### Fixed
+
+- Fix generating CoreData models in resourceSynthesizer .coreData() [#6201](https://github.com/tuist/tuist/pull/6201) by [@alexfilimon](https://github.com/alexfilimon)
+- Align resource bundle accessor generation with SPM [#6146](https://github.com/tuist/tuist/pull/6146) by [@danibachar](https://github.com/danibachar)
+- Align bundle name sanization with SPM [#6234](https://github.com/tuist/tuist/pull/6234) by [@danibachar](https://github.com/danibachar)
+- Revert "Embed external xcframeworks regardless of linking type (#6217)" [#6237](https://github.com/tuist/tuist/pull/6237) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.10.2 - 2024-04-23
 
 ### Tuist
