@@ -54,7 +54,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       verify: :verify_none
     ]
 
-  host = System.fetch_env!("WEB_CONCURRENCY")
+  host = System.get_env("WEB_CONCURRENCY", "1")
   port = "4000"
 
   config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
@@ -147,8 +147,11 @@ end
 
 if TuistCloud.Environment.s3_configured?(secrets) do
   config :ex_aws,
-    access_key_id: TuistCloud.Environment.s3_access_key_id(secrets),
-    secret_access_key: TuistCloud.Environment.s3_secret_access_key(secrets),
+    access_key_id: [TuistCloud.Environment.s3_access_key_id(secrets), {:awscli, :system, 30}],
+    secret_access_key: [
+      TuistCloud.Environment.s3_secret_access_key(secrets),
+      {:awscli, :system, 30}
+    ],
     s3: [
       # Cloudflare R2 requires HTTPS
       scheme: "https://",
