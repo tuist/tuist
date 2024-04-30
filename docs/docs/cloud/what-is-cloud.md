@@ -15,17 +15,6 @@ Tuist Cloud, a closed-source paid service, enhances Tuist by adding server-requi
 > [!IMPORTANT] PROJECT ONBOARDING
 > Due to [Xcode's default to convenience](/guide/introduction/cost-of-convenience) your project might contain implicit configurations that can prevent some Tuist Cloud features from working as expected, and therefore require manual adjustments.
 
-## Sustainability
-
-Similar to many other open-source projects, Tuist also necessitated full-time dedicated personnel to adequately meet the demand for support and feature requests. Tuist Cloud plays a crucial role in fulfilling this requirement by enabling the financing of full-time personnel for the project.
-
-Becoming Tuist Cloud user is synonym to supporting the the development of Tuist and many of the open source that makes Tuist and other community open source projects possible. We wished the economics of open source were much different and organizations and government recognized the value of open source and financially supported it, but at the time of write, that's unfortunately not the case, so creating a business is the only option we were left with.
-
-> [!INFO] BUT I WANT TO USE MY CI CACHE...
-> Users often don't understand the need for paying for caching when their CI provider already provides a solution. We understand it, it doesn't make sense logically, but financially, we believe it does, because Tuist has reached a point that needs funding to continue to support its development. Avoiding doing so, like we had to suffer from in the past, puts Tuist and all our efforts at risk.
-
-<!-- > This is a comment we hear often from users. We also had to experience users trying to workaround the CLI measures to ensure exclusivity of the features with Tuist Cloud. -->
-
 ## Features
 
 ### Binary caching across environments
@@ -34,6 +23,10 @@ Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of 
 
 > [!TIP] RETURN OF INVESTMENT (ROI)
 > To assist organizations in evaluating their return on investment (ROI), we've developed an [**ROI calculator**](https://tuist.io/cloud). For instance, consider an organization with approximately 20 developers. If their clean builds take 10 minutes and they achieve a 70% cache effectiveness, they could potentially reduce development time by 24,000 hours and recover up to $6.4 million a year.
+
+> [!NOTE] CI CACHE
+> CI built-in caches either don't provide hash-based caching or they do, but they don't support the artifact-level hashing granularity that's required for an efficient cache. Therefore, they are not a suitable solution for Tuist's caching requirements.
+
 
 ### Selective testing across environments
 
