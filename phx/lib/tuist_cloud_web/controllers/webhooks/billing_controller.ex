@@ -1,0 +1,30 @@
+defmodule TuistCloudWeb.Webhooks.BillingController do
+  use TuistCloudWeb, :controller
+  alias TuistCloud.Billing
+  @behaviour Stripe.WebhookHandler
+
+  @impl true
+  def handle_event(%Stripe.Event{type: "customer.subscription.created"} = event) do
+    Billing.update_plan(event.data.object)
+
+    :ok
+  end
+
+  @impl true
+  def handle_event(%Stripe.Event{type: "customer.subscription.updated"} = event) do
+    Billing.update_plan(event.data.object)
+
+    :ok
+  end
+
+  @impl true
+  def handle_event(%Stripe.Event{type: "customer.subscription.deleted"} = event) do
+    Billing.update_plan(event.data.object)
+
+    :ok
+  end
+
+  # Return HTTP 200 for unhandled events
+  @impl true
+  def handle_event(_event), do: :ok
+end

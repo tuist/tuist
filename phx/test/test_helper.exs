@@ -1,4 +1,5 @@
 Mimic.copy(Stripe.BillingPortal.Session)
+Mimic.copy(Stripe.Customer)
 Mimic.copy(TuistCloud.Billing)
 Mimic.copy(TuistCloud.Environment)
 Mimic.copy(TuistCloud.Storage)

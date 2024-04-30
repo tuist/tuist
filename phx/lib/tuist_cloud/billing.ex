@@ -4,6 +4,7 @@ defmodule TuistCloud.Billing do
   """
 
   alias TuistCloud.Environment
+  alias TuistCloud.Accounts
 
   def create_customer(opts) do
     name = opts |> Keyword.get(:name)
@@ -16,6 +17,16 @@ defmodule TuistCloud.Billing do
     customer = opts |> Keyword.get(:customer)
     {:ok, session} = Stripe.BillingPortal.Session.create(%{customer: customer})
     session
+  end
+
+  def update_plan(%{status: status, customer: customer}) do
+    account = Accounts.get_account_from_customer_id(customer)
+
+    if status == "active" or status == "trialing" do
+      Accounts.update_plan(account, :enterprise)
+    else
+      Accounts.update_plan(account, nil)
+    end
   end
 
   def enabled? do

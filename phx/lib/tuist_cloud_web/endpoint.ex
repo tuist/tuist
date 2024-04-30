@@ -41,6 +41,11 @@ defmodule TuistCloudWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  plug Stripe.WebhookPlug,
+    at: "/webhooks/stripe",
+    handler: TuistCloudWeb.Webhooks.BillingController,
+    secret: {TuistCloud.Environment, :stripe_endpoint_secret, []}
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],

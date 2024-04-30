@@ -24,7 +24,7 @@ defmodule TuistCloudWeb.UserSessionControllerTest do
       # Now do a logged in request and assert on the menu
       conn = get(conn, ~p"/v2")
       response = html_response(conn, 302)
-      assert response =~ ~p"/get-started"
+      assert response =~ ~p"/v2/get-started"
     end
 
     test "logs the user in with remember me", %{conn: conn, user: user} do

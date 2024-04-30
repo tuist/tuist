@@ -1,6 +1,7 @@
 defmodule TuistCloud.AccountsTest do
   alias TuistCloud.Accounts
   alias TuistCloud.AccountsFixtures
+  alias TuistCloud.Environment
   use TuistCloud.DataCase
   use Mimic
 
@@ -380,6 +381,68 @@ defmodule TuistCloud.AccountsTest do
       assert device_code.authenticated == false
       assert authenticated_device_code.authenticated == true
       assert authenticated_device_code.user_id == user.id
+    end
+  end
+
+  describe "get_account_from_customer_id/1" do
+    test "returns the account with the given customer_id" do
+      # Given
+      Environment
+      |> stub(:stripe_configured?, fn -> true end)
+
+      Stripe.Customer
+      |> stub(:create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      customer_id = account.customer_id
+
+      # When
+      got = Accounts.get_account_from_customer_id(customer_id)
+
+      # Then
+      assert got == account
+    end
+
+    test "returns nil if the account with the given customer_id does not exist" do
+      # Given
+      AccountsFixtures.user_fixture()
+
+      # When
+      got = Accounts.get_account_from_customer_id("unknown")
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "update_plan/2" do
+    test "sets plan to :enterprise" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.update_plan(account, :enterprise)
+
+      # Then
+      assert account.plan == nil
+      assert Accounts.get_account_by_id(account.id).plan == :enterprise
+    end
+
+    test "sets plan to nil" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      Accounts.update_plan(account, :enterprise)
+      account_with_enterprise = Accounts.get_account_by_id(account.id)
+
+      # When
+      Accounts.update_plan(account_with_enterprise, nil)
+
+      # Then
+      assert account_with_enterprise.plan == :enterprise
+      assert Accounts.get_account_by_id(account.id).plan == nil
     end
   end
 end

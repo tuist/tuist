@@ -238,6 +238,14 @@ defmodule TuistCloud.Accounts do
     end
   end
 
+  def get_account_from_customer_id(customer_id) do
+    query =
+      from a in Account,
+        where: a.customer_id == ^customer_id
+
+    query |> Repo.one()
+  end
+
   def get_account_from_user(%User{} = user) do
     query =
       from a in Account,
@@ -378,6 +386,11 @@ defmodule TuistCloud.Accounts do
       Repo.update(user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id))
 
     Repo.reload(user)
+  end
+
+  def update_plan(%Account{} = account, plan) do
+    {:ok, _} = Repo.update(account |> Ecto.Changeset.change(plan: plan))
+    Repo.reload(account)
   end
 
   alias TuistCloud.Accounts.{User, UserToken, UserNotifier}
