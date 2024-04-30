@@ -140,6 +140,7 @@ Once the app is created you'll need to set the following environment variables:
 | `TUIST_S3_BUCKET_NAME` | Name of the bucket | Yes | | `my-bucket` |
 | `TUIST_S3_REGION` | The bucket's region | No | `eu-west-1` | `us-east-1` |
 | `TUIST_S3_ENDPOINT` | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
+| `AWS_PROFILE` | Set an [AWS profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) for authorization. Doesn't work with other storages | No | | `user1` |
 
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `TUIST_S3_ACCESS_KEY_ID` and `TUIST_S3_SECRET_ACCESS_KEY` pair. The `TUIST_S3_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
