@@ -40,19 +40,29 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   [username, password] = parsed_url.userinfo |> String.split(":")
   maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :tuist_cloud, TuistCloud.Repo,
+  database_options = [
     pool_size: 10,
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
     hostname: parsed_url.host,
-    ssl: true,
-    socket_options: maybe_ipv6,
-    # TODO: Add proper certificate verification
-    ssl_opts: [
-      server_name_indication: to_char_list(parsed_url.host),
-      verify: :verify_none
-    ]
+    socket_options: maybe_ipv6
+  ]
+
+  database_options =
+    if TuistCloud.Environment.use_ssl_for_database?() do
+      database_options
+      |> Keyword.put(:ssl, true)
+      |> Keyword.put(:ssl_opts,
+        # TODO: Add proper certificate verification
+        server_name_indication: to_char_list(parsed_url.host),
+        verify: :verify_none
+      )
+    else
+      database_options
+    end
+
+  config :tuist_cloud, TuistCloud.Repo, database_options
 
   host = System.get_env("WEB_CONCURRENCY", "1")
   port = "4000"

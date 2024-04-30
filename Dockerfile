@@ -49,7 +49,7 @@ WORKDIR /app
 
 # Install packages needed to build gems and NPM packages
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl
+    apt-get install --no-install-recommends -y curl openssl1.1
 
 # Set production environment
 ENV RAILS_ENV=${RAILS_ENV} \
@@ -146,13 +146,16 @@ COPY --from=build-rails /usr/local/bundle /usr/local/bundle
 COPY --from=build-rails /app /app
 
 # Build openssl1.1.1 from the source
-# RUN mkdir $HOME/opt && cd $HOME/opt && wget https://www.openssl.org/source/openssl-1.1.1o.tar.gz && tar -zxvf openssl-1.1.1o.tar.gz && \
-#   cd openssl-1.1.1o && ./config && make && mkdir $HOME/opt/lib && \
-#   mv $HOME/opt/openssl-1.1.1o/libcrypto.so.1.1 $HOME/opt/lib/ && \
-#   mv $HOME/opt/openssl-1.1.1o/libssl.so.1.1 $HOME/opt/lib/
-# ENV LD_LIBRARY_PATH=$HOME/opt/lib:$LD_LIBRARY_PATH
-RUN cd tmp/ && wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
-  dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+RUN mkdir -p /tmp/openssl-src && \
+  cd /tmp/openssl-src && \
+  wget https://www.openssl.org/source/openssl-1.1.1o.tar.gz && \
+  tar -zxvf openssl-1.1.1o.tar.gz && \
+  cd openssl-1.1.1o && \
+  ./config && make && \
+  mkdir -p /opt/lib && \
+  mv /tmp/openssl-src/openssl-1.1.1o/libcrypto.so.1.1 /opt/lib/ && \
+  mv /tmp/openssl-src/openssl-1.1.1o/libssl.so.1.1 /opt/lib/
+ENV LD_LIBRARY_PATH=/opt/lib:$LD_LIBRARY_PATH
 
 # Run and own only the runtime files as a non-root user for security
 RUN useradd app --create-home --shell /bin/bash && \

@@ -5,4 +5,7 @@ if [ "${1}" == "/usr/local/bin/hivemind" ]; then
   ./bin/migrate
 fi
 
-exec "${@}"
+# Ruby on Rails doesn't allow changing the name of the variable that represents
+# the secret key base. Therefore we workarounding by mapping the name of the variable
+# to the one that Rails expects.
+SECRET_KEY_BASE=$TUIST_SECRET_KEY_BASE exec "${@}"

@@ -26,6 +26,10 @@ defmodule TuistCloud.Environment do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0"))
   end
 
+  def use_ssl_for_database?() do
+    truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
+  end
+
   def license_features() do
     Application.get_env(:tuist_cloud, :license).features
   end
