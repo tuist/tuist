@@ -46,4 +46,18 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     assert TuistCloudWeb.Authentication.authenticated_user(got) == nil
     assert TuistCloudWeb.Authentication.authenticated?(got) == false
   end
+
+  test "doesn't load anything if the the token is invalid" do
+    # Given
+    opts = AuthenticationPlug.init(:load_authenticated_subject)
+    conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> "invalid-token")
+
+    # When
+    got = conn |> AuthenticationPlug.call(opts)
+
+    # Then
+    assert TuistCloudWeb.Authentication.authenticated_project(got) == nil
+    assert TuistCloudWeb.Authentication.authenticated_user(got) == nil
+    assert TuistCloudWeb.Authentication.authenticated?(got) == false
+  end
 end

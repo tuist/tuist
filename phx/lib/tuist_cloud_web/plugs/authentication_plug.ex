@@ -18,6 +18,9 @@ defmodule TuistCloudWeb.AuthenticationPlug do
 
         {:user, user} ->
           conn |> TuistCloudWeb.Authentication.put_authenticated_user(user)
+
+        nil ->
+          conn
       end
     else
       conn
