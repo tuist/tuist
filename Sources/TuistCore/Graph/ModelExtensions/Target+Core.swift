@@ -17,29 +17,6 @@ public enum TargetError: FatalError, Equatable {
     }
 }
 
-enum TargetProductNameWithExtensionError: Equatable, FatalError {
-    case inconsistentProductNameAcrossConfigurations(target: String, productNames: Set<String>)
-    case productNameWithVariables(target: String, productName: String)
-
-    var type: ErrorType {
-        switch self {
-        case .inconsistentProductNameAcrossConfigurations:
-            return .abort
-        case .productNameWithVariables:
-            return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .inconsistentProductNameAcrossConfigurations(target, productNames):
-            return "The target '\(target)' has inconsistent PRODUCT_NAMEs across configurations (\(productNames.joined(separator: ", "))) that might cause Tuist to behave unpredictably. Ensure the same name is used across all the configurations."
-        case let .productNameWithVariables(target, productName):
-            return "The target '\(target)' has a PRODUCT_NAME that contains variables, '\(productName)', which might cause Tuist to behave unpredictably. Make sure the name contains no variables or let Xcode set the default."
-        }
-    }
-}
-
 extension Target {
     /// Returns the product name including the extension
     /// if the PRODUCT_NAME build setting of the target is set and contains a static value that's consistent
