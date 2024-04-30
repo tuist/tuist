@@ -46,4 +46,42 @@ defmodule TuistCloud.ProjectsTest do
   test "returns missing handle or project name" do
     assert {:error, :missing_handle_or_project_name} == Projects.get_project_by_slug("tuist")
   end
+
+  describe "get_project_account_by_project_id/1" do
+    test "returns nil if a project does not exist" do
+      assert nil == Projects.get_project_account_by_project_id(1)
+    end
+
+    test "returns project account" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist")
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      got = Projects.get_project_account_by_project_id(project.id)
+
+      # Then
+      assert %ProjectAccount{
+               handle: "#{account.name}/#{project.name}",
+               account: account,
+               project: project
+             } == got
+    end
+  end
+
+  describe "delete_project/1" do
+    test "deletes a project" do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist")
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      Projects.delete_project(project)
+
+      # Then
+      assert nil == Projects.get_project_by_id(project.id)
+    end
+  end
 end

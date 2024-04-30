@@ -56,6 +56,10 @@ defmodule TuistCloudWeb.Router do
     post "/cache/multipart/generate-url", CacheController, :multipart_generate_url
     post "/cache/multipart/complete", CacheController, :multipart_complete
     put "/projects/:account_name/:project_name/cache/clean", CacheController, :clean
+    post "/projects", ProjectsController, :create
+    get "/projects/:account_name/:project_name", ProjectsController, :show
+    delete "/projects/:id", ProjectsController, :delete
+    get "/projects", ProjectsController, :index
   end
 
   scope "/api" do

@@ -9,7 +9,8 @@ defmodule TuistCloudWeb.API.Schemas.Error do
     type: :object,
     properties: %{
       message: %Schema{
-        type: :string
+        type: :string,
+        description: "The error message"
       }
     }
   })

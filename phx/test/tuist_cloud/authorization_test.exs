@@ -165,4 +165,110 @@ defmodule TuistCloud.AuthorizationTest do
     # When
     assert Authorization.can(another_project, :create, project, :command_event) == false
   end
+
+  test "can.create.account.project when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+
+    # When
+    assert Authorization.can(user, :create, account, :project) == true
+  end
+
+  test "can.create.account.project when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :create, account, :project) == false
+  end
+
+  test "can.update.account.project when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+
+    # When
+    assert Authorization.can(user, :update, account, :project) == false
+  end
+
+  test "can.update.account.project when the subject is a user that is admin of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, :admin)
+
+    # When
+    assert Authorization.can(user, :update, account, :project) == true
+  end
+
+  test "can.update.account.project when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :update, account, :project) == false
+  end
+
+  test "can.read.account.project when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+
+    # When
+    assert Authorization.can(user, :read, account, :project) == true
+  end
+
+  test "can.read.account.project when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :read, account, :project) == false
+  end
+
+  test "can.delete.account.project when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+
+    # When
+    assert Authorization.can(user, :delete, account, :project) == false
+  end
+
+  test "can.delete.account.project when the subject is a user that is admin of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, :admin)
+
+    # When
+    assert Authorization.can(user, :delete, account, :project) == true
+  end
+
+  test "can.delete.account.project when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :delete, account, :project) == false
+  end
 end

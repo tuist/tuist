@@ -19,13 +19,20 @@ defmodule TuistCloud.Projects do
 
   def get_project_account_by_project_id(project_id) do
     project = get_project_by_id(project_id)
-    account = Accounts.get_account_by_id(project.account_id)
 
-    %ProjectAccount{
-      handle: "#{account.name}/#{project.name}",
-      project: project,
-      account: account
-    }
+    case project do
+      nil ->
+        nil
+
+      _ ->
+        account = Accounts.get_account_by_id(project.account_id)
+
+        %ProjectAccount{
+          handle: "#{account.name}/#{project.name}",
+          project: project,
+          account: account
+        }
+    end
   end
 
   def get_project_by_account_and_project_name(account_name, project_name) do
@@ -95,5 +102,9 @@ defmodule TuistCloud.Projects do
     %Project{}
     |> Project.create_changeset(%{token: token, name: name, account_id: account_id})
     |> Repo.insert!()
+  end
+
+  def delete_project(%Project{} = project) do
+    Repo.delete(project)
   end
 end

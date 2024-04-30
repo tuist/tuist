@@ -11,10 +11,12 @@ defmodule TuistCloudWeb.API.Schemas.CommandEvent do
     required: [:id, :name],
     properties: %{
       id: %Schema{
-        type: :number
+        type: :number,
+        description: "ID of the command event"
       },
       name: %Schema{
-        type: :string
+        type: :string,
+        description: "Name of the command"
       }
     }
   })
