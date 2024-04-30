@@ -65,10 +65,11 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD` | <!-- TODO -->  | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_TOKENS` | <!-- TODO --> | No | `$TUIST_SECRET_KEY_BASE` | |        
+| `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |        
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 
 ### Authentication environment configuration
@@ -226,3 +227,90 @@ kill_timeout = "5s"
 ```
 
 Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
+
+### Docker Compose
+
+Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
+
+```yaml
+version: '3.8'
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - '5432:5432'
+    volumes: 
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgweb:
+    container_name: pgweb  
+    restart: always  
+    image: sosedoff/pgweb
+    ports:
+      - "8081:8081"
+    links:
+      - db:db  
+    environment:
+      PGWEB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+    depends_on:
+      - db 
+
+  tuist:
+    image: ghcr.io/tuist/cloud-on-premise:latest
+    container_name: tuist_cloud
+    depends_on:
+      - db
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "443:443"
+    expose:
+      - "80"
+      - "8080"
+      - "443:443"
+    environment:
+      # Base Tuist Env - https://docs.tuist.io/cloud/on-premise#base-environment-configuration
+      TUIST_USE_SSL_FOR_DATABASE: "0"
+      TUIST_LICENSE:  # ...
+      TUIST_CLOUD_HOSTED: "0"
+      DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+      TUIST_APP_URL: https://localhost:8080
+      TUIST_SECRET_KEY_BASE: # ...
+      WEB_CONCURRENCY: 80
+      
+      # Auth - one method
+      # GitHub Auth - https://docs.tuist.io/cloud/on-premise#github
+      TUIST_GITHUB_OAUTH_ID: 
+      TUIST_GITHUB_OAUTH_SECRET: 
+
+      # Okta Auth - https://docs.tuist.io/cloud/on-premise#okta
+      TUIST_OKTA_SITE:
+      TUIST_OKTA_CLIENT_ID:
+      TUIST_OKTA_CLIENT_SECRET:
+      TUIST_OKTA_AUTHORIZE_URL: # Optional
+      TUIST_OKTA_TOKEN_URL: # Optional
+      TUIST_OKTA_USER_INFO_URL: # Optional
+      TUIST_OKTA_EVENT_HOOK_SECRET: # Optional
+
+      # Storage
+      TUIST_S3_ACCESS_KEY_ID: # ...
+      TUIST_S3_SECRET_ACCESS_KEY: # ...
+      TUIST_S3_BUCKET_NAME: # ...
+      TUIST_S3_REGION: # ...
+      TUIST_S3_ENDPOINT: # https://amazonaws.com
+    
+      # Other
+
+volumes:
+  db:
+    driver: local
+```
