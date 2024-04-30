@@ -32,7 +32,7 @@ public enum AppKit {
         _ = YAMLEncoder()
 
         // Use GoogleSignIn
-        _ = GIDSignIn.sharedInstance.hasPreviousSignIn()
+        _ = GIDSignIn.sharedInstance.configuration
 
         // Use Sentry
         SentrySDK.startSession()
