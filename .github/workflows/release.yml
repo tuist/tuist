@@ -35,7 +35,7 @@ jobs:
         with:
           owner: tuist
           repo: cloud-on-premise
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
       - name: "Generate Changelog"
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v2
