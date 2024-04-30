@@ -84,4 +84,19 @@ defmodule TuistCloud.Storage do
       "#{project_slug}/#{hash}/#{name}"
     end
   end
+
+  def delete_all_objects(project_slug) do
+    bucket_name = Environment.s3_bucket_name()
+
+    stream =
+      bucket_name
+      |> ExAws.S3.list_objects(prefix: project_slug)
+      |> ExAws.stream!()
+      |> Stream.map(& &1.key)
+
+    {:ok, _} =
+      bucket_name
+      |> ExAws.S3.delete_all_objects(stream)
+      |> ExAws.request()
+  end
 end

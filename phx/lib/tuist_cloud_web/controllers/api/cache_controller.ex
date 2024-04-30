@@ -56,7 +56,7 @@ defmodule TuistCloudWeb.API.CacheController do
       ok:
         {"The artifact exists and is downloadable", "application/json",
          %Schema{
-           title: "Cache artifacth download URL",
+           title: "Cache artifact download URL",
            description: "The URL to download the artifact from the cache.",
            type: :object,
            properties: %{
@@ -494,5 +494,46 @@ defmodule TuistCloudWeb.API.CacheController do
 
   def multipart_complete(conn, _params) do
     conn |> put_status(400) |> json(%{message: "The request has missing or invalid parameters"})
+  end
+
+  operation(:clean,
+    summary: "Cleans cache for a given project",
+    parameters: [
+      account_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the account that the project belongs to."
+      ],
+      project_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the project to clean cache for"
+      ]
+    ],
+    responses: %{
+      no_content: "The cache has been successfully cleaned",
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
+      not_found: {"The project was not found", "application/json", Error}
+    }
+  )
+
+  def clean(
+        %{
+          path_params: %{
+            "account_name" => account_name,
+            "project_name" => project_name
+          }
+        } = conn,
+        _params
+      ) do
+    project_id = "#{account_name}/#{project_name}"
+    Storage.delete_all_objects(project_id)
+
+    conn
+    |> send_resp(:no_content, "")
   end
 end

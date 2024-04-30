@@ -1,4 +1,5 @@
 defmodule TuistCloudWeb.CacheControllerTest do
+  alias TuistCloud.AccountsFixtures
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Accounts
   alias TuistCloud.ProjectsFixtures
@@ -175,5 +176,107 @@ defmodule TuistCloudWeb.CacheControllerTest do
     response = json_response(conn, 200)
     assert response["status"] == "success"
     assert response["data"] == %{}
+  end
+
+  describe "PUT /api/projects/:account_name/:project_name/cache/clean" do
+    test "given project is cleaned", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      Storage
+      |> expect(:delete_all_objects, fn _project_id ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_authenticated_user(user)
+
+      # When
+      conn =
+        conn
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+
+      # Then
+      response = response(conn, :no_content)
+
+      assert response == ""
+    end
+
+    test "given organization project is cleaned", %{conn: conn} do
+      # Given
+      organization = Accounts.create_organization(%{name: "tuist-org"})
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      user = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user, organization)
+
+      Storage
+      |> expect(:delete_all_objects, fn _project_id ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_authenticated_user(user)
+
+      # When
+      conn =
+        conn
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+
+      # Then
+      response = response(conn, :no_content)
+
+      assert response == ""
+    end
+
+    test "forbidden error is returned when user doesn't have permission to clean the project cache",
+         %{conn: conn} do
+      # Given
+      organization = Accounts.create_organization(%{name: "tuist-org"})
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      user = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> Authentication.put_authenticated_user(user)
+
+      # When
+      conn =
+        conn
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "The authenticated subject is not authorized to perform this action"
+    end
+
+    test "not found error is returned when project doesn't exist",
+         %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_authenticated_user(user)
+
+      # When
+      conn =
+        conn
+        |> put(~p"/api/projects/#{account.name}/non-existing-project/cache/clean")
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response["message"] ==
+               "The project #{account.name}/non-existing-project was not found."
+    end
   end
 end

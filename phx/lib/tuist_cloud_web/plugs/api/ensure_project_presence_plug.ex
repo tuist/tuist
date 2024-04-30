@@ -33,6 +33,18 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
   end
 
   def call(
+        %{
+          path_params: %{
+            "account_name" => account_name,
+            "project_name" => project_name
+          }
+        } = conn,
+        _opts
+      ) do
+    assign_request_project_to_conn("#{account_name}/#{project_name}", conn)
+  end
+
+  def call(
         %{query_params: %{"project_id" => project_slug}} = conn,
         _opts
       ) do
