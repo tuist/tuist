@@ -1,4 +1,5 @@
 defmodule TuistCloudWeb.CacheControllerTest do
+  alias TuistCloud.CommandEvents
   alias TuistCloud.AccountsFixtures
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Accounts
@@ -16,6 +17,20 @@ defmodule TuistCloudWeb.CacheControllerTest do
     project_id = "#{account.name}/#{project.name}"
     cache_category = "builds"
     download_url = "https://cloud.tuist.io/download/1234"
+
+    item = %{
+      hash: hash,
+      name: name,
+      project_slug: project_id,
+      cache_category: cache_category
+    }
+
+    CommandEvents.create_cache_event(%{
+      project_id: project.id,
+      name: name,
+      event_type: :upload,
+      size: 1024
+    })
 
     Storage
     |> expect(:generate_download_url, fn %{
@@ -48,6 +63,9 @@ defmodule TuistCloudWeb.CacheControllerTest do
     response_data = response["data"]
     assert response_data["url"] == download_url
     assert response_data["expires_at"] != nil
+
+    cache_event = CommandEvents.get_cache_event(item, %{event_type: :download})
+    assert cache_event.size == 1024
   end
 
   test "POST /api/cache/multipart/start", %{conn: conn} do
@@ -141,6 +159,13 @@ defmodule TuistCloudWeb.CacheControllerTest do
     cache_category = "builds"
     upload_id = "1234"
 
+    item = %{
+      hash: hash,
+      name: name,
+      project_slug: project_id,
+      cache_category: cache_category
+    }
+
     parts = [
       %{part_number: 1, etag: "etag1"},
       %{part_number: 2, etag: "etag2"},
@@ -157,6 +182,16 @@ defmodule TuistCloudWeb.CacheControllerTest do
                                              ^upload_id,
                                              [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
       :ok
+    end)
+
+    Storage
+    |> expect(:get_object, fn %{
+                                hash: ^hash,
+                                name: ^name,
+                                project_slug: ^project_id,
+                                cache_category: ^cache_category
+                              } ->
+      %{content_length: 1024}
     end)
 
     conn =
@@ -176,6 +211,9 @@ defmodule TuistCloudWeb.CacheControllerTest do
     response = json_response(conn, 200)
     assert response["status"] == "success"
     assert response["data"] == %{}
+
+    cache_event = CommandEvents.get_cache_event(item, %{event_type: :upload})
+    assert cache_event.size == 1024
   end
 
   describe "PUT /api/projects/:account_name/:project_name/cache/clean" do

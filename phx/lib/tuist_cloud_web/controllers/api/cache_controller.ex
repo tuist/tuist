@@ -1,7 +1,9 @@
 defmodule TuistCloudWeb.API.CacheController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.API.EnsureProjectPresencePlug
   alias TuistCloud.Storage
+  alias TuistCloud.CommandEvents
   alias OpenApiSpex.Schema
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -96,16 +98,29 @@ defmodule TuistCloudWeb.API.CacheController do
       ) do
     expires_in = 3600
 
+    item = %{
+      hash: hash,
+      name: name,
+      project_slug: project_slug,
+      cache_category: cache_category
+    }
+
     url =
       Storage.generate_download_url(
-        %{
-          hash: hash,
-          name: name,
-          project_slug: project_slug,
-          cache_category: cache_category
-        },
+        item,
         expires_in: expires_in
       )
+
+    upload_event = CommandEvents.get_cache_event(item, %{event_type: :upload})
+
+    unless is_nil(upload_event) do
+      CommandEvents.create_cache_event(%{
+        name: name,
+        event_type: :download,
+        size: upload_event.size,
+        project_id: EnsureProjectPresencePlug.get_project(conn).id
+      })
+    end
 
     expires_at = System.system_time(:second) + expires_in
     conn |> json(%{status: "success", data: %{url: url, expires_at: expires_at}})
@@ -474,20 +489,31 @@ defmodule TuistCloudWeb.API.CacheController do
         } = conn,
         _params
       ) do
+    item = %{
+      hash: hash,
+      name: name,
+      project_slug: project_slug,
+      cache_category: cache_category
+    }
+
     :ok =
       Storage.complete_multipart_upload(
-        %{
-          hash: hash,
-          name: name,
-          project_slug: project_slug,
-          cache_category: cache_category
-        },
+        item,
         upload_id,
         parts
         |> Enum.map(fn %{part_number: part_number, etag: etag} ->
           {part_number, etag}
         end)
       )
+
+    object = Storage.get_object(item)
+
+    CommandEvents.create_cache_event(%{
+      name: name,
+      event_type: :upload,
+      size: object.content_length,
+      project_id: EnsureProjectPresencePlug.get_project(conn).id
+    })
 
     conn |> json(%{status: "success", data: %{}})
   end

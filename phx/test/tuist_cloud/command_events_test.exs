@@ -1,4 +1,6 @@
 defmodule TuistCloud.CommandEventsTest do
+  alias TuistCloud.AccountsFixtures
+  alias TuistCloud.Accounts
   alias TuistCloud.CommandEvents
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.ProjectsFixtures
@@ -229,51 +231,75 @@ defmodule TuistCloud.CommandEventsTest do
     assert got.cache_hit_rate == 0.5
   end
 
-  test "returns average duration for the last year" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+  describe "update_cache_event_counts/0" do
+    test "returns average duration for the last year" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
-    project = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
 
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 20,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 10,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "fetch",
-      duration: 10,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 5,
-      created_at: ~N[2024-03-05 00:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_command_average("generate", project.id,
-        start_date: Date.add(Time.utc_now(), -365)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 20,
+        created_at: ~N[2024-04-30 03:00:00]
       )
 
-    # Then
-    assert got[~D[2024-03-05]].value == 5
-    assert got[~D[2024-04-30]].value == 15
-    assert got[~D[2024-01-29]].value == 0
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 10,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "fetch",
+        duration: 10,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 5,
+        created_at: ~N[2024-03-05 00:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_command_average("generate", project.id,
+          start_date: Date.add(Time.utc_now(), -365)
+        )
+
+      # Then
+      assert got[~D[2024-03-05]].value == 5
+      assert got[~D[2024-04-30]].value == 15
+      assert got[~D[2024-01-29]].value == 0
+    end
+  end
+
+  describe "get_cache_event/1" do
+    test "returns cache download event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      item = %{
+        project_id: project.id,
+        name: "a",
+        event_type: :download,
+        size: 1000
+      }
+
+      cache_event = CommandEvents.create_cache_event(item)
+
+      # When
+      got = CommandEvents.get_cache_event(%{name: "a"}, %{event_type: :download})
+
+      # Then
+      assert got == cache_event
+    end
   end
 
   test "returns a trend when current_value is smaller" do
@@ -306,5 +332,87 @@ defmodule TuistCloud.CommandEventsTest do
 
     # Then
     assert got == 0
+  end
+
+  test "updates cache event counts" do
+    # Given
+    Time
+    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+    user_one = AccountsFixtures.user_fixture()
+    account_one = Accounts.get_account_from_user(user_one)
+    project_one = ProjectsFixtures.project_fixture(account_id: account_one.id)
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_one.id,
+      name: "a",
+      event_type: :upload,
+      size: 1000
+    })
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_one.id,
+      name: "a",
+      event_type: :download,
+      size: 1000
+    })
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_one.id,
+      name: "b",
+      event_type: :download,
+      size: 2000,
+      created_at: ~N[2024-04-02 03:00:00]
+    })
+
+    project_two = ProjectsFixtures.project_fixture(account_id: account_one.id)
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_two.id,
+      name: "c",
+      event_type: :upload,
+      size: 3000,
+      created_at: ~N[2024-04-01 03:00:00]
+    })
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_two.id,
+      name: "c",
+      event_type: :download,
+      size: 3000,
+      created_at: ~N[2024-04-01 03:00:00]
+    })
+
+    CommandEvents.create_cache_event(
+      %{
+        project_id: project_two.id,
+        name: "c",
+        event_type: :download,
+        size: 10_000
+      },
+      created_at: ~N[2024-03-29 03:00:00]
+    )
+
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+    project_three = ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+    CommandEvents.create_cache_event(%{
+      project_id: project_three.id,
+      name: "d",
+      event_type: :download,
+      size: 4000
+    })
+
+    Accounts.create_organization(%{name: "tuist-org"})
+
+    # When
+    CommandEvents.update_cache_event_counts()
+
+    # Then
+    assert Accounts.get_account_by_id(account_one.id).cache_download_event_count == 3
+    assert Accounts.get_account_by_id(account_one.id).cache_upload_event_count == 2
+    assert Accounts.get_account_by_id(account_two.id).cache_download_event_count == 1
+    assert Accounts.get_account_by_id(account_two.id).cache_upload_event_count == 0
   end
 end

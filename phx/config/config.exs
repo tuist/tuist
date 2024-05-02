@@ -68,7 +68,11 @@ config :tuist_cloud, Oban,
   queues: [default: 10],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"@hourly", TuistCloud.CommandEvents.UpdateCacheEventCountWorker}
+     ]}
   ]
 
 base_url =

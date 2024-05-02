@@ -4,13 +4,6 @@ defmodule TuistCloud.Storage do
   """
   alias TuistCloud.Environment
 
-  @type storable :: %{
-          hash: String.t(),
-          name: String.t(),
-          project_slug: String.t(),
-          cache_category: String.t() | nil
-        }
-
   def generate_multipart_upload_url(item, upload_id, part_number, opts \\ []) do
     expires_in = opts |> Keyword.get(:expires_in, 3600)
     key = object_key(item)
@@ -98,5 +91,14 @@ defmodule TuistCloud.Storage do
       bucket_name
       |> ExAws.S3.delete_all_objects(stream)
       |> ExAws.request()
+  end
+
+  def get_object(item) do
+    {:ok, object} =
+      Environment.s3_bucket_name() |> ExAws.S3.get_object(object_key(item)) |> ExAws.request()
+
+    %{
+      content_length: String.to_integer(Map.new(object.headers)["Content-Length"])
+    }
   end
 end

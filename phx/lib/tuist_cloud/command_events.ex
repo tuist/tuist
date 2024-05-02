@@ -2,12 +2,77 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.Projects
+  alias TuistCloud.Accounts
   alias TuistCloud.Repo
+  alias TuistCloud.CommandEvents.CacheEvent
   alias TuistCloud.CommandEvents.Event
   alias TuistCloud.CommandEvents.DurationAverage
   alias TuistCloud.CommandEvents.CacheHitRateAverage
   alias TuistCloud.Time
   import Ecto.Query
+
+  def create_cache_event(
+        %{
+          name: name,
+          event_type: event_type,
+          size: size,
+          project_id: project_id
+        },
+        attrs \\ []
+      ) do
+    %CacheEvent{}
+    |> CacheEvent.create_changeset(%{
+      project_id: project_id,
+      name: name,
+      event_type: event_type,
+      size: size,
+      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+    })
+    |> Repo.insert!()
+  end
+
+  def get_cache_event(item, %{event_type: event_type}) do
+    Repo.get_by(CacheEvent, name: item.name, event_type: event_type)
+  end
+
+  def update_cache_event_counts() do
+    Accounts.get_all_accounts()
+    |> Enum.map(&Projects.get_all_project_accounts/1)
+    |> Enum.filter(&(!Enum.empty?(&1)))
+    |> Enum.each(fn projects ->
+      account = hd(projects).account
+
+      start_date = DateTime.add(Time.utc_now(), -30, :day)
+
+      cache_events =
+        from(c in CacheEvent,
+          where:
+            c.project_id in ^Enum.map(projects, & &1.project.id) and c.created_at > ^start_date
+        )
+        |> Repo.all()
+
+      cache_download_event_count =
+        cache_events
+        |> Enum.filter(&(&1.event_type == :download))
+        |> Enum.map(& &1.size)
+        |> length()
+
+      cache_upload_event_count =
+        cache_events
+        |> Enum.filter(&(&1.event_type == :upload))
+        |> length()
+
+      {:ok, _} =
+        Repo.update(
+          account
+          |> Ecto.Changeset.change(
+            cache_download_event_count: cache_download_event_count,
+            cache_upload_event_count: cache_upload_event_count
+          )
+        )
+    end)
+  end
 
   def get_command_event_by_id(id) do
     Repo.get(Event, id)

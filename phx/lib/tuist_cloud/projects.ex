@@ -4,7 +4,7 @@ defmodule TuistCloud.Projects do
   """
   alias TuistCloud.Repo
   alias TuistCloud.Accounts
-  alias TuistCloud.Accounts.{Account, ProjectAccount}
+  alias TuistCloud.Accounts.{Account, ProjectAccount, User}
   alias TuistCloud.Projects.Project
 
   import Ecto.Query
@@ -70,7 +70,7 @@ defmodule TuistCloud.Projects do
     end
   end
 
-  def get_all_project_accounts(user) do
+  def get_all_project_accounts(%User{} = user) do
     user_account = Accounts.get_account_from_user(user)
 
     organization_account_ids =
@@ -88,6 +88,19 @@ defmodule TuistCloud.Projects do
 
     Repo.all(query)
     |> Enum.map(fn {project, account} ->
+      %ProjectAccount{
+        handle: "#{account.name}/#{project.name}",
+        project: project,
+        account: account
+      }
+    end)
+  end
+
+  def get_all_project_accounts(%Account{id: account_id} = account) do
+    query = from p in Project, where: p.account_id == ^account_id, select: p
+
+    Repo.all(query)
+    |> Enum.map(fn project ->
       %ProjectAccount{
         handle: "#{account.name}/#{project.name}",
         project: project,
