@@ -29,7 +29,8 @@ defmodule TuistCloudWeb.CacheControllerTest do
       project_id: project.id,
       name: name,
       event_type: :upload,
-      size: 1024
+      size: 1024,
+      hash: hash
     })
 
     Storage

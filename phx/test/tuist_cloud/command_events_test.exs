@@ -289,13 +289,32 @@ defmodule TuistCloud.CommandEventsTest do
         project_id: project.id,
         name: "a",
         event_type: :download,
-        size: 1000
+        size: 1000,
+        hash: "hash-1"
+      }
+
+      item_upload = %{
+        project_id: project.id,
+        name: "a",
+        event_type: :upload,
+        size: 1000,
+        hash: "hash-1"
+      }
+
+      item_two = %{
+        project_id: project.id,
+        name: "a",
+        event_type: :download,
+        size: 1000,
+        hash: "hash-2"
       }
 
       cache_event = CommandEvents.create_cache_event(item)
+      CommandEvents.create_cache_event(item_two)
+      CommandEvents.create_cache_event(item_upload)
 
       # When
-      got = CommandEvents.get_cache_event(%{name: "a"}, %{event_type: :download})
+      got = CommandEvents.get_cache_event(%{hash: "hash-1"}, %{event_type: :download})
 
       # Then
       assert got == cache_event
@@ -347,14 +366,16 @@ defmodule TuistCloud.CommandEventsTest do
       project_id: project_one.id,
       name: "a",
       event_type: :upload,
-      size: 1000
+      size: 1000,
+      hash: "hash-1"
     })
 
     CommandEvents.create_cache_event(%{
       project_id: project_one.id,
       name: "a",
       event_type: :download,
-      size: 1000
+      size: 1000,
+      hash: "hash-1"
     })
 
     CommandEvents.create_cache_event(%{
@@ -362,7 +383,8 @@ defmodule TuistCloud.CommandEventsTest do
       name: "b",
       event_type: :download,
       size: 2000,
-      created_at: ~N[2024-04-02 03:00:00]
+      created_at: ~N[2024-04-02 03:00:00],
+      hash: "hash-2"
     })
 
     project_two = ProjectsFixtures.project_fixture(account_id: account_one.id)
@@ -372,7 +394,8 @@ defmodule TuistCloud.CommandEventsTest do
       name: "c",
       event_type: :upload,
       size: 3000,
-      created_at: ~N[2024-04-01 03:00:00]
+      created_at: ~N[2024-04-01 03:00:00],
+      hash: "hash-3"
     })
 
     CommandEvents.create_cache_event(%{
@@ -380,7 +403,8 @@ defmodule TuistCloud.CommandEventsTest do
       name: "c",
       event_type: :download,
       size: 3000,
-      created_at: ~N[2024-04-01 03:00:00]
+      created_at: ~N[2024-04-01 03:00:00],
+      hash: "hash-3"
     })
 
     CommandEvents.create_cache_event(
@@ -388,7 +412,8 @@ defmodule TuistCloud.CommandEventsTest do
         project_id: project_two.id,
         name: "c",
         event_type: :download,
-        size: 10_000
+        size: 10_000,
+        hash: "hash-4"
       },
       created_at: ~N[2024-03-29 03:00:00]
     )
@@ -401,7 +426,8 @@ defmodule TuistCloud.CommandEventsTest do
       project_id: project_three.id,
       name: "d",
       event_type: :download,
-      size: 4000
+      size: 4000,
+      hash: "hash-5"
     })
 
     Accounts.create_organization(%{name: "tuist-org"})

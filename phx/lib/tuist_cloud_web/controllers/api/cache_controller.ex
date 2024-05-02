@@ -118,7 +118,8 @@ defmodule TuistCloudWeb.API.CacheController do
         name: name,
         event_type: :download,
         size: upload_event.size,
-        project_id: EnsureProjectPresencePlug.get_project(conn).id
+        project_id: EnsureProjectPresencePlug.get_project(conn).id,
+        hash: hash
       })
     end
 
@@ -512,7 +513,8 @@ defmodule TuistCloudWeb.API.CacheController do
       name: name,
       event_type: :upload,
       size: object.content_length,
-      project_id: EnsureProjectPresencePlug.get_project(conn).id
+      project_id: EnsureProjectPresencePlug.get_project(conn).id,
+      hash: hash
     })
 
     conn |> json(%{status: "success", data: %{}})

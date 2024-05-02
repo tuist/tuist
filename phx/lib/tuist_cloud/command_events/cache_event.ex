@@ -7,6 +7,7 @@ defmodule TuistCloud.CommandEvents.CacheEvent do
 
   schema "cache_events" do
     field :name, :string
+    field :hash, :string
     field :event_type, Ecto.Enum, values: [download: 0, upload: 1]
     field :size, :integer
     timestamps(inserted_at: :created_at)
@@ -21,8 +22,9 @@ defmodule TuistCloud.CommandEvents.CacheEvent do
       :name,
       :event_type,
       :size,
+      :hash,
       :created_at
     ])
-    |> validate_required([:project_id, :name, :event_type, :size])
+    |> validate_required([:project_id, :name, :event_type, :size, :hash])
   end
 end

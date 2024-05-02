@@ -17,6 +17,7 @@ defmodule TuistCloud.CommandEvents do
           name: name,
           event_type: event_type,
           size: size,
+          hash: hash,
           project_id: project_id
         },
         attrs \\ []
@@ -25,6 +26,7 @@ defmodule TuistCloud.CommandEvents do
     |> CacheEvent.create_changeset(%{
       project_id: project_id,
       name: name,
+      hash: hash,
       event_type: event_type,
       size: size,
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
@@ -33,7 +35,7 @@ defmodule TuistCloud.CommandEvents do
   end
 
   def get_cache_event(item, %{event_type: event_type}) do
-    Repo.get_by(CacheEvent, name: item.name, event_type: event_type)
+    Repo.get_by(CacheEvent, hash: item.hash, event_type: event_type)
   end
 
   def update_cache_event_counts() do
