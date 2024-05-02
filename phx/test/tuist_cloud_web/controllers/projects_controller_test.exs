@@ -17,7 +17,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =
@@ -39,7 +39,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       organization = Accounts.create_organization(%{name: "tuist-org"})
       Accounts.add_user_to_organization(user, organization)
@@ -67,7 +67,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       Accounts.create_organization(%{name: "tuist-org"})
 
@@ -90,7 +90,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
 
@@ -116,7 +116,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       user_account = Accounts.get_account_from_user(user)
 
@@ -160,7 +160,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -187,7 +187,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -213,7 +213,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
 
@@ -238,7 +238,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -263,7 +263,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -285,7 +285,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =
@@ -308,7 +308,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)

@@ -1,9 +1,9 @@
-defmodule TuistCloudWeb.UserAuthTest do
+defmodule TuistCloudWeb.AuthenticationTest do
   use TuistCloudWeb.ConnCase, async: true
 
   alias Phoenix.LiveView
   alias TuistCloud.Accounts
-  alias TuistCloudWeb.UserAuth
+  alias TuistCloudWeb.Authentication
   import TuistCloud.AccountsFixtures
 
   @remember_me_cookie "_tuist_cloud_web_user_remember_me"
@@ -19,7 +19,7 @@ defmodule TuistCloudWeb.UserAuthTest do
 
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
-      conn = UserAuth.log_in_user(conn, user)
+      conn = Authentication.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
       assert redirected_to(conn) == ~p"/v2"
@@ -27,17 +27,19 @@ defmodule TuistCloudWeb.UserAuthTest do
     end
 
     test "clears everything previously stored in the session", %{conn: conn, user: user} do
-      conn = conn |> put_session(:to_be_removed, "value") |> UserAuth.log_in_user(user)
+      conn = conn |> put_session(:to_be_removed, "value") |> Authentication.log_in_user(user)
       refute get_session(conn, :to_be_removed)
     end
 
     test "redirects to the configured path", %{conn: conn, user: user} do
-      conn = conn |> put_session(:user_return_to, "/hello") |> UserAuth.log_in_user(user)
+      conn = conn |> put_session(:user_return_to, "/hello") |> Authentication.log_in_user(user)
       assert redirected_to(conn) == "/hello"
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
-      conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      conn =
+        conn |> fetch_cookies() |> Authentication.log_in_user(user, %{"remember_me" => "true"})
+
       assert get_session(conn, :user_token) == conn.cookies[@remember_me_cookie]
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
@@ -55,7 +57,7 @@ defmodule TuistCloudWeb.UserAuthTest do
         |> put_session(:user_token, user_token)
         |> put_req_cookie(@remember_me_cookie, user_token)
         |> fetch_cookies()
-        |> UserAuth.log_out_user()
+        |> Authentication.log_out_user()
 
       refute get_session(conn, :user_token)
       refute conn.cookies[@remember_me_cookie]
@@ -70,13 +72,13 @@ defmodule TuistCloudWeb.UserAuthTest do
 
       conn
       |> put_session(:live_socket_id, live_socket_id)
-      |> UserAuth.log_out_user()
+      |> Authentication.log_out_user()
 
       assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^live_socket_id}
     end
 
     test "works even if user is already logged out", %{conn: conn} do
-      conn = conn |> fetch_cookies() |> UserAuth.log_out_user()
+      conn = conn |> fetch_cookies() |> Authentication.log_out_user()
       refute get_session(conn, :user_token)
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
       assert redirected_to(conn) == ~p"/v2"
@@ -86,13 +88,13 @@ defmodule TuistCloudWeb.UserAuthTest do
   describe "fetch_current_user/2" do
     test "authenticates user from session", %{conn: conn, user: user} do
       user_token = Accounts.generate_user_session_token(user)
-      conn = conn |> put_session(:user_token, user_token) |> UserAuth.fetch_current_user([])
+      conn = conn |> put_session(:user_token, user_token) |> Authentication.fetch_current_user([])
       assert conn.assigns.current_user.id == user.id
     end
 
     test "authenticates user from cookies", %{conn: conn, user: user} do
       logged_in_conn =
-        conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+        conn |> fetch_cookies() |> Authentication.log_in_user(user, %{"remember_me" => "true"})
 
       user_token = logged_in_conn.cookies[@remember_me_cookie]
       %{value: signed_token} = logged_in_conn.resp_cookies[@remember_me_cookie]
@@ -100,7 +102,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       conn =
         conn
         |> put_req_cookie(@remember_me_cookie, signed_token)
-        |> UserAuth.fetch_current_user([])
+        |> Authentication.fetch_current_user([])
 
       assert conn.assigns.current_user.id == user.id
       assert get_session(conn, :user_token) == user_token
@@ -111,7 +113,7 @@ defmodule TuistCloudWeb.UserAuthTest do
 
     test "does not authenticate if data is missing", %{conn: conn, user: user} do
       _ = Accounts.generate_user_session_token(user)
-      conn = UserAuth.fetch_current_user(conn, [])
+      conn = Authentication.fetch_current_user(conn, [])
       refute get_session(conn, :user_token)
       refute conn.assigns.current_user
     end
@@ -123,7 +125,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
-        UserAuth.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
+        Authentication.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
 
       assert updated_socket.assigns.current_user.id == user.id
     end
@@ -133,7 +135,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
-        UserAuth.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
+        Authentication.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
 
       assert updated_socket.assigns.current_user == nil
     end
@@ -142,7 +144,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> get_session()
 
       {:cont, updated_socket} =
-        UserAuth.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
+        Authentication.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
 
       assert updated_socket.assigns.current_user == nil
     end
@@ -154,7 +156,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       {:cont, updated_socket} =
-        UserAuth.on_mount(:ensure_authenticated, %{}, session, %LiveView.Socket{})
+        Authentication.on_mount(:ensure_authenticated, %{}, session, %LiveView.Socket{})
 
       assert updated_socket.assigns.current_user.id == user.id
     end
@@ -168,7 +170,9 @@ defmodule TuistCloudWeb.UserAuthTest do
         assigns: %{__changed__: %{}, flash: %{}}
       }
 
-      {:halt, updated_socket} = UserAuth.on_mount(:ensure_authenticated, %{}, session, socket)
+      {:halt, updated_socket} =
+        Authentication.on_mount(:ensure_authenticated, %{}, session, socket)
+
       assert updated_socket.assigns.current_user == nil
     end
 
@@ -180,7 +184,9 @@ defmodule TuistCloudWeb.UserAuthTest do
         assigns: %{__changed__: %{}, flash: %{}}
       }
 
-      {:halt, updated_socket} = UserAuth.on_mount(:ensure_authenticated, %{}, session, socket)
+      {:halt, updated_socket} =
+        Authentication.on_mount(:ensure_authenticated, %{}, session, socket)
+
       assert updated_socket.assigns.current_user == nil
     end
   end
@@ -191,7 +197,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> put_session(:user_token, user_token) |> get_session()
 
       assert {:halt, _updated_socket} =
-               UserAuth.on_mount(
+               Authentication.on_mount(
                  :redirect_if_user_is_authenticated,
                  %{},
                  session,
@@ -203,7 +209,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       session = conn |> get_session()
 
       assert {:cont, _updated_socket} =
-               UserAuth.on_mount(
+               Authentication.on_mount(
                  :redirect_if_user_is_authenticated,
                  %{},
                  session,
@@ -214,13 +220,17 @@ defmodule TuistCloudWeb.UserAuthTest do
 
   describe "redirect_if_user_is_authenticated/2" do
     test "redirects if user is authenticated", %{conn: conn, user: user} do
-      conn = conn |> assign(:current_user, user) |> UserAuth.redirect_if_user_is_authenticated([])
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.redirect_if_user_is_authenticated([])
+
       assert conn.halted
       assert redirected_to(conn) == ~p"/v2"
     end
 
     test "does not redirect if user is not authenticated", %{conn: conn} do
-      conn = UserAuth.redirect_if_user_is_authenticated(conn, [])
+      conn = Authentication.redirect_if_user_is_authenticated(conn, [])
       refute conn.halted
       refute conn.status
     end
@@ -228,7 +238,7 @@ defmodule TuistCloudWeb.UserAuthTest do
 
   describe "require_authenticated_user/2" do
     test "redirects if user is not authenticated", %{conn: conn} do
-      conn = conn |> fetch_flash() |> UserAuth.require_authenticated_user([])
+      conn = conn |> fetch_flash() |> Authentication.require_authenticated_user([])
       assert conn.halted
 
       assert redirected_to(conn) == ~p"/v2/users/log_in"
@@ -238,7 +248,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       halted_conn =
         %{conn | path_info: ["foo"], query_string: ""}
         |> fetch_flash()
-        |> UserAuth.require_authenticated_user([])
+        |> Authentication.require_authenticated_user([])
 
       assert halted_conn.halted
       assert get_session(halted_conn, :user_return_to) == "/foo"
@@ -246,7 +256,7 @@ defmodule TuistCloudWeb.UserAuthTest do
       halted_conn =
         %{conn | path_info: ["foo"], query_string: "bar=baz"}
         |> fetch_flash()
-        |> UserAuth.require_authenticated_user([])
+        |> Authentication.require_authenticated_user([])
 
       assert halted_conn.halted
       assert get_session(halted_conn, :user_return_to) == "/foo?bar=baz"
@@ -254,14 +264,14 @@ defmodule TuistCloudWeb.UserAuthTest do
       halted_conn =
         %{conn | path_info: ["foo"], query_string: "bar", method: "POST"}
         |> fetch_flash()
-        |> UserAuth.require_authenticated_user([])
+        |> Authentication.require_authenticated_user([])
 
       assert halted_conn.halted
       refute get_session(halted_conn, :user_return_to)
     end
 
     test "does not redirect if user is authenticated", %{conn: conn, user: user} do
-      conn = conn |> assign(:current_user, user) |> UserAuth.require_authenticated_user([])
+      conn = conn |> assign(:current_user, user) |> Authentication.require_authenticated_user([])
       refute conn.halted
       refute conn.status
     end

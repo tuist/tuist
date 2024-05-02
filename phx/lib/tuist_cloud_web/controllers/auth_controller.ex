@@ -5,6 +5,7 @@ defmodule TuistCloudWeb.AuthController do
 
   use TuistCloudWeb, :controller
   alias TuistCloud.Accounts
+  alias TuistCloudWeb.Authentication
 
   plug Ueberauth
 
@@ -26,7 +27,7 @@ defmodule TuistCloudWeb.AuthController do
 
     conn
     |> put_flash(:info, "Successfully authenticated.")
-    |> TuistCloudWeb.UserAuth.log_in_user(user)
+    |> Authentication.log_in_user(user)
     |> redirect(to: ~p"/v2")
   end
 

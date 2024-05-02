@@ -46,7 +46,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
     conn =
       conn
-      |> Authentication.put_authenticated_project(project)
+      |> Authentication.put_current_project(project)
 
     # When
     conn =
@@ -91,7 +91,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
     conn =
       conn
-      |> Authentication.put_authenticated_project(project)
+      |> Authentication.put_current_project(project)
 
     # When
     conn =
@@ -134,7 +134,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
     conn =
       conn
-      |> Authentication.put_authenticated_project(project)
+      |> Authentication.put_current_project(project)
 
     # When
     conn =
@@ -197,7 +197,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
     conn =
       conn
-      |> Authentication.put_authenticated_project(project)
+      |> Authentication.put_current_project(project)
 
     # When
     conn =
@@ -231,7 +231,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =
@@ -259,7 +259,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =
@@ -282,7 +282,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =
@@ -304,7 +304,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       # When
       conn =

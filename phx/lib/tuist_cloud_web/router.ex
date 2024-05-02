@@ -1,7 +1,7 @@
 defmodule TuistCloudWeb.Router do
   use TuistCloudWeb, :router
 
-  import TuistCloudWeb.UserAuth
+  import TuistCloudWeb.Authentication
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistCloudWeb.API.Spec
@@ -97,7 +97,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:browser, :redirect_if_user_is_authenticated]
 
     live_session :redirect_if_user_is_authenticated,
-      on_mount: [{TuistCloudWeb.UserAuth, :redirect_if_user_is_authenticated}] do
+      on_mount: [{TuistCloudWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
@@ -111,7 +111,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :require_authenticated_user,
-      on_mount: [{TuistCloudWeb.UserAuth, :ensure_authenticated}] do
+      on_mount: [{TuistCloudWeb.Authentication, :ensure_authenticated}] do
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
     end
@@ -123,7 +123,7 @@ defmodule TuistCloudWeb.Router do
     delete "/users/log_out", UserSessionController, :delete
 
     live_session :current_user,
-      on_mount: [{TuistCloudWeb.UserAuth, :mount_current_user}] do
+      on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
       live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
@@ -139,7 +139,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :cli,
-      on_mount: [{TuistCloudWeb.UserAuth, :ensure_authenticated}] do
+      on_mount: [{TuistCloudWeb.Authentication, :ensure_authenticated}] do
       live "/success/:device_code", CLISuccessLive, :new
     end
 
@@ -151,7 +151,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :browser, :require_authenticated_user]
 
     live_session :authenticated,
-      on_mount: [{TuistCloudWeb.UserAuth, :mount_current_user}] do
+      on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do
       get "/:account_name/billing", BillingController, :billing_plan
       live "/", HomeLive
       live "/get-started", GetStartedLive

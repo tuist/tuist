@@ -38,15 +38,15 @@ defmodule TuistCloud.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
 
-  def can(%Project{} = authenticated_project, :read, %Project{} = project, :cache) do
-    authenticated_project.id == project.id
+  def can(%Project{} = current_project, :read, %Project{} = project, :cache) do
+    current_project.id == project.id
   end
 
-  def can(%Project{} = authenticated_project, :write, %Project{} = project, :cache) do
-    authenticated_project.id == project.id
+  def can(%Project{} = current_project, :write, %Project{} = project, :cache) do
+    current_project.id == project.id
   end
 
-  def can(%Project{} = authenticated_project, :create, %Project{} = project, :command_event) do
-    authenticated_project.id == project.id
+  def can(%Project{} = current_project, :create, %Project{} = project, :command_event) do
+    current_project.id == project.id
   end
 end

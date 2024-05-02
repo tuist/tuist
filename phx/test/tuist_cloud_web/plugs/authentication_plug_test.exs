@@ -15,7 +15,7 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.authenticated_user(got) == user
+    assert TuistCloudWeb.Authentication.current_user(got) == user
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
   end
 
@@ -29,7 +29,7 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.authenticated_project(got) == project
+    assert TuistCloudWeb.Authentication.current_project(got) == project
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
   end
 
@@ -42,8 +42,8 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.authenticated_project(got) == nil
-    assert TuistCloudWeb.Authentication.authenticated_user(got) == nil
+    assert TuistCloudWeb.Authentication.current_project(got) == nil
+    assert TuistCloudWeb.Authentication.current_user(got) == nil
     assert TuistCloudWeb.Authentication.authenticated?(got) == false
   end
 
@@ -56,8 +56,8 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.authenticated_project(got) == nil
-    assert TuistCloudWeb.Authentication.authenticated_user(got) == nil
+    assert TuistCloudWeb.Authentication.current_project(got) == nil
+    assert TuistCloudWeb.Authentication.current_user(got) == nil
     assert TuistCloudWeb.Authentication.authenticated?(got) == false
   end
 end

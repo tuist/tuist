@@ -11,7 +11,7 @@ defmodule TuistCloudWeb.BillingController do
 
   def billing_plan(conn, %{"account_name" => account_name}) do
     account = Accounts.get_account_by_handle(account_name)
-    user = Authentication.authenticated_user(conn)
+    user = Authentication.current_user(conn)
 
     if Authorization.can(user, :update, account, :billing) do
       session = Billing.create_session(customer: account.customer_id)

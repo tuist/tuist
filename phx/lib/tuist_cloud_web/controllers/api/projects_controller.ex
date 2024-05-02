@@ -49,7 +49,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
         } = conn,
         _params
       ) do
-    user = Authentication.authenticated_user(conn)
+    user = Authentication.current_user(conn)
 
     account =
       case body_params |> Map.get(:organization, nil) do
@@ -105,7 +105,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
   )
 
   def index(conn, _params) do
-    user = Authentication.authenticated_user(conn)
+    user = Authentication.current_user(conn)
 
     projects =
       Projects.get_all_project_accounts(user)
@@ -156,7 +156,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
         } = conn,
         _params
       ) do
-    user = Authentication.authenticated_user(conn)
+    user = Authentication.current_user(conn)
     account = Accounts.get_account_by_handle(account_name)
     project = Projects.get_project_by_account_and_project_name(account.name, project_name)
 
@@ -211,7 +211,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
         } = conn,
         _params
       ) do
-    user = Authentication.authenticated_user(conn)
+    user = Authentication.current_user(conn)
     project_account = Projects.get_project_account_by_project_id(id)
 
     cond do

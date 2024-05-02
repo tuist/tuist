@@ -17,7 +17,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -68,7 +68,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Given
       conn =
         conn
-        |> Authentication.put_authenticated_user(user)
+        |> Authentication.put_current_user(user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -117,7 +117,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
 
       conn =
         conn
-        |> Authentication.put_authenticated_project(project)
+        |> Authentication.put_current_project(project)
 
       # When
       conn =

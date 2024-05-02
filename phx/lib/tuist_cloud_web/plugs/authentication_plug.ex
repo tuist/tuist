@@ -14,10 +14,10 @@ defmodule TuistCloudWeb.AuthenticationPlug do
     if token do
       case TuistCloud.Authentication.authenticated_subject(token) do
         {:project, project} ->
-          conn |> TuistCloudWeb.Authentication.put_authenticated_project(project)
+          conn |> TuistCloudWeb.Authentication.put_current_project(project)
 
         {:user, user} ->
-          conn |> TuistCloudWeb.Authentication.put_authenticated_user(user)
+          conn |> TuistCloudWeb.Authentication.put_current_user(user)
 
         nil ->
           conn

@@ -6,7 +6,7 @@ defmodule TuistCloudWeb.CLISuccessLive do
   def mount(%{"device_code" => device_code}, _session, socket) do
     Accounts.authenticate_device_code(
       device_code,
-      Authentication.authenticated_user(socket)
+      Authentication.current_user(socket)
     )
 
     {:ok, socket}

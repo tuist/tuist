@@ -16,7 +16,7 @@ defmodule TuistCloudWeb.API.Authorization.CachePlugTest do
     conn =
       build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
       |> EnsureProjectPresencePlug.put_project(project)
-      |> TuistCloudWeb.Authentication.put_authenticated_user(user)
+      |> TuistCloudWeb.Authentication.put_current_user(user)
 
     # When
     conn = conn |> CachePlug.call(opts)
@@ -38,7 +38,7 @@ defmodule TuistCloudWeb.API.Authorization.CachePlugTest do
     conn =
       build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
       |> EnsureProjectPresencePlug.put_project(project)
-      |> TuistCloudWeb.Authentication.put_authenticated_project(project)
+      |> TuistCloudWeb.Authentication.put_current_project(project)
 
     # When
     got = conn |> CachePlug.call(opts)

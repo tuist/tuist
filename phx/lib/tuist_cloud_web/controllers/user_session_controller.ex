@@ -2,7 +2,7 @@ defmodule TuistCloudWeb.UserSessionController do
   use TuistCloudWeb, :controller
 
   alias TuistCloud.Accounts
-  alias TuistCloudWeb.UserAuth
+  alias TuistCloudWeb.Authentication
 
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
@@ -25,7 +25,7 @@ defmodule TuistCloudWeb.UserSessionController do
       {:ok, user} ->
         conn
         |> put_flash(:info, info)
-        |> UserAuth.log_in_user(user, user_params)
+        |> Authentication.log_in_user(user, user_params)
 
       {:error, :invalid_email_or_password} ->
         # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
@@ -42,6 +42,6 @@ defmodule TuistCloudWeb.UserSessionController do
 
   def delete(conn, _params) do
     conn
-    |> UserAuth.log_out_user()
+    |> Authentication.log_out_user()
   end
 end
