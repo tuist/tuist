@@ -53,6 +53,48 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
     }
 
+    func test_lint_when_inconsistentProductNameBuildSettingAcrossConfigurations() {
+        // Given
+        let target = Target.test(settings: .test(
+            base: ["PRODUCT_NAME": "1"],
+            debug: .test(settings: ["PRODUCT_NAME": "2"]),
+            release: .test(settings: ["PRODUCT_NAME": "3"])
+        ))
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting that is different across configurations and might cause unpredictable behaviours.",
+                severity: .warning
+            )
+        )
+    }
+
+    func test_lint_when_productNameBuildSettingWithVariables() {
+        // Given
+        let target = Target.test(settings: .test(
+            base: ["PRODUCT_NAME": "$VARIABLE"],
+            debug: .test(settings: ["PRODUCT_NAME": "$VARIABLE"]),
+            release: .test(settings: ["PRODUCT_NAME": "$VARIABLE"])
+        ))
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting containing variables that are resolved at build time, and might cause unpredictable behaviours.",
+                severity: .warning
+            )
+        )
+    }
+
     func test_lint_when_target_has_invalid_bundle_identifier() {
         let XCTAssertInvalidBundleId: (String) -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)

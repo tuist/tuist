@@ -56,6 +56,54 @@ final class TargetTests: TuistUnitTestCase {
         )
     }
 
+    func test_productNameWithExtension_when_buildSettingsProductNameStaticAndConsistentValue() {
+        // Given
+        let target = Target.test(
+            name: "Test",
+            product: .framework,
+            settings: .test(
+                base: ["PRODUCT_NAME": "Tuist"],
+                debug: .test(settings: ["PRODUCT_NAME": "Tuist"]),
+                release: .test(settings: ["PRODUCT_NAME": "Tuist"])
+            )
+        )
+
+        // When
+        XCTAssertEqual(target.productNameWithExtension, "Tuist.framework")
+    }
+
+    func test_productNameWithExtension_when_buildSettingsProductNameDynamicAndConsistentValue() {
+        // Given
+        let target = Target.test(
+            name: "Test",
+            product: .framework,
+            settings: .test(
+                base: ["PRODUCT_NAME": "$OTHER_VARIABLE"],
+                debug: .test(settings: ["PRODUCT_NAME": "$OTHER_VARIABLE"]),
+                release: .test(settings: ["PRODUCT_NAME": "$OTHER_VARIABLE"])
+            )
+        )
+
+        // When
+        XCTAssertEqual(target.productNameWithExtension, "Test.framework")
+    }
+
+    func test_productNameWithExtension_when_buildSettingsProductNameStaticAndInconsistentValue() {
+        // Given
+        let target = Target.test(
+            name: "Test",
+            product: .framework,
+            settings: .test(
+                base: ["PRODUCT_NAME": "Tuist"],
+                debug: .test(settings: ["PRODUCT_NAME": "TuistDebug"]),
+                release: .test(settings: ["PRODUCT_NAME": "TuistRelease"])
+            )
+        )
+
+        // When
+        XCTAssertEqual(target.productNameWithExtension, "Test.framework")
+    }
+
     func test_productNameWithExtension_when_staticLibrary() {
         let target = Target.test(name: "Test", product: .staticLibrary)
         XCTAssertEqual(target.productNameWithExtension, "libTest.a")

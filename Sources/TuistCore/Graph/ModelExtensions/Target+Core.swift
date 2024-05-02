@@ -18,8 +18,31 @@ public enum TargetError: FatalError, Equatable {
 }
 
 extension Target {
-    /// Returns the product name including the extension.
+    /// Returns the product name including the extension
+    /// if the PRODUCT_NAME build setting of the target is set and contains a static value that's consistent
+    /// throughout all the configurations, it uses that value, otherwise it defaults to the target's default.
     public var productNameWithExtension: String {
+        var settingsProductNames: Set<String> = Set()
+
+        if let value = settings?.base["PRODUCT_NAME"], case let SettingValue.string(baseProductName) = value {
+            settingsProductNames.insert(baseProductName)
+        }
+        settings?.configurations.values.forEach { configuration in
+            if let value = configuration?.settings["PRODUCT_NAME"],
+               case let SettingValue.string(configurationProductName) = value
+            {
+                settingsProductNames.insert(configurationProductName)
+            }
+        }
+
+        let productName: String
+
+        if settingsProductNames.count == 1, !settingsProductNames.first!.contains("$") {
+            productName = settingsProductNames.first!
+        } else {
+            productName = self.productName
+        }
+
         switch product {
         case .staticLibrary, .dynamicLibrary:
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"

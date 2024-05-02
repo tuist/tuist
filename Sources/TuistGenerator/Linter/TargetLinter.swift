@@ -28,6 +28,7 @@ class TargetLinter: TargetLinting {
     func lint(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
+        issues.append(contentsOf: lintProductNameBuildSettings(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
@@ -87,6 +88,36 @@ class TargetLinter: TargetLinting {
         }
 
         return []
+    }
+
+    private func lintProductNameBuildSettings(target: Target) -> [LintingIssue] {
+        var settingsProductNames: Set<String> = Set()
+        var issues: [LintingIssue] = []
+
+        if let value = target.settings?.base["PRODUCT_NAME"], case let SettingValue.string(baseProductName) = value {
+            settingsProductNames.insert(baseProductName)
+        }
+        target.settings?.configurations.values.forEach { configuration in
+            if let value = configuration?.settings["PRODUCT_NAME"],
+               case let SettingValue.string(configurationProductName) = value
+            {
+                settingsProductNames.insert(configurationProductName)
+            }
+        }
+        if settingsProductNames.count > 1 {
+            issues.append(.init(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting that is different across configurations and might cause unpredictable behaviours.",
+                severity: .warning
+            ))
+        }
+        if settingsProductNames.contains(where: { $0.contains("$") }) {
+            issues.append(.init(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting containing variables that are resolved at build time, and might cause unpredictable behaviours.",
+                severity: .warning
+            ))
+        }
+
+        return issues
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
