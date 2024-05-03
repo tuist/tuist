@@ -84,8 +84,8 @@ let project = Project(
                 with: [
                     "WKCompanionAppBundleIdentifier": "io.tuist.app",
                 ]
-            ),
-            sources: ["Sources/Watch/App/**"],
+            ), sources: ["Sources/Watch/App/**"],
+
             dependencies: [
                 .target(name: "WatchExtension"),
             ]
