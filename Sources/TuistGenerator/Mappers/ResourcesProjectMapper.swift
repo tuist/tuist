@@ -213,7 +213,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE() {
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
             NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
 
             NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
