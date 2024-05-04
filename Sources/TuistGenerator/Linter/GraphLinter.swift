@@ -91,6 +91,7 @@ public class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
   
         issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintLinkableDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
         issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
@@ -98,7 +99,46 @@ public class GraphLinter: GraphLinting {
 
         return issues
     }
+    
+    private func lintLinkableDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let linkableProducts: Set<Product> = [
+            .framework,
+            .staticFramework,
+            .staticLibrary,
+            .dynamicLibrary,
+        ]
         
+        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, _ -> [LintingIssue] in
+            guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+                  let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+            
+            let fromPlatforms = fromTarget.target.supportedPlatforms
+            
+            let dependencies: [LintingIssue] = graphTraverser.directTargetDependencies(path: fromTargetPath, name: fromTargetName).flatMap { dependentTarget in
+                guard linkableProducts.contains(dependentTarget.target.product) else { return [LintingIssue]() }
+                
+                var requiredPlatforms = fromPlatforms
+                
+                if let condition = dependentTarget.condition {
+                    requiredPlatforms.formIntersection(Set(condition.platformFilters.compactMap(\.platform)))
+                }
+                
+                let unaccountedPlatforms = requiredPlatforms.subtracting(dependentTarget.target.supportedPlatforms)
+                
+                if !unaccountedPlatforms.isEmpty {
+                    let missingPlatforms = unaccountedPlatforms.map(\.rawValue).joined(separator: ", ")
+                    return [LintingIssue(reason: "Target \(fromTargetName) with depends on \(dependentTarget.target.name) and but does not support the required platforms \(missingPlatforms). This dependency requires a condition.", severity: .error)]
+                } else {
+                    return [LintingIssue]()
+                }
+            }
+
+            return dependencies
+        }
+        
+        return dependencyIssues
+    }
+    
     private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in

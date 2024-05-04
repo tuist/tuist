@@ -1904,6 +1904,9 @@ final class GraphLinterTests: TuistUnitTestCase {
                     .target(name: macOnlyTarget.name, path: path),
                 ],
                 .target(name: macOnlyTarget.name, path: path): [],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: .target(name: iOSAndMacTarget.name, path: path), to: .target(name: macOnlyTarget.name, path: path)): try .test([.macos])
             ]
         )
         let config = Config.test()
@@ -1952,5 +1955,54 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertFalse(results.isEmpty)
+    }
+    
+    func test_lint_multiDestinationTarget_dependsOnTargetWithFewerSupportedPlatforms() throws {
+        // Given
+        let path = try temporaryPath()
+        let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
+        let iOSOnlyTarget = Target.test(name: "iOSOnlyTarget", destinations: [.iPhone], product: .framework)
+        
+        let iOSApp = Target.test(name: "iOSApp", destinations: [.iPhone], product: .app)
+        let watchApp = Target.test(name: "WatchApp", destinations: [.appleWatch], product: .watch2App, bundleId: "io.tuist.iOSApp.WatchApp")
+
+        let project = Project.test(
+            path: path,
+            targets: [
+                iOSAndMacTarget,
+                iOSOnlyTarget,
+                iOSApp,
+                watchApp
+            ]
+        )
+        let graph = Graph.test(
+            projects: [path: project],
+            targets: [
+                path: [
+                    iOSAndMacTarget.name: iOSAndMacTarget,
+                    iOSOnlyTarget.name: iOSOnlyTarget,
+                    iOSApp.name: iOSApp,
+                    watchApp.name: watchApp
+                ],
+            ],
+            dependencies: [
+                .target(name: iOSAndMacTarget.name, path: path): [
+                    .target(name: iOSOnlyTarget.name, path: path),
+                ],
+                .target(name: iOSOnlyTarget.name, path: path): [],
+                .target(name: iOSApp.name, path: path): [
+                    .target(name: watchApp.name, path: path),
+                ],
+                .target(name: watchApp.name, path: path): [],
+            ]
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(results, [LintingIssue(reason: "Target IOSAndMacTarget with depends on iOSOnlyTarget and but does not support the required platforms macos. This dependency requires a condition.", severity: .error)])
     }
 }
