@@ -121,7 +121,7 @@ class ProjectGroups {
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         pbxproj.add(object: productsGroup)
         mainGroup.children.append(productsGroup)
-        
+
         /// SDSKs & Pre-compiled frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
