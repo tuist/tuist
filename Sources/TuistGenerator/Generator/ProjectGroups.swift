@@ -114,6 +114,14 @@ class ProjectGroups {
             projectGroups.append((item, projectGroup))
         }
 
+        /// Products
+        /// If the products group is the last non-empty group, it will not appear.
+        /// This appears to be an Xcode bug that is still there as of Xcode 15.3
+        /// https://developer.apple.com/forums/thread/77406
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        pbxproj.add(object: productsGroup)
+        mainGroup.children.append(productsGroup)
+        
         /// SDSKs & Pre-compiled frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
@@ -123,11 +131,6 @@ class ProjectGroups {
         let cacheGroup = PBXGroup(children: [], sourceTree: .group, name: "Cache")
         pbxproj.add(object: cacheGroup)
         mainGroup.children.append(cacheGroup)
-
-        /// Products
-        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
-        pbxproj.add(object: productsGroup)
-        mainGroup.children.append(productsGroup)
 
         return ProjectGroups(
             main: mainGroup,
