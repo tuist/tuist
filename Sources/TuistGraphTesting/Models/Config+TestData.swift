@@ -29,14 +29,16 @@ extension Config.GenerationOptions {
         disablePackageVersionLocking: Bool = false,
         clonedSourcePackagesDirPath: AbsolutePath? = nil,
         staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
-        enforceExplicitDependencies: Bool = false
+        enforceExplicitDependencies: Bool = false,
+        defaultConfiguration: String? = nil
     ) -> Self {
         .init(
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
             staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
-            enforceExplicitDependencies: enforceExplicitDependencies
+            enforceExplicitDependencies: enforceExplicitDependencies,
+            defaultConfiguration: defaultConfiguration
         )
     }
 }

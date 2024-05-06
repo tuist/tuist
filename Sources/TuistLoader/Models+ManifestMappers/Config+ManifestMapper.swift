@@ -64,7 +64,8 @@ extension TuistGraph.Config.GenerationOptions {
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
             staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
-            enforceExplicitDependencies: manifest.enforceExplicitDependencies
+            enforceExplicitDependencies: manifest.enforceExplicitDependencies,
+            defaultConfiguration: manifest.defaultConfiguration
         )
     }
 }

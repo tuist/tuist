@@ -31,19 +31,25 @@ extension Config {
         /// dependencies won't build until all dependencies are declared explicitly.
         public let enforceExplicitDependencies: Bool
 
+        /// The default configuration to be used when generating the project.
+        /// If not specified, Tuist generates for the first (when alphabetically sorted) debug configuration.
+        public var defaultConfiguration: String?
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false
+            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
-                enforceExplicitDependencies: enforceExplicitDependencies
+                enforceExplicitDependencies: enforceExplicitDependencies,
+                defaultConfiguration: defaultConfiguration
             )
         }
     }
