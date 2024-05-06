@@ -124,12 +124,13 @@ public class GraphLinter: GraphLinting {
                         requiredPlatforms.formIntersection(Set(condition.platformFilters.compactMap(\.platform)))
                     }
 
-                    let unaccountedPlatforms = requiredPlatforms.subtracting(dependentTarget.target.supportedPlatforms)
+                    let platformsSupportedByDependency = dependentTarget.target.supportedPlatforms
+                    let unaccountedPlatforms = requiredPlatforms.subtracting(platformsSupportedByDependency)
 
                     if !unaccountedPlatforms.isEmpty {
                         let missingPlatforms = unaccountedPlatforms.map(\.rawValue).joined(separator: ", ")
                         return [LintingIssue(
-                            reason: "Target \(fromTargetName) with depends on \(dependentTarget.target.name) and but does not support the required platforms \(missingPlatforms). This dependency requires a condition.",
+                            reason: "Target \(fromTargetName) which depends on \(dependentTarget.target.name) which does not support the required platforms: [\(missingPlatforms)]. The dependency on \(dependentTarget.target.name) must have a dependency condition constraining to at most: [\(platformsSupportedByDependency.map(\.rawValue).joined(separator: ", "))].",
                             severity: .error
                         )]
                     } else {
