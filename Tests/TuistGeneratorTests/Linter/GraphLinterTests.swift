@@ -2014,7 +2014,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEqual(
             results,
             [LintingIssue(
-                reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget which does not support the required platforms: [macos]. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: [ios].",
+                reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget does not support the required platforms: macos. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: ios.",
                 severity: .error
             )]
         )
