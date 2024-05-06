@@ -117,7 +117,7 @@ defmodule TuistCloud.Environment do
   end
 
   def aws_use_session_token?(secrets \\ secrets()) do
-    get([:aws, :use_session_token], secrets) || :system
+    get([:aws, :use_session_token], secrets)
   end
 
   def s3_region(secrets \\ secrets()) do
