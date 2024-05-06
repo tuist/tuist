@@ -38,6 +38,10 @@ defmodule TuistCloudWeb.Router do
     plug TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlug
   end
 
+  pipeline :analytics do
+    plug TuistCloudWeb.AnalyticsPlug, :track_page_view
+  end
+
   scope "/" do
     pipe_through [:open_api, :browser]
 
@@ -108,7 +112,7 @@ defmodule TuistCloudWeb.Router do
   end
 
   scope "/v2", TuistCloudWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
       on_mount: [{TuistCloudWeb.Authentication, :ensure_authenticated}] do
@@ -148,7 +152,7 @@ defmodule TuistCloudWeb.Router do
 
   # Authenticated routes
   scope "/v2", TuistCloudWeb do
-    pipe_through [:open_api, :browser, :require_authenticated_user]
+    pipe_through [:open_api, :browser, :require_authenticated_user, :analytics]
 
     live_session :authenticated,
       on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do

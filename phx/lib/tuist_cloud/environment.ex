@@ -34,6 +34,10 @@ defmodule TuistCloud.Environment do
     Application.get_env(:tuist_cloud, :license).features
   end
 
+  def analytics_enabled?() do
+    !on_premise?() and env() == :prod
+  end
+
   def license_expiration_date() do
     {:ok, expiration_date} =
       Date.from_iso8601(Application.get_env(:tuist_cloud, :license).expiration_date)
@@ -76,6 +80,18 @@ defmodule TuistCloud.Environment do
 
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
+  end
+
+  def attio_api_key(secrets \\ secrets()) do
+    get([:attio, :api_key], secrets)
+  end
+
+  def posthog_api_key(secrets \\ secrets()) do
+    get([:posthog, :api_key], secrets)
+  end
+
+  def posthog_url(secrets \\ secrets()) do
+    get([:posthog, :url], secrets)
   end
 
   def s3_access_key_id(secrets \\ secrets()) do

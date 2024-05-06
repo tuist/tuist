@@ -199,6 +199,7 @@ defmodule TuistCloud.Accounts do
       end
 
     {:ok, %{user: user}} = user_account
+    TuistCloud.Analytics.user_create(user)
     user
   end
 

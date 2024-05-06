@@ -80,7 +80,9 @@ defmodule TuistCloud.MixProject do
       {:rustler, "~> 0.32.0"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
-      {:ueberauth_google, "~> 0.12"}
+      {:ueberauth_google, "~> 0.12"},
+      {:req, "~> 0.4.14"},
+      {:telemetry_test, "~> 0.1.2"}
     ]
   end
 

@@ -4,6 +4,7 @@ defmodule TuistCloudWeb.Authentication do
   """
   import Plug.Conn
   import Phoenix.Controller
+  alias TuistCloud.Analytics
   alias TuistCloud.Accounts
   use TuistCloudWeb, :verified_routes
 
@@ -16,18 +17,23 @@ defmodule TuistCloudWeb.Authentication do
   @remember_me_cookie "_tuist_cloud_web_user_remember_me"
   @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax"]
 
-  def authenticated?(conn),
-    do: current_user(conn) != nil or current_project(conn) != nil
+  def authenticated?(%Plug.Conn{} = conn),
+    do: authenticated?(conn.assigns)
 
-  def current_user(conn) do
-    if Map.has_key?(conn.assigns, :current_user) do
-      conn.assigns[:current_user]
-    else
-      conn.assigns[@current_user_key]
-    end
+  def authenticated?(assigns) when is_map(assigns),
+    do: current_user(assigns) != nil or current_project(assigns) != nil
+
+  def current_user(%Plug.Conn{} = conn) do
+    current_user(conn.assigns)
   end
 
-  def current_project(conn), do: conn.assigns[@current_project_key]
+  def current_user(assigns) when is_map(assigns) do
+    assigns[@current_user_key]
+  end
+
+  def current_project(%Plug.Conn{} = conn), do: current_project(conn.assigns)
+
+  def current_project(assigns) when is_map(assigns), do: assigns[@current_project_key]
 
   def authenticated_subject(conn) do
     case current_user(conn) do
@@ -66,6 +72,8 @@ defmodule TuistCloudWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
+
+    Analytics.user_authenticate(user)
 
     conn
     |> renew_session()

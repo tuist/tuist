@@ -15,19 +15,23 @@ defmodule TuistCloud.Application do
 
     Oban.Telemetry.attach_default_logger()
 
-    children = [
-      TuistCloudWeb.Telemetry,
-      TuistCloud.Repo,
-      {Oban, Application.fetch_env!(:tuist_cloud, Oban)},
-      {DNSCluster, query: Application.get_env(:tuist_cloud, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: TuistCloud.PubSub},
-      # Start the Finch HTTP client for sending emails
-      {Finch, name: TuistCloud.Finch},
-      # Start a worker by calling: TuistCloud.Worker.start_link(arg)
-      # {TuistCloud.Worker, arg},
-      # Start to serve requests, typically the last entry
-      TuistCloudWeb.Endpoint
-    ]
+    children =
+      [
+        TuistCloudWeb.Telemetry,
+        TuistCloud.Repo,
+        {Oban, Application.fetch_env!(:tuist_cloud, Oban)},
+        {DNSCluster, query: Application.get_env(:tuist_cloud, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: TuistCloud.PubSub},
+        # Start the Finch HTTP client for sending emails
+        {Finch, name: TuistCloud.Finch},
+        # Start a worker by calling: TuistCloud.Worker.start_link(arg)
+        # {TuistCloud.Worker, arg},
+        # Start to serve requests, typically the last entry
+        TuistCloudWeb.Endpoint
+      ] ++
+        if TuistCloud.Environment.analytics_enabled?(),
+          do: [TuistCloud.Analytics.Posthog, TuistCloud.Analytics.Attio],
+          else: []
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
