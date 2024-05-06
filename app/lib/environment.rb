@@ -106,10 +106,6 @@ module Environment
       fetch(:aws, :bucket_name) || fetch(:s3, :bucket_name)
     end
 
-    def storage_configured?
-      s3_configured?
-    end
-
     def blocklisted_slug_keywords
       fetch(:blocklisted_slug_keywords)
     end
@@ -256,7 +252,6 @@ module Environment
       return if Rails.env.test? || Rails.env.development? || precompiling_assets? || ENV['EDITOR']
 
       errors = []
-      errors << "Storage is not configured" unless storage_configured?
       errors << "Application URL is not configured" unless app_url_configured?
       errors << "Database is not configured" unless database_configured?
       errors << "Secret key base is not configured" unless secret_key_base_configured?

@@ -95,11 +95,29 @@ defmodule TuistCloud.Environment do
   end
 
   def s3_access_key_id(secrets \\ secrets()) do
-    get([:aws, :access_key_id], secrets) || get([:s3, :access_key_id], secrets)
+    System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
+      get([:s3, :access_key_id], secrets)
   end
 
   def s3_secret_access_key(secrets \\ secrets()) do
-    get([:aws, :secret_access_key], secrets) || get([:s3, :secret_access_key], secrets)
+    System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
+      get([:s3, :secret_access_key], secrets)
+  end
+
+  def aws_region(secrets \\ secrets()) do
+    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || "auto"
+  end
+
+  def aws_session_token(secrets \\ secrets()) do
+    System.get_env("AWS_SESSION_TOKEN") || get([:aws, :session_token], secrets)
+  end
+
+  def aws_profile(secrets \\ secrets()) do
+    System.get_env("AWS_PROFILE") || get([:aws, :profile], secrets) || :system
+  end
+
+  def aws_use_session_token?(secrets \\ secrets()) do
+    get([:aws, :use_session_token], secrets) || :system
   end
 
   def s3_region(secrets \\ secrets()) do

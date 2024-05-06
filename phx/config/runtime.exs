@@ -156,19 +156,35 @@ else
 end
 
 if TuistCloud.Environment.s3_configured?(secrets) do
-  config :ex_aws,
-    access_key_id: [TuistCloud.Environment.s3_access_key_id(secrets), {:awscli, :system, 30}],
+  aws_opts = [
+    access_key_id: [
+      TuistCloud.Environment.s3_access_key_id(secrets),
+      {:awscli, TuistCloud.Environment.aws_profile(secrets), 30}
+    ],
     secret_access_key: [
       TuistCloud.Environment.s3_secret_access_key(secrets),
-      {:awscli, :system, 30}
+      {:awscli, TuistCloud.Environment.aws_profile(secrets), 30}
     ],
     s3: [
       # Cloudflare R2 requires HTTPS
       scheme: "https://",
       host: TuistCloud.Environment.s3_endpoint(secrets) |> String.replace("https://", ""),
       # Cloudflare R2 does not require a region, but ExAws needs a value here
-      region: "auto"
+      region: TuistCloud.Environment.aws_region(secrets)
     ]
+  ]
+
+  aws_opts =
+    if TuistCloud.Environment.aws_use_session_token?(secrets) do
+      Keyword.put(aws_opts, :security_token, [
+        TuistCloud.Environment.aws_session_token(secrets),
+        {:awscli, TuistCloud.Environment.aws_profile(secrets), 30}
+      ])
+    else
+      aws_opts
+    end
+
+  config :ex_aws, aws_opts
 end
 
 # Stripe config
