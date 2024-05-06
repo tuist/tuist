@@ -130,7 +130,7 @@ public class GraphLinter: GraphLinting {
                     if !unaccountedPlatforms.isEmpty {
                         let missingPlatforms = unaccountedPlatforms.map(\.rawValue).joined(separator: ", ")
                         return [LintingIssue(
-                            reason: "Target \(fromTargetName) which depends on \(dependentTarget.target.name) which does not support the required platforms: [\(missingPlatforms)]. The dependency on \(dependentTarget.target.name) must have a dependency condition constraining to at most: [\(platformsSupportedByDependency.map(\.rawValue).joined(separator: ", "))].",
+                            reason: "Target \(fromTargetName) which depends on \(dependentTarget.target.name) does not support the required platforms: \(missingPlatforms.joined(separator: ", ")). The dependency on \(dependentTarget.target.name) must have a dependency condition constraining to at most: \(platformsSupportedByDependency.map(\.rawValue).joined(separator: ", ")).",
                             severity: .error
                         )]
                     } else {
