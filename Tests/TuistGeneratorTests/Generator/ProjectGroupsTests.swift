@@ -114,9 +114,9 @@ final class ProjectGroupsTests: XCTestCase {
             "B",
             "C",
             "A",
+            "Products",
             "Frameworks",
             "Cache",
-            "Products",
         ])
     }
 
@@ -157,9 +157,9 @@ final class ProjectGroupsTests: XCTestCase {
         let paths = subject.sortedMain.children.map(\.nameOrPath)
         XCTAssertEqual(paths, [
             "Project",
+            "Products",
             "Frameworks",
             "Cache",
-            "Products",
         ])
     }
 
