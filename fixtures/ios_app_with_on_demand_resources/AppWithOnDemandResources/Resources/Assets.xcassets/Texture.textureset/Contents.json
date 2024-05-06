@@ -1,0 +1,18 @@
+{
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "on-demand-resource-tags" : [
+      "tag with space",
+      "texture"
+    ]
+  },
+  "textures" : [
+    {
+      "filename" : "Universal.mipmapset",
+      "idiom" : "universal"
+    }
+  ]
+}

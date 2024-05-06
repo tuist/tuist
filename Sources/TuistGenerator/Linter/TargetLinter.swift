@@ -41,6 +41,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
+        issues.append(contentsOf: lintOnDemandResourcesTags(target: target))
         for script in target.scripts {
             issues.append(contentsOf: targetScriptLinter.lint(script))
         }
@@ -322,6 +323,19 @@ class TargetLinter: TargetLinting {
             )]
         }
         return []
+    }
+
+    private func lintOnDemandResourcesTags(target: Target) -> [LintingIssue] {
+        guard let onDemandResourcesTags = target.onDemandResourcesTags else { return [] }
+        guard let initialInstall = onDemandResourcesTags.initialInstall else { return [] }
+        guard let prefetchOrder = onDemandResourcesTags.prefetchOrder else { return [] }
+        let intersection = Set(initialInstall).intersection(Set(prefetchOrder))
+        return intersection.map { tag in
+            LintingIssue(
+                reason: "Prefetched Order Tag \"\(tag)\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
+                severity: .warning
+            )
+        }
     }
 }
 

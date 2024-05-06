@@ -361,6 +361,22 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
+        if let initialInstallTags = target.onDemandResourcesTags?.initialInstall, !initialInstallTags.isEmpty {
+            settings["ON_DEMAND_RESOURCES_INITIAL_INSTALL_TAGS"] = .string(
+                initialInstallTags.sorted().map {
+                    $0.replacingOccurrences(of: " ", with: "\\ ")
+                }.joined(separator: " ")
+            )
+        }
+
+        if let prefetchOrder = target.onDemandResourcesTags?.prefetchOrder, !prefetchOrder.isEmpty {
+            settings["ON_DEMAND_RESOURCES_PREFETCH_ORDER"] = .string(
+                prefetchOrder.map {
+                    $0.replacingOccurrences(of: " ", with: "\\ ")
+                }.joined(separator: " ")
+            )
+        }
+
         return settings
     }
 

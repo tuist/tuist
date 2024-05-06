@@ -99,6 +99,10 @@ extension TuistGraph.Target {
             TuistGraph.BuildRule.from(manifest: $0)
         }
 
+        let onDemandResourcesTags = manifest.onDemandResourcesTags.map {
+            TuistGraph.OnDemandResourcesTags(initialInstall: $0.initialInstall, prefetchOrder: $0.prefetchOrder)
+        }
+
         return TuistGraph.Target(
             name: name,
             destinations: destinations,
@@ -123,7 +127,8 @@ extension TuistGraph.Target {
             additionalFiles: additionalFiles,
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
-            mergeable: manifest.mergeable
+            mergeable: manifest.mergeable,
+            onDemandResourcesTags: onDemandResourcesTags
         )
     }
 
