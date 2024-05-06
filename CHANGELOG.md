@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.12.0 - 2024-05-06
+
+### Tuist
+
+#### Added
+
+- Add On Demand Resources Support [#6178](https://github.com/tuist/tuist/pull/6178) by [@kapitoshka438](https://github.com/kapitoshka438)
+
+#### Fixed
+
+- Add (void) to generated Obj-C Bundle accessor [#6247](https://github.com/tuist/tuist/pull/6247) by [@freak4pc](https://github.com/freak4pc)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.11.0 - 2024-04-29
 
 ### Tuist
