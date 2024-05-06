@@ -95,3 +95,42 @@ jobs:
         run: mix deps.get
       - working-directory: phx
         run: mix format --check-formatted
+  seed:
+    name: Seed
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx/deps
+            phx/_build
+            phx/_site
+          key: mix-${{ hashFiles('phx/mix.lock') }}
+      - working-directory: phx
+        run: mix deps.get
+      - working-directory: phx
+        run: mix ecto.create
+      # This is necessary because the migrations of Rails continue to be the source
+      # of truth for the current shape of the schema.
+      - working-directory: phx
+        run: mix ecto.load
+      - working-directory: phx
+        run: mix run priv/repo/seeds.exs
