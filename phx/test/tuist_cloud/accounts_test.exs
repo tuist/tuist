@@ -384,23 +384,6 @@ defmodule TuistCloud.AccountsTest do
     end
   end
 
-  describe "get_all_accounts/1" do
-    test "returns all accounts" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture()
-
-      # When
-      got = Accounts.get_all_accounts()
-
-      # Then
-      assert got == [
-               Accounts.get_account_from_user(user),
-               Accounts.get_account_from_organization(organization)
-             ]
-    end
-  end
-
   describe "get_account_from_customer_id/1" do
     test "returns the account with the given customer_id" do
       # Given

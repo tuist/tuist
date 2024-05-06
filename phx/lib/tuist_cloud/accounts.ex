@@ -53,10 +53,6 @@ defmodule TuistCloud.Accounts do
     Repo.get_by(User, token: token)
   end
 
-  def get_all_accounts do
-    Repo.all(Account)
-  end
-
   def get_device_code(code) do
     Repo.get_by(DeviceCode, code: code)
   end

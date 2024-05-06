@@ -7,9 +7,7 @@ defmodule TuistCloud.CommandEvents.UpdateCacheEventCountWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    # BYE_RAILS - Make more optimal
-    # It's causing DB timeouts due to slow queries
-    # CommandEvents.update_cache_event_counts()
+    CommandEvents.update_cache_event_counts()
 
     :ok
   end

@@ -2,6 +2,8 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.Projects.Project
+  alias TuistCloud.Accounts.Account
   alias TuistCloud.Projects
   alias TuistCloud.Accounts
   alias TuistCloud.Repo
@@ -39,41 +41,36 @@ defmodule TuistCloud.CommandEvents do
   end
 
   def update_cache_event_counts() do
-    Accounts.get_all_accounts()
-    |> Enum.map(&Projects.get_all_project_accounts/1)
-    |> Enum.filter(&(!Enum.empty?(&1)))
-    |> Enum.each(fn projects ->
-      account = hd(projects).account
+    start_date = DateTime.add(Time.utc_now(), -30, :day)
 
-      start_date = DateTime.add(Time.utc_now(), -30, :day)
+    query =
+      from(
+        a in Account,
+        join: p in Project,
+        on: a.id == p.account_id,
+        join: c in CacheEvent,
+        on: c.project_id == p.id,
+        where: c.created_at > ^start_date,
+        group_by: [a.id, c.event_type],
+        select: {a, c.event_type, count(c.id)}
+      )
 
-      cache_events =
-        from(c in CacheEvent,
-          where:
-            c.project_id in ^Enum.map(projects, & &1.project.id) and c.created_at > ^start_date
-        )
-        |> Repo.all()
-
-      cache_download_event_count =
-        cache_events
-        |> Enum.filter(&(&1.event_type == :download))
-        |> Enum.map(& &1.size)
-        |> length()
-
-      cache_upload_event_count =
-        cache_events
-        |> Enum.filter(&(&1.event_type == :upload))
-        |> length()
-
-      {:ok, _} =
-        Repo.update(
-          account
-          |> Ecto.Changeset.change(
-            cache_download_event_count: cache_download_event_count,
-            cache_upload_event_count: cache_upload_event_count
-          )
-        )
+    Repo.transaction(fn ->
+      query
+      |> Repo.stream()
+      |> Stream.each(&update_cache_event_count/1)
+      |> Stream.run()
     end)
+  end
+
+  defp update_cache_event_count({account, event_type, count}) do
+    case event_type do
+      :download ->
+        Repo.update(account |> Ecto.Changeset.change(cache_download_event_count: count))
+
+      :upload ->
+        Repo.update(account |> Ecto.Changeset.change(cache_upload_event_count: count))
+    end
   end
 
   def get_command_event_by_id(id) do
