@@ -42,8 +42,10 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   database_options = [
     pool_size: 20,
-    queue_target: 400, # Default 50
-    queue_interval: 3000, # Default 1000
+    # Default 50
+    queue_target: 400,
+    # Default 1000
+    queue_interval: 3000,
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
