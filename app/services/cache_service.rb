@@ -136,15 +136,6 @@ class CacheService < ApplicationService
       bucket: S3.instance.bucket,
       key: object_key,
     )
-    upload_event = CacheEvent.where(name: object_key, event_type: :upload).first
-    unless upload_event.nil?
-      CacheEvent.create!(
-        name: object_key,
-        event_type: :download,
-        size: upload_event.size,
-        project_id: project.id,
-      )
-    end
     url
   end
 

@@ -227,11 +227,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       .fetch
 
     # Then
-    assert_equal CacheEvent.count, 2
-    assert_equal CacheEvent.last.name, "my-project/tuist/builds/artifact-hash/MyFramework"
-    assert_equal CacheEvent.last.event_type, "download"
-    assert_equal CacheEvent.last.size, 10
-    assert_equal CacheEvent.last.project, @project
     assert_equal "download url", got
   end
 
@@ -263,11 +258,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       .fetch
 
     # Then
-    assert_equal CacheEvent.count, 2
-    assert_equal CacheEvent.last.name, "my-project/tuist/tests/artifact-hash/MyFramework"
-    assert_equal CacheEvent.last.event_type, "download"
-    assert_equal CacheEvent.last.size, 10
-    assert_equal CacheEvent.last.project, @project
     assert_equal "download url", got
   end
 
