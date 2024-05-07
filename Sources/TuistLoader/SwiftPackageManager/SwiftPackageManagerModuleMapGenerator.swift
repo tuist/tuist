@@ -56,7 +56,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         moduleName: String,
         publicHeadersPath: AbsolutePath
     ) throws -> ModuleMap {
-        let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
+        let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath
             .appending(components: sanitizedModuleName, moduleName + ".h")

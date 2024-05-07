@@ -1,6 +1,15 @@
 {
-  "originHash" : "6ed714a381b77d6163cdedad8446d73742573b78187635c59175fa22d0a3df2c",
+  "originHash" : "fc3374625da9a1a42edd765287e0715853d94414eda5959e9d420d041ec3b010",
   "pins" : [
+    {
+      "identity" : "kscrash",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kstenerud/KSCrash",
+      "state" : {
+        "revision" : "0ad825211ec38404e03b6f677a2312deb728528a",
+        "version" : "1.17.1"
+      }
+    },
     {
       "identity" : "mobile-buy-sdk-ios",
       "kind" : "remoteSourceControl",

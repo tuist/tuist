@@ -375,6 +375,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
     fileprivate class func sanitize(targetName: String) -> String {
         targetName.replacingOccurrences(of: ".", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
     }
 
     // swiftlint:disable:next function_body_length
@@ -596,7 +597,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 .sanitize(targetName: target.name)
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
-                .replacingOccurrences(of: "_", with: "."),
+                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

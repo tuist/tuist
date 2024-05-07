@@ -36,7 +36,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
-        let bundleName = "\(project.name)_\(target.name.replacingOccurrences(of: "-", with: "_"))"
+        let sanitizedTargetName = target.name.sanitizedModuleName
+        let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
         if !target.supportsResources {

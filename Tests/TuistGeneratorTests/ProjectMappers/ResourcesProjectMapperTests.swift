@@ -428,7 +428,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let projectName = "sdk-with-dash"
         let targetName = "target-with-dash"
-        let expectedBundleName = "\(projectName)_\(targetName.replacingOccurrences(of: "-", with: "_"))"
+        let expectedBundleName = "sdk-with-dash_target_with_dash"
         let sources: [SourceFile] = ["/ViewController.m", "/ViewController2.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))

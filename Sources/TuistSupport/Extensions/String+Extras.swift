@@ -232,6 +232,12 @@ extension String {
             return self
         }
     }
+
+    /// Formats the current string to a Uniform Type Identifier
+    public var sanitizedModuleName: String {
+        replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+    }
 }
 
 extension Array where Element: CustomStringConvertible {

@@ -15,6 +15,8 @@ let project = Project(
             dependencies: [
                 .external(name: "Buy"),
                 .external(name: "Pay"),
+                .external(name: "KSCrash"),
+                .sdk(name: "c++", type: .library, status: .required),
             ]
         ),
         .target(

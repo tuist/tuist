@@ -83,7 +83,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.product = product
         self.destinations = destinations
         self.bundleId = bundleId
-        self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
+        self.productName = productName ?? name.sanitizedModuleName
         self.deploymentTargets = deploymentTargets
         self.infoPlist = infoPlist
         self.entitlements = entitlements
