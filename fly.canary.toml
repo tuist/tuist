@@ -14,7 +14,6 @@ console_command = "/app/bin/rails console"
   RAILS_MAX_THREADS=2
   WEB_CONCURRENCY=1
   TUIST_APP_URL="https://cloud-canary.tuist.io"
-  TUIST_USE_IPV6="1"
   TUIST_CLOUD_HOSTED="1"
 
 [[vm]]
@@ -28,8 +27,8 @@ console_command = "/app/bin/rails console"
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  auto_stop_machines = false
-  auto_start_machines = false
+  auto_stop_machines = true
+  auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
 
