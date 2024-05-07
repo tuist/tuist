@@ -34,11 +34,11 @@ class TargetCacheHitRateService < ApplicationService
     command_events
       .pluck(query("cacheable_targets"), query("local_cache_target_hits"), query("remote_cache_target_hits"))
       .each do |command_event|
-        cacheable_targets = command_event[0]
+        cacheable_targets = (command_event[0] || [])
           .reject(&:empty?)
-        local_cache_target_hits = command_event[1]
+        local_cache_target_hits = (command_event[1] || [])
           .reject(&:empty?)
-        remote_cache_target_hits = command_event[2]
+        remote_cache_target_hits = (command_event[2] || [])
           .reject(&:empty?)
 
         unless cacheable_targets.include?(target)
