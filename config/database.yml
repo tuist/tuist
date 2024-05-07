@@ -81,12 +81,19 @@ test:
 #
 production:
   <<: *default
-  database: tuistcloud_production
-  username: tuistcloud
-  password: <%= ENV['tuistcloud_DATABASE_PASSWORD'] %>
+  url: <%= ENV['DATABASE_URL'] %>
+  checkout_timeout: 5
+  idle_timeout: 3
+  prepared_statements: false
 staging:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>
+  checkout_timeout: 5
+  idle_timeout: 3
+  prepared_statements: false
 canary:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>
+  checkout_timeout: 5
+  idle_timeout: 3
+  prepared_statements: false
