@@ -136,12 +136,14 @@ Once the app is created you'll need to set the following environment variables:
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_S3_ACCESS_KEY_ID` | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
-| `TUIST_S3_SECRET_ACCESS_KEY` | The access key secret | Yes | | `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` |
+| `TUIST_S3_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID` | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
+| `TUIST_S3_SECRET_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY` | The access key secret | Yes | | `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` |
 | `TUIST_S3_BUCKET_NAME` | Name of the bucket | Yes | | `my-bucket` |
-| `TUIST_S3_REGION` | The bucket's region | No | `eu-west-1` | `us-east-1` |
+| `TUIST_S3_REGION`, `AWS_REGION` | The bucket's region | No | `eu-west-1` | `us-east-1` |
 | `TUIST_S3_ENDPOINT` | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
-| `AWS_PROFILE` | Set an [AWS profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) for authorization. Doesn't work with other storages | No | | `user1` |
+| `TUIST_AWS_PROFILE`, `AWS_PROFILE` | Set an [AWS profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) for authorization. Doesn't work with other storages | No | | `user1` |
+| `TUIST_AWS_SESSION_TOKEN`, `AWS_SESSION_TOKEN` | [Session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `8ea7c2b4e79bec6f2990afe47f8439a44ed7dc4` |
+| `TUIST_USE_SESSION_TOKEN` | When `1` it uses the [session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `1` |
 
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `TUIST_S3_ACCESS_KEY_ID` and `TUIST_S3_SECRET_ACCESS_KEY` pair. The `TUIST_S3_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
