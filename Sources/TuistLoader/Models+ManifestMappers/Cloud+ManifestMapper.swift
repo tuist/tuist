@@ -28,7 +28,7 @@ enum CloudManifestMapperError: FatalError {
 extension TuistGraph.Cloud {
     static func from(manifest: ProjectDescription.Cloud) throws -> TuistGraph.Cloud {
         var cloudURL: URL!
-        if let manifestCloudURL = URL(string: manifest.url) {
+        if let manifestCloudURL = URL(string: manifest.url.dropSuffix("/")) {
             cloudURL = manifestCloudURL
         } else {
             throw CloudManifestMapperError.invalidCloudURL(manifest.url)
