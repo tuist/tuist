@@ -41,7 +41,9 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   database_options = [
-    pool_size: 15,
+    pool_size: 20,
+    queue_target: 200, # Default 50
+    queue_interval: 3000, # Default 1000
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
