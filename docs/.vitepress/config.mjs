@@ -166,6 +166,13 @@ export default defineConfig({
     posthog.init('phc_pNR89Xu2WWDZdXReTnuePI7XO2Ktb2orTpzVWxHlBxq',{api_host:'https://eu.i.posthog.com'})
     `,
     ],
+    [
+      "script",
+      {},
+      `
+      !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
+    `,
+    ],
   ],
   sitemap: {
     hostname: "https://docs.tuist.io",
