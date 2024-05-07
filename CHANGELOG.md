@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.12.1 - 2024-05-07
+
+### Tuist
+
+#### Added
+
+- Add Linting to require conditions for multiplatform dependencies with mismatched platforms. [#6251](https://github.com/tuist/tuist/pull/6251) by [@waltflanagan](https://github.com/waltflanagan)
+
+#### Fixed
+
+- Remove trailing backslash from Cloud url if present [#6258](https://github.com/tuist/tuist/pull/6258) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.12.0 - 2024-05-06
 
 ### Tuist
