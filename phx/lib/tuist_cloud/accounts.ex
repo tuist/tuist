@@ -2,6 +2,8 @@ defmodule TuistCloud.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
+  alias TuistCloud.Environment
+  alias TuistCloud.Accounts.UserNotifier
   alias TuistCloud.Repo
 
   alias TuistCloud.Accounts.{
@@ -12,7 +14,8 @@ defmodule TuistCloud.Accounts do
     OrganizationAccount,
     UserRole,
     Oauth2Identity,
-    DeviceCode
+    DeviceCode,
+    Invitation
   }
 
   alias TuistCloud.Billing
@@ -42,8 +45,37 @@ defmodule TuistCloud.Accounts do
   @doc ~S"""
   Given an id, it returns the organization associated with it.
   """
-  def get_organization_by_id(id) do
-    Repo.get(Organization, id)
+  def get_organization_by_id(id, attrs \\ []) do
+    preloads = attrs |> Keyword.get(:preloads, [])
+
+    Repo.get(Organization, id) |> Repo.preload(preloads)
+  end
+
+  def get_organization_account_by_name(name) do
+    query =
+      from a in Account,
+        join: o in Organization,
+        on: a.owner_type == "Organization" and a.owner_id == o.id,
+        where: a.name == ^name,
+        select: %OrganizationAccount{organization: o, account: a}
+
+    Repo.one(query)
+  end
+
+  def get_organization_members(%Organization{id: organization_id}, role) do
+    query =
+      from(user_role in UserRole,
+        join: r in Role,
+        on: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        join: u in User,
+        on: user_role.user_id == u.id,
+        on: user_role.role_id == r.id,
+        where: r.name == ^Atom.to_string(role) and r.resource_type == "Organization",
+        select: u
+      )
+
+    Repo.all(query)
+    |> Repo.preload(:account)
   end
 
   @doc """
@@ -99,22 +131,55 @@ defmodule TuistCloud.Accounts do
   @doc ~S"""
   Creates an organization with the given attributes.
   """
-  def create_organization(%{name: name}) do
+  def create_organization(%{name: name, creator: %User{id: user_id, email: user_email}}) do
     {:ok, %{organization: organization}} =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(:organization, %Organization{})
       |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
+        customer_id = create_customer_when_billing_enabled(%{name: name, email: user_email})
+
         repo.insert(
           Account.create_changeset(%Account{}, %{
             owner_type: "Organization",
             owner_id: organization_id,
-            name: name
+            name: name,
+            customer_id: customer_id
+          })
+        )
+      end)
+      |> Ecto.Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
+        repo.insert(
+          Role.create_changeset(
+            %Role{},
+            %{
+              name: "admin",
+              resource_type: "Organization",
+              resource_id: organization_id
+            }
+          )
+        )
+      end)
+      |> Ecto.Multi.run(:user_role, fn repo, %{role: role} ->
+        repo.insert(
+          UserRole.create_changeset(%UserRole{}, %{
+            user_id: user_id,
+            role_id: role.id
           })
         )
       end)
       |> Repo.transaction()
 
     organization
+  end
+
+  def delete_organization(%Organization{} = organization) do
+    account = get_account_from_organization(organization)
+
+    {:ok, _} =
+      Ecto.Multi.new()
+      |> Ecto.Multi.delete(:delete_organization, organization)
+      |> Ecto.Multi.delete(:delete_account, account)
+      |> Repo.transaction()
   end
 
   def find_or_create_user_from_oauth2(%{
@@ -146,7 +211,7 @@ defmodule TuistCloud.Accounts do
   Creates a user with the given attributes and its associated account.
   """
   def create_user(email, opts \\ []) do
-    token = TuistCloud.Tokens.generate_authentication_token()
+    token = TuistCloud.Tokens.generate_token()
     password = opts |> Keyword.get(:password, "")
     confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
@@ -165,7 +230,7 @@ defmodule TuistCloud.Accounts do
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
-        customer_id = create_customer_when_billing_enabled(name, email)
+        customer_id = create_customer_when_billing_enabled(%{name: name, email: email})
 
         repo.insert(
           Account.create_changeset(%Account{}, %{
@@ -249,16 +314,18 @@ defmodule TuistCloud.Accounts do
 
   def get_account_from_user(%User{} = user) do
     query =
-      from a in Account,
+      from(a in Account,
         where: a.owner_type == "User" and a.owner_id == ^user.id
+      )
 
     query |> Repo.one()
   end
 
   def get_account_from_organization(%Organization{} = organization) do
     query =
-      from a in Account,
+      from(a in Account,
         where: a.owner_type == "Organization" and a.owner_id == ^organization.id
+      )
 
     query |> Repo.one()
   end
@@ -299,15 +366,18 @@ defmodule TuistCloud.Accounts do
   def add_user_to_organization(
         %User{id: user_id},
         %Organization{id: organization_id},
-        role \\ :user
+        opts \\ []
       ) do
+    role = opts |> Keyword.get(:role, :user)
+
     query =
-      from u in UserRole,
+      from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
           u.user_id == ^user_id and r.name == ^~s(role) and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
+      )
 
     if Repo.exists?(query) do
       :ok
@@ -328,9 +398,61 @@ defmodule TuistCloud.Accounts do
     end
   end
 
+  def remove_user_from_organization(
+        %User{id: user_id},
+        %Organization{id: organization_id}
+      ) do
+    query =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: %{user_role: u, role: r}
+      )
+
+    result = Repo.one(query)
+
+    if is_nil(result) do
+      :ok
+    else
+      {:ok, _} =
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete(:user_role, result.user_role)
+        |> Ecto.Multi.delete(:role, result.role)
+        |> Repo.transaction()
+
+      :ok
+    end
+  end
+
+  def update_user_role_in_organization(
+        %User{id: user_id},
+        %Organization{id: organization_id},
+        role
+      ) do
+    query =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: r
+      )
+
+    user_role = Repo.one(query)
+
+    {:ok, updated_role} =
+      Repo.update(user_role |> Ecto.Changeset.change(name: Atom.to_string(role)))
+
+    updated_role
+  end
+
   def get_user_organization_accounts(%User{id: user_id}) do
     query =
-      from u in UserRole,
+      from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         join: o in Organization,
@@ -339,6 +461,7 @@ defmodule TuistCloud.Accounts do
         on: a.owner_type == "Organization" and a.owner_id == o.id,
         where: u.user_id == ^user_id and r.resource_type == "Organization",
         select: {o, a}
+      )
 
     Repo.all(query)
     |> Enum.map(fn {organization, account} ->
@@ -346,37 +469,124 @@ defmodule TuistCloud.Accounts do
     end)
   end
 
+  def invite_user_to_organization(
+        email,
+        %{
+          inviter: %User{id: user_id} = inviter,
+          to: %Organization{id: organization_id} = organization,
+          url: url_fun
+        },
+        opts \\ []
+      )
+      when is_function(url_fun, 1) do
+    account = get_account_from_organization(organization)
+    token = Keyword.get(opts, :token, TuistCloud.Tokens.generate_token(16))
+
+    {:ok, invitation} =
+      Invitation.create_changeset(%Invitation{}, %{
+        token: token,
+        invitee_email: email,
+        inviter_id: user_id,
+        organization_id: organization_id
+      })
+      |> Repo.insert()
+
+    if Environment.smtp_configured?() do
+      UserNotifier.deliver_invitation(email, %{
+        inviter: inviter,
+        to: %OrganizationAccount{organization: organization, account: account},
+        url: url_fun.(token)
+      })
+    end
+
+    invitation
+  end
+
+  def accept_invitation(%{
+        invitation: %Invitation{} = invitation,
+        invitee: %User{} = invitee,
+        organization: %Organization{} = organization
+      }) do
+    add_user_to_organization(invitee, organization)
+    Repo.delete(invitation)
+  end
+
+  def get_invitation_by_token(token, %User{} = invitee) do
+    invitation = Repo.get_by(Invitation, token: token)
+
+    cond do
+      is_nil(invitation) ->
+        {:error, :not_found}
+
+      invitation.invitee_email != invitee.email ->
+        {:error, :forbidden}
+
+      !is_nil(invitation) ->
+        {:ok, invitation}
+    end
+  end
+
+  def belongs_to_organization?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
+    query =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id
+      )
+
+    query |> Repo.exists?()
+  end
+
   def admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
-      from u in UserRole,
+      from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
           u.user_id == ^user_id and r.name == "admin" and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
+      )
 
     query |> Repo.exists?()
   end
 
   def user?(%User{id: user_id}, %Organization{id: organization_id}) do
     query =
-      from u in UserRole,
+      from(u in UserRole,
         join: r in Role,
         on: u.role_id == r.id,
         where:
           u.user_id == ^user_id and r.name == "user" and r.resource_type == "Organization" and
             r.resource_id == ^organization_id
+      )
 
     query |> Repo.exists?()
+  end
+
+  def get_invitation_by_id(id) do
+    Repo.get(Invitation, id)
+  end
+
+  def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{
+        id: organization_id
+      }) do
+    Repo.get_by(Invitation, invitee_email: invitee_email, organization_id: organization_id)
+  end
+
+  def cancel_invitation(%Invitation{} = invitation) do
+    {:ok, _} = Repo.delete(invitation)
+    :ok
   end
 
   def get_role_by_id(id) do
     Repo.get(Role, id)
   end
 
-  defp create_customer_when_billing_enabled(name, email) do
+  defp create_customer_when_billing_enabled(%{name: name, email: email}) do
     if Billing.enabled?() do
-      Billing.create_customer(name: name, email: email)
+      Billing.create_customer(%{name: name, email: email})
     else
       nil
     end

@@ -13,11 +13,12 @@ config :tuist_cloud,
 
 # Configures the endpoint
 host =
-  cond do
-    config_env() == :stag -> "cloud-staging.tuist.io"
-    config_env() == :can -> "cloud-canary.tuist.io"
-    config_env() == :prod -> "cloud.tuist.io"
-    true -> "localhost"
+  case config_env() do
+    :stag -> "cloud-staging.tuist.io"
+    :can -> "cloud-canary.tuist.io"
+    :prod -> "cloud.tuist.io"
+    :test -> "127.0.0,1"
+    :dev -> "127.0.0.1"
   end
 
 config :tuist_cloud, TuistCloudWeb.Endpoint,

@@ -59,6 +59,24 @@ defmodule TuistCloudWeb.Router do
     post "/cache/multipart/start", CacheController, :multipart_start
     post "/cache/multipart/generate-url", CacheController, :multipart_generate_url
     post "/cache/multipart/complete", CacheController, :multipart_complete
+
+    resources "/organizations", OrganizationsController,
+      param: "organization_name",
+      only: [:index, :create, :delete, :show]
+
+    resources "/organizations/:organization_name/invitations", InvitationsController,
+      only: [:create]
+
+    delete "/organizations/:organization_name/invitations", InvitationsController, :delete
+
+    delete "/organizations/:organization_name/members/:user_name",
+           OrganizationsController,
+           :remove_member
+
+    put "/organizations/:organization_name/members/:user_name",
+        OrganizationsController,
+        :update_member
+
     put "/projects/:account_name/:project_name/cache/clean", CacheController, :clean
     post "/projects", ProjectsController, :create
     get "/projects/:account_name/:project_name", ProjectsController, :show
@@ -139,15 +157,16 @@ defmodule TuistCloudWeb.Router do
     get "/:provider/callback", AuthController, :callback
   end
 
-  scope "/auth/cli", TuistCloudWeb do
+  scope "/auth", TuistCloudWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    live_session :cli,
+    live_session :auth,
       on_mount: [{TuistCloudWeb.Authentication, :ensure_authenticated}] do
-      live "/success/:device_code", CLISuccessLive, :new
+      live "/cli/success/:device_code", CLISuccessLive, :new
+      live "/invitations/:token", AcceptInvitationLive, :new
     end
 
-    get "/:device_code", AuthController, :authenticate
+    get "/cli/:device_code", AuthController, :authenticate
   end
 
   # Authenticated routes
@@ -156,6 +175,7 @@ defmodule TuistCloudWeb.Router do
 
     live_session :authenticated,
       on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do
+      get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/", HomeLive
       live "/get-started", GetStartedLive

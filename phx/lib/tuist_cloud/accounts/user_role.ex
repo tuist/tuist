@@ -3,18 +3,18 @@ defmodule TuistCloud.Accounts.UserRole do
   A module that represents the user_roles table.
   """
   use Ecto.Schema
-
-  @type t :: %__MODULE__{
-          role_id: integer(),
-          user_id: integer(),
-          created_at: DateTime.t(),
-          updated_at: DateTime.t()
-        }
+  import Ecto.Changeset
 
   @primary_key {:role_id, :id, autogenerate: true}
   schema "users_roles" do
-    field :user_id, :id
+    belongs_to :user, TuistCloud.Accounts.User
 
     timestamps(inserted_at: :created_at)
+  end
+
+  def create_changeset(user_role, attrs) do
+    user_role
+    |> cast(attrs, [:user_id, :role_id])
+    |> validate_required([:user_id, :role_id])
   end
 end

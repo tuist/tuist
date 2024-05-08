@@ -1,53 +1,287 @@
 defmodule TuistCloud.AccountsTest do
   alias TuistCloud.Accounts
+  alias TuistCloud.Accounts.OrganizationAccount
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Environment
   use TuistCloud.DataCase
   use Mimic
 
-  test "admin? returns false if the user is not an admin" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture()
+  describe "admin?/2" do
+    test "admin? returns false if the user is not an admin" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
 
-    # When
-    assert Accounts.admin?(user, organization) == false
+      # When
+      assert Accounts.admin?(user, organization) == false
+    end
+
+    test "admin? returns true if the user is the admin of the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # When
+      assert Accounts.admin?(user, organization) == true
+    end
   end
 
-  test "admin? returns true if the user is the admin of the organization" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture()
-    Accounts.add_user_to_organization(user, organization, :admin)
+  describe "user?/2" do
+    test "user? returns false if the user is not an admin" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
 
-    # When
-    assert Accounts.admin?(user, organization) == true
+      # When
+      assert Accounts.user?(user, organization) == false
+    end
+
+    test "user? returns true if the user is user of the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # When
+      assert Accounts.user?(user, organization) == true
+    end
   end
 
-  test "user? returns false if the user is not an admin" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture()
+  describe "belongs_to_organization?/2" do
+    test "returns true if the user is a user of the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :user)
 
-    # When
-    assert Accounts.user?(user, organization) == false
+      # When
+      got = Accounts.belongs_to_organization?(user, organization)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns true if the user is an admin of the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # When
+      got = Accounts.belongs_to_organization?(user, organization)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false if the user is not an admin nor an user of the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      assert Accounts.belongs_to_organization?(user, organization) == false
+    end
   end
 
-  test "user? returns true if the user is user of the organization" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture()
-    Accounts.add_user_to_organization(user, organization, :user)
+  describe "get_invitation_by_id/1" do
+    test "returns a given invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
 
-    # When
-    assert Accounts.user?(user, organization) == true
+      invitation =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_invitation_by_id(invitation.id)
+
+      # Then
+      assert got == invitation
+    end
+  end
+
+  describe "get_invitation_by_invitee_email_and_organization/2" do
+    test "returns a given invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      Accounts.invite_user_to_organization("new@tuist.io", %{
+        inviter: user,
+        to: AccountsFixtures.organization_fixture(creator: user),
+        url: fn token -> token end
+      })
+
+      invitation =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got =
+        Accounts.get_invitation_by_invitee_email_and_organization("new@tuist.io", organization)
+
+      # Then
+      assert got == invitation
+    end
+  end
+
+  describe "cancel_invitation/1" do
+    test "cancels an invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      invitation =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      Accounts.invite_user_to_organization("new@tuist.io", %{
+        inviter: user,
+        to: AccountsFixtures.organization_fixture(name: "tuist-org-2", creator: user),
+        url: fn token -> token end
+      })
+
+      # When
+      :ok =
+        Accounts.cancel_invitation(invitation)
+
+      # Then
+      assert Accounts.get_invitation_by_id(invitation.id) == nil
+    end
+  end
+
+  describe "get_invitation_by_token/2" do
+    test "returns the invitation with the given token" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      invitation =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      {:ok, got} = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == invitation
+    end
+
+    test "returns :forbidden error when invitee email does not match" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      invitation =
+        Accounts.invite_user_to_organization("different@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == {:error, :forbidden}
+    end
+
+    test "returns :not_found when an invitation with a given token does not exist" do
+      # Given
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      # When
+      got = Accounts.get_invitation_by_token("non-existent", invitee)
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+  end
+
+  describe "accept_invitation/1" do
+    test "accepts an invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      invitation =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      # Then
+      assert Enum.map(Accounts.get_organization_members(organization, :user), & &1.id) == [
+               invitee.id
+             ]
+
+      assert Accounts.get_invitation_by_id(invitation.id) == nil
+    end
+  end
+
+  describe "invite_user_to_organization/2" do
+    setup do
+      :tls_certificate_check
+      |> stub(:options, fn _ -> %{} end)
+
+      TuistCloud.Environment
+      |> stub(:smtp_user_name, fn -> "smtp_user_name" end)
+
+      :ok
+    end
+
+    test "creates an invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      invitation =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "token"
+        )
+
+      # Then
+      assert invitation.token == "token"
+      assert invitation.invitee_email == "test@tuist.io"
+      assert invitation.inviter_type == "User"
+      assert invitation.organization_id == organization.id
+    end
   end
 
   test "get all organization accounts for a given user" do
     # Given
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture()
-    Accounts.add_user_to_organization(user, organization, :user)
+    Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
     got = Accounts.get_user_organization_accounts(user)
@@ -108,6 +342,73 @@ defmodule TuistCloud.AccountsTest do
     test "returns the user with the given id" do
       %{id: id} = user = user_fixture()
       assert %User{id: ^id} = Accounts.get_user!(user.id)
+    end
+  end
+
+  describe "create_organization/1" do
+    test "creates an organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert Accounts.admin?(user, organization) == true
+    end
+
+    test "creates an organization when billing is enabled" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      Environment
+      |> stub(:stripe_configured?, fn -> true end)
+
+      Stripe.Customer
+      |> stub(:create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
+
+      # When
+      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert Accounts.get_account_from_organization(organization).customer_id == "customer_id"
+      assert Accounts.admin?(user, organization) == true
+    end
+  end
+
+  describe "delete_organization/1" do
+    test "deletes an organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      Accounts.delete_organization(organization)
+
+      # Then
+      assert Accounts.get_organization_by_id(organization.id) == nil
+      assert Accounts.get_account_by_id(account.id) == nil
+    end
+  end
+
+  describe "get_organization_account_by_name/1" do
+    test "gets a given organization account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      got = Accounts.get_organization_account_by_name("tuist")
+
+      # Then
+      assert %OrganizationAccount{
+               account: account,
+               organization: organization
+             } == got
     end
   end
 
@@ -443,6 +744,104 @@ defmodule TuistCloud.AccountsTest do
       # Then
       assert account_with_enterprise.plan == :enterprise
       assert Accounts.get_account_by_id(account.id).plan == nil
+    end
+  end
+
+  describe "remove_user_from_organization/1" do
+    test "returns a user from an organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # When
+      :ok = Accounts.remove_user_from_organization(user, organization)
+
+      # Then
+      assert Accounts.get_organization_members(organization, :user) == []
+    end
+
+    test "returns :ok if a user does not belong to the organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      got = Accounts.remove_user_from_organization(user, organization)
+
+      # Then
+      assert got == :ok
+    end
+  end
+
+  describe "update_user_role_in_organization/3" do
+    test "Updates user role from user to admin" do
+      # Given
+      admin = AccountsFixtures.user_fixture()
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: admin)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # When
+      Accounts.update_user_role_in_organization(user, organization, :admin)
+
+      # Then
+      assert Accounts.admin?(user, organization) == true
+    end
+
+    test "Updates user role from admin to user" do
+      # Given
+      admin = AccountsFixtures.user_fixture()
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: admin)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # When
+      Accounts.update_user_role_in_organization(user, organization, :user)
+
+      # Then
+      assert Accounts.admin?(user, organization) == false
+    end
+  end
+
+  describe "get_organization_members/1" do
+    test "returns admins of an organization" do
+      # Given
+      user_one = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user_one)
+      user_two = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_two, organization, role: :user)
+      user_three = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_three, organization, role: :admin)
+
+      organization_two = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
+
+      # When
+      got = Accounts.get_organization_members(organization, :admin)
+
+      # Then
+      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+    end
+
+    test "returns users of an organization" do
+      # Given
+      user_one = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user_one, organization, role: :user)
+      user_two = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_two, organization, role: :admin)
+      user_three = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_three, organization, role: :user)
+
+      organization_two = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user_one, organization_two, role: :user)
+
+      # When
+      got = Accounts.get_organization_members(organization, :user)
+
+      # Then
+      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
     end
   end
 end

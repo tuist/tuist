@@ -6,12 +6,6 @@ defmodule TuistCloud.Accounts.Account do
   import Ecto.Changeset
   alias TuistCloud.Billing
 
-  @type t :: %__MODULE__{
-          name: String.t(),
-          owner_type: String.t(),
-          owner_id: integer()
-        }
-
   schema "accounts" do
     field :plan, Ecto.Enum, values: [enterprise: 1]
     field :name, :string

@@ -430,7 +430,7 @@ defmodule TuistCloud.CommandEventsTest do
       hash: "hash-5"
     })
 
-    Accounts.create_organization(%{name: "tuist-org"})
+    AccountsFixtures.organization_fixture(name: "tuist-org")
 
     # When
     CommandEvents.update_cache_event_counts()

@@ -110,7 +110,7 @@ defmodule TuistCloud.Projects do
   end
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_authentication_token())
+    token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_token())
 
     %Project{}
     |> Project.create_changeset(%{token: token, name: name, account_id: account_id})

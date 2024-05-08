@@ -25,7 +25,7 @@ defmodule TuistCloud.ProjectsTest do
     account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
-    Accounts.add_user_to_organization(user, organization, :user)
+    Accounts.add_user_to_organization(user, organization, role: :user)
     organization_two = AccountsFixtures.organization_fixture()
     account_two = Accounts.get_account_from_organization(organization_two)
     ProjectsFixtures.project_fixture(account_id: account_two.id)
@@ -108,7 +108,7 @@ defmodule TuistCloud.ProjectsTest do
       project_one = ProjectsFixtures.project_fixture(account_id: account.id)
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
-      Accounts.add_user_to_organization(user, organization, :user)
+      Accounts.add_user_to_organization(user, organization, role: :user)
       project_two = ProjectsFixtures.project_fixture(account_id: user_account.id)
 
       # When

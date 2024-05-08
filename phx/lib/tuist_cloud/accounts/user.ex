@@ -5,6 +5,7 @@ defmodule TuistCloud.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
   import TuistCloudWeb.Gettext
+  alias TuistCloud.Accounts.Account
 
   schema "users" do
     field :token, :string
@@ -13,6 +14,7 @@ defmodule TuistCloud.Accounts.User do
     field :confirmed_at, :naive_datetime
     field :last_visited_project_id, :integer
 
+    has_one(:account, Account, foreign_key: :owner_id)
     timestamps(inserted_at: :created_at)
   end
 

@@ -3,8 +3,8 @@ defmodule TuistCloud.Tokens do
   A module that provides functions for generating tokens.
   """
 
-  def generate_authentication_token() do
-    :crypto.strong_rand_bytes(32)
+  def generate_token(size \\ 32) do
+    :crypto.strong_rand_bytes(size)
     |> Base.url_encode64()
     |> String.replace("+", "-")
     |> String.replace("/", "_")

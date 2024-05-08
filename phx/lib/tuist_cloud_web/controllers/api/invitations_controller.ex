@@ -1,0 +1,184 @@
+defmodule TuistCloudWeb.API.InvitationsController do
+  use OpenApiSpex.ControllerSpecs
+  use TuistCloudWeb, :controller
+  alias TuistCloudWeb.API.Schemas.{Invitation, Error}
+  alias TuistCloudWeb.Authentication
+  alias TuistCloud.Authorization
+  alias TuistCloud.Accounts
+  alias OpenApiSpex.Schema
+
+  plug(OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_message: TuistCloudWeb.RenderAPIErrorPlug
+  )
+
+  operation(:create,
+    summary: "Creates an invitation",
+    description: "Invites a user with a given email to a given organization.",
+    request_body:
+      {"Invitation params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           invitee_email: %Schema{
+             type: :string,
+             description: "The email of the invitee."
+           }
+         },
+         required: [:invitee_email]
+       }},
+    responses: %{
+      ok: {"The user was invited", "application/json", Invitation},
+      bad_request:
+        {"The user could not be invited due to a validation error", "application/json", Error},
+      not_found: {"The organization was not found", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def create(
+        %{
+          path_params: %{
+            "organization_name" => organization_name
+          },
+          body_params: %{
+            invitee_email: invitee_email
+          }
+        } = conn,
+        _params
+      ) do
+    user = Authentication.current_user(conn)
+    user_account = Accounts.get_account_from_user(user)
+
+    organization_account = Accounts.get_organization_account_by_name(organization_name)
+
+    invitee = Accounts.get_user_by_email(invitee_email)
+
+    cond do
+      is_nil(organization_account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Organization #{organization_name} was not found."})
+
+      !Authorization.can(user, :create, organization_account.account, :invitation) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
+      !is_nil(
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          invitee_email,
+          organization_account.organization
+        )
+      ) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The user is already invited to the organization."})
+
+      !is_nil(invitee) and
+          (Accounts.admin?(invitee, organization_account.organization) or
+             Accounts.user?(invitee, organization_account.organization)) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The user is already a member of the organization."})
+
+      !is_nil(organization_account) ->
+        invitation =
+          Accounts.invite_user_to_organization(invitee_email, %{
+            inviter: user,
+            to: organization_account.organization,
+            url: &url(~p"/auth/invitations/#{&1}")
+          })
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          id: invitation.id,
+          invitee_email: invitation.invitee_email,
+          inviter: %{
+            id: user.id,
+            email: user.email,
+            name: user_account.name
+          },
+          token: invitation.token,
+          organization_id: invitation.organization_id
+        })
+    end
+  end
+
+  operation(:delete,
+    summary: "Cancels an invitation",
+    description: "Cancels an invitation for a given invitee email and an organization.",
+    request_body:
+      {"Invitation params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           invitee_email: %Schema{
+             type: :string,
+             description: "The email of the invitee."
+           }
+         },
+         required: [:invitee_email]
+       }},
+    responses: %{
+      no_content: {"The invitation was cancelled", "application/json", nil},
+      not_found:
+        {"The invitation with the given invitee email and organization name was not found",
+         "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def delete(
+        %{
+          path_params: %{
+            "organization_name" => organization_name
+          },
+          body_params: %{
+            invitee_email: invitee_email
+          }
+        } = conn,
+        _params
+      ) do
+    user = Authentication.current_user(conn)
+
+    organization_account = Accounts.get_organization_account_by_name(organization_name)
+
+    invitation =
+      if is_nil(organization_account) do
+        nil
+      else
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          invitee_email,
+          organization_account.organization
+        )
+      end
+
+    cond do
+      is_nil(invitation) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{
+          message:
+            "The invitation with the given invitee email and organization name was not found"
+        })
+
+      !Authorization.can(user, :delete, organization_account.account, :invitation) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
+      true ->
+        Accounts.cancel_invitation(invitation)
+
+        conn
+        |> put_status(:no_content)
+        |> json(%{})
+    end
+  end
+end

@@ -6,15 +6,12 @@ defmodule TuistCloud.Billing do
   alias TuistCloud.Environment
   alias TuistCloud.Accounts
 
-  def create_customer(opts) do
-    name = opts |> Keyword.get(:name)
-    email = opts |> Keyword.get(:email)
+  def create_customer(%{name: name, email: email}) do
     {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
     customer.id
   end
 
-  def create_session(opts) do
-    customer = opts |> Keyword.get(:customer)
+  def create_session(customer) do
     {:ok, session} = Stripe.BillingPortal.Session.create(%{customer: customer})
     session
   end

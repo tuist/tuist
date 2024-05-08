@@ -5,6 +5,7 @@ defmodule TuistCloudWeb.API.CacheController do
   alias TuistCloud.Storage
   alias TuistCloud.CommandEvents
   alias OpenApiSpex.Schema
+  alias TuistCloudWeb.API.Schemas.Error
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -14,19 +15,6 @@ defmodule TuistCloudWeb.API.CacheController do
   plug(TuistCloudWeb.API.EnsureProjectPresencePlug)
   plug(TuistCloudWeb.API.Authorization.CachePlug, :cache)
   plug(TuistCloudWeb.EnsureValidAccountPlanPlug)
-
-  defmodule Error do
-    require OpenApiSpex
-
-    OpenApiSpex.schema(%{
-      type: :object,
-      properties: %{
-        message: %Schema{
-          type: :string
-        }
-      }
-    })
-  end
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",

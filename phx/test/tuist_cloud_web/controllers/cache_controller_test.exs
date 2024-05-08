@@ -246,7 +246,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
 
     test "given organization project is cleaned", %{conn: conn} do
       # Given
-      organization = Accounts.create_organization(%{name: "tuist-org"})
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       user = AccountsFixtures.user_fixture()
@@ -275,7 +275,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
     test "forbidden error is returned when user doesn't have permission to clean the project cache",
          %{conn: conn} do
       # Given
-      organization = Accounts.create_organization(%{name: "tuist-org"})
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       user = AccountsFixtures.user_fixture()

@@ -41,7 +41,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
         conn
         |> Authentication.put_current_user(user)
 
-      organization = Accounts.create_organization(%{name: "tuist-org"})
+      organization = Accounts.create_organization(%{name: "tuist-org", creator: user})
       Accounts.add_user_to_organization(user, organization)
 
       # When
@@ -69,7 +69,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
         conn
         |> Authentication.put_current_user(user)
 
-      Accounts.create_organization(%{name: "tuist-org"})
+      AccountsFixtures.organization_fixture(name: "tuist-org")
 
       # When
       conn =
@@ -120,7 +120,7 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
 
       user_account = Accounts.get_account_from_user(user)
 
-      organization = Accounts.create_organization(%{name: "tuist-org"})
+      organization = Accounts.create_organization(%{name: "tuist-org", creator: user})
       organization_account = Accounts.get_account_from_organization(organization)
       Accounts.add_user_to_organization(user, organization)
 

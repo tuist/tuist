@@ -3,19 +3,18 @@ defmodule TuistCloud.Accounts.Role do
   A module that represents the roles table.
   """
   use Ecto.Schema
-
-  @type t :: %__MODULE__{
-          name: String.t(),
-          resource_type: String.t(),
-          resource_id: integer(),
-          created_at: DateTime.t(),
-          updated_at: DateTime.t()
-        }
+  import Ecto.Changeset
 
   schema "roles" do
     field :name, :string
     field :resource_type, :string
     field :resource_id, :integer
     timestamps(inserted_at: :created_at)
+  end
+
+  def create_changeset(role, attrs) do
+    role
+    |> cast(attrs, [:name, :resource_type, :resource_id])
+    |> validate_required([:name, :resource_type, :resource_id])
   end
 end
