@@ -114,7 +114,8 @@ defmodule TuistCloud.CommandEvents do
         date_period: date_period
       )
 
-    sorted_average_durations = Enum.sort(Map.values(average_durations), &(&1.date >= &2.date))
+    sorted_average_durations =
+      Enum.sort(Map.values(average_durations), &Date.before?(&1.date, &2.date))
 
     %{
       trend:
