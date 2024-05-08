@@ -14,7 +14,7 @@ defmodule TuistCloudWeb.API.Spec do
       ],
       info: %Info{
         title: "Tuist Cloud",
-        version: TuistCloud.Environment.version()
+        version: "0.1.0"
       },
       components: %Components{
         securitySchemes: %{"authorization" => %SecurityScheme{type: "http", scheme: "bearer"}}

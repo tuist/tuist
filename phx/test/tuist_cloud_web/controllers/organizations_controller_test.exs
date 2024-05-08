@@ -40,14 +40,14 @@ defmodule TuistCloudWeb.OrganizationsControllerTest do
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org",
-                 "plan" => nil
+                 "plan" => "none"
                },
                %{
                  "id" => organization_three.id,
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org-3",
-                 "plan" => nil
+                 "plan" => "none"
                }
              ] == Enum.sort_by(response["organizations"], & &1["name"])
     end

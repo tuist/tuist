@@ -15,6 +15,14 @@ defmodule TuistCloudWeb.API.InvitationsController do
   operation(:create,
     summary: "Creates an invitation",
     description: "Invites a user with a given email to a given organization.",
+    parameters: [
+      organization_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the organization."
+      ]
+    ],
     request_body:
       {"Invitation params", "application/json",
        %Schema{
@@ -111,6 +119,14 @@ defmodule TuistCloudWeb.API.InvitationsController do
   operation(:delete,
     summary: "Cancels an invitation",
     description: "Cancels an invitation for a given invitee email and an organization.",
+    parameters: [
+      organization_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the organization."
+      ]
+    ],
     request_body:
       {"Invitation params", "application/json",
        %Schema{

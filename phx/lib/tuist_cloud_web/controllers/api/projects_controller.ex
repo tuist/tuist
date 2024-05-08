@@ -99,7 +99,8 @@ defmodule TuistCloudWeb.API.ProjectsController do
                type: :array,
                items: Project
              }
-           }
+           },
+           required: [:projects]
          }}
     }
   )

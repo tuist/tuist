@@ -39,7 +39,7 @@ defmodule TuistCloudWeb.API.AuthController do
       ok:
         {"The device code is authenticated", "application/json",
          %Schema{
-           title: "Authentication token",
+           title: "AuthenticationToken",
            description: "Token to authenticate the user with.",
            type: :object,
            properties: %{

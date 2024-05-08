@@ -5,7 +5,7 @@ defmodule TuistCloudWeb.API.CacheController do
   alias TuistCloud.Storage
   alias TuistCloud.CommandEvents
   alias OpenApiSpex.Schema
-  alias TuistCloudWeb.API.Schemas.Error
+  alias TuistCloudWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -23,7 +23,7 @@ defmodule TuistCloudWeb.API.CacheController do
     parameters: [
       cache_category: [
         in: :query,
-        type: %Schema{type: :string, enum: ["tests", "builds"], default: "builds"},
+        type: CacheCategory,
         required: false,
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
@@ -44,32 +44,12 @@ defmodule TuistCloudWeb.API.CacheController do
     ],
     responses: %{
       ok:
-        {"The artifact exists and is downloadable", "application/json",
-         %Schema{
-           title: "Cache artifact download URL",
-           description: "The URL to download the artifact from the cache.",
-           type: :object,
-           properties: %{
-             status: %Schema{type: :string, default: "success"},
-             data: %Schema{
-               type: :object,
-               properties: %{
-                 url: %Schema{
-                   type: :string,
-                   description: "The URL to download the artifact from the cache."
-                 },
-                 expires_at: %Schema{
-                   type: :integer,
-                   description: "The UNIX timestamp when the URL expires."
-                 }
-               }
-             }
-           }
-         }},
+        {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project or the cache artifact doesn't exist", "application/json", Error}
+      not_found: {"The project or the cache artifact doesn't exist", "application/json", Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
@@ -127,7 +107,7 @@ defmodule TuistCloudWeb.API.CacheController do
     parameters: [
       cache_category: [
         in: :query,
-        type: %Schema{type: :string, enum: ["tests", "builds"], default: "builds"},
+        type: CacheCategory,
         required: false,
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
@@ -150,7 +130,7 @@ defmodule TuistCloudWeb.API.CacheController do
       ok:
         {"The artifact exists", "application/json",
          %Schema{
-           title: "Cache artifact existence",
+           title: "CacheArtifactExistence",
            description: "The artifact exists in the cache and can be downloaded",
            type: :object,
            properties: %{
@@ -167,7 +147,7 @@ defmodule TuistCloudWeb.API.CacheController do
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
-           title: "Absent cache artifact",
+           title: "AbsentCacheArtifact",
            type: :object,
            properties: %{
              error: %Schema{
@@ -181,7 +161,8 @@ defmodule TuistCloudWeb.API.CacheController do
                }
              }
            }
-         }}
+         }},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
@@ -224,7 +205,7 @@ defmodule TuistCloudWeb.API.CacheController do
     parameters: [
       cache_category: [
         in: :query,
-        type: %Schema{type: :string, enum: ["tests", "builds"], default: "builds"},
+        type: CacheCategory,
         required: false,
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
@@ -247,7 +228,7 @@ defmodule TuistCloudWeb.API.CacheController do
       ok:
         {"The upload has been started", "application/json",
          %Schema{
-           title: "Cache artifact upload ID",
+           title: "CacheArtifactUploadID",
            description:
              "The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads",
            type: :object,
@@ -257,14 +238,17 @@ defmodule TuistCloudWeb.API.CacheController do
                type: :object,
                properties: %{
                  upload_id: %Schema{type: :string, description: "The upload ID"}
-               }
+               },
+               required: [:upload_id]
              }
-           }
+           },
+           required: [:status, :data]
          }},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project doesn't exist", "application/json", Error}
+      not_found: {"The project doesn't exist", "application/json", Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
@@ -301,7 +285,7 @@ defmodule TuistCloudWeb.API.CacheController do
     parameters: [
       cache_category: [
         in: :query,
-        type: %Schema{type: :string, enum: ["tests", "builds"], default: "builds"},
+        type: CacheCategory,
         required: false,
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
@@ -336,7 +320,7 @@ defmodule TuistCloudWeb.API.CacheController do
       ok:
         {"The URL has been generated", "application/json",
          %Schema{
-           title: "Cache artifact multi-part part upload URL",
+           title: "CacheArtifactMultipartUploadURL",
            description: "The URL to upload a part has been generated.",
            type: :object,
            properties: %{
@@ -345,14 +329,17 @@ defmodule TuistCloudWeb.API.CacheController do
                type: :object,
                properties: %{
                  url: %Schema{type: :string, description: "The URL to upload the part"}
-               }
+               },
+               required: [:url]
              }
-           }
+           },
+           required: [:status, :data]
          }},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project doesn't exist", "application/json", Error}
+      not_found: {"The project doesn't exist", "application/json", Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
@@ -415,7 +402,7 @@ defmodule TuistCloudWeb.API.CacheController do
     parameters: [
       cache_category: [
         in: :query,
-        type: %Schema{type: :string, enum: ["tests", "builds"], default: "builds"},
+        type: CacheCategory,
         required: false,
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
@@ -444,7 +431,7 @@ defmodule TuistCloudWeb.API.CacheController do
       ok:
         {"The upload has been completed", "application/json",
          %Schema{
-           title: "Cache artifact multi-part upload completion",
+           title: "CacheArtifactMultipartUploadCompletion",
            description:
              "This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.",
            type: :object,
@@ -459,7 +446,8 @@ defmodule TuistCloudWeb.API.CacheController do
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project doesn't exist", "application/json", Error}
+      not_found: {"The project doesn't exist", "application/json", Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
@@ -546,8 +534,8 @@ defmodule TuistCloudWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    project_id = "#{account_name}/#{project_name}"
-    Storage.delete_all_objects(project_id)
+    project_slug = "#{account_name}/#{project_name}"
+    Storage.delete_all_objects(project_slug)
 
     conn
     |> send_resp(:no_content, "")

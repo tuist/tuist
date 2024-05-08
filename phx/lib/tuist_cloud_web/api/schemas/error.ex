@@ -13,6 +13,7 @@ defmodule TuistCloudWeb.API.Schemas.Error do
         type: :string,
         description: "The error message"
       }
-    }
+    },
+    required: [:message]
   })
 end

@@ -25,10 +25,7 @@ defmodule TuistCloudWeb.API.Schemas.Invitation do
         description: "The token to accept the invitation",
         type: :string
       },
-      inviter: %Schema{
-        User.schema()
-        | description: "The user that sent the invitation"
-      }
+      inviter: User
     },
     required: [:id, :invitee_email, :organization_id, :inviter, :token]
   })

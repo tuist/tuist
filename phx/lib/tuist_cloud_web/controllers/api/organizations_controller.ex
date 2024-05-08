@@ -21,12 +21,16 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       ok:
         {"The list of organizations", "application/json",
          %Schema{
-           title: "Organization list",
+           title: "OrganizationList",
            description: "The list of organizations the authenticated subject is part of.",
-           type: :array,
-           items: %Schema{
-             type: :string
-           }
+           type: :object,
+           properties: %{
+             organizations: %Schema{
+               type: :array,
+               items: Organization
+             }
+           },
+           required: [:organizations]
          }},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
@@ -42,7 +46,12 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan: &1.account.plan,
+          plan:
+            if is_nil(&1.account.plan) do
+              "none"
+            else
+              &1.account.plan
+            end,
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
