@@ -24,6 +24,13 @@ defmodule TuistCloud.Accounts.Account do
     |> validate_required(
       [:name, :owner_type, :owner_id] ++ if(Billing.enabled?(), do: [:customer_id], else: [])
     )
+    |> validate_change(:name, fn :name, name ->
+      if String.contains?(name, ".") do
+        [name: "can't contain a dot"]
+      else
+        []
+      end
+    end)
     |> validate_inclusion(:owner_type, ["User", "Organization"])
     |> unique_constraint(:name, name: "index_accounts_on_owner")
     |> unique_constraint([:owner_id, :owner_type],

@@ -6,10 +6,6 @@ defmodule TuistCloud.Projects.Project do
   alias TuistCloud.Accounts.Account
   import Ecto.Changeset
 
-  @type t :: %__MODULE__{
-          token: String.t()
-        }
-
   schema "projects" do
     field :token, :string
     field :name, :string
@@ -23,5 +19,15 @@ defmodule TuistCloud.Projects.Project do
     project
     |> cast(attrs, [:token, :account_id, :name])
     |> validate_required([:token, :account_id, :name])
+    |> validate_change(:name, fn :name, name ->
+      if String.contains?(name, ".") do
+        [
+          name:
+            "Project name can't contain a dot. Please use a different name, such as #{String.replace(name, ".", "-")}."
+        ]
+      else
+        []
+      end
+    end)
   end
 end

@@ -216,7 +216,7 @@ defmodule TuistCloud.Accounts do
     confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
 
-    name = email |> String.split("@") |> List.first()
+    name = email |> String.split("@") |> List.first() |> String.replace(".", "-")
 
     multi =
       Ecto.Multi.new()

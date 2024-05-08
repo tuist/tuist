@@ -86,6 +86,30 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
              }
     end
 
+    test "returns bad request when organization contains a dot", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", name: "my.project", organization: "tuist-org")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response == %{
+               "message" =>
+                 "Project name can't contain a dot. Please use a different name, such as my-project."
+             }
+    end
+
     test "returns project exists error", %{conn: conn, user: user} do
       # Given
       conn =

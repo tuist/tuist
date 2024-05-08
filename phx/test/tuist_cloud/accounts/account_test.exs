@@ -42,4 +42,12 @@ defmodule TuistCloud.AccountTest do
 
     assert changeset.valid? == true
   end
+
+  test "name cannot contain dots" do
+    changeset =
+      Account.create_changeset(%Account{}, %{name: "my.name", owner_type: "User", owner_id: 1})
+
+    assert changeset.valid? == false
+    assert "can't contain a dot" in errors_on(changeset).name
+  end
 end

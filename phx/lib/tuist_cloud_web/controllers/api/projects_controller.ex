@@ -65,25 +65,45 @@ defmodule TuistCloudWeb.API.ProjectsController do
           message: "You don't have permission to create projects for the #{account.name} account."
         })
 
+      # String.contains?(name, ".") ->
+      #   conn
+      #   |> put_status(:bad_request)
+      #   |> json(%Error{
+      #     message:
+      #       "Project name can't contain a dot. Please use a different name, such as #{String.replace(name, ".", "-")}."
+      #   })
+
       Projects.get_project_by_account_and_project_name(account.name, name) ->
         conn
         |> put_status(:bad_request)
         |> json(%Error{message: "Project already exists."})
 
       true ->
-        project =
-          Projects.create_project(%{
-            name: name,
-            account: account
-          })
+        try do
+          project =
+            Projects.create_project(%{
+              name: name,
+              account: account
+            })
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          id: project.id,
-          full_name: Projects.get_project_slug_from_id(project.id),
-          token: project.token
-        })
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            id: project.id,
+            full_name: Projects.get_project_slug_from_id(project.id),
+            token: project.token
+          })
+        rescue
+          e in Ecto.InvalidChangesetError ->
+            message =
+              Ecto.Changeset.traverse_errors(e.changeset, fn {message, _opts} -> message end)
+              |> Enum.flat_map(fn {_key, value} -> value end)
+              |> hd
+
+            conn
+            |> put_status(:bad_request)
+            |> json(%Error{message: message})
+        end
     end
   end
 

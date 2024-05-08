@@ -420,6 +420,16 @@ defmodule TuistCloud.AccountsTest do
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
     end
+
+    test "create a user with a password when email has a dot in the username" do
+      email = "username.with.dot@tuist.io"
+      user = Accounts.create_user(email, password: valid_user_password())
+      account = Accounts.get_account_from_user(user)
+      assert user.email == email
+      assert account.name == "username-with-dot"
+      assert is_binary(user.encrypted_password)
+      assert is_nil(user.confirmed_at)
+    end
   end
 
   describe "change_user_password/2" do
