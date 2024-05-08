@@ -29,7 +29,7 @@ defmodule TuistCloudWeb.AcceptInvitationLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <%= if assigns[:error] do %>
@@ -51,7 +51,7 @@ defmodule TuistCloudWeb.AcceptInvitationLive do
       <% end %>
       <div>
         <.button>
-          <a href={~p"/v2"} class="color--text-primary">
+          <a href={~p"/"} class="color--text-primary">
             <%= gettext("Dashboard") %>
           </a>
         </.button>
