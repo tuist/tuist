@@ -11,23 +11,7 @@ config :tuist_cloud,
   ecto_repos: [TuistCloud.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-# Configures the endpoint
-host =
-  case config_env() do
-    :stag -> "cloud-staging.tuist.io"
-    :can -> "cloud-canary.tuist.io"
-    :prod -> "cloud.tuist.io"
-    :test -> "127.0.0,1"
-    :dev -> "127.0.0.1"
-  end
-
 config :tuist_cloud, TuistCloudWeb.Endpoint,
-  url: [host: host],
-  check_origin: [
-    "https://cloud-staging.tuist.io",
-    "https://cloud-canary.tuist.io",
-    "https://cloud.tuist.io"
-  ],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: TuistCloudWeb.ErrorHTML, json: TuistCloudWeb.ErrorJSON],
@@ -50,7 +34,7 @@ config :esbuild,
   version: "0.17.11",
   tuist_cloud: [
     args:
-      ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/v2/assets --external:/fonts/* --external:/images/*),
+      ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
@@ -78,14 +62,14 @@ config :tuist_cloud, Oban,
 
 base_url =
   cond do
-    config_env() == :prod -> "https://cloud.tuist.io/v2/users/auth"
-    config_env() == :stag -> "https://cloud-staging.tuist.io/v2/users/auth"
-    config_env() == :can -> "https://cloud-canary.tuist.io/v2/users/auth"
-    true -> "http://127.0.0.1:4000/v2/users/auth"
+    config_env() == :prod -> "https://cloud.tuist.io/users/auth"
+    config_env() == :stag -> "https://cloud-staging.tuist.io/users/auth"
+    config_env() == :can -> "https://cloud-canary.tuist.io/users/auth"
+    true -> "http://127.0.0.1:8080/users/auth"
   end
 
 config :ueberauth, Ueberauth,
-  base_path: "/v2/users/auth",
+  base_path: "/users/auth",
   providers: [
     github: {Ueberauth.Strategy.Github, [callback_url: "#{base_url}/github/callback"]},
     google:

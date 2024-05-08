@@ -1,5 +1,5 @@
 app = "tuist-cloud-staging"
-primary_region = "atl"
+primary_region = "fra"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
 console_command = "/app/bin/rails console"
@@ -15,6 +15,7 @@ console_command = "/app/bin/rails console"
   WEB_CONCURRENCY=1
   TUIST_APP_URL="https://cloud-staging.tuist.io"
   TUIST_CLOUD_HOSTED="1"
+  TUIST_USE_SSL_FOR_DATABASE="1"
 
 [[vm]]
   cpu_kind = 'shared'

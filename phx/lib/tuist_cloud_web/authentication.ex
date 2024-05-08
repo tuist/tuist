@@ -4,6 +4,7 @@ defmodule TuistCloudWeb.Authentication do
   """
   import Plug.Conn
   import Phoenix.Controller
+  alias Phoenix.LiveView
   alias TuistCloud.Analytics
   alias TuistCloud.Accounts
   use TuistCloudWeb, :verified_routes
@@ -25,6 +26,10 @@ defmodule TuistCloudWeb.Authentication do
 
   def current_user(%Plug.Conn{} = conn) do
     current_user(conn.assigns)
+  end
+
+  def current_user(%LiveView.Socket{} = socket) do
+    current_user(socket.assigns)
   end
 
   def current_user(assigns) when is_map(assigns) do
@@ -127,7 +132,7 @@ defmodule TuistCloudWeb.Authentication do
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: ~p"/v2")
+    |> redirect(to: ~p"/")
   end
 
   @doc """
@@ -202,7 +207,7 @@ defmodule TuistCloudWeb.Authentication do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/v2/users/log_in")
+        |> Phoenix.LiveView.redirect(to: ~p"/users/log_in")
 
       {:halt, socket}
     end
@@ -251,7 +256,7 @@ defmodule TuistCloudWeb.Authentication do
     else
       conn
       |> maybe_store_return_to()
-      |> redirect(to: ~p"/v2/users/log_in")
+      |> redirect(to: ~p"/users/log_in")
       |> halt()
     end
   end
@@ -268,5 +273,5 @@ defmodule TuistCloudWeb.Authentication do
 
   defp maybe_store_return_to(conn), do: conn
 
-  defp signed_in_path(_conn), do: ~p"/v2"
+  defp signed_in_path(_conn), do: ~p"/"
 end

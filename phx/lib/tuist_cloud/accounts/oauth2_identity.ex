@@ -15,7 +15,9 @@ defmodule TuistCloud.Accounts.Oauth2Identity do
     oauth2_identity
     |> cast(attrs, [:provider, :id_in_provider, :user_id])
     |> validate_required([:provider, :id_in_provider, :user_id])
-    |> unique_constraint([:provider, :id_in_provider])
+    |> unique_constraint([:provider, :id_in_provider],
+      name: "index_oauth2_identities_on_provider_and_id_in_provider"
+    )
     |> validate_inclusion(:provider, [:github, :okta, :google])
     |> foreign_key_constraint(:user_id)
   end

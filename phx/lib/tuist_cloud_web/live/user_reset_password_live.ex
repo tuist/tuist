@@ -5,7 +5,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <.auth_header
@@ -36,7 +36,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
         </.stack>
       </.simple_form>
 
-      <.link href={~p"/v2/users/log_in"} class="text--small font--semibold">
+      <.link href={~p"/users/log_in"} class="text--small font--semibold">
         <%= gettext("Back to log in") %>
       </.link>
 
@@ -65,7 +65,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Password reset successfully."))
-         |> redirect(to: ~p"/v2/users/log_in")}
+         |> redirect(to: ~p"/users/log_in")}
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :insert))}
@@ -83,7 +83,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
     else
       socket
       |> put_flash(:error, "Reset password link is invalid or it has expired.")
-      |> redirect(to: ~p"/v2/users/log_in")
+      |> redirect(to: ~p"/users/log_in")
     end
   end
 

@@ -5,7 +5,7 @@ defmodule TuistCloudWeb.UserConfirmationLive do
 
   def render(%{live_action: :edit} = assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <.auth_header
@@ -26,7 +26,7 @@ defmodule TuistCloudWeb.UserConfirmationLive do
         </.button>
       </.simple_form>
 
-      <.link href={~p"/v2/users/log_in"} class="text--small font--semibold">
+      <.link href={~p"/users/log_in"} class="text--small font--semibold">
         <%= gettext("Back to log in") %>
       </.link>
 
@@ -48,7 +48,7 @@ defmodule TuistCloudWeb.UserConfirmationLive do
         {:noreply,
          socket
          |> put_flash(:info, "User confirmed successfully.")
-         |> redirect(to: ~p"/v2")}
+         |> redirect(to: ~p"/")}
 
       :error ->
         # If there is a current user and the account was already confirmed,
@@ -57,13 +57,13 @@ defmodule TuistCloudWeb.UserConfirmationLive do
         # a warning message.
         case socket.assigns do
           %{current_user: %{confirmed_at: confirmed_at}} when not is_nil(confirmed_at) ->
-            {:noreply, redirect(socket, to: ~p"/v2")}
+            {:noreply, redirect(socket, to: ~p"/")}
 
           %{} ->
             {:noreply,
              socket
              |> put_flash(:error, "User confirmation link is invalid or it has expired.")
-             |> redirect(to: ~p"/v2")}
+             |> redirect(to: ~p"/")}
         end
     end
   end

@@ -201,7 +201,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         _params
       ) do
     organization_account =
-      Accounts.get_organization_account_by_name("tuist-org")
+      Accounts.get_organization_account_by_name(organization_name)
 
     user = Authentication.current_user(conn)
 

@@ -18,7 +18,7 @@ defmodule TuistCloudWeb.AuthComponents do
       <%= if !Enum.empty?(@icon) do %>
         <%= render_slot(@icon) %>
       <% else %>
-        <img class="auth-header__logo" src="/v2/images/tuist_logo_32x32@2x.png" />
+        <img class="auth-header__logo" src="/images/tuist_logo_32x32@2x.png" />
       <% end %>
       <.stack gap="lg">
         <h5 class="auth-header__title font--semibold color--text-primary">

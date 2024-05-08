@@ -45,7 +45,6 @@ defmodule TuistCloudWeb.Router do
   scope "/" do
     pipe_through [:open_api, :browser]
 
-    get "/", TuistCloudWeb.PageController, :home
     get "/ready", TuistCloudWeb.PageController, :ready
     get "/api-docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi"
   end
@@ -115,7 +114,7 @@ defmodule TuistCloudWeb.Router do
 
   ## Authentication routes
 
-  scope "/v2", TuistCloudWeb do
+  scope "/", TuistCloudWeb do
     pipe_through [:browser, :redirect_if_user_is_authenticated]
 
     live_session :redirect_if_user_is_authenticated,
@@ -129,7 +128,7 @@ defmodule TuistCloudWeb.Router do
     post "/users/log_in", UserSessionController, :create
   end
 
-  scope "/v2", TuistCloudWeb do
+  scope "/", TuistCloudWeb do
     pipe_through [:browser, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
@@ -139,7 +138,7 @@ defmodule TuistCloudWeb.Router do
     end
   end
 
-  scope "/v2", TuistCloudWeb do
+  scope "/", TuistCloudWeb do
     pipe_through [:browser]
 
     delete "/users/log_out", UserSessionController, :delete
@@ -151,7 +150,7 @@ defmodule TuistCloudWeb.Router do
     end
   end
 
-  scope "/v2/users/auth", TuistCloudWeb do
+  scope "/users/auth", TuistCloudWeb do
     pipe_through :browser
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
@@ -170,16 +169,18 @@ defmodule TuistCloudWeb.Router do
   end
 
   # Authenticated routes
-  scope "/v2", TuistCloudWeb do
+  scope "/", TuistCloudWeb do
     pipe_through [:open_api, :browser, :require_authenticated_user, :analytics]
 
     live_session :authenticated,
       on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do
+      live "/", HomeLive
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
-      live "/", HomeLive
       live "/get-started", GetStartedLive
       live "/:owner/:project", HomeLive
+      # Used in tuist cloud analytics command
+      live "/:owner/:project/analytics", HomeLive
     end
   end
 end

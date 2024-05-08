@@ -64,10 +64,10 @@ defmodule TuistCloud.InvitationTest do
 
       # When
       {:ok, _} = Repo.insert(changeset)
+      {:error, got} = Repo.insert(changeset)
 
-      assert_raise Ecto.ConstraintError, fn ->
-        Repo.insert(changeset)
-      end
+      # Then
+      assert "has already been taken" in errors_on(got).invitee_email
     end
 
     test "ensures that the invitee_email and organization_id are unique" do
@@ -86,7 +86,7 @@ defmodule TuistCloud.InvitationTest do
       # When
       {:ok, _} = Repo.insert(changeset)
 
-      assert_raise Ecto.ConstraintError, fn ->
+      {:error, got} =
         Repo.insert(
           Invitation.create_changeset(%Invitation{}, %{
             token: "token-two",
@@ -95,7 +95,9 @@ defmodule TuistCloud.InvitationTest do
             organization_id: organization.id
           })
         )
-      end
+
+      # Then
+      assert "has already been taken" in errors_on(got).invitee_email
     end
   end
 end

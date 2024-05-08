@@ -6,7 +6,7 @@ defmodule TuistCloudWeb.UserForgotPasswordLiveTest do
 
   describe "Forgot password page" do
     test "renders email page", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/v2/users/reset_password")
+      {:ok, _lv, html} = live(conn, ~p"/users/reset_password")
 
       assert html =~ "Forgot your password?"
     end
@@ -15,8 +15,8 @@ defmodule TuistCloudWeb.UserForgotPasswordLiveTest do
       result =
         conn
         |> log_in_user(user_fixture())
-        |> live(~p"/v2/users/reset_password")
-        |> follow_redirect(conn, ~p"/v2")
+        |> live(~p"/users/reset_password")
+        |> follow_redirect(conn, ~p"/")
 
       assert {:ok, _conn} = result
     end

@@ -17,7 +17,7 @@ config :tuist_cloud, TuistCloud.Repo,
 config :tuist_cloud, TuistCloudWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -53,7 +53,7 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"priv/static/v2/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/tuist_cloud_web/(controllers|live|components)/.*(ex|heex)$"
     ]

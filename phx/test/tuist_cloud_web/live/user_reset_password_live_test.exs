@@ -29,17 +29,17 @@ defmodule TuistCloudWeb.UserResetPasswordLiveTest do
 
   describe "Reset password page" do
     test "renders reset password with valid token", %{conn: conn, token: token} do
-      {:ok, _lv, html} = live(conn, ~p"/v2/users/reset_password/#{token}")
+      {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
       assert html =~ "Set new password"
     end
 
     test "does not render reset password with invalid token", %{conn: conn} do
-      {:error, {:redirect, to}} = live(conn, ~p"/v2/users/reset_password/invalid")
+      {:error, {:redirect, to}} = live(conn, ~p"/users/reset_password/invalid")
 
       assert to == %{
                flash: %{"error" => "Reset password link is invalid or it has expired."},
-               to: ~p"/v2/users/log_in"
+               to: ~p"/users/log_in"
              }
     end
   end

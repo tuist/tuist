@@ -41,11 +41,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   database_options = [
-    pool_size: 20,
-    # Default 50
-    queue_target: 400,
-    # Default 1000
-    queue_interval: 3000,
+    pool_size: 15,
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
@@ -77,13 +73,15 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   config :tuist_cloud, TuistCloud.Repo, database_options
 
-  host = System.get_env("WEB_CONCURRENCY", "1")
-  port = "4000"
-
+  port = "8080"
   config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  app_url = TuistCloud.Environment.app_url(secrets)
+  %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
+
   config :tuist_cloud, TuistCloudWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
+    check_origin: [app_url],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
@@ -169,6 +167,8 @@ else
 end
 
 if TuistCloud.Environment.s3_configured?(secrets) do
+  %{host: s3_endpoint_host} = TuistCloud.Environment.s3_endpoint(secrets) |> URI.parse()
+
   aws_opts = [
     access_key_id: [
       TuistCloud.Environment.s3_access_key_id(secrets),
@@ -181,7 +181,7 @@ if TuistCloud.Environment.s3_configured?(secrets) do
     s3: [
       # Cloudflare R2 requires HTTPS
       scheme: "https://",
-      host: TuistCloud.Environment.s3_endpoint(secrets) |> String.replace("https://", ""),
+      host: s3_endpoint_host,
       # Cloudflare R2 does not require a region, but ExAws needs a value here
       region: TuistCloud.Environment.aws_region(secrets)
     ]

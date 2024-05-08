@@ -7,7 +7,7 @@ defmodule TuistCloudWeb.UserRegistrationLiveTest do
 
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/v2/users/register")
+      {:ok, _lv, html} = live(conn, ~p"/users/register")
 
       assert html =~ "Create an account"
     end
@@ -16,8 +16,8 @@ defmodule TuistCloudWeb.UserRegistrationLiveTest do
       result =
         conn
         |> log_in_user(user_fixture())
-        |> live(~p"/v2/users/register")
-        |> follow_redirect(conn, "/v2")
+        |> live(~p"/users/register")
+        |> follow_redirect(conn, "/")
 
       assert {:ok, _conn} = result
     end

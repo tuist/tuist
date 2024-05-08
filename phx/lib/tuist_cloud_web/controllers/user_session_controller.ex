@@ -10,7 +10,7 @@ defmodule TuistCloudWeb.UserSessionController do
 
   def create(conn, %{"_action" => "password_updated"} = params) do
     conn
-    |> put_session(:user_return_to, ~p"/v2/users/settings")
+    |> put_session(:user_return_to, ~p"/users/settings")
     |> create(params, "Password updated successfully!")
   end
 
@@ -31,12 +31,12 @@ defmodule TuistCloudWeb.UserSessionController do
         # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
         conn
         |> put_flash(:error, "Invalid email or password")
-        |> redirect(to: ~p"/v2/users/log_in")
+        |> redirect(to: ~p"/users/log_in")
 
       {:error, :not_confirmed} ->
         conn
         |> put_flash(:error, "Please confirm your account before logging in.")
-        |> redirect(to: ~p"/v2/users/log_in")
+        |> redirect(to: ~p"/users/log_in")
     end
   end
 

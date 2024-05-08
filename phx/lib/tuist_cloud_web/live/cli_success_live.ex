@@ -14,7 +14,7 @@ defmodule TuistCloudWeb.CLISuccessLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <.auth_header
@@ -23,7 +23,7 @@ defmodule TuistCloudWeb.CLISuccessLive do
       />
       <div>
         <.button>
-          <a href={~p"/v2"} class="color--text-primary">
+          <a href={~p"/"} class="color--text-primary">
             <%= gettext("Dashboard") %>
           </a>
         </.button>

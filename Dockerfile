@@ -109,7 +109,6 @@ ARG APP_REVISION=unknown
 ENV APP_REVISION=${APP_REVISION}
 ARG TUIST_VERSION=""
 ENV TUIST_VERSION=${TUIST_VERSION}
-ENV TRAEFIK_VERSION "3.0.0-rc1"
 ARG MIX_ENV="prod"
 ENV MIX_ENV=$MIX_ENV
 ENV SECRETS_PATH="/app/phx/priv/secrets/secrets.yml.enc"
@@ -119,18 +118,6 @@ WORKDIR "/app"
 # Install packages needed for deployment
 RUN apt-get update -y && apt-get install --no-install-recommends -y parallel curl gcc wget libvips postgresql-client libstdc++6 libubsan1 libncurses5 ca-certificates make locales \
     && apt-get clean && rm -f /var/lib/apt/lists/*_* && rm -rf /var/cache/apt/archives
-
-# Install Traefik
-RUN curl -L "https://github.com/traefik/traefik/releases/download/v${TRAEFIK_VERSION}/traefik_v${TRAEFIK_VERSION}_linux_amd64.tar.gz" -o /tmp/traefik.tar.gz && \
-    tar -xzf /tmp/traefik.tar.gz -C /usr/local/bin traefik && \
-    rm /tmp/traefik.tar.gz && \
-    chmod +x /usr/local/bin/traefik && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy Traefik configuration file
-COPY traefik.yml traefik.yml
-COPY .traefik/ .traefik/
 
 # Copy Procfile
 COPY Procfile Procfile

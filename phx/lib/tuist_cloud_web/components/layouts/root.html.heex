@@ -8,10 +8,10 @@
       <%= assigns[:page_title] || "Tuist Cloud" %>
     </.live_title>
     <!-- Assets -->
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/app.css"} />
-    <script defer phx-track-static type="module" src={~p"/v2/assets/app.js"}>
+    <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
+    <script defer phx-track-static type="module" src={~p"/assets/app.js"}>
     </script>
-    <script defer phx-track-static type="text/javascript" src={~p"/v2/js/Chart.js"}>
+    <script defer phx-track-static type="text/javascript" src={~p"/js/Chart.js"}>
     </script>
     <script>
       globalThis.analyticsEnabled = <%= TuistCloud.Environment.analytics_enabled?() %>;

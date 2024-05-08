@@ -23,7 +23,7 @@ defmodule TuistCloudWeb.UserConfirmationLiveTest do
 
   describe "Confirm user" do
     test "renders confirmation page", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/v2/users/confirm/some-token")
+      {:ok, _lv, html} = live(conn, ~p"/users/confirm/some-token")
       assert html =~ "Confirm account"
     end
 
@@ -33,13 +33,13 @@ defmodule TuistCloudWeb.UserConfirmationLiveTest do
           Accounts.deliver_user_confirmation_instructions(user, url)
         end)
 
-      {:ok, lv, _html} = live(conn, ~p"/v2/users/confirm/#{token}")
+      {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
 
       result =
         lv
         |> form("#confirmation_form")
         |> render_submit()
-        |> follow_redirect(conn, "/v2")
+        |> follow_redirect(conn, "/")
 
       assert {:ok, conn} = result
 
@@ -51,13 +51,13 @@ defmodule TuistCloudWeb.UserConfirmationLiveTest do
       assert Repo.all(Accounts.UserToken) == []
 
       # when not logged in
-      {:ok, lv, _html} = live(conn, ~p"/v2/users/confirm/#{token}")
+      {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
 
       result =
         lv
         |> form("#confirmation_form")
         |> render_submit()
-        |> follow_redirect(conn, "/v2")
+        |> follow_redirect(conn, "/")
 
       assert {:ok, conn} = result
 
@@ -69,26 +69,26 @@ defmodule TuistCloudWeb.UserConfirmationLiveTest do
         build_conn()
         |> log_in_user(user)
 
-      {:ok, lv, _html} = live(conn, ~p"/v2/users/confirm/#{token}")
+      {:ok, lv, _html} = live(conn, ~p"/users/confirm/#{token}")
 
       result =
         lv
         |> form("#confirmation_form")
         |> render_submit()
-        |> follow_redirect(conn, "/v2")
+        |> follow_redirect(conn, "/")
 
       assert {:ok, conn} = result
       refute Phoenix.Flash.get(conn.assigns.flash, :error)
     end
 
     test "does not confirm email with invalid token", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/v2/users/confirm/invalid-token")
+      {:ok, lv, _html} = live(conn, ~p"/users/confirm/invalid-token")
 
       {:ok, conn} =
         lv
         |> form("#confirmation_form")
         |> render_submit()
-        |> follow_redirect(conn, ~p"/v2")
+        |> follow_redirect(conn, ~p"/")
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~
                "User confirmation link is invalid or it has expired"

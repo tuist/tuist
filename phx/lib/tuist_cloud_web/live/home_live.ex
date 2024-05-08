@@ -19,7 +19,7 @@ defmodule TuistCloudWeb.HomeLive do
 
         {:ok,
          redirect(socket,
-           to: ~p"/v2/#{project_account.account.name}/#{project_account.project.name}"
+           to: ~p"/#{project_account.account.name}/#{project_account.project.name}"
          )}
       end
     else
@@ -162,13 +162,13 @@ defmodule TuistCloudWeb.HomeLive do
 
   defp redirect_to_project(project_accounts, socket) do
     if Enum.empty?(project_accounts) do
-      {:ok, redirect(socket, to: ~p"/v2/get-started")}
+      {:ok, redirect(socket, to: ~p"/get-started")}
     else
       project_account = hd(project_accounts)
 
       {:ok,
        redirect(socket,
-         to: ~p"/v2/#{project_account.account.name}/#{project_account.project.name}"
+         to: ~p"/#{project_account.account.name}/#{project_account.project.name}"
        )}
     end
   end

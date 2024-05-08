@@ -22,7 +22,7 @@ defmodule TuistCloudWeb.AuthenticationTest do
       conn = Authentication.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
-      assert redirected_to(conn) == ~p"/v2"
+      assert redirected_to(conn) == ~p"/"
       assert Accounts.get_user_by_session_token(token)
     end
 
@@ -62,7 +62,7 @@ defmodule TuistCloudWeb.AuthenticationTest do
       refute get_session(conn, :user_token)
       refute conn.cookies[@remember_me_cookie]
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/v2"
+      assert redirected_to(conn) == ~p"/"
       refute Accounts.get_user_by_session_token(user_token)
     end
 
@@ -81,7 +81,7 @@ defmodule TuistCloudWeb.AuthenticationTest do
       conn = conn |> fetch_cookies() |> Authentication.log_out_user()
       refute get_session(conn, :user_token)
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/v2"
+      assert redirected_to(conn) == ~p"/"
     end
   end
 
@@ -226,7 +226,7 @@ defmodule TuistCloudWeb.AuthenticationTest do
         |> Authentication.redirect_if_user_is_authenticated([])
 
       assert conn.halted
-      assert redirected_to(conn) == ~p"/v2"
+      assert redirected_to(conn) == ~p"/"
     end
 
     test "does not redirect if user is not authenticated", %{conn: conn} do
@@ -241,7 +241,7 @@ defmodule TuistCloudWeb.AuthenticationTest do
       conn = conn |> fetch_flash() |> Authentication.require_authenticated_user([])
       assert conn.halted
 
-      assert redirected_to(conn) == ~p"/v2/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in"
     end
 
     test "stores the path to redirect to on GET", %{conn: conn} do

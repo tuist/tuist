@@ -15,6 +15,7 @@ console_command = "/app/bin/rails console"
   WEB_CONCURRENCY=1
   TUIST_APP_URL="https://cloud-canary.tuist.io"
   TUIST_CLOUD_HOSTED="1"
+  TUIST_USE_SSL_FOR_DATABASE="1"
 
 [[vm]]
   cpu_kind = 'shared'

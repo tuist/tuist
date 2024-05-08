@@ -222,6 +222,10 @@ defmodule TuistCloud.Environment do
     get([:smtp_settings, :password], secrets)
   end
 
+  def app_url(secrets \\ secrets()) do
+    get([:app, :url], secrets) || "http://localhost:8080"
+  end
+
   def smtp_configured?(secrets \\ secrets()) do
     smtp_domain(secrets) != nil and smtp_user_name(secrets) != nil and
       smtp_password(secrets) != nil

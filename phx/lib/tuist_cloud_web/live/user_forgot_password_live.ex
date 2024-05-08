@@ -5,7 +5,7 @@ defmodule TuistCloudWeb.UserForgotPasswordLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <.auth_header
@@ -36,7 +36,7 @@ defmodule TuistCloudWeb.UserForgotPasswordLive do
         </.stack>
       </.simple_form>
 
-      <.link href={~p"/v2/users/log_in"} class="text--small font--semibold">
+      <.link href={~p"/users/log_in"} class="text--small font--semibold">
         <%= gettext("Back to log in") %>
       </.link>
 
@@ -53,7 +53,7 @@ defmodule TuistCloudWeb.UserForgotPasswordLive do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_user_reset_password_instructions(
         user,
-        &url(~p"/v2/users/reset_password/#{&1}")
+        &url(~p"/users/reset_password/#{&1}")
       )
     end
 
@@ -63,6 +63,6 @@ defmodule TuistCloudWeb.UserForgotPasswordLive do
     {:noreply,
      socket
      |> put_flash(:info, info)
-     |> redirect(to: ~p"/v2/users/log_in")}
+     |> redirect(to: ~p"/users/log_in")}
   end
 end

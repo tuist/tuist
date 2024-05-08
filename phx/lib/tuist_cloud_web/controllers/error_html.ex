@@ -68,8 +68,8 @@ defmodule TuistCloudWeb.ErrorHTML do
         <.live_title>
           <%= gettext("Not authenticated") %>
         </.live_title>
-        <link phx-track-static rel="stylesheet" href={~p"/v2/css/app.css"} />
-        <link phx-track-static rel="stylesheet" href={~p"/v2/css/error.css"} />
+        <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
+        <link phx-track-static rel="stylesheet" href={~p"/css/error.css"} />
       </head>
       <body>
         <div class="page error-page">
@@ -77,7 +77,7 @@ defmodule TuistCloudWeb.ErrorHTML do
           <h2 class="color--text-primary error-page__title"><%= @title %></h2>
           <p class="text--extraLarge font--regular color--text-tertiary"><%= @message %></p>
           <.button variant="secondary" class="error-page__home-button">
-            <a href={~p"/v2"}><%= gettext("Take me home") %></a>
+            <a href={~p"/"}><%= gettext("Take me home") %></a>
           </.button>
         </div>
       </body>

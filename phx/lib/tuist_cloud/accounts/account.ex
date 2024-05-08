@@ -25,7 +25,9 @@ defmodule TuistCloud.Accounts.Account do
       [:name, :owner_type, :owner_id] ++ if(Billing.enabled?(), do: [:customer_id], else: [])
     )
     |> validate_inclusion(:owner_type, ["User", "Organization"])
-    |> unique_constraint(:name)
-    |> unique_constraint([:owner_id, :owner_type])
+    |> unique_constraint(:name, name: "index_accounts_on_owner")
+    |> unique_constraint([:owner_id, :owner_type],
+      name: "index_accounts_on_owner_id_and_owner_type"
+    )
   end
 end

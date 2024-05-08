@@ -17,7 +17,7 @@ defmodule TuistCloud.Accounts.DeviceCode do
     device_code
     |> cast(attrs, [:code, :created_at])
     |> validate_required([:code])
-    |> unique_constraint([:code])
+    |> unique_constraint([:user_id], name: "index_device_codes_on_user_id")
   end
 
   def authenticate_changeset(device_code, attrs) do

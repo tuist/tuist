@@ -6,16 +6,12 @@ defmodule TuistCloudWeb.UserRegistrationLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/v2/css/auth.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
 
     <.stack class="auth-page" gap="4xl">
       <.decorative_background class="auth-page__background" />
       <.stack class="auth-header" gap="3xl">
-        <img
-          class="auth-header__logo"
-          src="/v2/images/tuist_logo_32x32@2x.png"
-          alt="Tuist Cloud Icon"
-        />
+        <img class="auth-header__logo" src="/images/tuist_logo_32x32@2x.png" alt="Tuist Cloud Icon" />
         <.stack gap="lg">
           <h5 class="auth-header__title font--semibold color--text-primary">
             <%= gettext("Create an account") %>
@@ -26,68 +22,70 @@ defmodule TuistCloudWeb.UserRegistrationLive do
         </.stack>
       </.stack>
 
-      <.simple_form
-        for={@form}
-        id="registration_form"
-        phx-submit="save"
-        action={~p"/v2/users/log_in?_action=registered"}
-        method="post"
-        class="auth-form"
-      >
-        <.stack gap="3xl">
-          <.stack gap="2xl">
-            <.input
-              field={@form[:email]}
-              type="email"
-              label={gettext("Email")}
-              placeholder={gettext("Enter your email")}
-              required
-            />
-            <.input
-              field={@form[:password]}
-              type="password"
-              label={gettext("Password")}
-              placeholder={gettext("Enter your password")}
-              required
-            />
+      <.stack gap="xl">
+        <.simple_form
+          for={@form}
+          id="registration_form"
+          phx-submit="save"
+          action={~p"/users/log_in?_action=registered"}
+          method="post"
+          class="auth-form"
+        >
+          <.stack gap="3xl">
+            <.stack gap="2xl">
+              <.input
+                field={@form[:email]}
+                type="email"
+                label={gettext("Email")}
+                placeholder={gettext("Enter your email")}
+                required
+              />
+              <.input
+                field={@form[:password]}
+                type="password"
+                label={gettext("Password")}
+                placeholder={gettext("Enter your password")}
+                required
+              />
+            </.stack>
+            <.stack gap="xl">
+              <.button type="submit" variant="primary" class="auth-form__primary-action">
+                <%= gettext("Sign up") %>
+              </.button>
+            </.stack>
           </.stack>
-          <.stack gap="xl">
-            <.button type="submit" variant="primary" class="auth-form__primary-action">
-              <%= gettext("Sign up") %>
-            </.button>
-            <%= if @github_configured do %>
-              <.social_button>
-                <a href={~p"/v2/users/auth/github"}>
-                  <%= gettext("Sign up with GitHub") %>
-                </a>
-                <:icon><.github_logo /></:icon>
-              </.social_button>
-            <% end %>
-            <%= if @google_configured do %>
-              <.social_button>
-                <a href={~p"/v2/users/auth/google"}>
-                  <%= gettext("Sign up with Google") %>
-                </a>
-                <:icon><.google_logo /></:icon>
-              </.social_button>
-            <% end %>
-            <%= if @okta_configured do %>
-              <.social_button>
-                <a href={~p"/v2/users/auth/okta"}>
-                  <%= gettext("Sign up with Okta") %>
-                </a>
-                <:icon><.okta_logo /></:icon>
-              </.social_button>
-            <% end %>
-          </.stack>
-        </.stack>
-      </.simple_form>
+        </.simple_form>
 
+        <%= if @github_configured do %>
+          <.social_button>
+            <a href={~p"/users/auth/github"}>
+              <%= gettext("Sign up with GitHub") %>
+            </a>
+            <:icon><.github_logo /></:icon>
+          </.social_button>
+        <% end %>
+        <%= if @google_configured do %>
+          <.social_button>
+            <a href={~p"/users/auth/google"}>
+              <%= gettext("Sign up with Google") %>
+            </a>
+            <:icon><.google_logo /></:icon>
+          </.social_button>
+        <% end %>
+        <%= if @okta_configured do %>
+          <.social_button>
+            <a href={~p"/users/auth/okta"}>
+              <%= gettext("Sign up with Okta") %>
+            </a>
+            <:icon><.okta_logo /></:icon>
+          </.social_button>
+        <% end %>
+      </.stack>
       <.stack direction="horizontal" gap="xs">
         <span class="text--small font--regular color--text-tertiary">
           <%= gettext("Already an account?") %>
         </span>
-        <a href={~p"/v2/users/log_in"} class="text--small font--semibold">
+        <a href={~p"/users/log_in"} class="text--small font--semibold">
           <%= gettext("Sign in") %>
         </a>
       </.stack>
@@ -120,7 +118,7 @@ defmodule TuistCloudWeb.UserRegistrationLive do
     {:ok, _} =
       Accounts.deliver_user_confirmation_instructions(
         user,
-        &url(~p"/v2/users/confirm/#{&1}")
+        &url(~p"/users/confirm/#{&1}")
       )
 
     {:noreply,
@@ -130,6 +128,6 @@ defmodule TuistCloudWeb.UserRegistrationLive do
        :info,
        gettext("A confirmation email has been sent to you, check your inbox.")
      )
-     |> redirect(to: ~p"/v2")}
+     |> redirect(to: ~p"/")}
   end
 end
