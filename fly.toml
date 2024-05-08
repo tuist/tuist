@@ -16,6 +16,7 @@ console_command = "/app/bin/rails console"
   TUIST_APP_URL="https://cloud.tuist.io"
   TUIST_CLOUD_HOSTED="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
+  TUIST_DATABASE_POOL_SIZE="10"
 
 [[vm]]
   cpu_kind = 'shared'
@@ -28,9 +29,9 @@ console_command = "/app/bin/rails console"
 [[services]]
   protocol = "tcp"
   internal_port = 8080
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 3
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 2
   processes = ["app"]
   http_options = { h2_backend = true }
 

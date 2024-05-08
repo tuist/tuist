@@ -38,10 +38,10 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   parsed_url = URI.parse(database_url)
   [username, password] = parsed_url.userinfo |> String.split(":")
-  maybe_ipv6 = if System.get_env("TUIST_USE_IPV6") in ~w(true 1), do: [:inet6], else: []
+  maybe_ipv6 = if TuistCloud.Environment.use_ipv6?(secrets) in ~w(true 1), do: [:inet6], else: []
 
   database_options = [
-    pool_size: 15,
+    pool_size: TuistCloud.Environment.database_pool_size(secrets),
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,

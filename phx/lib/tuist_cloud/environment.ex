@@ -30,6 +30,17 @@ defmodule TuistCloud.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  def use_ipv6?(secrets \\ secrets()) do
+    get([:use_ipv6], secrets)
+  end
+
+  def database_pool_size(secrets \\ secrets()) do
+    case get([:database, :pool_size], secrets) do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      _ -> 10
+    end
+  end
+
   def license_features() do
     Application.get_env(:tuist_cloud, :license).features
   end
