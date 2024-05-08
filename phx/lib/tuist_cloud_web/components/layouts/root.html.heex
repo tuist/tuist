@@ -23,7 +23,7 @@
         posthog.init('phc_pNR89Xu2WWDZdXReTnuePI7XO2Ktb2orTpzVWxHlBxq',{api_host:'https://eu.i.posthog.com'})
 
         <%= if TuistCloudWeb.Authentication.authenticated?(assigns) do %>
-        posthog.identify('distinct_id', "<%= TuistCloudWeb.Authentication.current_user(assigns) %>");
+        posthog.identify('distinct_id', "<%= TuistCloudWeb.Authentication.current_user(assigns).id %>");
         <% end %>
       </script>
     <% end %>
