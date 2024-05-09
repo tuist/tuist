@@ -71,12 +71,8 @@ base_url =
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
   providers: [
-    github: {Ueberauth.Strategy.Github, [callback_url: "#{base_url}/github/callback"]},
-    google:
-      {Ueberauth.Strategy.Google,
-       [
-         callback_url: "#{base_url}/google/callback"
-       ]}
+    github: {Ueberauth.Strategy.Github, []},
+    google: {Ueberauth.Strategy.Google, []}
   ]
 
 # Import environment specific config. This must remain at the bottom

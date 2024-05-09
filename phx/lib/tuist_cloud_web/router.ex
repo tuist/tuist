@@ -14,6 +14,7 @@ defmodule TuistCloudWeb.Router do
     plug :put_root_layout, html: {TuistCloudWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug Ueberauth
     plug :fetch_current_user
   end
 
@@ -152,7 +153,6 @@ defmodule TuistCloudWeb.Router do
 
   scope "/users/auth", TuistCloudWeb do
     pipe_through :browser
-    get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
   end
 
