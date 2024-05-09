@@ -1,4 +1,4 @@
-defmodule TuistCloud.InvitationTest do
+defmodule TuistCloud.CacheEventTest do
   alias TuistCloud.CommandEvents.CacheEvent
   use TuistCloud.DataCase
   use Mimic

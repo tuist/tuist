@@ -81,16 +81,26 @@ defmodule TuistCloud.Storage do
   def delete_all_objects(project_slug) do
     bucket_name = Environment.s3_bucket_name()
 
-    stream =
-      bucket_name
-      |> ExAws.S3.list_objects(prefix: project_slug)
-      |> ExAws.stream!()
-      |> Stream.map(& &1.key)
+    {:ok, %{body: %{contents: contents}}} =
+      ExAws.S3.list_objects_v2(bucket_name, prefix: project_slug, max_keys: 1) |> ExAws.request()
 
-    {:ok, _} =
-      bucket_name
-      |> ExAws.S3.delete_all_objects(stream)
-      |> ExAws.request()
+    # Calling delete_all_objects when there are no objects with a given prefix returns a 400 error
+    if contents == [] do
+      :ok
+    else
+      stream =
+        bucket_name
+        |> ExAws.S3.list_objects_v2(prefix: project_slug)
+        |> ExAws.stream!()
+        |> Stream.map(& &1.key)
+
+      {:ok, _} =
+        bucket_name
+        |> ExAws.S3.delete_all_objects(stream)
+        |> ExAws.request()
+
+      :ok
+    end
   end
 
   def get_object(item) do
