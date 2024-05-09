@@ -110,8 +110,8 @@ public final class BuildService {
 
             let buildPlatform: TuistGraph.Platform
 
-            if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
-                buildPlatform = inputPlatform
+            if let platform {
+                buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
             } else {
                 buildPlatform = try graphTarget.target.servicePlatform
             }
@@ -141,8 +141,8 @@ public final class BuildService {
 
                 let buildPlatform: TuistGraph.Platform
 
-                if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
-                    buildPlatform = inputPlatform
+                if let platform {
+                    buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
                 } else {
                     buildPlatform = try graphTarget.target.servicePlatform
                 }

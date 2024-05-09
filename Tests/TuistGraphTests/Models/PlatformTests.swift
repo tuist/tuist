@@ -19,6 +19,38 @@ final class PlatformTests: XCTestCase {
         XCTAssertCodable(subject)
     }
 
+    func test_caseInsensitiveCommandInput() {
+        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "macos"))
+        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "macOS"))
+        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "MACOS"))
+        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "ios"))
+        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "iOS"))
+        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "IOS"))
+        XCTAssertEqual(Platform.tvOS, Platform(commandLineValue: "tvos"))
+        XCTAssertEqual(Platform.tvOS, Platform(commandLineValue: "tvOS"))
+        XCTAssertEqual(Platform.watchOS, Platform(commandLineValue: "watchos"))
+        XCTAssertEqual(Platform.watchOS, Platform(commandLineValue: "watchOS"))
+        XCTAssertEqual(Platform.visionOS, Platform(commandLineValue: "visionos"))
+        XCTAssertEqual(Platform.visionOS, Platform(commandLineValue: "visionOS"))
+    }
+
+    func test_caseInvalidPlatform_throws() {
+        do {
+            let _ = try Platform.from(commandLineValue: "not_a_platform")
+            XCTFail("Expected erro to be thrown")
+        } catch let error as UnsupportedPlatformError {
+            XCTAssertEqual(error, UnsupportedPlatformError(input: "not_a_platform"))
+        } catch {
+            XCTFail("Unexpected error thrown")
+        }
+    }
+
+    func test_caseValidPlatform_doesNotThrow() throws {
+        XCTAssertEqual(Platform.iOS, try Platform.from(commandLineValue: "iOS"))
+        XCTAssertEqual(Platform.macOS, try Platform.from(commandLineValue: "macOS"))
+        XCTAssertEqual(Platform.macOS, try Platform.from(commandLineValue: "macos"))
+    }
+
     func test_xcodeSdkRoot_returns_the_right_value() {
         XCTAssertEqual(Platform.macOS.xcodeSdkRoot, "macosx")
         XCTAssertEqual(Platform.iOS.xcodeSdkRoot, "iphoneos")
