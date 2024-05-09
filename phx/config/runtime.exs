@@ -46,16 +46,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
-    socket_options: maybe_ipv6,
-    parameters: [
-      # The duration (in seconds) of inactivity before the TCP keepalive probes are sent on the socket
-      # It is useful for ensuring reliable and long-lived database connections, especially in network environments where connections are prone to idle timeouts.
-      tcp_keepalives_idle: 60,
-      # The interval (in seconds) between subsequent TCP keepalive probes once the first probe is sent.
-      tcp_keepalives_interval: 30,
-      # The maximum number of TCP keepalive probes to be sent before the connection is considered dead.
-      tcp_keepalives_count: 5
-    ]
+    socket_options: maybe_ipv6
   ]
 
   database_options =
