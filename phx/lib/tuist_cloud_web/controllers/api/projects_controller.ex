@@ -179,9 +179,18 @@ defmodule TuistCloudWeb.API.ProjectsController do
       ) do
     user = Authentication.current_user(conn)
     account = Accounts.get_account_by_handle(account_name)
-    project = Projects.get_project_by_account_and_project_name(account.name, project_name)
+
+    project =
+      if is_nil(account),
+        do: nil,
+        else: Projects.get_project_by_account_and_project_name(account.name, project_name)
 
     cond do
+      is_nil(account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Account #{account_name} not found."})
+
       !Authorization.can(user, :read, account, :project) ->
         conn
         |> put_status(:forbidden)

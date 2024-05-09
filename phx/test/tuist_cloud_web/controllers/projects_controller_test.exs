@@ -233,6 +233,25 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
              }
     end
 
+    test "Returns a not found error if an account does not exist", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get("/api/projects/non-existing-account/non-existing-project")
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response == %{
+               "message" => "Account non-existing-account not found."
+             }
+    end
+
     test "Returns a not found error if a project does not exist", %{conn: conn, user: user} do
       # Given
       conn =
