@@ -33,7 +33,10 @@ defmodule TuistCloudWeb.AuthController do
 
   def authenticate(conn, params) do
     device_code = params["device_code"]
-    Accounts.create_device_code(device_code)
+
+    if is_nil(Accounts.get_device_code(device_code)) do
+      Accounts.create_device_code(device_code)
+    end
 
     conn
     |> redirect(to: ~p"/auth/cli/success/#{device_code}")

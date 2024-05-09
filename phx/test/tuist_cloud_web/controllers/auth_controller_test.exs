@@ -1,4 +1,6 @@
 defmodule TuistCloudWeb.AuthControllerTest do
+  alias TuistCloud.Repo
+  alias TuistCloud.Accounts.DeviceCode
   alias TuistCloud.Accounts
   alias TuistCloud.AccountsFixtures
   use TuistCloudWeb.ConnCase, async: true
@@ -73,6 +75,42 @@ defmodule TuistCloudWeb.AuthControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert %{"token" => user.token} == response
+    end
+  end
+
+  describe "GET /cli/:device_code" do
+    setup [:register_and_log_in_user]
+
+    test "creates device code", %{conn: conn} do
+      # Given
+      device_code = "AOKJ-1234"
+
+      # When
+      conn =
+        conn
+        |> get(~p"/auth/cli/#{device_code}")
+
+      # Then
+      html_response(conn, 302)
+      assert Accounts.get_device_code(device_code).code == device_code
+    end
+
+    test "does not create a new device code on a subsequent request", %{conn: conn} do
+      # Given
+      device_code = "AOKJ-1234"
+
+      conn =
+        conn
+        |> get(~p"/auth/cli/#{device_code}")
+
+      # When
+      conn =
+        conn
+        |> get(~p"/auth/cli/#{device_code}")
+
+      # Then
+      html_response(conn, 302)
+      assert length(Repo.all(DeviceCode)) == 1
     end
   end
 end
