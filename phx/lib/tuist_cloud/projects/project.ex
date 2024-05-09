@@ -4,12 +4,18 @@ defmodule TuistCloud.Projects.Project do
   """
   use Ecto.Schema
   alias TuistCloud.Accounts.Account
+  alias TuistCloud.Accounts.User
   import Ecto.Changeset
 
   schema "projects" do
     field :token, :string
     field :name, :string
     belongs_to :account, Account
+
+    has_many :users_with_last_visited_projects, User,
+      foreign_key: :last_visited_project_id,
+      foreign_key: :last_visited_project_id,
+      on_delete: :nilify_all
 
     # Rails names the field "created_at"
     timestamps(inserted_at: :created_at)
