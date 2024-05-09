@@ -24,7 +24,7 @@ function capitalize(text) {
         .filter((item) => item.category === category)
         .map((item) => ({
           text: item.title,
-          link: `/reference/project-description/${item.name}`,
+          link: `/reference/project-description/${item.identifier}`,
         })),
     });
   }
