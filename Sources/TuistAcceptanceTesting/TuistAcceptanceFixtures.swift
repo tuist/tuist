@@ -39,6 +39,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithOnDemandResources
     case iosAppWithPluginsAndTemplates
     case iosAppWithPrivacyManifest
+    case iosAppWithSpmDependencies
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
     case iosAppWithStaticFrameworks
@@ -142,6 +143,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_multi_configs"
         case .iosAppWithOnDemandResources:
             return "ios_app_with_on_demand_resources"
+        case .iosAppWithSpmDependencies:
+            return "ios_app_with_spm_dependencies"
         case .iosAppWithPluginsAndTemplates:
             return "ios_app_with_plugins_and_templates"
         case .iosAppWithPrivacyManifest:
