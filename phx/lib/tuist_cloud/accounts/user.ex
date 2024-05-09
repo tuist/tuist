@@ -28,8 +28,8 @@ defmodule TuistCloud.Accounts.User do
     user
     |> cast(attrs, [:token, :email, :encrypted_password, :confirmed_at])
     |> validate_required([:token, :email])
-    |> unique_constraint(:token, name: "index_users_on_email")
-    |> unique_constraint(:email, name: "index_users_on_token")
+    |> unique_constraint(:token, name: "index_users_on_token")
+    |> unique_constraint(:email, name: "index_users_on_email")
   end
 
   @doc """
