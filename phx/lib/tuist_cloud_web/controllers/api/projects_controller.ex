@@ -34,6 +34,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
        }},
     responses: %{
       ok: {"The project was created", "application/json", Project},
+      bad_request: {"The account was not found", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -50,14 +51,20 @@ defmodule TuistCloudWeb.API.ProjectsController do
         _params
       ) do
     user = Authentication.current_user(conn)
+    organization_param = Map.get(body_params, :organization, nil)
 
     account =
-      case body_params |> Map.get(:organization, nil) do
+      case organization_param do
         nil -> Accounts.get_account_from_user(user)
         organization -> Accounts.get_account_by_handle(organization)
       end
 
     cond do
+      not is_nil(organization_param) and is_nil(account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "The organization #{organization_param} was not found"})
+
       !Authorization.can(user, :create, account, :project) ->
         conn
         |> put_status(:forbidden)

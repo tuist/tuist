@@ -60,6 +60,29 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
              }
     end
 
+    test "returns an error if the provided account doesn't exist", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", name: "my-project", organization: "non-existing-org")
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response == %{
+               "message" => "The organization non-existing-org was not found"
+             }
+    end
+
     test "returns an error if a user can't create projects for a given organization", %{
       conn: conn,
       user: user
