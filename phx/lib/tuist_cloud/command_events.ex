@@ -4,8 +4,6 @@ defmodule TuistCloud.CommandEvents do
   """
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts.Account
-  alias TuistCloud.Projects
-  alias TuistCloud.Accounts
   alias TuistCloud.Repo
   alias TuistCloud.CommandEvents.CacheEvent
   alias TuistCloud.CommandEvents.Event
@@ -36,8 +34,8 @@ defmodule TuistCloud.CommandEvents do
     |> Repo.insert!()
   end
 
-  def get_cache_event(item, %{event_type: event_type}) do
-    Repo.get_by(CacheEvent, hash: item.hash, event_type: event_type)
+  def get_cache_event(%{hash: hash, event_type: event_type}) do
+    Repo.get_by(CacheEvent, hash: hash, event_type: event_type)
   end
 
   def update_cache_event_counts() do

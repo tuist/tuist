@@ -314,7 +314,7 @@ defmodule TuistCloud.CommandEventsTest do
       CommandEvents.create_cache_event(item_upload)
 
       # When
-      got = CommandEvents.get_cache_event(%{hash: "hash-1"}, %{event_type: :download})
+      got = CommandEvents.get_cache_event(%{hash: "hash-1", event_type: :download})
 
       # Then
       assert got == cache_event

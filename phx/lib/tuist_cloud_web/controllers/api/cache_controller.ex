@@ -79,17 +79,17 @@ defmodule TuistCloudWeb.API.CacheController do
         expires_in: expires_in
       )
 
-    # upload_event = CommandEvents.get_cache_event(item, %{event_type: :upload})
+    upload_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
 
-    # unless is_nil(upload_event) do
-    #   CommandEvents.create_cache_event(%{
-    #     name: name,
-    #     event_type: :download,
-    #     size: upload_event.size,
-    #     project_id: EnsureProjectPresencePlug.get_project(conn).id,
-    #     hash: hash
-    #   })
-    # end
+    unless is_nil(upload_event) do
+      CommandEvents.create_cache_event(%{
+        name: name,
+        event_type: :download,
+        size: upload_event.size,
+        project_id: EnsureProjectPresencePlug.get_project(conn).id,
+        hash: hash
+      })
+    end
 
     expires_at = System.system_time(:second) + expires_in
     conn |> json(%{status: "success", data: %{url: url, expires_at: expires_at}})
@@ -485,13 +485,15 @@ defmodule TuistCloudWeb.API.CacheController do
 
     object = Storage.get_object(item)
 
-    # CommandEvents.create_cache_event(%{
-    #   name: name,
-    #   event_type: :upload,
-    #   size: object.content_length,
-    #   project_id: EnsureProjectPresencePlug.get_project(conn).id,
-    #   hash: hash
-    # })
+    if is_nil(CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})) do
+      CommandEvents.create_cache_event(%{
+        name: name,
+        event_type: :upload,
+        size: object.content_length,
+        project_id: EnsureProjectPresencePlug.get_project(conn).id,
+        hash: hash
+      })
+    end
 
     conn |> json(%{status: "success", data: %{}})
   end

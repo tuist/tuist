@@ -17,20 +17,13 @@ defmodule TuistCloudWeb.CacheControllerTest do
     cache_category = "builds"
     download_url = "https://cloud.tuist.io/download/1234"
 
-    item = %{
-      hash: hash,
+    CommandEvents.create_cache_event(%{
+      project_id: project.id,
       name: name,
-      project_slug: project_id,
-      cache_category: cache_category
-    }
-
-    # CommandEvents.create_cache_event(%{
-    #   project_id: project.id,
-    #   name: name,
-    #   event_type: :upload,
-    #   size: 1024,
-    #   hash: hash
-    # })
+      event_type: :upload,
+      size: 1024,
+      hash: hash
+    })
 
     Storage
     |> expect(:generate_download_url, fn %{
@@ -64,46 +57,48 @@ defmodule TuistCloudWeb.CacheControllerTest do
     assert response_data["url"] == download_url
     assert response_data["expires_at"] != nil
 
-    # cache_event = CommandEvents.get_cache_event(item, %{event_type: :download})
-    # assert cache_event.size == 1024
+    cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
+    assert cache_event.size == 1024
   end
 
-  test "POST /api/cache/multipart/start", %{conn: conn} do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
-    hash = "hash"
-    name = "name"
-    project_id = "#{account.name}/#{project.name}"
-    cache_category = "builds"
-    upload_id = "12344"
+  describe "POST /api/cache/multipart/start" do
+    test "starts multipart upload", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "12344"
 
-    Storage
-    |> expect(:multipart_start, fn %{
-                                     hash: ^hash,
-                                     name: ^name,
-                                     project_slug: ^project_id,
-                                     cache_category: ^cache_category
-                                   } ->
-      upload_id
-    end)
+      Storage
+      |> expect(:multipart_start, fn %{
+                                       hash: ^hash,
+                                       name: ^name,
+                                       project_slug: ^project_id,
+                                       cache_category: ^cache_category
+                                     } ->
+        upload_id
+      end)
 
-    conn =
-      conn
-      |> Authentication.put_current_project(project)
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
 
-    # When
-    conn =
-      conn
-      |> post(
-        ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
-      )
+      # When
+      conn =
+        conn
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
 
-    # Then
-    response = json_response(conn, 200)
-    assert response["status"] == "success"
-    response_data = response["data"]
-    assert response_data["upload_id"] == upload_id
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
   end
 
   test "POST /api/cache/multipart/generate-url", %{conn: conn} do
@@ -149,71 +144,118 @@ defmodule TuistCloudWeb.CacheControllerTest do
     assert response_data["url"] == upload_url
   end
 
-  test "POST /api/cache/multipart/complete", %{conn: conn} do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
-    hash = "hash"
-    name = "name"
-    project_id = "#{account.name}/#{project.name}"
-    cache_category = "builds"
-    upload_id = "1234"
+  describe "POST /api/cache/multipart/complete" do
+    test "completes a multipart upload", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
 
-    item = %{
-      hash: hash,
-      name: name,
-      project_slug: project_id,
-      cache_category: cache_category
-    }
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
 
-    parts = [
-      %{part_number: 1, etag: "etag1"},
-      %{part_number: 2, etag: "etag2"},
-      %{part_number: 3, etag: "etag3"}
-    ]
+      Storage
+      |> expect(:complete_multipart_upload, fn %{
+                                                 hash: ^hash,
+                                                 name: ^name,
+                                                 project_slug: ^project_id,
+                                                 cache_category: ^cache_category
+                                               },
+                                               ^upload_id,
+                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+        :ok
+      end)
 
-    Storage
-    |> expect(:complete_multipart_upload, fn %{
-                                               hash: ^hash,
-                                               name: ^name,
-                                               project_slug: ^project_id,
-                                               cache_category: ^cache_category
-                                             },
-                                             ^upload_id,
-                                             [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
-      :ok
-    end)
+      Storage
+      |> expect(:get_object, fn %{
+                                  hash: ^hash,
+                                  name: ^name,
+                                  project_slug: ^project_id,
+                                  cache_category: ^cache_category
+                                } ->
+        %{content_length: 1024}
+      end)
 
-    Storage
-    |> expect(:get_object, fn %{
-                                hash: ^hash,
-                                name: ^name,
-                                project_slug: ^project_id,
-                                cache_category: ^cache_category
-                              } ->
-      %{content_length: 1024}
-    end)
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
 
-    conn =
-      conn
-      |> Authentication.put_current_project(project)
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
 
-    # When
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> post(
-        ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
-        parts: parts
-      )
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"] == %{}
 
-    # Then
-    response = json_response(conn, 200)
-    assert response["status"] == "success"
-    assert response["data"] == %{}
+      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
+      assert cache_event.size == 1024
+    end
 
-    # cache_event = CommandEvents.get_cache_event(item, %{event_type: :upload})
-    # assert cache_event.size == 1024
+    test "completes a multipart upload when an item was uploaded before", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Storage
+      |> stub(:complete_multipart_upload, fn _, _, _ -> :ok end)
+
+      Storage
+      |> stub(:get_object, fn _ -> %{content_length: 1024} end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      CommandEvents.create_cache_event(%{
+        hash: hash,
+        name: name,
+        event_type: :upload,
+        project_id: project.id,
+        size: 1024
+      })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"] == %{}
+
+      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
+      assert cache_event.size == 1024
+    end
   end
 
   describe "PUT /api/projects/:account_name/:project_name/cache/clean" do
