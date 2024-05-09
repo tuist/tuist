@@ -44,7 +44,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 name: bundleName,
                 destinations: target.destinations,
                 product: .bundle,
-                productName: nil,
+                productName: bundleName,
                 bundleId: "\(target.bundleId).resources",
                 deploymentTargets: target.deploymentTargets,
                 infoPlist: .extendingDefault(with: [:]),
