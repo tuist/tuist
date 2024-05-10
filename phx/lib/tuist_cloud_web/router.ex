@@ -153,6 +153,7 @@ defmodule TuistCloudWeb.Router do
 
   scope "/users/auth", TuistCloudWeb do
     pipe_through :browser
+    get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
   end
 
