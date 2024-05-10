@@ -31,7 +31,7 @@ defmodule TuistCloud.AccountsFixtures do
   end
 
   def extract_user_token(fun) do
-    {:ok, captured_email} = fun.(&"[TOKEN]#{&1}[TOKEN]")
+    captured_email = fun.(&"[TOKEN]#{&1}[TOKEN]")
     [_, token | _] = String.split(captured_email.html_body, "[TOKEN]")
     token
   end

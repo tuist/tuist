@@ -8,11 +8,8 @@ import Config
 config :tuist_cloud,
   cache_static_manifest: "priv/static/cache_manifest.json"
 
-# Configures Swoosh API Client
-config :swoosh, api_client: Swoosh.ApiClient.Finch, finch_name: TuistCloud.Finch
-
-# Disable Swoosh Local Memory Storage
-config :swoosh, local: false
+# Configures Bamboo API Client
+config :tuist_cloud, TuistCloud.Mailer, adapter: Bamboo.MailgunAdapter
 
 # Do not print debug messages in production
 config :logger, level: :info

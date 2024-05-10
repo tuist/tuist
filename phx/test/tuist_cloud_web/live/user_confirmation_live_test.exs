@@ -15,9 +15,6 @@ defmodule TuistCloudWeb.UserConfirmationLiveTest do
     TuistCloud.Environment
     |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 
-    :tls_certificate_check
-    |> stub(:options, fn _ -> %{} end)
-
     %{user: user_fixture(confirmed_at: nil)}
   end
 

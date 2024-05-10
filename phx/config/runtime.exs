@@ -226,20 +226,17 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: TuistCloud.Environment.google_oauth_client_id(secrets),
   client_secret: TuistCloud.Environment.google_oauth_client_secret(secrets)
 
-# SMTP configuration
-if TuistCloud.Environment.smtp_configured?(secrets) do
-  relay =
+# Mailgun configuration
+if TuistCloud.Environment.mail_configured?(secrets) do
+  base_uri =
     cond do
-      [:prod] |> Enum.member?(env) -> "smtp.eu.mailgun.org"
-      [:stag, :can, :dev] |> Enum.member?(env) -> "smtp.mailgun.org"
+      env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"
+      env in [:dev] -> "https://api.mailgun.net/v3"
     end
 
   config :tuist_cloud, TuistCloud.Mailer,
-    adapter: Swoosh.Adapters.SMTP,
-    port: 587,
-    relay: relay,
-    username: TuistCloud.Environment.smtp_user_name(secrets),
-    password: TuistCloud.Environment.smtp_password(secrets),
-    retries: 2,
-    tls: :always
+    adapter: Bamboo.MailgunAdapter,
+    api_key: TuistCloud.Environment.mailgun_api_key(secrets),
+    domain: TuistCloud.Environment.smtp_domain(secrets),
+    base_uri: base_uri
 end

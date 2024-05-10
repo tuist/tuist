@@ -11,9 +11,6 @@ defmodule TuistCloudWeb.UserResetPasswordLiveTest do
     TuistCloud.Environment
     |> stub(:secret_key_password, fn -> "secret_key_password" end)
 
-    :tls_certificate_check
-    |> stub(:options, fn _ -> %{} end)
-
     TuistCloud.Environment
     |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 

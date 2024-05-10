@@ -27,7 +27,7 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :tuist_cloud, TuistCloud.Mailer, adapter: Swoosh.Adapters.Local
+config :tuist_cloud, TuistCloud.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure esbuild (the version is required)
 config :esbuild,

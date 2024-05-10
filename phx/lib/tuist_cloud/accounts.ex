@@ -491,7 +491,7 @@ defmodule TuistCloud.Accounts do
       })
       |> Repo.insert()
 
-    if Environment.smtp_configured?() do
+    if Environment.mail_configured?() do
       UserNotifier.deliver_invitation(email, %{
         inviter: inviter,
         to: %OrganizationAccount{organization: organization, account: account},

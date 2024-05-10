@@ -247,9 +247,6 @@ defmodule TuistCloud.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      :tls_certificate_check
-      |> stub(:options, fn _ -> %{} end)
-
       TuistCloud.Environment
       |> stub(:smtp_user_name, fn -> "smtp_user_name" end)
 
@@ -503,9 +500,6 @@ defmodule TuistCloud.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      :tls_certificate_check
-      |> stub(:options, fn _ -> %{} end)
-
       TuistCloud.Environment
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 
@@ -529,9 +523,6 @@ defmodule TuistCloud.AccountsTest do
   describe "confirm_user/1" do
     setup do
       user = user_fixture(confirmed_at: nil)
-
-      :tls_certificate_check
-      |> stub(:options, fn _ -> %{} end)
 
       TuistCloud.Environment
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
@@ -568,9 +559,6 @@ defmodule TuistCloud.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      :tls_certificate_check
-      |> stub(:options, fn _ -> %{} end)
-
       TuistCloud.Environment
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 
@@ -594,9 +582,6 @@ defmodule TuistCloud.AccountsTest do
   describe "get_user_by_reset_password_token/1" do
     setup do
       user = user_fixture()
-
-      :tls_certificate_check
-      |> stub(:options, fn _ -> %{} end)
 
       TuistCloud.Environment
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)

@@ -221,6 +221,10 @@ defmodule TuistCloud.Environment do
       okta_event_hook_secret(secrets) != nil
   end
 
+  def mailgun_api_key(secrets \\ secrets()) do
+    get([:mailgun, :api_key], secrets)
+  end
+
   def smtp_domain(secrets \\ secrets()) do
     get([:smtp_settings, :domain], secrets)
   end
@@ -229,17 +233,13 @@ defmodule TuistCloud.Environment do
     get([:smtp_settings, :user_name], secrets)
   end
 
-  def smtp_password(secrets \\ secrets()) do
-    get([:smtp_settings, :password], secrets)
+  def mail_configured?(secrets \\ secrets()) do
+    mailgun_api_key(secrets) != nil and smtp_domain(secrets) != nil and
+      smtp_user_name(secrets) != nil
   end
 
   def app_url(secrets \\ secrets()) do
     get([:app, :url], secrets) || "http://localhost:8080"
-  end
-
-  def smtp_configured?(secrets \\ secrets()) do
-    smtp_domain(secrets) != nil and smtp_user_name(secrets) != nil and
-      smtp_password(secrets) != nil
   end
 
   def app_signal_push_api_key(secrets \\ secrets()) do

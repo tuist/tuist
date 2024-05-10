@@ -23,11 +23,8 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
 
-# In test we don't send emails.
-config :tuist_cloud, TuistCloud.Mailer, adapter: Swoosh.Adapters.Test
-
-# Disable swoosh api client as it is only required for production adapters.
-config :swoosh, :api_client, false
+# Configures Bamboo API Client
+config :tuist_cloud, TuistCloud.Mailer, adapter: Bamboo.TestAdapter
 
 # Print only warnings and errors during test
 config :logger, level: :warning

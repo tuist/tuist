@@ -6,7 +6,6 @@ Mimic.copy(TuistCloud.Storage)
 Mimic.copy(TuistCloud.Time)
 Mimic.copy(TuistCloud.Date)
 Mimic.copy(Req)
-Mimic.copy(:tls_certificate_check)
 
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(TuistCloud.Repo, :manual)

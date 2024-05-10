@@ -115,11 +115,10 @@ defmodule TuistCloudWeb.UserRegistrationLive do
         password: user_params |> Map.get("password")
       )
 
-    {:ok, _} =
-      Accounts.deliver_user_confirmation_instructions(
-        user,
-        &url(~p"/users/confirm/#{&1}")
-      )
+    Accounts.deliver_user_confirmation_instructions(
+      user,
+      &url(~p"/users/confirm/#{&1}")
+    )
 
     {:noreply,
      socket

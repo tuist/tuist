@@ -74,7 +74,7 @@ defmodule TuistCloudWeb.OrganizationsControllerTest do
   describe "GET /api/organizations/{id}" do
     setup do
       Environment
-      |> stub(:smtp_configured?, fn -> false end)
+      |> stub(:mail_configured?, fn -> false end)
 
       :ok
     end

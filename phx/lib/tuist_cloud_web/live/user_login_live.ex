@@ -10,7 +10,7 @@ defmodule TuistCloudWeb.UserLoginLive do
       :ok,
       socket
       |> assign(:form, form)
-      |> assign(:smtp_configured?, Environment.smtp_configured?())
+      |> assign(:mail_configured?, Environment.mail_configured?())
       |> assign(:github_configured, Environment.github_configured?())
       |> assign(:google_configured, Environment.google_oauth_configured?())
       |> assign(:okta_configured, Environment.okta_configured?()),
@@ -44,7 +44,7 @@ defmodule TuistCloudWeb.UserLoginLive do
           class="auth-form"
         >
           <.stack gap="3xl">
-            <%= if @smtp_configured? do %>
+            <%= if @mail_configured? do %>
               <.stack gap="2xl">
                 <.input
                   field={@form[:email]}
@@ -73,7 +73,7 @@ defmodule TuistCloudWeb.UserLoginLive do
               </.stack>
             <% end %>
             <.stack gap="xl">
-              <%= if @smtp_configured? do %>
+              <%= if @mail_configured? do %>
                 <.button type="submit" variant="primary" class="auth-form__primary-action">
                   <%= gettext("Sign in") %>
                 </.button>
@@ -107,7 +107,7 @@ defmodule TuistCloudWeb.UserLoginLive do
         <% end %>
       </.stack>
 
-      <%= if @smtp_configured? do %>
+      <%= if @mail_configured? do %>
         <.stack direction="horizontal" gap="xs">
           <span class="text--small font--regular color--text-tertiary">
             <%= gettext("Don't have an account?") %>

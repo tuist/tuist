@@ -2,28 +2,22 @@ defmodule TuistCloud.Accounts.UserNotifier do
   @moduledoc """
   A module that sends emails to users.
   """
-  import Swoosh.Email
+  import Bamboo.Email
 
-  alias TuistCloud.Mailer
   alias TuistCloud.Environment
+  alias TuistCloud.Mailer
   alias TuistCloud.Accounts.{User, OrganizationAccount}
   import TuistCloudWeb.Gettext
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
-    email =
-      new()
-      |> to(recipient)
-      |> from({"Tuist Cloud", Environment.smtp_user_name()})
-      |> subject(subject)
-      |> html_body(body)
-
-    with {:ok, _metadata} <-
-           Mailer.deliver(email,
-             tls_options: :tls_certificate_check.options(Environment.smtp_domain())
-           ) do
-      {:ok, email}
-    end
+    new_email(
+      to: recipient,
+      from: {"Tuist", Environment.smtp_user_name()},
+      subject: subject,
+      html_body: body
+    )
+    |> Mailer.deliver_now!()
   end
 
   defp html_email(body) do
