@@ -39,16 +39,23 @@ defmodule TuistCloud.Release do
       if account.owner_type == "Organization" do
         organization = TuistCloud.Accounts.get_organization_by_id(account.owner_id)
 
-        TuistCloud.Accounts.get_organization_members(organization, :admin)
-        |> hd
+        members = TuistCloud.Accounts.get_organization_members(organization, :admin)
+
+        if Enum.empty?(members) do
+          nil
+        else
+          hd(members)
+        end
       else
         TuistCloud.Accounts.get_user!(account.owner_id)
       end
 
-    customer_id = TuistCloud.Billing.create_customer(%{name: account.name, email: user.email})
+    if !is_nil(user) do
+      customer_id = TuistCloud.Billing.create_customer(%{name: account.name, email: user.email})
 
-    account
-    |> Ecto.Changeset.change(customer_id: customer_id)
-    |> TuistCloud.Repo.update!()
+      account
+      |> Ecto.Changeset.change(customer_id: customer_id)
+      |> TuistCloud.Repo.update!()
+    end
   end
 end
