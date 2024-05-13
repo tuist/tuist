@@ -292,16 +292,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-        let sanitizedPackageName = if packageInfo.name.contains(" ") {
-            "\"\(packageInfo.name)\""
-        } else {
-            packageInfo.name
-        }
-
         let baseSettings = packageSettings.baseSettings.with(
             base: packageSettings.baseSettings.base.combine(
                 with: [
-                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", sanitizedPackageName],
+                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
                 ]
             )
         )

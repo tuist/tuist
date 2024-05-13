@@ -3223,6 +3223,46 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             expectedTargets
         )
     }
+
+    func testMap_whenTargetNameContainsSpaces() throws {
+        let packageName = "Package With Space"
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "\(packageName)/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: packageName,
+            basePath: basePath,
+            packageInfos: [
+                packageName: .init(
+                    name: packageName,
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: packageName,
+                targets: [
+                    .test(
+                        "Target1",
+                        packageName: packageName,
+                        basePath: basePath
+                    ),
+                ]
+            )
+        )
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -3394,7 +3434,7 @@ extension ProjectDescription.Target {
             // swiftlint:disable:next force_try
             sources =
                 .sourceFilesList(globs: [
-                    basePath.appending(try! RelativePath(validating: "Package/Sources/\(name)/**"))
+                    basePath.appending(try! RelativePath(validating: "\(packageName)/Sources/\(name)/**"))
                         .pathString,
                 ])
         }
