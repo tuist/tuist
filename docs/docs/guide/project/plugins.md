@@ -101,7 +101,7 @@ If you were using Tuist for distributing tasks, we recommend building your
 
 ## Using plugins
 
-To use a plugin, you'll have to add it to your project's [`Config.swift`](/reference/project-description/config) manifest file:
+To use a plugin, you'll have to add it to your project's [`Config.swift`](/reference/project-description/structs/config) manifest file:
 
 ```swift
 import ProjectDescription
