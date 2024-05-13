@@ -1,4 +1,8 @@
 defmodule TuistCloud.AccountsTest do
+  alias TuistCloud.CommandEvents
+  alias TuistCloud.CommandEventsFixtures
+  alias TuistCloud.Projects
+  alias TuistCloud.ProjectsFixtures
   alias TuistCloud.Accounts
   alias TuistCloud.Accounts.OrganizationAccount
   alias TuistCloud.AccountsFixtures
@@ -6,45 +10,101 @@ defmodule TuistCloud.AccountsTest do
   use TuistCloud.DataCase
   use Mimic
 
-  describe "admin?/2" do
-    test "admin? returns false if the user is not an admin" do
+  describe "organization_admin?/2" do
+    test "organization_admin? returns false if the user is not an admin" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
 
       # When
-      assert Accounts.admin?(user, organization) == false
+      assert Accounts.organization_admin?(user, organization) == false
     end
 
-    test "admin? returns true if the user is the admin of the organization" do
+    test "organization_admin? returns true if the user is the admin of the organization" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization, role: :admin)
 
       # When
-      assert Accounts.admin?(user, organization) == true
+      assert Accounts.organization_admin?(user, organization) == true
     end
   end
 
-  describe "user?/2" do
-    test "user? returns false if the user is not an admin" do
+  describe "organization_user?/2" do
+    test "organization_user? returns false if the user is not an admin" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
 
       # When
-      assert Accounts.user?(user, organization) == false
+      assert Accounts.organization_user?(user, organization) == false
     end
 
-    test "user? returns true if the user is user of the organization" do
+    test "organization_user? returns true if the user is user of the organization" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       # When
-      assert Accounts.user?(user, organization) == true
+      assert Accounts.organization_user?(user, organization) == true
+    end
+
+    test "organization_user? returns true if the user's sso matches the organization's" do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      assert Accounts.organization_user?(user, organization) == true
+    end
+
+    test "organization_user? returns false if the user's sso does not match the organization's" do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tools.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tools.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      assert Accounts.organization_user?(user, organization) == false
     end
   end
 
@@ -75,6 +135,34 @@ defmodule TuistCloud.AccountsTest do
       assert got == true
     end
 
+    test "returns true if the user's sso matches the organization's" do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      assert Accounts.belongs_to_organization?(user, organization) == true
+    end
+
     test "returns false if the user is not an admin nor an user of the organization" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -82,6 +170,110 @@ defmodule TuistCloud.AccountsTest do
 
       # When
       assert Accounts.belongs_to_organization?(user, organization) == false
+    end
+  end
+
+  describe "get_user_role_in_organization/2" do
+    test "returns a user role when a user is a member of an organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # When
+      got = Accounts.get_user_role_in_organization(user, organization)
+
+      # Then
+      assert got.name == "user"
+    end
+
+    test "returns a user role when a user is an admin of an organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # When
+      got = Accounts.get_user_role_in_organization(user, organization)
+
+      # Then
+      assert got.name == "admin"
+    end
+
+    test "returns nil when a user does not belong to it" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      got = Accounts.get_user_role_in_organization(user, organization)
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "belongs_to_sso_organization?/2" do
+    test "returns true if the user's sso matches the organization's" do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      got = Accounts.belongs_to_sso_organization?(user, organization)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false if the user's sso does not match the organization's" do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tools.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tools.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      got = Accounts.belongs_to_sso_organization?(user, organization)
+
+      # Then
+      assert got == false
     end
   end
 
@@ -352,7 +544,29 @@ defmodule TuistCloud.AccountsTest do
 
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id)
-      assert Accounts.admin?(user, organization) == true
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
+    test "creates an organization with SSO provider" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      organization =
+        Accounts.create_organization(
+          %{
+            name: "tuist",
+            creator: user
+          },
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert organization.sso_provider == :google
+      assert organization.sso_organization_id == "tuist.io"
+      assert Accounts.organization_admin?(user, organization) == true
     end
 
     test "creates an organization when billing is enabled" do
@@ -371,7 +585,7 @@ defmodule TuistCloud.AccountsTest do
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id)
       assert Accounts.get_account_from_organization(organization).customer_id == "customer_id"
-      assert Accounts.admin?(user, organization) == true
+      assert Accounts.organization_admin?(user, organization) == true
     end
   end
 
@@ -388,6 +602,132 @@ defmodule TuistCloud.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == nil
       assert Accounts.get_account_by_id(account.id) == nil
+    end
+  end
+
+  describe "find_oauth2_identity/2" do
+    test "returns github oauth2 identity when user also has a google identity" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :github,
+        uid: 123,
+        info: %{
+          email: user.email
+        }
+      })
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :google,
+        uid: 123,
+        info: %{
+          email: user.email
+        },
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      })
+
+      # When
+      got = Accounts.find_oauth2_identity(%{user: user, provider: :github})
+
+      # Then
+      assert got.provider == :github
+    end
+
+    test "returns google oauth2 identity" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :google,
+        uid: 123,
+        info: %{
+          email: user.email
+        },
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      })
+
+      # When
+      got = Accounts.find_oauth2_identity(%{user: user, provider: :google})
+
+      # Then
+      assert got.provider == :google
+    end
+
+    test "returns nil when a user only has a github identity" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :github,
+        uid: 123,
+        info: %{
+          email: user.email
+        }
+      })
+
+      # When
+      got = Accounts.find_oauth2_identity(%{user: user, provider: :google})
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "delete_user/1" do
+    test "deletes a user" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :github,
+        uid: 123,
+        info: %{
+          email: user.email
+        }
+      })
+
+      oauth2_identity = Accounts.find_oauth2_identity(%{user: user, provider: :github})
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization)
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          user_id: user.id
+        )
+
+      Accounts.update_last_visited_project(user, project.id)
+      code = Accounts.create_device_code("some-code")
+      Accounts.authenticate_device_code(code.code, user)
+
+      # When
+      Accounts.delete_user(user)
+
+      # Then
+      assert Accounts.get_user_by_id(user.id) == nil
+      assert Accounts.get_account_by_id(account.id) == nil
+      assert Projects.get_project_by_id(project.id) == nil
+
+      assert Accounts.get_oauth2_identity_by_provider_and_id(
+               :github,
+               oauth2_identity.id_in_provider
+             ) == nil
+
+      assert Accounts.belongs_to_organization?(user, organization) == false
+      assert CommandEvents.get_command_event_by_id(command_event.id) == nil
+      assert Accounts.get_device_code(code.code) == nil
     end
   end
 
@@ -633,8 +973,27 @@ defmodule TuistCloud.AccountsTest do
     end
   end
 
+  describe "update_organization/2" do
+    test "updates organization with a google hosted domain" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      # When
+      {:ok, organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        })
+
+      # Then
+      assert organization.sso_organization_id == "tuist.io"
+      assert organization.sso_provider == :google
+    end
+  end
+
   describe "find_or_create_user_from_oauth2/1" do
-    test "creates a user from the github identity" do
+    test "creates a user from a github identity" do
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
@@ -645,6 +1004,54 @@ defmodule TuistCloud.AccountsTest do
         })
 
       assert user.email == "tuist@tuist.io"
+    end
+
+    test "creates a user from a google identity with a hosted domain" do
+      # When
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      # Then
+      assert user.email == "tuist@tuist.io"
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
+      assert oauth2_identity.provider_organization_id == "tuist.io"
+    end
+
+    test "creates a user from a google identity without a hosted domain" do
+      # When
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => nil
+              }
+            }
+          }
+        })
+
+      # Then
+      assert user.email == "tuist@tuist.io"
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
+      assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
@@ -660,7 +1067,7 @@ defmodule TuistCloud.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity_by_user_id(user.id)
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :github}) != nil
     end
   end
 
@@ -722,7 +1129,7 @@ defmodule TuistCloud.AccountsTest do
       Accounts.update_plan(account, :enterprise)
 
       # Then
-      assert account.plan == nil
+      assert account.plan == :none
       assert Accounts.get_account_by_id(account.id).plan == :enterprise
     end
 
@@ -734,20 +1141,51 @@ defmodule TuistCloud.AccountsTest do
       account_with_enterprise = Accounts.get_account_by_id(account.id)
 
       # When
-      Accounts.update_plan(account_with_enterprise, nil)
+      Accounts.update_plan(account_with_enterprise, :none)
 
       # Then
       assert account_with_enterprise.plan == :enterprise
-      assert Accounts.get_account_by_id(account.id).plan == nil
+      assert Accounts.get_account_by_id(account.id).plan == :none
     end
   end
 
   describe "remove_user_from_organization/1" do
-    test "returns a user from an organization" do
+    test "removes a user from an organization" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # When
+      :ok = Accounts.remove_user_from_organization(user, organization)
+
+      # Then
+      assert Accounts.get_organization_members(organization, :user) == []
+    end
+
+    test "deletes a user when a user belongs to the SSO organization" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
 
       # When
       :ok = Accounts.remove_user_from_organization(user, organization)
@@ -781,7 +1219,7 @@ defmodule TuistCloud.AccountsTest do
       Accounts.update_user_role_in_organization(user, organization, :admin)
 
       # Then
-      assert Accounts.admin?(user, organization) == true
+      assert Accounts.organization_admin?(user, organization) == true
     end
 
     test "Updates user role from admin to user" do
@@ -795,7 +1233,7 @@ defmodule TuistCloud.AccountsTest do
       Accounts.update_user_role_in_organization(user, organization, :user)
 
       # Then
-      assert Accounts.admin?(user, organization) == false
+      assert Accounts.organization_admin?(user, organization) == false
     end
   end
 
@@ -822,7 +1260,13 @@ defmodule TuistCloud.AccountsTest do
     test "returns users of an organization" do
       # Given
       user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
       Accounts.add_user_to_organization(user_one, organization, role: :user)
       user_two = AccountsFixtures.user_fixture()
       Accounts.add_user_to_organization(user_two, organization, role: :admin)
@@ -831,6 +1275,57 @@ defmodule TuistCloud.AccountsTest do
 
       organization_two = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user_one, organization_two, role: :user)
+
+      # When
+      got = Accounts.get_organization_members(organization, :user)
+
+      # Then
+      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+    end
+
+    test "returns users of an organization with a google hosted domain" do
+      # Given
+      user_one = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      Accounts.add_user_to_organization(user_one, organization, role: :user)
+      AccountsFixtures.user_fixture()
+
+      user_three =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :google,
+        uid: 1234,
+        info: %{
+          email: "tuist-tools@tools.io"
+        },
+        extra: %{
+          raw_info: %{
+            user: %{
+              "hd" => "tools.io"
+            }
+          }
+        }
+      })
 
       # When
       got = Accounts.get_organization_members(organization, :user)

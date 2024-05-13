@@ -43,6 +43,42 @@ defmodule TuistCloud.ProjectsTest do
            ] == got
   end
 
+  test "returns all projects associated with a user's based on a google hosted domain" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    user =
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :google,
+        uid: 123,
+        info: %{
+          email: "tuist@tuist.io"
+        },
+        extra: %{
+          raw_info: %{
+            user: %{
+              "hd" => "tuist.io"
+            }
+          }
+        }
+      })
+
+    Accounts.update_organization(organization, %{
+      sso_provider: :google,
+      sso_organization_id: "tuist.io"
+    })
+
+    # When
+    got = Projects.get_all_project_accounts(user)
+
+    # Then
+    assert [
+             "#{account.name}/#{project.name}"
+           ] == got |> Enum.map(& &1.handle)
+  end
+
   test "returns missing handle or project name" do
     assert {:error, :missing_handle_or_project_name} == Projects.get_project_by_slug("tuist")
   end

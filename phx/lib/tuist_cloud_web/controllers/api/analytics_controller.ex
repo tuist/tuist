@@ -17,6 +17,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
 
   operation(:create,
     summary: "Create a a new command analytics event",
+    operation_id: "createCommandEvent",
     query_params: %{
       project_id: %Schema{
         type: :string,

@@ -74,8 +74,31 @@ defmodule TuistCloud.Accounts do
         select: u
       )
 
-    Repo.all(query)
-    |> Repo.preload(:account)
+    invited_members = Repo.all(query)
+
+    case role do
+      :admin ->
+        invited_members
+        |> Repo.preload(:account)
+
+      :user ->
+        invited_members_ids = Enum.map(invited_members, & &1.id)
+
+        oauth2_identity_query =
+          from(u in User,
+            join: oauth in Oauth2Identity,
+            on: oauth.user_id == u.id,
+            join: org in Organization,
+            on:
+              org.id == ^organization_id and
+                oauth.provider_organization_id == org.sso_organization_id and
+                oauth.provider == org.sso_provider,
+            where: org.id == ^organization_id and u.id not in ^invited_members_ids
+          )
+
+        (invited_members ++ Repo.all(oauth2_identity_query))
+        |> Repo.preload(:account)
+    end
   end
 
   @doc """
@@ -128,13 +151,31 @@ defmodule TuistCloud.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: id_in_provider |> to_string())
   end
 
+  def update_organization(%Organization{} = organization, attrs) do
+    organization
+    |> Organization.update_changeset(attrs)
+    |> Repo.update()
+  end
+
   @doc ~S"""
   Creates an organization with the given attributes.
   """
-  def create_organization(%{name: name, creator: %User{id: user_id, email: user_email}}) do
+  def create_organization(
+        %{name: name, creator: %User{id: user_id, email: user_email}},
+        opts \\ []
+      ) do
+    sso_provider = opts |> Keyword.get(:sso_provider)
+    sso_organization_id = opts |> Keyword.get(:sso_organization_id)
+
     {:ok, %{organization: organization}} =
       Ecto.Multi.new()
-      |> Ecto.Multi.insert(:organization, %Organization{})
+      |> Ecto.Multi.insert(
+        :organization,
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: sso_provider,
+          sso_organization_id: sso_organization_id
+        })
+      )
       |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
         customer_id = create_customer_when_billing_enabled(%{name: name, email: user_email})
 
@@ -172,6 +213,16 @@ defmodule TuistCloud.Accounts do
     organization
   end
 
+  def delete_user(%User{} = user) do
+    account = get_account_from_user(user)
+
+    {:ok, _} =
+      Ecto.Multi.new()
+      |> Ecto.Multi.delete(:delete_account, account)
+      |> Ecto.Multi.delete(:delete_user, user)
+      |> Repo.transaction()
+  end
+
   def delete_organization(%Organization{} = organization) do
     account = get_account_from_organization(organization)
 
@@ -182,29 +233,55 @@ defmodule TuistCloud.Accounts do
       |> Repo.transaction()
   end
 
-  def find_or_create_user_from_oauth2(%{
-        provider: provider,
-        uid: id_in_provider,
-        info: %{email: email}
-      }) do
+  def find_or_create_user_from_oauth2(
+        %{
+          provider: provider,
+          uid: id_in_provider,
+          info: %{email: email}
+        } = auth
+      ) do
     oauth2_identity = get_oauth2_identity_by_provider_and_id(provider, id_in_provider)
 
+    provider_organization_id =
+      case provider do
+        # Google hosted domain. See more at https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
+        :google -> auth.extra.raw_info.user["hd"]
+        :github -> nil
+      end
+
     if oauth2_identity do
+      if oauth2_identity.provider_organization_id != provider_organization_id do
+        oauth2_identity
+        |> Ecto.Changeset.change(provider_organization_id: provider_organization_id)
+        |> Repo.update!()
+      end
+
       get_user_by_id(oauth2_identity.user_id)
     else
       oauth2_identity =
-        create_oauth2_identity(
+        create_oauth2_identity(%{
           provider: provider,
           id_in_provider: id_in_provider,
-          email: email
-        )
+          email: email,
+          provider_organization_id: provider_organization_id
+        })
 
       get_user_by_id(oauth2_identity.user_id)
     end
   end
 
-  def find_oauth2_identity_by_user_id(user_id) do
-    Repo.get_by(Oauth2Identity, user_id: user_id)
+  def find_oauth2_identity(%{user: %{id: user_id}, provider: provider}, opts \\ []) do
+    provider_organization_id = opts |> Keyword.get(:provider_organization_id)
+
+    if is_nil(provider_organization_id) do
+      Repo.get_by(Oauth2Identity, user_id: user_id, provider: provider)
+    else
+      Repo.get_by(Oauth2Identity,
+        user_id: user_id,
+        provider: provider,
+        provider_organization_id: provider_organization_id
+      )
+    end
   end
 
   @doc """
@@ -252,6 +329,7 @@ defmodule TuistCloud.Accounts do
             Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
               provider: oauth2_identity.provider,
               id_in_provider: oauth2_identity.id_in_provider |> to_string(),
+              provider_organization_id: oauth2_identity.provider_organization_id,
               user_id: user_id
             })
           )
@@ -264,11 +342,12 @@ defmodule TuistCloud.Accounts do
     user
   end
 
-  def create_oauth2_identity(opts) do
-    provider = opts |> Keyword.get(:provider)
-    id_in_provider = opts |> Keyword.get(:id_in_provider)
-    email = opts |> Keyword.get(:email)
-
+  defp create_oauth2_identity(%{
+         provider: provider,
+         id_in_provider: id_in_provider,
+         email: email,
+         provider_organization_id: provider_organization_id
+       }) do
     user = get_user_by_email(email)
 
     if user do
@@ -277,7 +356,8 @@ defmodule TuistCloud.Accounts do
           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
             provider: provider,
             id_in_provider: id_in_provider |> to_string(),
-            user_id: user.id
+            user_id: user.id,
+            provider_organization_id: provider_organization_id
           })
         )
 
@@ -288,11 +368,12 @@ defmodule TuistCloud.Accounts do
           password: generate_random_string(16),
           oauth2_identity: %{
             provider: provider,
-            id_in_provider: id_in_provider |> to_string()
+            id_in_provider: id_in_provider |> to_string(),
+            provider_organization_id: provider_organization_id
           }
         )
 
-      find_oauth2_identity_by_user_id(user.id)
+      find_oauth2_identity(%{user: user, provider: provider})
     end
   end
 
@@ -335,7 +416,7 @@ defmodule TuistCloud.Accounts do
          {:organization, organization} <- {:organization, organization_from_account(account)} do
       belongs_to_account_organization =
         if organization != nil do
-          admin?(user, organization) or user?(user, organization)
+          organization_admin?(user, organization) or organization_user?(user, organization)
         else
           false
         end
@@ -351,7 +432,7 @@ defmodule TuistCloud.Accounts do
 
     is_admin_to_account_organization =
       if organization != nil do
-        admin?(user, organization)
+        organization_admin?(user, organization)
       else
         false
       end
@@ -399,8 +480,8 @@ defmodule TuistCloud.Accounts do
   end
 
   def remove_user_from_organization(
-        %User{id: user_id},
-        %Organization{id: organization_id}
+        %User{id: user_id} = user,
+        %Organization{id: organization_id} = organization
       ) do
     query =
       from(u in UserRole,
@@ -414,17 +495,37 @@ defmodule TuistCloud.Accounts do
 
     result = Repo.one(query)
 
-    if is_nil(result) do
-      :ok
-    else
-      {:ok, _} =
-        Ecto.Multi.new()
-        |> Ecto.Multi.delete(:user_role, result.user_role)
-        |> Ecto.Multi.delete(:role, result.role)
-        |> Repo.transaction()
+    cond do
+      belongs_to_sso_organization?(user, organization) ->
+        delete_user(user)
+        :ok
 
-      :ok
+      is_nil(result) ->
+        :ok
+
+      !is_nil(result) ->
+        {:ok, _} =
+          Ecto.Multi.new()
+          |> Ecto.Multi.delete(:user_role, result.user_role)
+          |> Ecto.Multi.delete(:role, result.role)
+          |> Repo.transaction()
+
+        :ok
     end
+  end
+
+  def get_user_role_in_organization(%User{id: user_id}, %Organization{id: organization_id}) do
+    query =
+      from(u in UserRole,
+        join: r in Role,
+        on: u.role_id == r.id,
+        where:
+          u.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: r
+      )
+
+    Repo.one(query)
   end
 
   def update_user_role_in_organization(
@@ -463,7 +564,21 @@ defmodule TuistCloud.Accounts do
         select: {o, a}
       )
 
-    Repo.all(query)
+    oauth_query =
+      from(oauth in Oauth2Identity,
+        join: u in User,
+        on: oauth.user_id == u.id,
+        join: org in Organization,
+        on:
+          oauth.provider_organization_id == org.sso_organization_id and
+            org.sso_provider == oauth.provider,
+        join: a in Account,
+        on: a.owner_type == "Organization" and a.owner_id == org.id,
+        where: oauth.user_id == ^user_id,
+        select: {org, a}
+      )
+
+    (Repo.all(query) ++ Repo.all(oauth_query))
     |> Enum.map(fn {organization, account} ->
       %OrganizationAccount{organization: organization, account: account}
     end)
@@ -526,20 +641,26 @@ defmodule TuistCloud.Accounts do
     end
   end
 
-  def belongs_to_organization?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
-    query =
-      from(u in UserRole,
-        join: r in Role,
-        on: u.role_id == r.id,
-        where:
-          u.user_id == ^user_id and r.resource_type == "Organization" and
-            r.resource_id == ^organization_id
-      )
-
-    query |> Repo.exists?()
+  def belongs_to_organization?(%User{} = user, %Organization{} = organization) do
+    organization_user?(user, organization) or organization_admin?(user, organization)
   end
 
-  def admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
+  def belongs_to_sso_organization?(%User{} = user, %Organization{} = organization) do
+    oauth2_identity_query =
+      from(oauth in Oauth2Identity,
+        join: u in User,
+        on: oauth.user_id == u.id,
+        join: org in Organization,
+        on:
+          oauth.provider_organization_id == org.sso_organization_id and
+            oauth.provider == org.sso_provider,
+        where: oauth.user_id == ^user.id and org.id == ^organization.id
+      )
+
+    Repo.exists?(oauth2_identity_query)
+  end
+
+  def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -552,7 +673,10 @@ defmodule TuistCloud.Accounts do
     query |> Repo.exists?()
   end
 
-  def user?(%User{id: user_id}, %Organization{id: organization_id}) do
+  def organization_user?(
+        %User{id: user_id} = user,
+        %Organization{id: organization_id} = organization
+      ) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -562,7 +686,7 @@ defmodule TuistCloud.Accounts do
             r.resource_id == ^organization_id
       )
 
-    query |> Repo.exists?()
+    Repo.exists?(query) or belongs_to_sso_organization?(user, organization)
   end
 
   def get_invitation_by_id(id) do

@@ -15,6 +15,7 @@ defmodule TuistCloudWeb.API.InvitationsController do
   operation(:create,
     summary: "Creates an invitation",
     description: "Invites a user with a given email to a given organization.",
+    operation_id: "createInvitation",
     parameters: [
       organization_name: [
         in: :path,
@@ -86,8 +87,8 @@ defmodule TuistCloudWeb.API.InvitationsController do
         |> json(%{message: "The user is already invited to the organization."})
 
       !is_nil(invitee) and
-          (Accounts.admin?(invitee, organization_account.organization) or
-             Accounts.user?(invitee, organization_account.organization)) ->
+          (Accounts.organization_admin?(invitee, organization_account.organization) or
+             Accounts.organization_user?(invitee, organization_account.organization)) ->
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The user is already a member of the organization."})
@@ -119,6 +120,7 @@ defmodule TuistCloudWeb.API.InvitationsController do
   operation(:delete,
     summary: "Cancels an invitation",
     description: "Cancels an invitation for a given invitee email and an organization.",
+    operation_id: "cancelInvitation",
     parameters: [
       organization_name: [
         in: :path,

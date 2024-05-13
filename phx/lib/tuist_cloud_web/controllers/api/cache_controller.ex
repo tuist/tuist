@@ -20,6 +20,7 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "Downloads an artifact from the cache.",
     description:
       "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
+    operation_id: "downloadCacheArtifact",
     parameters: [
       cache_category: [
         in: :query,
@@ -103,6 +104,7 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "It checks if an artifact exists in the cache.",
     description:
       "This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.",
+    operation_id: "cacheArtifactExists",
     deprecated: true,
     parameters: [
       cache_category: [
@@ -202,6 +204,7 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "It initiates a multipart upload in the cache.",
     description:
       "The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.",
+    operation_id: "startCacheArtifactMultipartUpload",
     parameters: [
       cache_category: [
         in: :query,
@@ -282,6 +285,7 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "It generates a signed URL for uploading a part.",
     description:
       "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.",
+    operation_id: "generateCacheArtifactMultipartUploadURL",
     parameters: [
       cache_category: [
         in: :query,
@@ -382,6 +386,7 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "It completes a multi-part upload.",
     description:
       "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.",
+    operation_id: "completeCacheArtifactMultipartUpload",
     request_body:
       {"Multi-part upload parts", "application/json",
        %Schema{
@@ -504,6 +509,7 @@ defmodule TuistCloudWeb.API.CacheController do
 
   operation(:clean,
     summary: "Cleans cache for a given project",
+    operation_id: "cleanCache",
     parameters: [
       account_name: [
         in: :path,

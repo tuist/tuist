@@ -24,30 +24,32 @@ defmodule TuistCloudWeb.EnsureValidAccountPlanPlug do
     project = EnsureProjectPresencePlug.get_project(conn)
     account = Accounts.get_account_by_id(project.account_id)
 
-    if account.plan == nil do
-      eighty_percent = trunc(@upload_count_threshold * 0.8)
+    case account.plan do
+      :none ->
+        eighty_percent = trunc(@upload_count_threshold * 0.8)
 
-      case account.cache_upload_event_count do
-        x when x in 0..eighty_percent ->
-          conn
+        case account.cache_upload_event_count do
+          x when x in 0..eighty_percent ->
+            conn
 
-        x when x in eighty_percent..@upload_count_threshold ->
-          conn
-          |> TuistCloudWeb.WarningsHeaderPlug.put_warning(
-            "Your account is nearing the 30-day free limit of #{formatted_upload_count_threshold()} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
-          )
+          x when x in eighty_percent..@upload_count_threshold ->
+            conn
+            |> TuistCloudWeb.WarningsHeaderPlug.put_warning(
+              "Your account is nearing the 30-day free limit of #{formatted_upload_count_threshold()} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
+            )
 
-        _ ->
-          conn
-          |> put_status(402)
-          |> json(%{
-            message:
-              "Your account is over the 30-day free limit of #{formatted_upload_count_threshold()} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
-          })
-          |> halt()
-      end
-    else
-      conn
+          _ ->
+            conn
+            |> put_status(402)
+            |> json(%{
+              message:
+                "Your account is over the 30-day free limit of #{formatted_upload_count_threshold()} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
+            })
+            |> halt()
+        end
+
+      :enterprise ->
+        conn
     end
   end
 end

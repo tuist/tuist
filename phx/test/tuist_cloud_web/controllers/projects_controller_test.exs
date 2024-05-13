@@ -200,6 +200,69 @@ defmodule TuistCloudWeb.ProjectsControllerTest do
 
       assert length(response["projects"]) == 2
     end
+
+    test "lists all user projects when associated with a google hosted domain", %{conn: conn} do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      user_account = Accounts.get_account_from_user(user)
+
+      organization = Accounts.create_organization(%{name: "tuist-org", creator: user})
+
+      Accounts.update_organization(organization, %{
+        sso_provider: :google,
+        sso_organization_id: "tuist.io"
+      })
+
+      organization_account = Accounts.get_account_from_organization(organization)
+
+      project_one = ProjectsFixtures.project_fixture(account_id: organization_account.id)
+      project_two = ProjectsFixtures.project_fixture(account_id: user_account.id)
+
+      # When
+      conn =
+        conn
+        |> get("/api/projects")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert Enum.find_value(response["projects"], fn value ->
+               value == %{
+                 "id" => project_one.id,
+                 "full_name" => "tuist-org/#{project_one.name}",
+                 "token" => project_one.token
+               }
+             end) != nil
+
+      assert Enum.find_value(response["projects"], fn value ->
+               value == %{
+                 "id" => project_two.id,
+                 "full_name" => "tuist/#{project_two.name}",
+                 "token" => project_two.token
+               }
+             end) != nil
+
+      assert length(response["projects"]) == 2
+    end
   end
 
   describe "GET /api/projects/{account_name}/{project_name}" do

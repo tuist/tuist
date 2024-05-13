@@ -22,7 +22,7 @@ defmodule TuistCloud.Billing do
     if status == "active" or status == "trialing" do
       Accounts.update_plan(account, :enterprise)
     else
-      Accounts.update_plan(account, nil)
+      Accounts.update_plan(account, :none)
     end
   end
 

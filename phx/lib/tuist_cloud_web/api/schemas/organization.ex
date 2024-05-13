@@ -32,6 +32,15 @@ defmodule TuistCloudWeb.API.Schemas.Organization do
         type: :array,
         description: "A list of organization invitations",
         items: Invitation
+      },
+      sso_provider: %Schema{
+        type: :string,
+        enum: ["google"],
+        description: "The SSO provider set up for the organization"
+      },
+      sso_organization_id: %Schema{
+        type: :string,
+        description: "The organization ID associated with the SSO provider"
       }
     },
     required: [:id, :name, :plan, :members, :invitations]

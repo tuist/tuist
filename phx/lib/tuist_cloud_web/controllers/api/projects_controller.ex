@@ -15,6 +15,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
 
   operation(:create,
     summary: "Create a new project.",
+    operation_id: "createProject",
     request_body:
       {"Projects params", "application/json",
        %Schema{
@@ -116,6 +117,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
 
   operation(:index,
     summary: "List projects the authenticated user has access to.",
+    operation_id: "listProjects",
     responses: %{
       ok:
         {"List of projects", "application/json",
@@ -152,6 +154,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
 
   operation(:show,
     summary: "Returns a project based on the handle.",
+    operation_id: "showProject",
     parameters: [
       account_name: [
         in: :path,
@@ -223,6 +226,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
 
   operation(:delete,
     summary: "Deletes a project with a given id.",
+    operation_id: "deleteProject",
     parameters: [
       id: [
         in: :path,

@@ -62,7 +62,7 @@ defmodule TuistCloudWeb.Router do
 
     resources "/organizations", OrganizationsController,
       param: "organization_name",
-      only: [:index, :create, :delete, :show]
+      only: [:index, :create, :delete, :show, :update]
 
     resources "/organizations/:organization_name/invitations", InvitationsController,
       only: [:create]

@@ -21,7 +21,7 @@ defmodule TuistCloud.BillingTest do
     Billing.update_plan(%{status: "active", customer: "customer_id"})
 
     # Then
-    assert account.plan == nil
+    assert account.plan == :none
     assert Accounts.get_account_by_id(account.id).plan == :enterprise
   end
 
@@ -40,7 +40,7 @@ defmodule TuistCloud.BillingTest do
     Billing.update_plan(%{status: "trialing", customer: "customer_id"})
 
     # Then
-    assert account.plan == nil
+    assert account.plan == :none
     assert Accounts.get_account_by_id(account.id).plan == :enterprise
   end
 
@@ -61,6 +61,6 @@ defmodule TuistCloud.BillingTest do
 
     # Then
     assert account.plan == :enterprise
-    assert Accounts.get_account_by_id(account.id).plan == nil
+    assert Accounts.get_account_by_id(account.id).plan == :none
   end
 end

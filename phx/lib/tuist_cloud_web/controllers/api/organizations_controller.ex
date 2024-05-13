@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.API.OrganizationsController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloud.Accounts.OrganizationAccount
   alias TuistCloudWeb.API.Schemas.OrganizationMember
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Authorization
@@ -17,6 +18,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
     summary: "Lists the organizations",
     description: "Returns all the organizations the authenticated subject is part of.",
     parameters: [],
+    operation_id: "listOrganizations",
     responses: %{
       ok:
         {"The list of organizations", "application/json",
@@ -46,12 +48,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan:
-            if is_nil(&1.account.plan) do
-              "none"
-            else
-              &1.account.plan
-            end,
+          plan: &1.account.plan,
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
@@ -65,6 +62,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
   operation(:create,
     summary: "Creates an organization",
     description: "Creates an organization with the given name.",
+    operation_id: "createOrganization",
     request_body:
       {"Organization params", "application/json",
        %Schema{
@@ -129,6 +127,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
   operation(:delete,
     summary: "Deletes an organization",
     description: "Deletes the organization with the given name.",
+    operation_id: "deleteOrganization",
     parameters: [
       organization_name: [
         in: :path,
@@ -183,6 +182,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
   operation(:show,
     summary: "Shows an organization",
     description: "Returns the organization with the given identifier.",
+    operation_id: "showOrganization",
     parameters: [
       organization_name: [
         in: :path,
@@ -237,8 +237,13 @@ defmodule TuistCloudWeb.API.OrganizationsController do
             }
           )
 
+        admin_ids = Enum.map(admins, & &1.id)
+
         users =
           Accounts.get_organization_members(organization_account.organization, :user)
+          |> Enum.filter(fn member ->
+            member.id not in admin_ids
+          end)
           |> Enum.map(
             &%{
               id: &1.id,
@@ -254,6 +259,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
           name: organization_name,
           plan: organization_account.account.plan,
           members: admins ++ users,
+          sso_provider: organization_account.organization.sso_provider,
+          sso_organization_id: organization_account.organization.sso_organization_id,
           invitations:
             TuistCloud.Repo.preload(organization_account.organization,
               invitations: [inviter: :account]
@@ -275,9 +282,156 @@ defmodule TuistCloudWeb.API.OrganizationsController do
     end
   end
 
+  operation(:update,
+    summary: "Updates an organization",
+    description: "Updates an organization with given parameters.",
+    operation_id: "updateOrganization",
+    parameters: [
+      organization_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the organization to update."
+      ]
+    ],
+    request_body:
+      {"Organization update params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           sso_provider: %Schema{
+             type: :string,
+             enum: ["google", "none"],
+             description: "The SSO provider to set up for the organization"
+           },
+           sso_organization_id: %Schema{
+             type: :string,
+             description: "The SSO organization ID to be associated with the SSO provider",
+             nullable: true
+           }
+         }
+       }},
+    responses: %{
+      ok: {"The organization", "application/json", Organization},
+      not_found:
+        {"The organization with the given name was not found", "application/json", Error},
+      bad_request:
+        {"The organization could not be updated due to a validation error", "application/json",
+         Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def update(
+        %{
+          path_params: %{
+            "organization_name" => organization_name
+          },
+          body_params:
+            %{
+              sso_provider: sso_provider
+            } = body_params
+        } = conn,
+        _params
+      ) do
+    organization_account =
+      Accounts.get_organization_account_by_name(organization_name)
+
+    user = Authentication.current_user(conn)
+
+    cond do
+      is_nil(organization_account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Organization #{organization_name} was not found."})
+
+      !Authorization.can(user, :update, organization_account.account, :organization) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action."})
+
+      sso_provider == "none" ->
+        {:ok, organization} =
+          Accounts.update_organization(organization_account.organization, %{
+            sso_provider: nil,
+            sso_organization_id: nil
+          })
+
+        conn
+        |> json(%{
+          id: organization.id,
+          name: organization_name,
+          plan: organization_account.account.plan,
+          sso_provider: organization.sso_provider,
+          sso_organization_id: organization.sso_organization_id,
+          members: [],
+          invitations: []
+        })
+
+      is_nil(
+        Accounts.find_oauth2_identity(%{user: user, provider: String.to_atom(sso_provider)},
+          provider_organization_id: body_params.sso_organization_id
+        )
+      ) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message:
+            "Your SSO organization must be the same as the one you are trying to update your organization to."
+        })
+
+      !is_nil(organization_account) ->
+        update_organization(%{
+          organization_account: organization_account,
+          sso_provider: sso_provider,
+          sso_organization_id: body_params.sso_organization_id,
+          conn: conn
+        })
+    end
+  end
+
+  defp update_organization(%{
+         organization_account: %OrganizationAccount{} = organization_account,
+         sso_provider: sso_provider,
+         sso_organization_id: sso_organization_id,
+         conn: %Plug.Conn{} = conn
+       }) do
+    organization = organization_account.organization
+
+    case Accounts.update_organization(organization, %{
+           sso_provider: String.to_atom(sso_provider),
+           sso_organization_id: sso_organization_id
+         }) do
+      {:ok, organization} ->
+        conn
+        |> json(%{
+          id: organization.id,
+          name: organization_account.account.name,
+          plan: organization_account.account.plan,
+          sso_provider: organization.sso_provider,
+          sso_organization_id: organization.sso_organization_id,
+          members: [],
+          invitations: []
+        })
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        message =
+          Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> hd
+
+        conn
+        |> put_status(:bad_request)
+        |> json(%Error{message: message})
+    end
+  end
+
   operation(:remove_member,
     summary: "Removes a member from an organization",
     description: "Removes a member with a given username from a given organization",
+    operation_id: "removeOrganizationMember",
     parameters: [
       organization_name: [
         in: :path,
@@ -338,18 +492,28 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         member = Accounts.get_user_by_id(member_account.owner_id)
         organization = organization_account.organization
 
-        if Accounts.belongs_to_organization?(member, organization_account.organization) do
-          Accounts.remove_user_from_organization(member, organization)
+        cond do
+          Accounts.belongs_to_sso_organization?(member, organization) ->
+            Accounts.delete_user(member)
 
-          conn
-          |> put_status(:no_content)
-          |> json(%{})
-        else
-          conn
-          |> put_status(:bad_request)
-          |> json(%{
-            message: "User #{user_name} is not a member of the organization #{organization_name}"
-          })
+            conn
+            |> put_status(:no_content)
+            |> json(%{})
+
+          Accounts.belongs_to_organization?(member, organization_account.organization) ->
+            Accounts.remove_user_from_organization(member, organization)
+
+            conn
+            |> put_status(:no_content)
+            |> json(%{})
+
+          true ->
+            conn
+            |> put_status(:bad_request)
+            |> json(%{
+              message:
+                "User #{user_name} is not a member of the organization #{organization_name}"
+            })
         end
     end
   end
@@ -357,6 +521,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
   operation(:update_member,
     summary: "Updates a member in an organization",
     description: "Updates a member in a given organization",
+    operation_id: "updateOrganizationMember",
     parameters: [
       organization_name: [
         in: :path,
@@ -410,9 +575,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         _params
       ) do
     organization_account = Accounts.get_organization_account_by_name(organization_name)
-
     user = Authentication.current_user(conn)
-
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -435,6 +598,15 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         member = Accounts.get_user_by_id(member_account.owner_id)
         member_account = Accounts.get_account_from_user(member)
         organization = organization_account.organization
+
+        current_user_role = Accounts.get_user_role_in_organization(member, organization)
+
+        if is_nil(current_user_role) and
+             Accounts.belongs_to_sso_organization?(member, organization_account.organization) do
+          Accounts.add_user_to_organization(member, organization_account.organization,
+            role: String.to_atom(role)
+          )
+        end
 
         if Accounts.belongs_to_organization?(member, organization) do
           Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))

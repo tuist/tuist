@@ -27,6 +27,7 @@ defmodule TuistCloudWeb.API.AuthController do
     summary: "Get a specific device code.",
     description:
       "This endpoint returns a token for a given device code if the device code is authenticated.",
+    operation_id: "getDeviceCode",
     parameters: [
       device_code: [
         in: :path,

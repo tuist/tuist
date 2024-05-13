@@ -17,7 +17,13 @@ defmodule TuistCloud.AccountsFixtures do
   def organization_fixture(opts \\ []) do
     name = Keyword.get(opts, :name, "#{TestUtilities.unique_integer()}")
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
-    Accounts.create_organization(%{name: name, creator: creator})
+    sso_provider = Keyword.get(opts, :sso_provider)
+    sso_organization_id = Keyword.get(opts, :sso_organization_id)
+
+    Accounts.create_organization(%{name: name, creator: creator},
+      sso_provider: sso_provider,
+      sso_organization_id: sso_organization_id
+    )
   end
 
   def unique_user_email, do: "#{TestUtilities.unique_integer()}@cloud.tuist.io"
