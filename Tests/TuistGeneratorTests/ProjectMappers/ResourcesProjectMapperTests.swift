@@ -440,6 +440,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(expectedBundleName, bundleTarget.name)
+        XCTAssertEqual(expectedBundleName, bundleTarget.productName)
+        XCTAssertEqual(2, gotProject.targets.count) // One code target, one bundle target
     }
 
     // MARK: - Verifiers
