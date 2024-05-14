@@ -839,6 +839,14 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTestCase {
+    func test_app_with_custom_default_configuration() async throws {
+        try setUpFixture(.appWithCustomDefaultConfiguration)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 extension TuistAcceptanceTestCase {
     private func resourcePath(
         for productName: String,

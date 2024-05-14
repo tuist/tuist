@@ -14,19 +14,22 @@ extension Config {
         public let clonedSourcePackagesDirPath: AbsolutePath?
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
         public let enforceExplicitDependencies: Bool
+        public let defaultConfiguration: String?
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false
+            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
             self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
             self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
             self.enforceExplicitDependencies = enforceExplicitDependencies
+            self.defaultConfiguration = defaultConfiguration
         }
     }
 }
