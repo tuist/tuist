@@ -767,6 +767,29 @@ defmodule TuistCloud.AccountsTest do
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
     end
+
+    test "creates the user when there's already a user with the same handle derived from email" do
+      # Given
+      Accounts.create_user("test@tuist.io")
+
+      # When
+      assert %{name: "test1"} =
+               Accounts.create_user("test@tuist.test") |> Accounts.get_account_from_user()
+    end
+
+    test "errors after attempting finding a unique account handle using suffixes" do
+      # Given
+      Accounts.create_user("test@tuist.io")
+      Accounts.create_user("test1@tuist.io")
+      Accounts.create_user("test2@tuist.io")
+      Accounts.create_user("test3@tuist.io")
+      Accounts.create_user("test4@tuist.io")
+      Accounts.create_user("test5@tuist.io")
+
+      # When
+      {:error, :account, changeset, _} = Accounts.create_user("test@tuist.test")
+      assert %{name: ["has already been taken"]} == errors_on(changeset)
+    end
   end
 
   describe "change_user_password/2" do

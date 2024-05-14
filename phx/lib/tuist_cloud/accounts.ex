@@ -292,8 +292,15 @@ defmodule TuistCloud.Accounts do
     password = opts |> Keyword.get(:password, "")
     confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
+    suffix = opts |> Keyword.get(:suffix, "")
+    attempt = opts |> Keyword.get(:attempt, 0)
 
-    name = email |> String.split("@") |> List.first() |> String.replace(".", "-")
+    name =
+      (email
+       |> String.split("@")
+       |> List.first()
+       |> String.replace(".", "-")
+       |> String.downcase()) <> suffix
 
     multi =
       Ecto.Multi.new()
@@ -337,9 +344,29 @@ defmodule TuistCloud.Accounts do
         |> Repo.transaction()
       end
 
-    {:ok, %{user: user}} = user_account
-    TuistCloud.Analytics.user_create(user)
-    user
+    with {:account, {:error, :account, changeset, _}} <- {:account, user_account},
+         {:unique_name_error, true} <-
+           {:unique_name_error, TuistCloud.Ecto.Utils.unique_error?(changeset, :name)},
+         {:under_limit, true} <- {:under_limit, attempt < 5} do
+      next_suffix = if suffix == "", do: 1, else: (suffix |> String.to_integer()) + 1
+
+      opts =
+        opts
+        |> Keyword.put(:attempt, attempt + 1)
+        |> Keyword.put(:suffix, "#{next_suffix}")
+
+      create_user(email, opts)
+    else
+      {:account, {:ok, %{user: user}}} ->
+        TuistCloud.Analytics.user_create(user)
+        user
+
+      {:unique_name_error, false} ->
+        user_account
+
+      {:under_limit, false} ->
+        user_account
+    end
   end
 
   defp create_oauth2_identity(%{
