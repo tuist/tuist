@@ -10,7 +10,6 @@ import TuistSupport
 public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
-    private static let otherLinkerFlagsSetting = "OTHER_LDFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
 
@@ -80,14 +79,6 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                     targetToDependenciesMetadata: targetToDependenciesMetadata
                 ) {
                     mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
-                }
-
-                if let updatedOtherLinkerFlags = Self.updatedOtherLinkerFlags(
-                    targetID: targetID,
-                    oldOtherLinkerFlags: mappedSettingsDictionary[Self.otherLinkerFlagsSetting],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherLinkerFlagsSetting] = updatedOtherLinkerFlags
                 }
 
                 let targetSettings = target.settings ?? Settings(
@@ -276,29 +267,5 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         }
 
         return .array(mappedOtherCFlags)
-    }
-
-    private static func updatedOtherLinkerFlags(
-        targetID: TargetID,
-        oldOtherLinkerFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
-    ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-              !dependenciesModuleMaps.isEmpty
-        else { return nil }
-
-        var mappedOtherLinkerFlags: [String]
-        switch oldOtherLinkerFlags ?? .array(["$(inherited)"]) {
-        case let .array(values):
-            mappedOtherLinkerFlags = values
-        case let .string(value):
-            mappedOtherLinkerFlags = value.split(separator: " ").map(String.init)
-        }
-
-        if !mappedOtherLinkerFlags.contains("-ObjC") {
-            mappedOtherLinkerFlags.append("-ObjC")
-        }
-
-        return .array(mappedOtherLinkerFlags)
     }
 }
