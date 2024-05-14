@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.13.0 - 2024-05-14
+
+### Tuist
+
+#### Added
+
+- Add defaultConfiguration generation option to Config.swift [#6255](https://github.com/tuist/tuist/pull/6255) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix integration of SPM packages with spaces in their name [#6264](https://github.com/tuist/tuist/pull/6264) by [@kapitoshka438](https://github.com/kapitoshka438)
+- Align bundle name with dashes sanitizing with SPM [#6265](https://github.com/tuist/tuist/pull/6265) by [@danibachar](https://github.com/danibachar)
+- Do not automatically add -ObjC flag when integrating Objective-C dependencies [#6244](https://github.com/tuist/tuist/pull/6244) by [@thedavidharris](https://github.com/thedavidharris)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.12.1 - 2024-05-07
 
 ### Tuist
