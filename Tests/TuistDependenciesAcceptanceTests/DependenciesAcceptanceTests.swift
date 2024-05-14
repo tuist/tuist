@@ -31,3 +31,13 @@ final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: Tuis
         XCTFail("Generate should have failed.")
     }
 }
+
+final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
+    func test_ios_app_spm_dependencies() async throws {
+        try setUpFixture(.iosAppWithSpmDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+        try await run(TestCommand.self, "App")
+    }
+}

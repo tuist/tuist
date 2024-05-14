@@ -223,6 +223,15 @@ extension String {
             return true
         }
     }
+
+    /// Encloses the current string inside quotes if it contains spaces
+    public var quotedIfContainsSpaces: String {
+        if contains(" ") {
+            return "\"\(self)\""
+        } else {
+            return self
+        }
+    }
 }
 
 extension Array where Element: CustomStringConvertible {

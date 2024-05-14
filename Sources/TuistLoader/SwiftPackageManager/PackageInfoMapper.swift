@@ -295,7 +295,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let baseSettings = packageSettings.baseSettings.with(
             base: packageSettings.baseSettings.base.combine(
                 with: [
-                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name],
+                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
                 ]
             )
         )

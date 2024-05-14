@@ -676,7 +676,7 @@ extension DependenciesGraph {
             "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
             "GCC_NO_COMMON_BLOCKS": "NO",
             "USE_HEADERMAP": "NO",
-            "OTHER_SWIFT_FLAGS": ["-package-name", packageName],
+            "OTHER_SWIFT_FLAGS": ["-package-name", packageName.quotedIfContainsSpaces],
         ]
         var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
 
