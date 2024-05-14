@@ -32,7 +32,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             subcommand: "warm",
             parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
-            durationInMs: 5000
+            durationInMs: 5000,
+            status: .failure("Failed!")
         )
         let expectedEvent = CommandEvent(
             name: "cache",
@@ -45,7 +46,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             swiftVersion: "5.1",
             macOSVersion: "10.15.0",
             machineHardwareName: "arm64",
-            isCI: false
+            isCI: false,
+            status: .failure("Failed!")
         )
 
         // When
