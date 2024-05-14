@@ -14,7 +14,7 @@ The decision of using Swift was inspired by the [Swift Package Manager](https://
 
 ## Project.swift
 
-The [`Project.swift`](/reference/project-description/project) manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
+The [`Project.swift`](/reference/project-description/structs/project) manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
 
 ```swift
 // Project.swift
@@ -32,7 +32,7 @@ let project = Project(
 
 ## Workspace.swift
 
-By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a [`Workspace.swift`](/reference/project-description/workspace) manifest.
+By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a [`Workspace.swift`](/reference/project-description/structs/workspace) manifest.
 
 ```swift
 // Workspace.swift
@@ -57,7 +57,7 @@ In the Tuist project we lean on mono-projects because the cold generation time i
 
 ## Config.swift
 
-Tuist provides [sensible defaults](/contributors/principles.html#default-to-conventions) to simplify project configuration. However, you can customize the configuration by defining a [`Config.swift`](/reference/project-description/config) manifest under the `Tuist` directory, which is used by Tuist to determine the root of the project.
+Tuist provides [sensible defaults](/contributors/principles.html#default-to-conventions) to simplify project configuration. However, you can customize the configuration by defining a [`Config.swift`](/reference/project-description/structs/config) manifest under the `Tuist` directory, which is used by Tuist to determine the root of the project.
 
 ```swift
 import ProjectDescription

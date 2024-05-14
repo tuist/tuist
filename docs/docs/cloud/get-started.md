@@ -45,6 +45,15 @@ If you are part of an organization to which you want to invite other members, yo
 tuist cloud organization create my-organization # Create organization
 ```
 
+### Organization SSO
+
+If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
+```bash
+tuist cloud organization update sso my-organization --provider google --organization-id my-domain.com
+```
+
+> [!IMPORTANT] 
+> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
 ## Create a project
 
 The next step is to create a project. You can easily do that with the following command:

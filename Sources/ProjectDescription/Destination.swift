@@ -1,9 +1,9 @@
 import Foundation
 
-/// Set of deployment destinstions
+/// Set of deployment destinations
 public typealias Destinations = Set<Destination>
 
-/// Convenience collections of desitions mapped to platforms terminology.
+/// Convenience collections of destinations mapped to platforms terminology.
 extension Destinations {
     public static var watchOS: Destinations = [.appleWatch]
     /// Currently we omit `.visionOSwithiPadDesign` from our default because `visionOS` is unreleased.
@@ -14,7 +14,7 @@ extension Destinations {
 }
 
 extension Destinations {
-    /// Convience set of platforms that are supported by a set of destinations
+    /// Convenience set of platforms that are supported by a set of destinations
     public var platforms: Set<Platform> {
         let platforms = map(\.platform)
         return Set<Platform>(platforms)

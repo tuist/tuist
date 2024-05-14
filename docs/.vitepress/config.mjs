@@ -24,7 +24,7 @@ function capitalize(text) {
         .filter((item) => item.category === category)
         .map((item) => ({
           text: item.title,
-          link: `/reference/project-description/${item.name}`,
+          link: `/reference/project-description/${item.identifier}`,
         })),
     });
   }
@@ -219,7 +219,7 @@ export default defineConfig({
     },
     nav: [
       { text: "Guide", link: "/" },
-      { text: "Reference", link: "/reference/project-description/project" },
+      { text: "Reference", link: "/reference/project-description/structs/project" },
       { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
