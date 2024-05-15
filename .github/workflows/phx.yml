@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16-alpine
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16-alpine
+        image: timescale/timescaledb-ha:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -132,5 +132,7 @@ jobs:
       # of truth for the current shape of the schema.
       - name: Load the initial schema
         run: mix ecto.load
+      - name: Run migrations
+        run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs

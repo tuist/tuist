@@ -146,6 +146,7 @@
     labels: <%= raw Jason.encode!(@cache_hit_rate_analytics.dates) %>,
   };
   cacheHitRateChart.yLabelFormatter = (value) => { return `${(value * 100).toFixed(1)} %` }
+  cacheHitRateChart.maxYValue = 1;
 
   setDurationChartData(
     "#average-test-duration-chart", 

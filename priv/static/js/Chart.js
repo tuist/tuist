@@ -76,6 +76,8 @@ class ChartComponent extends HTMLElement {
         },
       },
       yaxis: {
+        min: 0,
+        max: this.maxYValue,
         labels: {
           formatter: this.yLabelFormatter,
         },
@@ -114,6 +116,14 @@ class ChartComponent extends HTMLElement {
 
   set type(val) {
     return this.setAttribute('type', val);
+  }
+
+  get maxYValue() {
+    return this.getAttribute('maxYValue') ?? undefined;
+  }
+
+  set maxYValue(val) {
+    return this.setAttribute('maxYValue', val);
   }
 }
 

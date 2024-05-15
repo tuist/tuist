@@ -1,7 +1,6 @@
 alias TuistCloud.Accounts
 alias TuistCloud.Projects
 alias TuistCloud.CommandEvents
-alias TuistCloud.Time
 
 email = "tuist@tuist.io"
 password = "tuistrocks"
@@ -34,70 +33,37 @@ tuist_cloud_acceptance_tests_project =
       )
   end
 
-CommandEvents.create_command_event(%{
-  name: "build",
-  duration: 20000,
-  tuist_version: "4.1.0",
-  project_id: tuist_cloud_acceptance_tests_project.id,
-  cacheable_targets: ["A", "B"],
-  local_cache_target_hits: [""],
-  remote_cache_target_hits: ["B"],
-  swift_version: "5.2",
-  macos_version: "10.15",
-  subcommand: "",
-  command_arguments: [],
-  is_ci: false,
-  client_id: "client-id",
-  created_at: Time.utc_now()
-})
+for _event <- 1..10000 do
+  names = ["build", "test", "cache", "generate"]
+  name = Enum.random(names)
+  cacheable_targets = ["A", "B", "C", "D", "E", "F"]
+  remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..5))
 
-CommandEvents.create_command_event(%{
-  name: "build",
-  duration: 34000,
-  tuist_version: "4.1.0",
-  project_id: tuist_cloud_acceptance_tests_project.id,
-  cacheable_targets: ["A", "B", "C"],
-  local_cache_target_hits: [""],
-  remote_cache_target_hits: ["B"],
-  swift_version: "5.2",
-  macos_version: "10.15",
-  subcommand: "",
-  command_arguments: [],
-  is_ci: false,
-  client_id: "client-id",
-  created_at: NaiveDateTime.new!(Date.add(Time.utc_now(), -1), ~T[14:00:00.000])
-})
-
-CommandEvents.create_command_event(%{
-  name: "build",
-  duration: 41000,
-  tuist_version: "4.1.0",
-  project_id: tuist_cloud_acceptance_tests_project.id,
-  cacheable_targets: ["A", "B", "C"],
-  local_cache_target_hits: [""],
-  remote_cache_target_hits: ["B"],
-  swift_version: "5.2",
-  macos_version: "10.15",
-  subcommand: "",
-  command_arguments: [],
-  is_ci: false,
-  client_id: "client-id",
-  created_at: NaiveDateTime.new!(Date.add(Time.utc_now(), -6), ~T[14:00:00.000])
-})
-
-CommandEvents.create_command_event(%{
-  name: "build",
-  duration: 78000,
-  tuist_version: "4.1.0",
-  project_id: tuist_cloud_acceptance_tests_project.id,
-  cacheable_targets: ["A", "B", "C"],
-  local_cache_target_hits: [""],
-  remote_cache_target_hits: ["B"],
-  swift_version: "5.2",
-  macos_version: "10.15",
-  subcommand: "",
-  command_arguments: [],
-  is_ci: false,
-  client_id: "client-id",
-  created_at: NaiveDateTime.new!(Date.add(Time.utc_now(), -32), ~T[14:00:00.000])
-})
+  CommandEvents.create_command_event(
+    %{
+      name: name,
+      duration: Enum.random(10000..100_000),
+      tuist_version: "4.1.0",
+      project_id: tuist_cloud_acceptance_tests_project.id,
+      cacheable_targets: cacheable_targets,
+      local_cache_target_hits: [""],
+      remote_cache_target_hits: remote_cache_target_hits,
+      swift_version: "5.2",
+      macos_version: "10.15",
+      subcommand: "",
+      command_arguments: [],
+      is_ci: false,
+      client_id: "client-id"
+    },
+    created_at:
+      NaiveDateTime.new!(
+        Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+        Time.new!(
+          Enum.random(0..23),
+          Enum.random(0..59),
+          Enum.random(0..59),
+          Enum.random(0..999_999)
+        )
+      )
+  )
+end

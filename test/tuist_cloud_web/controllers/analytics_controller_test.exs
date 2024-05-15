@@ -58,7 +58,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.is_ci == false
       assert command_event.client_id == "client-id"
-      assert command_event.cacheable_targets == "target1;target2"
+      assert command_event.cacheable_targets == ["target1", "target2"]
     end
 
     test "returns newly created command event when cacheable analytics are missing", %{

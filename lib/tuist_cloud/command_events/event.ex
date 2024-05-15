@@ -15,9 +15,9 @@ defmodule TuistCloud.CommandEvents.Event do
     field :tuist_version, :string
     field :swift_version, :string
     field :macos_version, :string
-    field :cacheable_targets, :string
-    field :local_cache_target_hits, :string
-    field :remote_cache_target_hits, :string
+    field :cacheable_targets, {:array, :string}
+    field :local_cache_target_hits, {:array, :string}
+    field :remote_cache_target_hits, {:array, :string}
     field :is_ci, :boolean
     field :client_id, :string
     belongs_to :project, Project
