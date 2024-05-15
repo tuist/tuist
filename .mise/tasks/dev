@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-hivemind $MISE_PROJECT_ROOT/Procfile.dev
+(cd $MISE_PROJECT_ROOT && mix phx.server)

@@ -41,10 +41,10 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx/deps
-            phx/_build
-            phx/_site
-          key: mix-${{ hashFiles('phx/mix.lock') }}
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Install dependencies
         run: mix deps.get
       - name: Create the database
@@ -67,10 +67,10 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx/deps
-            phx/_build
-            phx/_site
-          key: mix-${{ hashFiles('phx/mix.lock') }}
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Install dependencies
         run: mix deps.get
       - name: Run Credo
@@ -87,10 +87,10 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx/deps
-            phx/_build
-            phx/_site
-          key: mix-${{ hashFiles('phx/mix.lock') }}
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Install dependencies
         run: mix deps.get
       - name: Check format
@@ -120,10 +120,10 @@ jobs:
         id: mix-cache
         with:
           path: |
-            phx/deps
-            phx/_build
-            phx/_site
-          key: mix-${{ hashFiles('phx/mix.lock') }}
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Install dependencies
         run: mix deps.get
       - name: Create the database

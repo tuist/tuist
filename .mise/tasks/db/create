@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-(cd $MISE_PROJECT_ROOT/phx && mix ecto.create)
+(cd $MISE_PROJECT_ROOT && mix ecto.create)

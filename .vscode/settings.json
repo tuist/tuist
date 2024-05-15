@@ -15,7 +15,7 @@
     "**/node_modules": true
   },
   "search.exclude": {
-    "phx/deps/**": true,
+    "deps/**": true,
   },
   "emmet.includeLanguages": {
     "html-eex": "html"

@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-(cd $MISE_PROJECT_ROOT/phx && mix run priv/repo/seeds.exs)
+(cd $MISE_PROJECT_ROOT && mix run priv/repo/seeds.exs)
