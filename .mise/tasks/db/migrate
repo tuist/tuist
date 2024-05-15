@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-$MISE_PROJECT_ROOT/bin/migrate
+(cd $MISE_PROJECT_ROOT && mix ecto.migrate)
