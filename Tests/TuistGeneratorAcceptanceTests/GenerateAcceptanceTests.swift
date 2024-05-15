@@ -632,7 +632,7 @@ final class GenerateAcceptanceTestiOSAppWithAppClipWithWidgets: TuistAcceptanceT
         )
         try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
         try await XCTAssertProductWithDestinationContainsExtension(
-            "App.app",
+            "AppClip1.app",
             destination: "Debug-iphonesimulator",
             extension: "AppClip1Widgets"
         )
