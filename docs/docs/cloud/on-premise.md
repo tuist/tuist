@@ -35,6 +35,8 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
+For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more.
+
 > [!INFO] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 
@@ -238,7 +240,7 @@ Below is an example of a `docker-compose.yml` file that you can use as a referen
 version: '3.8'
 services:
   db:
-    image: postgres:14.1-alpine
+    image: timescale/timescaledb-ha:pg16
     restart: always
     environment:
       - POSTGRES_USER=postgres
