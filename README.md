@@ -16,3 +16,6 @@ This repository contains the source code of the server-side application that ext
 2. Install additional system dependencies with: `mise install`.
 3. Install the project dependencies with: `mise run install`
 3. Run `mise run dev`
+
+> [!IMPORTANT] TimescaleDB Extension
+> If the execution of database migrations fails because the TimescaleDB extension is not installed, you'll have to [install the extension](https://docs.timescale.com/self-hosted/latest/install/installation-macos/#set-up-the-timescaledb-extension) in the `tuistcloud_development` database.
