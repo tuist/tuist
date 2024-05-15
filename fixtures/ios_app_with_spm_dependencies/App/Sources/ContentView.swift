@@ -1,4 +1,5 @@
 import Buy
+import KSCrash_Installations
 import Pay
 import SwiftUI
 
@@ -7,6 +8,8 @@ struct ContentView: View {
         // Use Mobile Buy SDK
         _ = Card.CreditCard(firstName: "", lastName: "", number: "", expiryMonth: "", expiryYear: "")
         _ = PayAddress()
+        // Use KSCrash
+        _ = KSCrashInstallationStandard()
     }
 
     var body: some View {

@@ -62,7 +62,7 @@ class TargetLinter: TargetLinting {
         bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
 
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        allowed.formUnion(CharacterSet(charactersIn: "-."))
+        allowed.formUnion(CharacterSet(charactersIn: "-./"))
 
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
             let reason =

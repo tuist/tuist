@@ -56,10 +56,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         moduleName: String,
         publicHeadersPath: AbsolutePath
     ) throws -> ModuleMap {
-        let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
+        let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath
-            .appending(components: sanitizedModuleName, moduleName + ".h")
+            .appending(components: sanitizedModuleName, sanitizedModuleName + ".h")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 
@@ -69,12 +69,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 .parentDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                    moduleName,
-                    "\(moduleName).modulemap"
+                    sanitizedModuleName,
+                    "\(sanitizedModuleName).modulemap"
                 )
         } else {
             generatedModuleMapPath = packageDirectory.appending(
-                components: Constants.DerivedDirectory.name, "\(moduleName).modulemap"
+                components: Constants.DerivedDirectory.name, "\(sanitizedModuleName).modulemap"
             )
         }
 
