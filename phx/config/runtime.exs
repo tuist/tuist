@@ -172,10 +172,10 @@ if TuistCloud.Environment.s3_configured?(secrets) do
     s3: [
       # Cloudflare R2 requires HTTPS
       scheme: "https://",
-      host: s3_endpoint_host,
-      # Cloudflare R2 does not require a region, but ExAws needs a value here
-      region: TuistCloud.Environment.aws_region(secrets)
-    ]
+      host: s3_endpoint_host
+    ],
+    # Cloudflare R2 does not require a region, but ExAws needs a value here
+    region: TuistCloud.Environment.aws_region(secrets)
   ]
 
   aws_opts =
