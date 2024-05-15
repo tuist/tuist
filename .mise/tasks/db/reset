@@ -7,5 +7,6 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
 $SCRIPT_DIR/drop
 $SCRIPT_DIR/create
+$SCRIPT_DIR/load
 $SCRIPT_DIR/migrate
 $SCRIPT_DIR/seed
