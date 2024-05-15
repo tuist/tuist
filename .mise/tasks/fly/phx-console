@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # mise description="Opens an Elixir console with the remote production server"
 
-flyctl ssh console --pty -C "/app/phx/bin/tuist_cloud remote"
+flyctl ssh console --pty -C "/app/bin/tuist_cloud remote"
