@@ -28,7 +28,7 @@ jobs:
       - name: 'Get version'
         id: version
         run: |
-          version=$(./script/generate_version.rb)
+          version=$(.mise/tasks/generate-version)
           echo "::set-output name=version::$version"
       - id: last-release
         uses: pozetroninc/github-action-get-latest-release@master
@@ -74,7 +74,6 @@ jobs:
           push: true
           build-args: |
             TUIST_VERSION=${{ steps.version.outputs.version }}
-            RAILS_ENV=production
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

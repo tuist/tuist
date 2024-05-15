@@ -45,15 +45,15 @@ jobs:
             phx/_build
             phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
-      - working-directory: phx
+      - name: Install dependencies
         run: mix deps.get
-      - working-directory: phx
+      - name: Create the database
         run: mix ecto.create
       # This is necessary because the migrations of Rails continue to be the source
       # of truth for the current shape of the schema.
-      - working-directory: phx
+      - name: Dump the initial database schema
         run: mix ecto.load
-      - working-directory: phx
+      - name: Run tests
         run: mix test
   credo:
     name: Credo
@@ -71,9 +71,9 @@ jobs:
             phx/_build
             phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
-      - working-directory: phx
+      - name: Install dependencies
         run: mix deps.get
-      - working-directory: phx
+      - name: Run Credo
         run: mix credo
   format:
     name: Format
@@ -91,9 +91,9 @@ jobs:
             phx/_build
             phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
-      - working-directory: phx
+      - name: Install dependencies
         run: mix deps.get
-      - working-directory: phx
+      - name: Check format
         run: mix format --check-formatted
   seed:
     name: Seed
@@ -124,13 +124,13 @@ jobs:
             phx/_build
             phx/_site
           key: mix-${{ hashFiles('phx/mix.lock') }}
-      - working-directory: phx
+      - name: Install dependencies
         run: mix deps.get
-      - working-directory: phx
+      - name: Create the database
         run: mix ecto.create
       # This is necessary because the migrations of Rails continue to be the source
       # of truth for the current shape of the schema.
-      - working-directory: phx
+      - name: Load the initial schema
         run: mix ecto.load
-      - working-directory: phx
+      - name: Seed the database
         run: mix run priv/repo/seeds.exs

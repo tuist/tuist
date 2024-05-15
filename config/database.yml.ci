@@ -1,9 +1,0 @@
-test:
-  adapter: postgresql
-  encoding: unicode
-  pool: 5
-  timeout: 5000
-  host: 127.0.0.1
-  username: postgres
-  password: postgres
-  database: tuist_cloud_test_db

@@ -6,43 +6,17 @@
   "[javascript]": {
     "editor.formatOnSave": true
   },
-  "[javascriptreact]": {
-    "editor.formatOnSave": true
-  },
   "[json]": {
     "editor.formatOnSave": true
   },
-  "[typescript]": {
-    "editor.formatOnSave": true
-  },
-  "[typescriptreact]": {
-    "editor.formatOnSave": true
-  },
-  "[ruby]": {
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "Shopify.ruby-lsp",
-  },
-  "rubyLsp.formatter": "auto",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "sorbet.enabled": true,
   "files.exclude": {
     "**/node_modules": true
   },
-  "typescript.tsdk": "node_modules/typescript/lib",
   "search.exclude": {
-    "**/sorbet": true,
-    "node_modules/**": true,
     "phx/deps/**": true,
-    "sorbet/**": true
   },
-  "rubyLsp.rubyVersionManager": {
-    "identifier": "custom"
-  },
-  "rubyLsp.customRubyCommand": "eval \"$(mise env -s zsh)\"",
-  "[erb]": {
-    "editor.defaultFormatter": "aliariff.vscode-erb-beautify"
-  },
-  "elixirLS.projectDir": "./phx",
   "emmet.includeLanguages": {
     "html-eex": "html"
   },
@@ -50,7 +24,7 @@
     "editor.defaultFormatter": "JakeBecker.elixir-ls"
   },
   "rust-analyzer.linkedProjects": [
-    "phx/native/tuistcloud_native/Cargo.toml"
+    "native/tuistcloud_native/Cargo.toml"
   ],
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"

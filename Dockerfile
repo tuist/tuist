@@ -1,167 +1,110 @@
-# syntax = docker/dockerfile:1
-
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version and Gemfile
-ARG RUBY_VERSION=3.3.0
-ARG RAILS_ENV=production
-ARG APP_REVISION=unknown
-ARG TUIST_VERSION=""
+# Find eligible builder and runner images on Docker Hub. We use Ubuntu/Debian
+# instead of Alpine to avoid DNS resolution issues in production.
+#
+# https://hub.docker.com/r/hexpm/elixir/tags?page=1&name=ubuntu
+# https://hub.docker.com/_/ubuntu?tab=tags
+#
+# This file is based on these images:
+#
+#   - https://hub.docker.com/r/hexpm/elixir/tags - for the build image
+#   - https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye-20231009-slim - for the release image
+#   - https://pkgs.org/ - resource for finding needed packages
+#   - Ex: hexpm/elixir:1.16.0-erlang-26.2.1-debian-bullseye-20231009-slim
+#
 ARG ELIXIR_VERSION=1.16.0
 ARG OTP_VERSION=26.2.1
-ARG DEBIAN_VERSION=buster-20231009-slim
-ARG PHX_BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG MIX_ENV="prod"
+ARG DEBIAN_VERSION=bullseye-20231009-slim
 
-FROM rust:1.78.0 as rust
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+
+FROM rust:1.78.0-bullseye as rust
 # install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 WORKDIR /app
-COPY phx/native/tuistcloud_native ./
+COPY native/tuistcloud_native ./
 RUN cargo rustc --release
 
-FROM ${PHX_BUILDER_IMAGE} as phx-builder
-ARG MIX_ENV="prod"
-RUN apt-get update -y && apt-get install -y build-essential git openssl1.1 \
+FROM ${BUILDER_IMAGE} as builder
+
+# install build dependencies
+RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# prepare build dir
 WORKDIR /app
+
+# install hex + rebar
 RUN mix local.hex --force && \
     mix local.rebar --force
-ENV MIX_ENV=$MIX_ENV
-COPY phx/mix.exs phx/mix.lock ./
+
+# set build ENV
+ENV MIX_ENV="prod"
+
+# install mix dependencies
+COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
-COPY phx/config/config.exs phx/config/${MIX_ENV}.exs config/
-COPY phx/priv/secrets/secrets.yml.enc phx/priv/secrets/secrets.yml.enc
+RUN mkdir config
+
+# copy compile-time config files before we compile dependencies
+# to ensure any relevant config change will trigger the dependencies
+# to be re-compiled.
+COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
-COPY phx/priv priv
-COPY phx/lib lib
-COPY phx/assets assets
+
+COPY priv priv
+
+COPY lib lib
+
+COPY assets assets
+
+# compile assets
 RUN mix assets.deploy
+
+# Copy Rust native binary
 COPY --from=rust /app/target/release/libtuistcloud_native.so priv/native/libtuistcloud_native.so
+
+# Compile the release
 RUN mix compile
-COPY phx/config/runtime.exs config/
-COPY phx/rel rel
+
+# Changes to config/runtime.exs don't require recompiling the code
+COPY config/runtime.exs config/
+
+COPY rel rel
 RUN mix release
 
-FROM registry.docker.com/library/ruby:$RUBY_VERSION-slim as base-rails
+# start a new build stage so that the final image will only contain
+# the compiled release and other runtime necessities
+FROM ${RUNNER_IMAGE}
 
-# Rails app lives here
-WORKDIR /app
+RUN apt-get update -y && \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates  \
+  && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Install packages needed to build gems and NPM packages
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl openssl1.1
+# Set the locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-# Set production environment
-ENV RAILS_ENV=${RAILS_ENV} \
-    BUNDLE_DEPLOYMENT="1" \
-    BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development"
-ENV TUIST_VERSION=${TUIST_VERSION}
-
-# Install JavaScript dependencies
-ARG NODE_VERSION=18.18.0
-ARG YARN_VERSION=1.22.17
-ENV PATH=/usr/local/node/bin:$PATH
-RUN curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
-    /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
-    rm -rf /tmp/node-build-master
-
-# Throw-away build stage to reduce size of final image
-FROM base-rails as build-rails
-
-ARG RAILS_ENV=production
-ENV RAILS_ENV=${RAILS_ENV}
-ARG APP_REVISION=unknown
-ENV APP_REVISION=${APP_REVISION}
-ARG TUIST_VERSION=""
-ENV TUIST_VERSION=${TUIST_VERSION}
-
-# Install packages needed to build gems and NPM packages
-RUN apt-get install --no-install-recommends -y build-essential git libpq-dev libvips pkg-config
-
-# Install application gems
-COPY Gemfile Gemfile.lock ./
-RUN bundle install && \
-    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
-    bundle exec bootsnap precompile --gemfile
-
-# Copy application code
-COPY . .
-RUN rm -rf ./phx
-
-# Precompile bootsnap code for faster boot times
-RUN bundle exec bootsnap precompile app/ lib/
-
-# Precompiling assets for production without requiring secret RAILS_MASTER_KEY
-RUN SECRET_KEY_BASE_DUMMY=1 TUIST_SECRET_KEY_BASE=1 ./bin/rails assets:precompile
-
-# Final stage for app image
-FROM base-rails
-
-# Set the description
-LABEL org.opencontainers.image.title="Tuist Cloud"
-LABEL org.opencontainers.image.vendor="Tuist GmbH"
-LABEL org.opencontainers.image.source=https://github.com/tuist/cloud-on-premise
-
-ARG RAILS_ENV=production
-ENV RAILS_ENV=${RAILS_ENV}
-ARG APP_REVISION=unknown
-ENV APP_REVISION=${APP_REVISION}
-ARG TUIST_VERSION=""
-ENV TUIST_VERSION=${TUIST_VERSION}
-ARG MIX_ENV="prod"
-ENV MIX_ENV=$MIX_ENV
-ENV SECRETS_PATH="/app/phx/priv/secrets/secrets.yml.enc"
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 WORKDIR "/app"
+RUN chown nobody /app
 
-# Install packages needed for deployment
-RUN apt-get update -y && apt-get install --no-install-recommends -y parallel curl gcc wget libvips postgresql-client libstdc++6 libubsan1 libncurses5 ca-certificates make locales \
-    && apt-get clean && rm -f /var/lib/apt/lists/*_* && rm -rf /var/cache/apt/archives
-
-# Copy Procfile
-COPY Procfile Procfile
-
-# Install Hivemind
-RUN curl -L https://github.com/DarthSim/hivemind/releases/download/v1.1.0/hivemind-v1.1.0-linux-amd64.gz -o hivemind.gz
-RUN gunzip hivemind.gz
-RUN mv hivemind /usr/local/bin/hivemind
-RUN chmod +x /usr/local/bin/hivemind
-
-# Copy built artifacts: gems, application
-COPY --from=build-rails /usr/local/bundle /usr/local/bundle
-COPY --from=build-rails /app /app
-
-# Build openssl1.1.1 from the source
-RUN mkdir -p /tmp/openssl-src && \
-  cd /tmp/openssl-src && \
-  wget https://www.openssl.org/source/openssl-1.1.1o.tar.gz && \
-  tar -zxvf openssl-1.1.1o.tar.gz && \
-  cd openssl-1.1.1o && \
-  ./config && make && \
-  mkdir -p /opt/lib && \
-  mv /tmp/openssl-src/openssl-1.1.1o/libcrypto.so.1.1 /opt/lib/ && \
-  mv /tmp/openssl-src/openssl-1.1.1o/libssl.so.1.1 /opt/lib/
-ENV LD_LIBRARY_PATH=/opt/lib:$LD_LIBRARY_PATH
-
-# Run and own only the runtime files as a non-root user for security
-RUN useradd app --create-home --shell /bin/bash && \
-    chown -R app:app db log tmp
-USER app:app
+# set runner ENV
+ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
-COPY --from=phx-builder --chown=app:app /app/_build/${MIX_ENV}/rel/tuist_cloud ./phx
-COPY --from=phx-builder --chown=app:app /app/priv/secrets/secrets.yml.enc ./phx/priv/secrets/secrets.yml.enc
-# COPY --from=phx-builder --chown=app:app /app/deps/castore/priv/cacerts.pem ./deps/castore/priv/cacerts.pem
+COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist_cloud ./
+COPY priv/secrets/secrets.yml.enc /app/priv/secrets/secrets.yml.enc
+ENV SECRETS_PATH=/app/priv/secrets/secrets.yml.enc
 
-# Copy initial schema
-COPY phx/priv/repo/structure.sql /app/phx/priv/repo/structure.sql
+USER nobody
 
-# Entrypoint prepares the database.
-ENTRYPOINT ["/app/bin/docker-entrypoint"]
+# If using an environment that doesn't automatically reap zombie processes, it is
+# advised to add an init process such as tini via `apt-get install`
+# above and adding an entrypoint. See https://github.com/krallin/tini for details
+# ENTRYPOINT ["/tini", "--"]
 
-# Start the server by default, this can be overwritten at runtime
-EXPOSE 3000
-CMD ["/usr/local/bin/hivemind", "Procfile"]
-
-ENV DATABASE_CA_CERT_FILEPATH "/app/phx/deps/castore/priv/cacerts.pem"
+CMD ["/app/bin/server"]

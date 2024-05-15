@@ -1,1 +1,0 @@
-phx: cd ./phx && mix phx.server

@@ -1,30 +1,25 @@
+
+# EditorConfig is awesome: http://EditorConfig.org
+
+# .editorconfig for Elixir projects
+# https://git.io/elixir-editorconfig
+
+# top-most EditorConfig file
 root = true
 
 [*]
-end_of_line = lf
-indent_size = 2
 indent_style = space
-insert_final_newline = true
-tab_width = 8
+indent_size = 2
+end_of_line = lf
+charset = utf-8
 trim_trailing_whitespace = true
+insert_final_newline = true
 
-[*.bat]
-end_of_line = crlf
+[*.{md, markdown, eex}]
+trim_trailing_whitespace = false
 
-[*.gemspec]
-indent_size = 2
-
-[*.rb]
-indent_size = 2
-
-[*.yml]
-indent_size = 2
-
-[{*[Mm]akefile*,*.mak,*.mk,depend}]
+[Makefile]
 indent_style = tab
 
-[enc/*]
-indent_size = 2
-
-[reg*.[ch]]
-indent_size = 2
+#[*.bat]
+#end_of_line = crlf
