@@ -619,6 +619,26 @@ final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithAppClipWithWidgets: TuistAcceptanceTestCase {
+    func test_ios_app_with_appclip_with_widgets() async throws {
+        try setUpFixture(.iosAppWithAppClipWithWidgets)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            appClip: "AppClip1",
+            architecture: "arm64"
+        )
+        try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            extension: "AppClip1Widgets"
+        )
+    }
+}
+
 final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
     func test_command_line_tool_basic() async throws {
         try setUpFixture(.commandLineToolBasic)
