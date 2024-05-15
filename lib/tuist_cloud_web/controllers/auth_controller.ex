@@ -26,7 +26,6 @@ defmodule TuistCloudWeb.AuthController do
     conn
     |> put_flash(:info, "Successfully authenticated.")
     |> Authentication.log_in_user(user)
-    |> redirect(to: ~p"/")
   end
 
   def authenticate(conn, params) do
