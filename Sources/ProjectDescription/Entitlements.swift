@@ -9,6 +9,9 @@ public enum Entitlements: Codable, Equatable {
     /// A dictionary with the entitlements content. Tuist generates the .entitlements file at the generation time.
     case dictionary([String: Plist.Value])
 
+    /// A user defined xcconfig variable map to .entitlements file
+    case xcconfig(String? = nil)
+
     // MARK: - Error
 
     public enum CodingError: Error {
@@ -31,6 +34,10 @@ public enum Entitlements: Codable, Equatable {
 
 extension Entitlements: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self = .file(path: .path(value))
+        if value.hasPrefix("$(") {
+            self = .xcconfig(value)
+        } else {
+            self = .file(path: .path(value))
+        }
     }
 }

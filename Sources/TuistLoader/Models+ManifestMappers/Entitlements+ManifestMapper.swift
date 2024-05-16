@@ -19,6 +19,8 @@ extension TuistGraph.Entitlements {
             return .dictionary(
                 dictionary.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }
             )
+        case let .xcconfig(setting):
+            return .xcconfig(setting ?? "$(CODE_SIGN_ENTITLEMENTS)")
         case .none:
             return .none
         }

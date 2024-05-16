@@ -140,6 +140,9 @@ public enum Entitlements: Equatable, Codable {
     // User defined dictionary of keys/values for an .entitlements file.
     case dictionary([String: Plist.Value])
 
+    // A user defined xcconfig variable map to .entitlements file
+    case xcconfig(String)
+
     // MARK: - Public
 
     public var path: AbsolutePath? {
