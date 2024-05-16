@@ -19,7 +19,6 @@ public enum TuistAcceptanceFixtures {
     case invalidWorkspaceManifestName
     case iosAppLarge
     case iosAppWithAppClip
-    case iosAppWithAppClipWithWidgets
     case iosAppWithBuildVariables
     case iosAppWithCoreData
     case iosAppWithCustomConfiguration
@@ -109,8 +108,6 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_large"
         case .iosAppWithAppClip:
             return "ios_app_with_appclip"
-        case .iosAppWithAppClipWithWidgets:
-            return "ios_app_with_appclip_with_widgets"
         case .iosAppWithBuildVariables:
             return "ios_app_with_build_variables"
         case .iosAppWithCoreData:
