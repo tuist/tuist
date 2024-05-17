@@ -528,6 +528,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/alexfilimon"><img src="https://avatars.githubusercontent.com/u/19904867?v=4" width="100px;" alt=""/><br /><sub><b>Alexander Filimonov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/rofle100lvl"><img src="https://avatars.githubusercontent.com/u/45801227?v=4" width="100px;" alt=""/><br /><sub><b>Gorbenko Roman</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/lucas-paim/"><img src="https://avatars.githubusercontent.com/u/7849484?v=4" width="100px;" alt=""/><br /><sub><b>Lucas Mrowskovsky Paim</b></sub></a></td>
     </tr>
   </tbody>
 </table>
