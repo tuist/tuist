@@ -38,6 +38,7 @@ for _event <- 1..10000 do
   name = Enum.random(names)
   cacheable_targets = ["A", "B", "C", "D", "E", "F"]
   remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..5))
+  status = Enum.random([:success, :failure])
 
   CommandEvents.create_command_event(
     %{
@@ -53,7 +54,9 @@ for _event <- 1..10000 do
       subcommand: "",
       command_arguments: [],
       is_ci: false,
-      client_id: "client-id"
+      client_id: "client-id",
+      status: status,
+      error_message: nil
     },
     created_at:
       NaiveDateTime.new!(

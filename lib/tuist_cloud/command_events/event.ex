@@ -26,6 +26,8 @@ defmodule TuistCloud.CommandEvents.Event do
 
     field :is_ci, :boolean
     field :client_id, :string
+    field :status, Ecto.Enum, values: [success: 0, failure: 1]
+    field :error_message, :string
     belongs_to :project, Project
 
     # Rails names the field "created_at"
@@ -53,8 +55,11 @@ defmodule TuistCloud.CommandEvents.Event do
       :remote_cache_target_hits,
       :is_ci,
       :client_id,
-      :created_at
+      :created_at,
+      :status,
+      :error_message
     ])
     |> validate_required([:project_id, :name])
+    |> validate_inclusion(:status, [:success, :failure])
   end
 end

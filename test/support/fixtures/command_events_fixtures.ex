@@ -25,7 +25,9 @@ defmodule TuistCloud.CommandEventsFixtures do
         local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
         remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
         is_ci: false,
-        client_id: "client-id"
+        client_id: "client-id",
+        status: Keyword.get(attrs, :status, :success),
+        error_message: Keyword.get(attrs, :error_message)
       },
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     )

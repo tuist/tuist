@@ -107,6 +107,54 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       assert command_event.client_id == "client-id"
     end
 
+    test "returns newly created command event with status failure and error message", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            status: "failure",
+            error_message: "An error occurred"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "name" => "generate",
+               "id" => response["id"],
+               "project_id" => project.id
+             }
+
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      assert command_event.status == :failure
+      assert command_event.error_message == "An error occurred"
+    end
+
     test "returns newly created command event when CI and authenticated as a project", %{
       conn: conn,
       user: user
