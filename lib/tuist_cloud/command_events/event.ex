@@ -6,6 +6,7 @@ defmodule TuistCloud.CommandEvents.Event do
   import Ecto.Query, only: [from: 2]
   import Ecto.Changeset
   alias TuistCloud.Projects.Project
+  alias TuistCloud.Accounts.Account
 
   schema "command_events" do
     field :name, :string
@@ -20,9 +21,9 @@ defmodule TuistCloud.CommandEvents.Event do
     field :local_cache_target_hits, {:array, :string}
     field :remote_cache_target_hits, {:array, :string}
     # Tests
-    field :tested_targets, {:array, :string}
-    field :local_tested_target_hits, {:array, :string}
-    field :remote_tested_target_hits, {:array, :string}
+    field :test_targets, {:array, :string}
+    field :local_test_target_hits, {:array, :string}
+    field :remote_test_target_hits, {:array, :string}
 
     field :is_ci, :boolean
     field :client_id, :string
@@ -53,6 +54,9 @@ defmodule TuistCloud.CommandEvents.Event do
       :cacheable_targets,
       :local_cache_target_hits,
       :remote_cache_target_hits,
+      :test_targets,
+      :local_test_target_hits,
+      :remote_test_target_hits,
       :is_ci,
       :client_id,
       :created_at,
@@ -61,5 +65,57 @@ defmodule TuistCloud.CommandEvents.Event do
     ])
     |> validate_required([:project_id, :name])
     |> validate_inclusion(:status, [:success, :failure])
+  end
+
+  defmacro this_month_fragment() do
+    quote do
+      fragment(
+        "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
+        c.created_at,
+        ^TuistCloud.Time.utc_now()
+      )
+    end
+  end
+
+  def current_month_remote_binary_cache_hits_query(%Project{id: project_id}) do
+    from c in __MODULE__,
+      where: c.project_id == ^project_id,
+      where: this_month_fragment(),
+      where: fragment("array_length(?, 1) > 0", c.remote_cache_target_hits)
+  end
+
+  def current_month_remote_binary_cache_hits_query(%Account{id: account_id}) do
+    from c in __MODULE__,
+      join: p in Project,
+      on: p.id == c.project_id,
+      where: p.account_id == ^account_id,
+      where: this_month_fragment(),
+      where: fragment("array_length(?, 1) > 0", c.remote_cache_target_hits)
+  end
+
+  def current_month_tested_target_hits_query(%Project{id: project_id}) do
+    from c in __MODULE__,
+      where: c.project_id == ^project_id,
+      where:
+        fragment(
+          "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
+          c.created_at,
+          ^TuistCloud.Time.utc_now()
+        ),
+      where: fragment("array_length(?, 1) > 0", c.remote_test_target_hits)
+  end
+
+  def current_month_tested_target_hits_query(%Account{id: account_id}) do
+    from c in __MODULE__,
+      join: p in Project,
+      on: p.id == c.project_id,
+      where: p.account_id == ^account_id,
+      where:
+        fragment(
+          "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
+          c.created_at,
+          ^TuistCloud.Time.utc_now()
+        ),
+      where: fragment("array_length(?, 1) > 0", c.remote_test_target_hits)
   end
 end
