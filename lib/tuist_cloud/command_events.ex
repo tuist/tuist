@@ -476,7 +476,9 @@ defmodule TuistCloud.CommandEvents do
           local_cache_target_hits: local_cache_target_hits,
           remote_cache_target_hits: remote_cache_target_hits,
           is_ci: is_ci,
-          client_id: client_id
+          client_id: client_id,
+          status: status,
+          error_message: error_message
         },
         attrs \\ []
       ) do
@@ -495,6 +497,8 @@ defmodule TuistCloud.CommandEvents do
       remote_cache_target_hits: remote_cache_target_hits,
       is_ci: is_ci,
       client_id: client_id,
+      status: status,
+      error_message: error_message,
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     })
     |> Repo.insert!()

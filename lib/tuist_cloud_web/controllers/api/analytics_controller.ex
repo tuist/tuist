@@ -96,6 +96,15 @@ defmodule TuistCloudWeb.API.AnalyticsController do
            is_ci: %Schema{
              type: :boolean,
              description: "Whether the command was run in a CI environment."
+           },
+           status: %Schema{
+             type: :string,
+             description: "The status of the command.",
+             enum: [:success, :failure]
+           },
+           error_message: %Schema{
+             type: :string,
+             description: "The error message of the command."
            }
          },
          required: [
@@ -144,7 +153,9 @@ defmodule TuistCloudWeb.API.AnalyticsController do
           remote_cache_target_hits: Map.get(body_params.params, :remote_cache_target_hits, []),
           is_ci: body_params.is_ci,
           client_id: body_params.client_id,
-          project_id: project.id
+          project_id: project.id,
+          status: Map.get(body_params, :status),
+          error_message: Map.get(body_params, :error_message)
         })
 
       conn
