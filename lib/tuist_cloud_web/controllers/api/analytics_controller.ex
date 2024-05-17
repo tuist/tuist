@@ -90,6 +90,27 @@ defmodule TuistCloudWeb.API.AnalyticsController do
                  items: %Schema{
                    type: :string
                  }
+               },
+               test_targets: %Schema{
+                 type: :array,
+                 description: "The list of targets that were tested.",
+                 items: %Schema{
+                   type: :string
+                 }
+               },
+               local_test_target_hits: %Schema{
+                 type: :array,
+                 description: "A list of local targets whose tests were skipped.",
+                 items: %Schema{
+                   type: :string
+                 }
+               },
+               remote_test_target_hits: %Schema{
+                 type: :array,
+                 description: "A list of remote targets whose tests were skipped.",
+                 items: %Schema{
+                   type: :string
+                 }
                }
              }
            },
@@ -151,6 +172,9 @@ defmodule TuistCloudWeb.API.AnalyticsController do
           cacheable_targets: Map.get(body_params.params, :cacheable_targets, []),
           local_cache_target_hits: Map.get(body_params.params, :local_cache_target_hits, []),
           remote_cache_target_hits: Map.get(body_params.params, :remote_cache_target_hits, []),
+          test_targets: Map.get(body_params.params, :test_targets, []),
+          local_test_target_hits: Map.get(body_params.params, :local_test_target_hits, []),
+          remote_test_target_hits: Map.get(body_params.params, :remote_test_target_hits, []),
           is_ci: body_params.is_ci,
           client_id: body_params.client_id,
           project_id: project.id,

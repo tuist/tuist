@@ -8,13 +8,14 @@ defmodule TuistCloud.Accounts.Account do
   alias TuistCloud.Billing
 
   schema "accounts" do
-    field :plan, Ecto.Enum, values: [none: 0, enterprise: 1]
+    field :plan, Ecto.Enum, values: [none: 0, enterprise: 1, indie: 2, pro: 3]
     field :name, :string
     field :owner_type, :string
     field :owner_id, :integer
     field :cache_upload_event_count, :integer
     field :cache_download_event_count, :integer
     field :customer_id, :string
+    field :enterprise_plan_seats, :integer
 
     has_many(:projects, Project, on_delete: :delete_all)
 
@@ -34,6 +35,7 @@ defmodule TuistCloud.Accounts.Account do
         []
       end
     end)
+    |> validate_inclusion(:plan, [:none, :enterprise, :indie, :pro])
     |> validate_inclusion(:owner_type, ["User", "Organization"])
     |> unique_constraint(:name, name: "index_accounts_on_name")
     |> unique_constraint([:owner_id, :owner_type],
