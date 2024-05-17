@@ -10,7 +10,7 @@ public enum Entitlements: Codable, Equatable {
     case dictionary([String: Plist.Value])
 
     /// A user defined xcconfig variable map to .entitlements file
-    case xcconfig(String? = nil)
+    case variable(String)
 
     // MARK: - Error
 
@@ -35,7 +35,7 @@ public enum Entitlements: Codable, Equatable {
 extension Entitlements: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         if value.hasPrefix("$(") {
-            self = .xcconfig(value)
+            self = .variable(value)
         } else {
             self = .file(path: .path(value))
         }

@@ -260,7 +260,7 @@ final class ConfigGenerator: ConfigGenerating {
                     settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
                 }
             }
-            if case let .xcconfig(configName) = entitlements {
+            if case let .variable(configName) = entitlements {
                 settings["CODE_SIGN_ENTITLEMENTS"] = .string(configName)
             }
         }

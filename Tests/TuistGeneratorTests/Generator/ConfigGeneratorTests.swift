@@ -845,7 +845,48 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             name: "app",
             platform: .iOS,
             product: .appClip,
-            entitlements: .xcconfig("$(MY_CUSTOM_VARIABLE)")
+            entitlements: .variable("$(MY_CUSTOM_VARIABLE)")
+        )
+
+        let project = Project.test(targets: [appClip])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                appClip.name: appClip,
+            ],
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            appClip,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["CODE_SIGN_ENTITLEMENTS"]
+        XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
+    }
+
+    func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvidedByStringLiteral(
+    ) throws {
+        let projectSettings = Settings.default
+        let appClip = Target.test(
+            name: "app",
+            platform: .iOS,
+            product: .appClip,
+            entitlements: "$(MY_CUSTOM_VARIABLE)"
         )
 
         let project = Project.test(targets: [appClip])

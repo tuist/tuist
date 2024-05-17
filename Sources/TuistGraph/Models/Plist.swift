@@ -141,7 +141,7 @@ public enum Entitlements: Equatable, Codable {
     case dictionary([String: Plist.Value])
 
     // A user defined xcconfig variable map to .entitlements file
-    case xcconfig(String)
+    case variable(String)
 
     // MARK: - Public
 
@@ -159,6 +159,10 @@ public enum Entitlements: Equatable, Codable {
 
 extension Entitlements: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+        if value.hasPrefix("$(") {
+            self = .variable(value)
+        } else {
+            self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+        }
     }
 }
