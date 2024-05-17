@@ -1355,6 +1355,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "lucasmpaim",
+      "name": "Lucas Mrowskovsky Paim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7849484?v=4",
+      "profile": "https://www.linkedin.com/in/lucas-paim/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
