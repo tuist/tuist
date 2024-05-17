@@ -71,9 +71,9 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--path", fixturePath.pathString,
-        ]
+        ] + arguments
 
         var parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()

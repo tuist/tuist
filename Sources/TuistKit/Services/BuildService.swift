@@ -65,7 +65,8 @@ public final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator: ((Config) throws -> Generating)? = nil
+        generator: ((Config) throws -> Generating)? = nil,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph
         let config = try configLoader.loadConfig(path: path)
@@ -128,7 +129,8 @@ public final class BuildService {
                 device: device,
                 osVersion: osVersion?.version(),
                 rosetta: rosetta,
-                graphTraverser: graphTraverser
+                graphTraverser: graphTraverser,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } else {
             var cleaned = false
@@ -159,7 +161,8 @@ public final class BuildService {
                     device: device,
                     osVersion: osVersion?.version(),
                     rosetta: rosetta,
-                    graphTraverser: graphTraverser
+                    graphTraverser: graphTraverser,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
                 cleaned = true
             }

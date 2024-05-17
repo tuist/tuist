@@ -16,6 +16,7 @@ public protocol XcodeBuildControlling {
     ///   to determine the destination.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -23,7 +24,8 @@ public protocol XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable to test the given project using xcodebuild.

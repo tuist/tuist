@@ -3,6 +3,8 @@ import TuistAcceptanceTesting
 import TuistSupport
 import XCTest
 
+@testable import TuistKit
+
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
@@ -12,6 +14,31 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "MyApp")
         try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
+        try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
+    }
+}
+
+final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
+    func test_with_invalid_arguments() async throws {
+        try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
+            BuildCommandError.passthroughArgumentAlreadyHandled("-scheme")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
+            BuildCommandError.passthroughArgumentAlreadyHandled("-project")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
+            BuildCommandError.passthroughArgumentAlreadyHandled("-workspace")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
+            SystemError.terminated(command: "xcodebuild", code: 64, standardError: Data("xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n".utf8))
+        )
     }
 }
 

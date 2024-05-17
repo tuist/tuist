@@ -12,7 +12,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         Bool,
         AbsolutePath?,
         Bool,
-        [XcodeBuildArgument]
+        [XcodeBuildArgument],
+        [String]
     ) -> [SystemEvent<XcodeBuildOutput>])?
 
     func build(
@@ -22,7 +23,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub {
             return buildStub(
@@ -32,7 +34,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 rosetta,
                 derivedDataPath,
                 clean,
-                arguments
+                arguments,
+                passthroughXcodeBuildArguments
             ).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {

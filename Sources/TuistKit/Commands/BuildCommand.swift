@@ -4,6 +4,24 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 
+enum BuildCommandError: FatalError, Equatable {
+    case passthroughArgumentAlreadyHandled(String)
+
+    var description: String {
+        switch self {
+        case let .passthroughArgumentAlreadyHandled(argument):
+            "The argument \(argument) added after the terminator (--) cannot be passthrough to xcodebuild because it is handled by tuist"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .passthroughArgumentAlreadyHandled:
+            .abort
+        }
+    }
+}
+
 public struct BuildOptions: ParsableArguments {
     public init() {}
 
@@ -18,7 +36,7 @@ public struct BuildOptions: ParsableArguments {
     public var generate: Bool = false
 
     @Flag(
-        help: "When passed, it cleans the project before building it"
+        help: "[Deprecated] When passed, it cleans the project before building it"
     )
     public var clean: Bool = false
 
@@ -31,31 +49,31 @@ public struct BuildOptions: ParsableArguments {
 
     @Option(
         name: .shortAndLong,
-        help: "Build on a specific device."
+        help: "[Deprecated] Build on a specific device."
     )
     public var device: String?
 
     @Option(
         name: .long,
-        help: "Build for a specific platform."
+        help: "[Deprecated] Build for a specific platform."
     )
     public var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Build with a specific version of the OS."
+        help: "[Deprecated] Build with a specific version of the OS."
     )
     public var os: String?
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "[Deprecated] When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
     )
     public var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when building the scheme."
+        help: "[Deprecated] The configuration to be used when building the scheme."
     )
     public var configuration: String?
 
@@ -66,7 +84,7 @@ public struct BuildOptions: ParsableArguments {
     public var buildOutputPath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when building the project."
+        help: "[Deprecated] Overrides the folder that should be used for derived data when building the project."
     )
     public var derivedDataPath: String?
 
@@ -75,6 +93,12 @@ public struct BuildOptions: ParsableArguments {
         help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
     )
     public var generateOnly: Bool = false
+    
+    @Argument(
+        parsing: .postTerminator,
+        help: "xcodebuild arguments that will be passthrough"
+    )
+    var passthroughXcodeBuildArguments: [String] = []
 }
 
 /// Command that builds a target from the project in the current directory.
@@ -92,11 +116,35 @@ public struct BuildCommand: AsyncParsableCommand {
     var buildOptions: BuildOptions
 
     public func run() async throws {
-        let absolutePath: AbsolutePath
-        if let path = buildOptions.path {
-            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+        // Check if passthrough arguments are already handled by tuist
+        if buildOptions.passthroughXcodeBuildArguments.contains("-scheme") {
+            throw BuildCommandError.passthroughArgumentAlreadyHandled("-scheme")
+        }
+        if buildOptions.passthroughXcodeBuildArguments.contains("-workspace") {
+            throw BuildCommandError.passthroughArgumentAlreadyHandled("-workspace")
+        }
+        if buildOptions.passthroughXcodeBuildArguments.contains("-project") {
+            throw BuildCommandError.passthroughArgumentAlreadyHandled("-project")
+        }
+
+        // Suggest the user to use passthrough arguments if already supported by xcodebuild
+        if buildOptions.platform != nil || buildOptions.os != nil || buildOptions.device != nil || buildOptions.rosetta {
+            logger.warning("--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if let configuration = buildOptions.configuration {
+            logger.warning("--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if buildOptions.clean {
+            logger.warning("--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if let derivedDataPath = buildOptions.derivedDataPath {
+            logger.warning("--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+
+        let absolutePath = if let path = buildOptions.path {
+            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            absolutePath = FileHandler.shared.currentPath
+            FileHandler.shared.currentPath
         }
 
         try await BuildService().run(
@@ -114,7 +162,8 @@ public struct BuildCommand: AsyncParsableCommand {
             platform: buildOptions.platform,
             osVersion: buildOptions.os,
             rosetta: buildOptions.rosetta,
-            generateOnly: buildOptions.generateOnly
+            generateOnly: buildOptions.generateOnly,
+            passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
         )
     }
 }

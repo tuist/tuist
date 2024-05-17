@@ -38,7 +38,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool = false,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -56,6 +57,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
 
         // Destination
         switch destination {
