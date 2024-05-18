@@ -5,24 +5,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum TestCommandError: FatalError, Equatable {
-    case passthroughArgumentAlreadyHandled(String)
-
-    var description: String {
-        switch self {
-        case let .passthroughArgumentAlreadyHandled(argument):
-            "The argument \(argument) added after the terminator (--) cannot be passthrough to xcodebuild because it is handled by tuist"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .passthroughArgumentAlreadyHandled:
-            .abort
-        }
-    }
-}
-
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
@@ -176,7 +158,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         // Check if passthrough arguments are already handled by tuist
         try notAllowedPassthroughXcodeBuildArguments.forEach {
             if passthroughXcodeBuildArguments.contains($0) {
-                throw TestCommandError.passthroughArgumentAlreadyHandled($0)
+                throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
             }
         }
         

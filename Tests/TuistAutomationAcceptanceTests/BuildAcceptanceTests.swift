@@ -25,15 +25,15 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         await XCTAssertThrowsSpecific(
             try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
-            BuildCommandError.passthroughArgumentAlreadyHandled("-scheme")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
         )
         await XCTAssertThrowsSpecific(
             try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
-            BuildCommandError.passthroughArgumentAlreadyHandled("-project")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
         )
         await XCTAssertThrowsSpecific(
             try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
-            BuildCommandError.passthroughArgumentAlreadyHandled("-workspace")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
         )
         await XCTAssertThrowsSpecific(
             try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),

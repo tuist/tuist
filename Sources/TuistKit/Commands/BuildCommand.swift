@@ -4,19 +4,19 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 
-enum BuildCommandError: FatalError, Equatable {
-    case passthroughArgumentAlreadyHandled(String)
+enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
+    case alreadyHandled(String)
 
     var description: String {
         switch self {
-        case let .passthroughArgumentAlreadyHandled(argument):
+        case let .alreadyHandled(argument):
             "The argument \(argument) added after the terminator (--) cannot be passthrough to xcodebuild because it is handled by tuist"
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .passthroughArgumentAlreadyHandled:
+        case .alreadyHandled:
             .abort
         }
     }
@@ -125,7 +125,7 @@ public struct BuildCommand: AsyncParsableCommand {
         // Check if passthrough arguments are already handled by tuist
         try notAllowedPassthroughXcodeBuildArguments.forEach {
             if buildOptions.passthroughXcodeBuildArguments.contains($0) {
-                throw BuildCommandError.passthroughArgumentAlreadyHandled($0)
+                throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
             }
         }
 

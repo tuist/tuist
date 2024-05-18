@@ -25,35 +25,35 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         try setUpFixture(.appWithFrameworkAndTests)
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-scheme", "App"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-scheme")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-project", "App"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-project")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-workspace", "App"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-workspace")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-testPlan", "TestPlan"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-testPlan")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-testPlan")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-skip-test-configuration", "TestPlan"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-skip-test-configuration")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-test-configuration")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-only-test-configuration", "TestPlan"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-only-test-configuration")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-only-test-configuration")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-only-testing", "AppTests"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-only-testing")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-only-testing")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-skip-testing", "AppTests"),
-            TestCommandError.passthroughArgumentAlreadyHandled("-skip-testing")
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-testing")
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
