@@ -37,7 +37,14 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
         )
         await XCTAssertThrowsSpecific(
             try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
-            SystemError.terminated(command: "xcodebuild", code: 64, standardError: Data("xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n".utf8))
+            SystemError.terminated(
+                command: "xcodebuild",
+                code: 64,
+                standardError: Data(
+                    "xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n"
+                        .utf8
+                )
+            )
         )
         // SystemError is too verbose to inline it
         // xcodebuild: error: option '-configuration' may only be provided once

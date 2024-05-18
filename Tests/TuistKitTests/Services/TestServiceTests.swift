@@ -681,7 +681,7 @@ extension TestService {
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             testPlanConfiguration: testPlanConfiguration,
-            generateOnly: generateOnly, 
+            generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }

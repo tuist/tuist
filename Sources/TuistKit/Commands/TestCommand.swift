@@ -135,14 +135,14 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "xcodebuild arguments that will be passthrough"
     )
     var passthroughXcodeBuildArguments: [String] = []
-    
+
     public func validate() throws {
         try TestService().validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
         )
     }
-    
+
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",
         "-workspace",
@@ -151,7 +151,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         "-skip-test-configuration",
         "-only-test-configuration",
         "-only-testing",
-        "-skip-testing"
+        "-skip-testing",
     ]
 
     public func run() async throws {
@@ -161,27 +161,45 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
             }
         }
-        
+
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if platform != nil || os != nil || device != nil || rosetta {
-            logger.warning("--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if let configuration {
-            logger.warning("--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if clean {
-            logger.warning("--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if let derivedDataPath {
-            logger.warning("--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if let resultBundlePath {
-            logger.warning("--resultBundlePath is deprecated please use -resultBundlePath \(resultBundlePath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--resultBundlePath is deprecated please use -resultBundlePath \(resultBundlePath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if retryCount > 0 {
-            logger.warning("--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
-        
+
         let absolutePath = if let path {
             try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
@@ -216,7 +234,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
-            generateOnly: generateOnly, 
+            generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }

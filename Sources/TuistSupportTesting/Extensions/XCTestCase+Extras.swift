@@ -139,7 +139,7 @@ extension XCTestCase {
         }
         XCTFail("No error was thrown", file: file, line: line)
     }
-    
+
     public func XCTAssertThrows(
         _ closure: @autoclosure () async throws -> some Any,
         file: StaticString = #file,

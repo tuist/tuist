@@ -93,7 +93,7 @@ public struct BuildOptions: ParsableArguments {
         help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
     )
     public var generateOnly: Bool = false
-    
+
     @Argument(
         parsing: .postTerminator,
         help: "xcodebuild arguments that will be passthrough"
@@ -120,7 +120,7 @@ public struct BuildCommand: AsyncParsableCommand {
         "-workspace",
         "-project",
     ]
-    
+
     public func run() async throws {
         // Check if passthrough arguments are already handled by tuist
         try notAllowedPassthroughXcodeBuildArguments.forEach {
@@ -131,16 +131,28 @@ public struct BuildCommand: AsyncParsableCommand {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if buildOptions.platform != nil || buildOptions.os != nil || buildOptions.device != nil || buildOptions.rosetta {
-            logger.warning("--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if let configuration = buildOptions.configuration {
-            logger.warning("--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if buildOptions.clean {
-            logger.warning("--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
         if let derivedDataPath = buildOptions.derivedDataPath {
-            logger.warning("--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+            logger
+                .warning(
+                    "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
         }
 
         let absolutePath = if let path = buildOptions.path {

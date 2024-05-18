@@ -14,13 +14,13 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
         try await run(TestCommand.self, "App", "--", "-testLanguage", "en")
     }
-    
+
     func test_with_app_with_test_plan() async throws {
         try setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
     }
-    
+
     func test_with_invalid_arguments() async throws {
         try setUpFixture(.appWithFrameworkAndTests)
         await XCTAssertThrowsSpecific(
@@ -57,13 +57,20 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         )
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
-            SystemError.terminated(command: "xcodebuild", code: 64, standardError: Data("xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n".utf8))
+            SystemError.terminated(
+                command: "xcodebuild",
+                code: 64,
+                standardError: Data(
+                    "xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n"
+                        .utf8
+                )
+            )
         )
         // SystemError is too verbose to inline it
         // xcodebuild: error: option '-configuration' may only be provided once
         // Usage: xcodebuild [-project <projectname>] ...
         await XCTAssertThrows(
-            try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration",  "Debug")
+            try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration", "Debug")
         )
     }
 }

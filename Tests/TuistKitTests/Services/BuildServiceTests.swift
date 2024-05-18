@@ -327,7 +327,7 @@ extension BuildService {
             platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
-            generateOnly: generateOnly, 
+            generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }

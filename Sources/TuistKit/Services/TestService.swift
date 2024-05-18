@@ -261,7 +261,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration, 
+                    testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }

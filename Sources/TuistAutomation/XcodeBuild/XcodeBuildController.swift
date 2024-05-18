@@ -163,8 +163,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 command.append(contentsOf: ["-skip-test-configuration", configuration])
             }
         }
-        
-        
 
         return try run(command: command)
     }
