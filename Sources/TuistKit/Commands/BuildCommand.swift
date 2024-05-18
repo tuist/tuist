@@ -115,16 +115,18 @@ public struct BuildCommand: AsyncParsableCommand {
     @OptionGroup()
     var buildOptions: BuildOptions
 
+    private var notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+    ]
+    
     public func run() async throws {
         // Check if passthrough arguments are already handled by tuist
-        if buildOptions.passthroughXcodeBuildArguments.contains("-scheme") {
-            throw BuildCommandError.passthroughArgumentAlreadyHandled("-scheme")
-        }
-        if buildOptions.passthroughXcodeBuildArguments.contains("-workspace") {
-            throw BuildCommandError.passthroughArgumentAlreadyHandled("-workspace")
-        }
-        if buildOptions.passthroughXcodeBuildArguments.contains("-project") {
-            throw BuildCommandError.passthroughArgumentAlreadyHandled("-project")
+        try notAllowedPassthroughXcodeBuildArguments.forEach {
+            if buildOptions.passthroughXcodeBuildArguments.contains($0) {
+                throw BuildCommandError.passthroughArgumentAlreadyHandled($0)
+            }
         }
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild

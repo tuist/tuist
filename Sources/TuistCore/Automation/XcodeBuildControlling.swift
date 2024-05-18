@@ -40,6 +40,7 @@ public protocol XcodeBuildControlling {
     ///   - testTargets: A list of test identifiers indicating which tests to run
     ///   - skipTestTargets: A list of test identifiers indicating which tests to skip
     ///   - testPlanConfiguration: A configuration object indicating which test plan to use and its configurations
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -52,7 +53,8 @@ public protocol XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.

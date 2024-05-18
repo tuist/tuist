@@ -5,6 +5,24 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+enum TestCommandError: FatalError, Equatable {
+    case passthroughArgumentAlreadyHandled(String)
+
+    var description: String {
+        switch self {
+        case let .passthroughArgumentAlreadyHandled(argument):
+            "The argument \(argument) added after the terminator (--) cannot be passthrough to xcodebuild because it is handled by tuist"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .passthroughArgumentAlreadyHandled:
+            .abort
+        }
+    }
+}
+
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
@@ -25,7 +43,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: .shortAndLong,
-        help: "When passed, it cleans the project before testing it."
+        help: "[Deprecated] When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
 
@@ -37,31 +55,31 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "Test on a specific device."
+        help: "[Deprecated] Test on a specific device."
     )
     var device: String?
 
     @Option(
         name: .long,
-        help: "Test on a specific platform."
+        help: "[Deprecated] Test on a specific platform."
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Test with a specific version of the OS."
+        help: "[Deprecated] Test with a specific version of the OS."
     )
     var os: String?
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "[Deprecated] When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
     )
     var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when testing the scheme."
+        help: "[Deprecated] The configuration to be used when testing the scheme."
     )
     var configuration: String?
 
@@ -73,18 +91,18 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.long, .customShort("T")],
-        help: "Path where test result bundle will be saved."
+        help: "[Deprecated] Path where test result bundle will be saved."
     )
     var resultBundlePath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when testing a project."
+        help: "[Deprecated] Overrides the folder that should be used for derived data when testing a project."
     )
     var derivedDataPath: String?
 
     @Option(
         name: .long,
-        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
+        help: "[Deprecated] Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
     )
     var retryCount: Int = 0
 
@@ -130,20 +148,62 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var generateOnly: Bool = false
 
+    @Argument(
+        parsing: .postTerminator,
+        help: "xcodebuild arguments that will be passthrough"
+    )
+    var passthroughXcodeBuildArguments: [String] = []
+    
     public func validate() throws {
         try TestService().validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
         )
     }
+    
+    private var notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing"
+    ]
 
     public func run() async throws {
-        let absolutePath: AbsolutePath
-
-        if let path {
-            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+        // Check if passthrough arguments are already handled by tuist
+        try notAllowedPassthroughXcodeBuildArguments.forEach {
+            if passthroughXcodeBuildArguments.contains($0) {
+                throw TestCommandError.passthroughArgumentAlreadyHandled($0)
+            }
+        }
+        
+        // Suggest the user to use passthrough arguments if already supported by xcodebuild
+        if platform != nil || os != nil || device != nil || rosetta {
+            logger.warning("--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if let configuration {
+            logger.warning("--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if clean {
+            logger.warning("--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if let derivedDataPath {
+            logger.warning("--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if let resultBundlePath {
+            logger.warning("--resultBundlePath is deprecated please use -resultBundlePath \(resultBundlePath) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        if retryCount > 0 {
+            logger.warning("--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild")
+        }
+        
+        let absolutePath = if let path {
+            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            absolutePath = FileHandler.shared.currentPath
+            FileHandler.shared.currentPath
         }
 
         try await TestService().run(
@@ -174,7 +234,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
-            generateOnly: generateOnly
+            generateOnly: generateOnly, 
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

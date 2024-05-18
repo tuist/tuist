@@ -3,6 +3,8 @@ import TuistAcceptanceTesting
 import TuistSupport
 import XCTest
 
+@testable import TuistKit
+
 /// Test projects using tuist test
 final class TestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_app_with_framework_and_tests() async throws {
@@ -10,12 +12,59 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App")
         try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
+        try await run(TestCommand.self, "App", "--", "-testLanguage", "en")
     }
-
+    
     func test_with_app_with_test_plan() async throws {
         try setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
+    }
+    
+    func test_with_invalid_arguments() async throws {
+        try setUpFixture(.appWithFrameworkAndTests)
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-scheme", "App"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-scheme")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-project", "App"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-project")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-workspace", "App"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-workspace")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-testPlan", "TestPlan"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-testPlan")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-skip-test-configuration", "TestPlan"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-skip-test-configuration")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-only-test-configuration", "TestPlan"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-only-test-configuration")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-only-testing", "AppTests"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-only-testing")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-skip-testing", "AppTests"),
+            TestCommandError.passthroughArgumentAlreadyHandled("-skip-testing")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
+            SystemError.terminated(command: "xcodebuild", code: 64, standardError: Data("xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n".utf8))
+        )
+        // SystemError is too verbose to inline it
+        // xcodebuild: error: option '-configuration' may only be provided once
+        // Usage: xcodebuild [-project <projectname>] ...
+        await XCTAssertThrows(
+            try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration",  "Debug")
+        )
     }
 }
 

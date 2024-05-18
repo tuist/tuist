@@ -95,7 +95,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -114,6 +115,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
+        
         // Retry On Failure
         if retryCount > 0 {
             command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
@@ -159,6 +163,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 command.append(contentsOf: ["-skip-test-configuration", configuration])
             }
         }
+        
+        
 
         return try run(command: command)
     }
