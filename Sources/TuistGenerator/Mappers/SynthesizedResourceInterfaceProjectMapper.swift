@@ -181,7 +181,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     }
                 }
             }()
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
+        case .assets, .stringsCatalog, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
             break
         }
 
@@ -206,6 +206,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         switch parser {
         case .assets:
             return SynthesizedResourceInterfaceTemplates.assetsTemplate
+        case .stringsCatalog:
+            return SynthesizedResourceInterfaceTemplates.stringsCatalogTemplate
         case .strings:
             return SynthesizedResourceInterfaceTemplates.stringsTemplate
         case .plists:

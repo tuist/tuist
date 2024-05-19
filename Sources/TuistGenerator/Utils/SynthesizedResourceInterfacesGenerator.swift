@@ -52,6 +52,8 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         switch parser {
         case .assets:
             return try AssetsCatalog.Parser(options: options)
+        case .stringsCatalog:
+            return try JSON.Parser(options: options)
         case .strings:
             return try Strings.Parser(options: options)
         case .plists:

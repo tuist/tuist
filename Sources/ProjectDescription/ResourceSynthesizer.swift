@@ -32,6 +32,7 @@ public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:thi
     /// https://github.com/SwiftGen/SwiftGen#available-parsers
     public enum Parser: String, Codable {
         case strings
+        case stringsCatalog
         case assets
         case plists
         case fonts
@@ -88,6 +89,40 @@ public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:thi
             parser: .strings,
             parserOptions: parserOptions,
             extensions: ["strings", "stringsdict"]
+        )
+    }
+    
+    /// Default strings synthesizer defined in `Tuist/{ProjectName}` or tuist itself
+    public static func stringsCatalog(parserOptions: [String: Parser.Option] = [:]) -> Self {
+        .stringsCatalog(
+            templateType: .defaultTemplate(resourceName: "StringsCatalog"),
+            parserOptions: parserOptions
+        )
+    }
+
+    /// Strings synthesizer defined in a plugin
+    public static func stringsCatalog(
+        plugin: String,
+        parserOptions: [String: Parser.Option] = [:]
+    ) -> Self {
+        .stringsCatalog(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "StringsCatalog"
+            ),
+            parserOptions: parserOptions
+        )
+    }
+
+    private static func stringsCatalog(
+        templateType: TemplateType,
+        parserOptions: [String: Parser.Option] = [:]
+    ) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .stringsCatalog,
+            parserOptions: parserOptions,
+            extensions: ["xcstrings"]
         )
     }
 
@@ -406,6 +441,7 @@ extension [ResourceSynthesizer] {
             .assets(),
             .plists(),
             .fonts(),
+            .stringsCatalog()
         ]
     }
 }
