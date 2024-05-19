@@ -14,6 +14,31 @@ extension SynthesizedResourceInterfaceTemplates {
 
     // MARK: - Strings Catalog
 
+    {% macro documentBlock file document %}
+      {% if document.metadata.type == "Dictionary" %}
+        {% for key,value in document.metadata.properties %}
+      {% call propertyBlock key value document.data %}
+    {% endfor %}
+    {% endif %}
+    {% endmacro %}
+
+    {# process the root dictionary #}
+    {% macro propertyBlock key metadata data %}
+    {% set propertyName %}{{key|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}{% endset %}
+    {% if propertyName == "strings" %}
+          {% set sourceLanguage %}{{ data.sourceLanguage }}{% endset %}
+          {% for propertyKey in data[key] %}
+          {% set propertyComment %}{{ data[key][propertyKey].comment }}{% endset %}
+          {% set propertyValue %}{{data[key][propertyKey].localizations[sourceLanguage].stringUnit.value}}{% endset %}
+          {% set propertyPlural %}{{data[key][propertyKey].localizations[sourceLanguage].variations.plural}}{% endset %}
+          {% set propertyDevice %}{{data[key][propertyKey].localizations[sourceLanguage].variations.device}}{% endset %}
+          {# Strings keys #}
+          // {{ propertyKey }}
+        {% endfor %}
+      {% else %}
+      {% endif %}
+    {% endmacro %}
+
     // swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
     // swiftlint:disable nesting type_body_length type_name
     {% set enumName %}{{param.name}}StringsCatalog{% endset %}
@@ -21,7 +46,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% if files.count > 1 or param.forceFileNameEnum %}
       {% for file in files %}
       {{accessModifier}} enum {{file.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
-        {# {% filter indent:2 %}{% call recursiveBlock table.name table.levels %}{% endfilter %} #}
+        {% call documentBlock file file.document %}
       }
       {% endfor %}
       {% else %}
@@ -31,7 +56,6 @@ extension SynthesizedResourceInterfaceTemplates {
 
     // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
     // swiftlint:enable nesting type_body_length type_name
-
 
     // MARK: - Implementation Details
 
