@@ -12,14 +12,19 @@ defmodule TuistCloudWeb.CommandEventComponents do
 
   def command_event_ran_by_badge(assigns) do
     ~H"""
-    <%= if @command_event.is_ci do %>
-      <.badge title={gettext("CI")} kind={:neutral}>
-        <:icon><.settings /></:icon>
-      </.badge>
-    <% else %>
-      <.badge title={gettext("Unknown")} kind={:warning}>
-        <:icon><.user /></:icon>
-      </.badge>
+    <%= cond do %>
+      <% not is_nil(@command_event.user) -> %>
+        <.badge title={@command_event.user.account.name} kind={:brand}>
+          <:icon><.user /></:icon>
+        </.badge>
+      <% @command_event.is_ci -> %>
+        <.badge title={gettext("CI")} kind={:neutral}>
+          <:icon><.settings /></:icon>
+        </.badge>
+      <% true -> %>
+        <.badge title={gettext("Unknown")} kind={:warning}>
+          <:icon><.user /></:icon>
+        </.badge>
     <% end %>
     """
   end

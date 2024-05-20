@@ -8,6 +8,26 @@ defmodule TuistCloud.CommandEventsTest do
   use TuistCloud.DataCase
   use Mimic
 
+  describe "get_command_event_by_id/1" do
+    test "returns a command event" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          user_id: user.id
+        )
+        |> Repo.preload(user: :account)
+
+      # When
+      got = CommandEvents.get_command_event_by_id(command_event.id)
+
+      # Then
+      assert got == command_event
+    end
+  end
+
   describe "list_command_events/1" do
     test "returns command events" do
       # Given
@@ -21,6 +41,7 @@ defmodule TuistCloud.CommandEventsTest do
           duration: 1000,
           created_at: ~N[2024-03-04 01:00:00]
         )
+        |> Repo.preload(user: :account)
 
       CommandEventsFixtures.command_event_fixture(
         project_id: project_two.id,
@@ -36,6 +57,7 @@ defmodule TuistCloud.CommandEventsTest do
           duration: 500,
           created_at: ~N[2024-03-05 03:00:00]
         )
+        |> Repo.preload(user: :account)
 
       command_event_three =
         CommandEventsFixtures.command_event_fixture(
@@ -44,6 +66,7 @@ defmodule TuistCloud.CommandEventsTest do
           duration: 500,
           created_at: ~N[2024-03-05 04:00:00]
         )
+        |> Repo.preload(user: :account)
 
       command_event_four =
         CommandEventsFixtures.command_event_fixture(
@@ -52,6 +75,7 @@ defmodule TuistCloud.CommandEventsTest do
           duration: 500,
           created_at: ~N[2024-03-05 05:00:00]
         )
+        |> Repo.preload(user: :account)
 
       command_event_five =
         CommandEventsFixtures.command_event_fixture(
@@ -60,6 +84,7 @@ defmodule TuistCloud.CommandEventsTest do
           duration: 500,
           created_at: ~N[2024-03-05 06:00:00]
         )
+        |> Repo.preload(user: :account)
 
       # When
       {got_command_events_first_page, got_meta_first_page} =

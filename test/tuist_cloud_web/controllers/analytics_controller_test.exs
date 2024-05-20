@@ -153,6 +153,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.status == :failure
       assert command_event.error_message == "An error occurred"
+      assert command_event.user_id == user.id
     end
 
     test "returns newly created command event when CI and authenticated as a project", %{

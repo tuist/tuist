@@ -29,6 +29,7 @@ defmodule TuistCloud.CommandEventsFixtures do
         remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
         is_ci: false,
         client_id: "client-id",
+        user_id: Keyword.get(attrs, :user_id, 1),
         status: Keyword.get(attrs, :status, :success),
         error_message: Keyword.get(attrs, :error_message)
       },

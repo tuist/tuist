@@ -71,11 +71,14 @@ defmodule TuistCloud.CommandEvents do
   end
 
   def list_command_events(attrs) do
-    Flop.validate_and_run!(Event, attrs)
+    Event
+    |> preload(user: :account)
+    |> Flop.validate_and_run!(attrs)
   end
 
   def get_command_event_by_id(id) do
     Repo.get(Event, id)
+    |> Repo.preload(user: :account)
   end
 
   def get_command_duration_analytics(
@@ -483,6 +486,7 @@ defmodule TuistCloud.CommandEvents do
           local_test_target_hits: local_test_target_hits,
           remote_test_target_hits: remote_test_target_hits,
           is_ci: is_ci,
+          user_id: user_id,
           client_id: client_id,
           status: status,
           error_message: error_message
@@ -506,6 +510,7 @@ defmodule TuistCloud.CommandEvents do
       local_test_target_hits: local_test_target_hits,
       remote_test_target_hits: remote_test_target_hits,
       is_ci: is_ci,
+      user_id: user_id,
       client_id: client_id,
       status: status,
       error_message: error_message,

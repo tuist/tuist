@@ -9,6 +9,8 @@ account =
   Accounts.get_user_by_email(email) ||
     Accounts.create_user(email, password: password, confirmed_at: NaiveDateTime.utc_now())
 
+user = Accounts.get_user_by_email(email)
+
 _tuist_project =
   Projects.get_project_by_slug("tuist/tuist") ||
     Projects.create_project(%{name: "tuist", account: %{id: account.id}}, token: "tuist")
@@ -37,6 +39,8 @@ for _event <- 1..10000 do
   names = ["build", "test", "cache", "generate"]
   name = Enum.random(names)
   status = Enum.random([:success, :failure])
+  is_ci = Enum.random([true, false])
+  user_id = if is_ci, do: nil, else: user.id
 
   cacheable_targets = [
     "TargetOne",
@@ -77,7 +81,8 @@ for _event <- 1..10000 do
       macos_version: "10.15",
       subcommand: "",
       command_arguments: [],
-      is_ci: Enum.random([true, false]),
+      is_ci: is_ci,
+      user_id: user_id,
       client_id: "client-id",
       status: status,
       error_message: nil

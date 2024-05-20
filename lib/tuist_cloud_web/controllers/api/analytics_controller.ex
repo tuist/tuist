@@ -156,6 +156,15 @@ defmodule TuistCloudWeb.API.AnalyticsController do
         _params
       ) do
     subject = Authentication.authenticated_subject(conn)
+    current_user = Authentication.current_user(conn)
+
+    user_id =
+      if is_nil(current_user) do
+        nil
+      else
+        Authentication.current_user(conn).id
+      end
+
     project = EnsureProjectPresencePlug.get_project(conn)
     project_id = project_id
 
@@ -176,6 +185,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
           local_test_target_hits: Map.get(body_params.params, :local_test_target_hits, []),
           remote_test_target_hits: Map.get(body_params.params, :remote_test_target_hits, []),
           is_ci: body_params.is_ci,
+          user_id: user_id,
           client_id: body_params.client_id,
           project_id: project.id,
           status: Map.get(body_params, :status),
