@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.14.0 - 2024-05-20
+
+### Tuist
+
+#### Added
+
+- Add Widget Extension support to AppClips [#6287](https://github.com/tuist/tuist/pull/6287) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix integration of SPM packages with slashes in their targets names [#6260](https://github.com/tuist/tuist/pull/6260) by [@kapitoshka438](https://github.com/kapitoshka438)
+- Fix tuist generate when a binary SPM dependency is removed [#6298](https://github.com/tuist/tuist/pull/6298) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.13.0 - 2024-05-14
 
 ### Tuist
