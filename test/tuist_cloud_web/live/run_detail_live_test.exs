@@ -1,5 +1,5 @@
 defmodule TuistCloudWeb.RunDetailLiveTest do
-  use TuistCloudWeb.ConnCase, async: false
+  use TuistCloudWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   alias TuistCloud.CommandEventsFixtures

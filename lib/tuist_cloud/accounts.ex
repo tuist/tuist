@@ -2,6 +2,8 @@ defmodule TuistCloud.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
+  alias TuistCloud.Projects.Project
+  alias TuistCloud.CommandEvents.Event
   alias TuistCloud.Environment
   alias TuistCloud.Accounts.UserNotifier
   alias TuistCloud.Repo
@@ -220,6 +222,15 @@ defmodule TuistCloud.Accounts do
 
     {:ok, _} =
       Ecto.Multi.new()
+      |> Ecto.Multi.delete_all(
+        :delete_command_events,
+        from(
+          c in Event,
+          join: p in Project,
+          on: c.project_id == p.id,
+          where: p.account_id == ^account.id
+        )
+      )
       |> Ecto.Multi.delete(:delete_account, account)
       |> Ecto.Multi.delete(:delete_user, user)
       |> Repo.transaction()
