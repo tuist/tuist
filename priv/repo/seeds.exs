@@ -36,9 +36,30 @@ tuist_cloud_acceptance_tests_project =
 for _event <- 1..10000 do
   names = ["build", "test", "cache", "generate"]
   name = Enum.random(names)
-  cacheable_targets = ["A", "B", "C", "D", "E", "F"]
-  remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..5))
   status = Enum.random([:success, :failure])
+
+  cacheable_targets = [
+    "TargetOne",
+    "TargetTwo",
+    "TargetThree",
+    "TargetFour",
+    "TargetFive",
+    "TargetSix",
+    "TargetSeven",
+    "TargetEight",
+    "TargetNine",
+    "TargetTen",
+    "TargetEleven",
+    "TargetTwelve",
+    "TargetThirteen",
+    "TargetFourteen",
+    "TargetFifteen"
+  ]
+
+  remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..14))
+
+  local_cache_target_hits =
+    Enum.take(cacheable_targets, Enum.random(length(remote_cache_target_hits)..14))
 
   CommandEvents.create_command_event(
     %{
@@ -47,7 +68,7 @@ for _event <- 1..10000 do
       tuist_version: "4.1.0",
       project_id: tuist_cloud_acceptance_tests_project.id,
       cacheable_targets: cacheable_targets,
-      local_cache_target_hits: [""],
+      local_cache_target_hits: local_cache_target_hits,
       remote_cache_target_hits: remote_cache_target_hits,
       test_targets: [],
       local_test_target_hits: [],
@@ -56,7 +77,7 @@ for _event <- 1..10000 do
       macos_version: "10.15",
       subcommand: "",
       command_arguments: [],
-      is_ci: false,
+      is_ci: Enum.random([true, false]),
       client_id: "client-id",
       status: status,
       error_message: nil

@@ -14,6 +14,11 @@
     <script defer phx-track-static type="text/javascript" src={~p"/js/Chart.js"}>
     </script>
     <script>
+      function cssvar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name);
+      }
+    </script>
+    <script>
       globalThis.analyticsEnabled = <%= TuistCloud.Environment.analytics_enabled?() %>;
     </script>
     <%= if TuistCloud.Environment.analytics_enabled?() do %>

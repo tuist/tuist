@@ -8,6 +8,81 @@ defmodule TuistCloud.CommandEventsTest do
   use TuistCloud.DataCase
   use Mimic
 
+  describe "list_command_events/1" do
+    test "returns command events" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "one",
+          duration: 1000,
+          created_at: ~N[2024-03-04 01:00:00]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_two.id,
+        name: "xxx",
+        duration: 1000,
+        created_at: ~N[2024-03-05 02:00:00]
+      )
+
+      command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "two",
+          duration: 500,
+          created_at: ~N[2024-03-05 03:00:00]
+        )
+
+      command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "three",
+          duration: 500,
+          created_at: ~N[2024-03-05 04:00:00]
+        )
+
+      command_event_four =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "four",
+          duration: 500,
+          created_at: ~N[2024-03-05 05:00:00]
+        )
+
+      command_event_five =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "five",
+          duration: 500,
+          created_at: ~N[2024-03-05 06:00:00]
+        )
+
+      # When
+      {got_command_events_first_page, got_meta_first_page} =
+        CommandEvents.list_command_events(%{
+          first: 2,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:created_at],
+          order_directions: [:desc]
+        })
+
+      {got_command_events_second_page, got_meta_second_page} =
+        CommandEvents.list_command_events(Flop.to_next_cursor(got_meta_first_page))
+
+      {got_command_events_third_page, _meta} =
+        CommandEvents.list_command_events(Flop.to_next_cursor(got_meta_second_page))
+
+      # Then
+      assert got_command_events_first_page == [command_event_five, command_event_four]
+      assert got_command_events_second_page == [command_event_three, command_event_two]
+      assert got_command_events_third_page == [command_event_one]
+    end
+  end
+
   test "returns command average duration" do
     # Given
     TuistCloud.Time

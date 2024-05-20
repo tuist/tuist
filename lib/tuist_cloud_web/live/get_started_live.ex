@@ -10,7 +10,7 @@ defmodule TuistCloudWeb.GetStartedLive do
     {
       :ok,
       socket
-      |> assign(:current_account, account)
+      |> assign(:selected_account, account)
     }
   end
 

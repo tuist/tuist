@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin: var(--tuist-spacing-large) 0;
   margin: var(--spacing-4xl);
   gap: var(--spacing-4xl);
 }

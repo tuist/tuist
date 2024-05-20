@@ -1,6 +1,6 @@
 <main>
   <div>
-    <%= if Map.has_key?(assigns, :current_owner) and !is_nil(@current_owner) and Map.has_key?(assigns, :current_project) and !is_nil(@current_project) do %>
+    <%= if Map.has_key?(assigns, :current_owner) and !is_nil(@current_owner) and Map.has_key?(assigns, :selected_project) and !is_nil(@selected_project) do %>
       <nav class="sidebar">
         <div class="nav-logo">
           <img
@@ -12,7 +12,7 @@
           <h6 class="bold">Tuist Cloud</h6>
         </div>
         <.dropdown_picker id="projects-dropdown">
-          <%= "#{@current_owner}/#{@current_project}" %>
+          <%= "#{@current_owner}/#{@selected_project.name}" %>
           <:content>
             <%= for project <- @projects do %>
               <% [owner_handle, project_handle] = project.handle |> String.split("/") %>
@@ -24,9 +24,15 @@
         </.dropdown_picker>
         <ul class="sidebar__navigation-list">
           <li>
-            <a href={~p"/#{@current_owner}/#{@current_project}"}>
+            <a href={~p"/#{@current_owner}/#{@selected_project.name}"}>
               <.bar_chart />
               <p class="text-md semibold"><%= gettext("Dashboard") %></p>
+            </a>
+          </li>
+          <li>
+            <a href={~p"/#{@current_owner}/#{@selected_project.name}/runs"}>
+              <.terminal_square />
+              <p class="text-md semibold"><%= gettext("Runs") %></p>
             </a>
           </li>
           <%= if @can_update_billing do %>
@@ -41,13 +47,13 @@
         <footer class="sidebar__footer">
           <div class="stack sidebar__footer__user-info">
             <p class="text--small font--semibold color--text-secondary">
-              <%= @current_account.name %>
+              <%= @selected_account.name %>
             </p>
             <p class="text--extraSmall font--semibold color--text-tertiary">
               <%= @current_user.email %>
             </p>
           </div>
-          <button class="button--sm button--tertiary button--icon-only">
+          <button class="button--small button--tertiary button--icon-only">
             <.link href={~p"/users/log_out"} method="delete"><.log_out /></.link>
           </button>
         </footer>

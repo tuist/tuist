@@ -174,12 +174,17 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :browser, :require_authenticated_user, :analytics]
 
     live_session :authenticated,
-      on_mount: [{TuistCloudWeb.Authentication, :mount_current_user}] do
+      on_mount: [
+        {TuistCloudWeb.Authentication, :mount_current_user},
+        {TuistCloudWeb.App, :mount_app}
+      ] do
       live "/", HomeLive
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/get-started", GetStartedLive
       live "/:owner/:project", HomeLive
+      live "/:owner/:project/runs", RunsLive
+      live "/:owner/:project/runs/:id", RunDetailLive
       # Used in tuist cloud analytics command
       live "/:owner/:project/analytics", HomeLive
     end

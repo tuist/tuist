@@ -116,11 +116,13 @@ defmodule TuistCloudWeb.CoreComponents do
   attr(:class, :string, default: "")
 
   slot(:inner_block, required: false)
+  slot(:icon_start, doc: "the slot for an icon to present at the start of the button")
   slot(:icon, doc: "the slot for an icon")
 
   def button(assigns) do
     ~H"""
     <button class={"button--#{@variant} button--#{@size} #{@class}"} {@rest}>
+      <%= render_slot(@icon_start) %>
       <span class={"text--#{@size} font--semibold"}><%= render_slot(@inner_block) %></span>
       <%= render_slot(@icon) %>
     </button>
@@ -252,13 +254,29 @@ defmodule TuistCloudWeb.CoreComponents do
     """
   end
 
+  attr :kind, :atom,
+    values: [:info, :error, :warning, :brand, :brand_subtle, :neutral],
+    doc: "the kind of badge"
+
+  attr :title, :string, required: true, doc: "the title of the badge"
+  slot :icon, doc: "the slot for an icon"
+
+  def badge(assigns) do
+    ~H"""
+    <div class={"badge badge--#{@kind}"}>
+      <%= render_slot(@icon) %>
+      <span class="text--extraSmall font--medium badge__text"><%= @title %></span>
+    </div>
+    """
+  end
+
   attr :kind, :atom, values: [:info, :error], doc: "the kind of badge"
   attr :title, :string, required: true, doc: "the title of the badge"
   attr :message, :string, required: true, doc: "the message of the badge"
 
   def badge_group(assigns) do
     ~H"""
-    <button class={"badge badge--#{@kind}"}>
+    <button class={"badge-group badge--#{@kind}"}>
       <.stack class="text--extraSmall font--medium" direction="horizontal" gap="xs">
         <span class="badge__type"><%= @title %></span>
         <span class="badge__text"><%= @message %></span>
@@ -546,6 +564,71 @@ defmodule TuistCloudWeb.CoreComponents do
     """
   end
 
+  def pagination(assigns) do
+    ~H"""
+    <nav class="pagination" aria-label="Pagination">
+      <.pagination_link
+        has_previous_page={@has_previous_page}
+        cursor={@start_cursor}
+        uri={@uri}
+        type={:prev}
+      />
+      <.pagination_link has_next_page={@has_next_page} cursor={@end_cursor} uri={@uri} type={:next} />
+    </nav>
+    """
+  end
+
+  attr(:class, :string, default: nil)
+  attr(:uri, URI, required: true)
+  attr(:type, :atom, required: true)
+  attr(:cursor, :string, required: true)
+  attr(:has_previous_page, :boolean, default: false)
+  attr(:has_next_page, :boolean, default: false)
+
+  defp pagination_link(assigns) do
+    {disabled?, uri} =
+      case {assigns.type, assigns.cursor, assigns.has_previous_page, assigns.has_next_page} do
+        {:next, cursor, _has_previous_page, has_next_page} when has_next_page == true ->
+          params =
+            URI.decode_query(assigns.uri.query)
+            |> Map.put("after", cursor)
+            |> Map.delete("before")
+
+          {false, %{assigns.uri | query: URI.encode_query(params)}}
+
+        {:prev, cursor, has_previous_page, _has_next_page} when has_previous_page == true ->
+          params =
+            URI.decode_query(assigns.uri.query)
+            |> Map.delete("after")
+            |> Map.put("before", cursor)
+
+          {false, %{assigns.uri | query: URI.encode_query(params)}}
+
+        {_, _, _, _} ->
+          {true, nil}
+      end
+
+    assigns = assign(assigns, uri: not disabled? && URI.to_string(uri), disabled?: disabled?)
+
+    ~H"""
+    <%= if @type == :prev do %>
+      <.link navigate={@uri} class="pagination-link">
+        <.button variant="secondary" size="small" disabled={@disabled?}>
+          <:icon_start><.arrow_left /></:icon_start>
+          <%= gettext("Previous") %>
+        </.button>
+      </.link>
+    <% else %>
+      <.link navigate={@uri} class="pagination-link">
+        <.button variant="secondary" size="small" disabled={@disabled?}>
+          <:icon><.arrow_right /></:icon>
+          <%= gettext("Next") %>
+        </.button>
+      </.link>
+    <% end %>
+    """
+  end
+
   @doc ~S"""
   Renders a table with generic styling.
 
@@ -561,6 +644,12 @@ defmodule TuistCloudWeb.CoreComponents do
   attr :row_id, :any, default: nil, doc: "the function for generating the row id"
   attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
 
+  attr :row_clickable, :boolean,
+    default: false,
+    doc: "the flag for making the row clickable. Defaults to true if row_click is set"
+
+  attr :class, :string, default: nil
+
   attr :row_item, :any,
     default: &Function.identity/1,
     doc: "the function for mapping each row before calling the :col and :action slots"
@@ -569,7 +658,7 @@ defmodule TuistCloudWeb.CoreComponents do
     attr :label, :string
   end
 
-  slot :action, doc: "the slot for showing user actions in the last table column"
+  slot :footer, doc: "the slot for a table footer with extra actions, such as pagination"
 
   def table(assigns) do
     assigns =
@@ -578,48 +667,30 @@ defmodule TuistCloudWeb.CoreComponents do
       end
 
     ~H"""
-    <div class="overflow-y-auto px-4 sm:overflow-visible sm:px-0">
-      <table class="w-[40rem] mt-11 sm:w-full">
-        <thead class="text-sm text-left leading-6 text-zinc-500">
+    <div class={["table-container", @class]}>
+      <table>
+        <thead>
           <tr>
-            <th :for={col <- @col} class="p-0 pb-4 pr-6 font-normal"><%= col[:label] %></th>
-            <th :if={@action != []} class="relative p-0 pb-4">
-              <span class="sr-only"><%= gettext("Actions") %></span>
-            </th>
+            <th :for={col <- @col}><%= col[:label] %></th>
           </tr>
         </thead>
-        <tbody
-          id={@id}
-          phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
-          class="relative divide-y divide-zinc-100 border-t border-zinc-200 text-sm leading-6 text-zinc-700"
-        >
-          <tr :for={row <- @rows} id={@row_id && @row_id.(row)} class="group hover:bg-zinc-50">
-            <td
-              :for={{col, i} <- Enum.with_index(@col)}
-              phx-click={@row_click && @row_click.(row)}
-              class={["relative p-0", @row_click && "hover:cursor-pointer"]}
-            >
-              <div class="block py-4 pr-6">
-                <span class="absolute -inset-y-px right-0 -left-4 group-hover:bg-zinc-50 sm:rounded-l-xl" />
-                <span class={["relative", i == 0 && "font-semibold text-zinc-900"]}>
-                  <%= render_slot(col, @row_item.(row)) %>
-                </span>
-              </div>
-            </td>
-            <td :if={@action != []} class="relative w-14 p-0">
-              <div class="relative whitespace-nowrap py-4 text-right text-sm font-medium">
-                <span class="absolute -inset-y-px -right-4 left-0 group-hover:bg-zinc-50 sm:rounded-r-xl" />
-                <span
-                  :for={action <- @action}
-                  class="relative ml-4 font-semibold leading-6 text-zinc-900 hover:text-zinc-700"
-                >
-                  <%= render_slot(action, @row_item.(row)) %>
-                </span>
-              </div>
+        <tbody id={@id} phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}>
+          <tr
+            :for={row <- @rows}
+            id={@row_id && @row_id.(row)}
+            class={[(@row_clickable or @row_click) && "clickable"]}
+          >
+            <td :for={col <- @col} phx-click={@row_click && @row_click.(row)} class={["text--small"]}>
+              <%= render_slot(col, @row_item.(row)) %>
             </td>
           </tr>
         </tbody>
       </table>
+      <%= if @footer != [] do %>
+        <div class="table-container__footer">
+          <%= render_slot(@footer) %>
+        </div>
+      <% end %>
     </div>
     """
   end
