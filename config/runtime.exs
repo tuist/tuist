@@ -240,3 +240,21 @@ if TuistCloud.Environment.mail_configured?(secrets) do
     domain: TuistCloud.Environment.smtp_domain(secrets),
     base_uri: base_uri
 end
+
+# Oban
+config :tuist_cloud, Oban,
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+    {Oban.Plugins.Cron,
+     crontab:
+       [
+         {"@hourly", TuistCloud.CommandEvents.UpdateCacheEventCountWorker}
+       ] ++
+         if(TuistCloud.Environment.on_premise?(),
+           do: [],
+           else: [
+             {"0 10 * * 1-5", TuistCloud.Ops.DailySlackReportWorker}
+           ]
+         )}
+  ]

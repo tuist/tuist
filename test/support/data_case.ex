@@ -21,6 +21,8 @@ defmodule TuistCloud.DataCase do
     quote do
       alias TuistCloud.Repo
 
+      use Oban.Testing, repo: TuistCloud.Repo
+
       import Ecto
       import Ecto.Changeset
       import Ecto.Query

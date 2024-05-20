@@ -23,7 +23,7 @@ defmodule TuistCloud.Projects.Project do
 
   def create_changeset(project, attrs) do
     project
-    |> cast(attrs, [:token, :account_id, :name])
+    |> cast(attrs, [:token, :account_id, :name, :created_at])
     |> validate_required([:token, :account_id, :name])
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do
