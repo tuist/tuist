@@ -150,13 +150,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
                             .pathString
                     )
-                } else {
-                    // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
-                    // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
-                    guard let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] else {
-                        throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
-                    }
+                }
+                // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
+                // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
+                else if let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] {
                     result[target.name] = .path(artifactPath.pathString)
+                }
+                // If the binary path is not present in the `.build/workspace-state.json`, we try to use a default path.
+                // If the target is not used by a downstream target, the generation will ignore a missing binary artifact.
+                // Otherwise, users will get an error that the xcframework was not found.
+                else {
+                    result[target.name] = .path(
+                        packageToFolder[packageInfo.key]!.appending(
+                            components: target.name,
+                            "\(target.name).xcframework"
+                        )
+                        .pathString
+                    )
                 }
             }
         }
