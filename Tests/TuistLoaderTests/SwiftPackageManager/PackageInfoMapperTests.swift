@@ -2019,12 +2019,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["key1", "key2", "key3"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                    ),
                 ]
             )
         )
@@ -2058,7 +2062,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2066,7 +2070,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature \"Foo\""]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-upcoming-feature \"Foo\""]]
                     ),
                 ]
             )
@@ -2101,7 +2105,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2109,7 +2113,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature \"Foo\""]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-experimental-feature \"Foo\""]]
                     ),
                 ]
             )

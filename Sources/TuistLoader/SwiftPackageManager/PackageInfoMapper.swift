@@ -1023,7 +1023,18 @@ extension ProjectDescription.Settings {
             }
 
         return .settings(
-            base: .from(settingsDictionary: baseSettings.base).merging(mappedSettingsDictionary, uniquingKeysWith: { $1 }),
+            base: .from(settingsDictionary: baseSettings.base)
+                .merging(
+                    mappedSettingsDictionary,
+                    uniquingKeysWith: {
+                        switch ($0, $1) {
+                        case let (.array(leftArray), .array(rightArray)):
+                            return SettingValue.array(leftArray + rightArray)
+                        default:
+                            return $1
+                        }
+                    }
+                ),
             configurations: configurations
                 .sorted { $0.name.rawValue < $1.name.rawValue },
             defaultSettings: .from(defaultSettings: baseSettings.defaultSettings)
