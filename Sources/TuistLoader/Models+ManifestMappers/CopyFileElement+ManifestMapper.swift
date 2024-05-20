@@ -56,7 +56,8 @@ extension TuistGraph.CopyFileElement {
             return try globFiles(resolvedPath).map { .file(
                 path: $0,
                 condition: condition?.asGraphCondition,
-                codeSignOnCopy: codeSign)
+                codeSignOnCopy: codeSign
+            )
             }
         case let .folderReference(path: folderReferencePath, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
