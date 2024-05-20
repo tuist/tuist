@@ -5,6 +5,7 @@ defmodule TuistCloud.CommandEvents.Event do
   use Ecto.Schema
   import Ecto.Query, only: [from: 2]
   import Ecto.Changeset
+  alias TuistCloud.Accounts.User
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts.Account
 
@@ -35,6 +36,7 @@ defmodule TuistCloud.CommandEvents.Event do
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
     field :error_message, :string
     belongs_to :project, Project
+    belongs_to :user, User
 
     # Rails names the field "created_at"
     timestamps(inserted_at: :created_at)
@@ -46,29 +48,42 @@ defmodule TuistCloud.CommandEvents.Event do
   end
 
   def create_changeset(event, attrs) do
-    event
-    |> cast(attrs, [
-      :project_id,
-      :name,
-      :subcommand,
-      :command_arguments,
-      :duration,
-      :tuist_version,
-      :swift_version,
-      :macos_version,
-      :cacheable_targets,
-      :local_cache_target_hits,
-      :remote_cache_target_hits,
-      :test_targets,
-      :local_test_target_hits,
-      :remote_test_target_hits,
-      :is_ci,
-      :client_id,
-      :created_at,
-      :status,
-      :error_message
-    ])
-    |> validate_required([:project_id, :name])
+    changeset =
+      event
+      |> cast(attrs, [
+        :project_id,
+        :name,
+        :subcommand,
+        :command_arguments,
+        :duration,
+        :tuist_version,
+        :swift_version,
+        :macos_version,
+        :cacheable_targets,
+        :local_cache_target_hits,
+        :remote_cache_target_hits,
+        :test_targets,
+        :local_test_target_hits,
+        :remote_test_target_hits,
+        :is_ci,
+        :user_id,
+        :client_id,
+        :created_at,
+        :status,
+        :error_message
+      ])
+
+    is_ci = get_field(changeset, :is_ci)
+
+    changeset
+    |> validate_required(
+      [:project_id, :name] ++
+        if is_ci do
+          []
+        else
+          [:user_id]
+        end
+    )
     |> validate_inclusion(:status, [:success, :failure])
   end
 

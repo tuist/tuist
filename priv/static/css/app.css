@@ -889,6 +889,10 @@ input[type="checkbox"]:checked::after {
   background-color: var(--utility-brand-50);
   border: 1px solid var(--utility-brand-200);
 
+  & svg {
+    stroke: var(--utility-brand-500);
+  }
+
   & .badge__text {
     color: var(--utility-brand-700);
   }

@@ -20,7 +20,7 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
       |> assign(:selected_account, account)
       |> log_in_user(AccountsFixtures.user_fixture())
 
-    %{conn: conn, project: selected_project}
+    %{conn: conn, user: user, project: selected_project}
   end
 
   test "renders run detail with a failure status", %{conn: conn, project: project} do
@@ -53,6 +53,23 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
 
     assert html =~ "success"
     refute html =~ "failure"
+  end
+
+  test "renders ran by with a user name", %{conn: conn, user: user, project: project} do
+    user_account = Accounts.get_account_from_user(user)
+
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        user_id: user.id
+      )
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ user_account.name
   end
 
   test "renders cacheable targets in the alphabetical order with their cache status", %{
