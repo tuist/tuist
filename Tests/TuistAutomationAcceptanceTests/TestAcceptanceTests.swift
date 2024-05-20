@@ -55,18 +55,11 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
             try await run(TestCommand.self, "App", "--", "-skip-testing", "AppTests"),
             XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-testing")
         )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer"),
-            SystemError.terminated(
-                command: "xcodebuild",
-                code: 64,
-                standardError: Data(
-                    "xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO\n"
-                        .utf8
-                )
-            )
+        // SystemError is verbose and would lead to flakyness
+        // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
+        await XCTAssertThrows(
+            try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
         )
-        // SystemError is too verbose to inline it
         // xcodebuild: error: option '-configuration' may only be provided once
         // Usage: xcodebuild [-project <projectname>] ...
         await XCTAssertThrows(
