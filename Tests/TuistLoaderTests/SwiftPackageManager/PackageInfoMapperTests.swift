@@ -65,6 +65,42 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "\(basePath.pathString)/Target_1/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+
     func testResolveDependencies_whenPackageIDDifferentThanName() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
