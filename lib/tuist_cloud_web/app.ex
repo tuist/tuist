@@ -33,6 +33,11 @@ defmodule TuistCloudWeb.App do
 
       owner_account = Accounts.get_account_by_handle(params["owner"])
 
+      if is_nil(project) or is_nil(owner_account) do
+        raise TuistCloudWeb.Errors.NotFoundError,
+              "The page you are looking for doesn't exist or has been moved."
+      end
+
       {:cont,
        socket
        |> assign(:current_owner, params["owner"])

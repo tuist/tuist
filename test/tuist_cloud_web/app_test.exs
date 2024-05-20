@@ -218,4 +218,19 @@ defmodule TuistCloudWeb.AppTest do
     # Then
     assert socket.redirected == {:redirect, %{to: "/tuist-org-2/tuist-2"}}
   end
+
+  test "raises NotFoundError when a project does not exist", %{session: session} do
+    # When / Then
+    assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
+      App.on_mount(
+        :mount_app,
+        %{
+          "owner" => "tuist-org",
+          "project" => "non-existent"
+        },
+        session,
+        %LiveView.Socket{}
+      )
+    end
+  end
 end
