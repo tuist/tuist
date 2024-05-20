@@ -6,6 +6,7 @@
   align-items: start;
   padding-left: var(--spacing-9xl);
   max-width: 60%;
+  margin: 0;
 }
 
 .error-page__title {
