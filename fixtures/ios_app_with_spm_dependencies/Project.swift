@@ -8,7 +8,7 @@ let project = Project(
             destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
-            deploymentTargets: .iOS("14.0"),
+            deploymentTargets: .iOS("16.0"),
             infoPlist: .default,
             sources: "App/Sources/**",
             resources: "App/Resources/**",
@@ -16,6 +16,7 @@ let project = Project(
                 .external(name: "Buy"),
                 .external(name: "Pay"),
                 .external(name: "KSCrash"),
+                .external(name: "JWTKit"),
                 .sdk(name: "c++", type: .library, status: .required),
             ]
         ),
