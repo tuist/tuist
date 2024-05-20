@@ -259,8 +259,7 @@ final class ConfigGenerator: ConfigGenerating {
                 } else {
                     settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
                 }
-            }
-            if case let .variable(configName) = entitlements {
+            } else if case let .variable(configName) = entitlements {
                 settings["CODE_SIGN_ENTITLEMENTS"] = .string(configName)
             }
         }
