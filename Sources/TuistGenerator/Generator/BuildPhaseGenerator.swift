@@ -409,9 +409,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 guard let fileReference = fileElements.file(path: filePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
+                
+                var settings: [String: Any]?
+
+                /// Source file ATTRIBUTES
+                /// example: `settings = {ATTRIBUTES = (Codesign, )`}
+                if file.codeSign {
+                    var settingsCopy = settings ?? [:]
+                    var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
+                    attributes.append("CodeSignOnCopy")
+                    settingsCopy["ATTRIBUTES"] = attributes
+                    settings = settingsCopy
+                }
 
                 if buildFilesCache.contains(filePath) == false {
-                    let pbxBuildFile = PBXBuildFile(file: fileReference)
+                    let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
                     pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
                     pbxBuildFiles.append(pbxBuildFile)
                     buildFilesCache.insert(filePath)

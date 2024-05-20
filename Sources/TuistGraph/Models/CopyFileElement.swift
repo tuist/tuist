@@ -2,14 +2,14 @@ import Foundation
 import TSCBasic
 
 public enum CopyFileElement: Equatable, Hashable, Codable {
-    case file(path: AbsolutePath, condition: PlatformCondition? = nil)
-    case folderReference(path: AbsolutePath, condition: PlatformCondition? = nil)
+    case file(path: AbsolutePath, condition: PlatformCondition? = nil, codeSign: Bool = false)
+    case folderReference(path: AbsolutePath, condition: PlatformCondition? = nil, codeSign: Bool = false)
 
     public var path: AbsolutePath {
         switch self {
-        case let .file(path, _):
+        case let .file(path, _, _):
             return path
-        case let .folderReference(path, _):
+        case let .folderReference(path, _, _):
             return path
         }
     }
@@ -25,8 +25,15 @@ public enum CopyFileElement: Equatable, Hashable, Codable {
 
     public var condition: PlatformCondition? {
         switch self {
-        case let .file(_, condition), let .folderReference(_, condition):
+        case let .file(_, condition, _), let .folderReference(_, condition, _):
             return condition
+        }
+    }
+    
+    public var codeSign: Bool {
+        switch self {
+        case let .file(_, _, codesign), let .folderReference(_, _, codesign):
+            return codesign
         }
     }
 }
