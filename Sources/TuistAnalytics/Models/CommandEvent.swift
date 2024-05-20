@@ -15,6 +15,11 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let macOSVersion: String
     public let machineHardwareName: String
     public let isCI: Bool
+    public let status: Status
+
+    public enum Status: Codable, Equatable {
+        case success, failure(String)
+    }
 
     public let id = UUID()
     public let date = Date()
@@ -32,6 +37,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case macOSVersion = "macos_version"
         case machineHardwareName
         case isCI
+        case status
     }
 
     public init(
@@ -45,7 +51,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         swiftVersion: String,
         macOSVersion: String,
         machineHardwareName: String,
-        isCI: Bool
+        isCI: Bool,
+        status: Status
     ) {
         self.name = name
         self.subcommand = subcommand
@@ -58,5 +65,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.macOSVersion = macOSVersion
         self.machineHardwareName = machineHardwareName
         self.isCI = isCI
+        self.status = status
     }
 }
