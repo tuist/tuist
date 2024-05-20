@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 
 public enum CopyFileElement: Equatable, Hashable, Codable {
-    case file(path: AbsolutePath, condition: PlatformCondition? = nil, codeSign: Bool = false)
-    case folderReference(path: AbsolutePath, condition: PlatformCondition? = nil, codeSign: Bool = false)
+    case file(path: AbsolutePath, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)
+    case folderReference(path: AbsolutePath, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)
 
     public var path: AbsolutePath {
         switch self {
@@ -29,11 +29,11 @@ public enum CopyFileElement: Equatable, Hashable, Codable {
             return condition
         }
     }
-    
-    public var codeSign: Bool {
+
+    public var codeSignOnCopy: Bool {
         switch self {
-        case let .file(_, _, codesign), let .folderReference(_, _, codesign):
-            return codesign
+        case let .file(_, _, codeSignOnCopy), let .folderReference(_, _, codeSignOnCopy):
+            return codeSignOnCopy
         }
     }
 }

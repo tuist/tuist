@@ -51,12 +51,20 @@ extension TuistGraph.CopyFileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern, condition: condition, codeSign: codeSign):
+        case let .glob(pattern: pattern, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map { .file(path: $0, condition: condition?.asGraphCondition, codeSign: codeSign) }
-        case let .folderReference(path: folderReferencePath, condition: condition, codeSign: codeSign):
+            return try globFiles(resolvedPath).map { .file(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign)
+            }
+        case let .folderReference(path: folderReferencePath, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { .folderReference(path: $0, condition: condition?.asGraphCondition, codeSign: codeSign) }
+            return folderReferences(resolvedPath).map { .folderReference(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            ) }
         }
     }
 }

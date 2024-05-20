@@ -409,12 +409,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 guard let fileReference = fileElements.file(path: filePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
-                
+
                 var settings: [String: Any]?
 
-                /// Source file ATTRIBUTES
+                /// File ATTRIBUTES
                 /// example: `settings = {ATTRIBUTES = (Codesign, )`}
-                if file.codeSign {
+                if file.codeSignOnCopy {
                     var settingsCopy = settings ?? [:]
                     var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
                     attributes.append("CodeSignOnCopy")
