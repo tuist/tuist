@@ -2,6 +2,7 @@ defmodule TuistCloud.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
+  alias TuistCloud.CommandEvents.Event
   alias TuistCloud.Repo
   alias TuistCloud.Accounts
   alias TuistCloud.Accounts.{Account, ProjectAccount, User}
@@ -124,6 +125,16 @@ defmodule TuistCloud.Projects do
   end
 
   def delete_project(%Project{} = project) do
-    Repo.delete(project)
+    {:ok, _} =
+      Ecto.Multi.new()
+      |> Ecto.Multi.delete_all(
+        :delete_command_events,
+        from(
+          c in Event,
+          where: c.project_id == ^project.id
+        )
+      )
+      |> Ecto.Multi.delete(:delete_project, project)
+      |> Repo.transaction()
   end
 end
