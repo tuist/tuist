@@ -866,9 +866,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .file(path: "/path/fonts/font1.ttf"),
             .file(path: "/path/fonts/font2.ttf"),
             .file(path: "/path/fonts/font3.ttf", condition: .when([.macos])),
-            .file(path: "/path/fonts/font4.ttf", codeSign: true),
-            .file(path: "/path/fonts/font5.ttf", condition: .when([.macos]), codeSign: true),
-            .file(path: "/path/fonts/font6.ttf", codeSign: false),
+            .file(path: "/path/fonts/font4.ttf", codeSignOnCopy: true),
+            .file(path: "/path/fonts/font5.ttf", condition: .when([.macos]), codeSignOnCopy: true),
+            .file(path: "/path/fonts/font6.ttf", codeSignOnCopy: false),
         ]
 
         let templates: [CopyFileElement] = [
@@ -919,8 +919,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             nil,
             nil,
             nil,
-            ["ATTRIBUTES": ["Codesign"]],
-            ["ATTRIBUTES": ["Codesign"]],
+            ["ATTRIBUTES": ["CodeSignOnCopy"]],
+            ["ATTRIBUTES": ["CodeSignOnCopy"]],
             nil,
         ])
 
