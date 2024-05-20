@@ -1,16 +1,18 @@
-<link phx-track-static rel="stylesheet" href={~p"/css/get_started.css"} />
+<link phx-track-static rel="stylesheet" href={~p"/css/pages/get_started.css"} />
 
 <.stack class="get-started__page" gap="4xl">
   <.decorative_background class="get-started__page__background" />
   <.stack class="get-started__page__user-info" direction="horizontal">
     <div class="spacer"></div>
     <.stack class="get-started__page__user-info__titles" gap="none">
-      <p class="text--small font--semibold color--text-secondary"><%= @current_account.name %></p>
+      <p class="text--small font--semibold color--text-secondary">
+        <%= @selected_account.name %>
+      </p>
       <p class="text--extraSmall font--semibold color--text-tertiary">
         <%= @current_user.email %>
       </p>
     </.stack>
-    <button class="button--sm button--tertiary button--icon-only">
+    <button class="button-small button--tertiary button--icon-only">
       <.link href={~p"/users/log_out"} method="delete"><.log_out /></.link>
     </button>
   </.stack>

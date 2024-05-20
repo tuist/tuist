@@ -1,0 +1,11 @@
+.runs {
+  margin-bottom: var(--spacing-4xl);
+
+  & table {
+    table-layout: fixed;
+  }
+}
+
+.runs__title {
+  margin-bottom: var(--spacing-4xl);
+}

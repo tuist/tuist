@@ -82,6 +82,7 @@ defmodule TuistCloud.MixProject do
       {:req, "~> 0.4.14"},
       {:telemetry_test, "~> 0.1.2"},
       {:timescale, "~> 0.1.0"},
+      {:flop, "~> 0.25.0"},
       {:timex, "~> 3.7"}
     ]
   end

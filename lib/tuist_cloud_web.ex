@@ -87,6 +87,7 @@ defmodule TuistCloudWeb do
       import TuistCloudWeb.CoreComponents
       import TuistCloudWeb.AuthComponents
       import TuistCloudWeb.Components.Icons
+      import TuistCloudWeb.CommandEventComponents
       import TuistCloudWeb.Gettext
 
       # Shortcut for generating JS commands

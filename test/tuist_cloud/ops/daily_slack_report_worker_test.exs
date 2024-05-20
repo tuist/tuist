@@ -1,5 +1,5 @@
 defmodule TuistCloud.Ops.DailySlackReportWorkerTest do
-  use TuistCloud.DataCase, async: true
+  use TuistCloud.DataCase, async: false
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.CommandEventsFixtures

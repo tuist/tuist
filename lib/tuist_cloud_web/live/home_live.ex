@@ -3,60 +3,27 @@ defmodule TuistCloudWeb.HomeLive do
   alias TuistCloud.Projects
   alias TuistCloud.CommandEvents
   alias TuistCloud.Time
-  alias TuistCloud.Authorization
   alias TuistCloud.Accounts
 
-  def mount(params, session, socket) do
+  def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
     user = Accounts.get_user_by_session_token(session["user_token"])
 
-    if is_nil(params["owner"]) or is_nil(params["project"]) do
-      if is_nil(user.last_visited_project_id) do
-        project_accounts = Projects.get_all_project_accounts(user)
+    Accounts.update_last_visited_project(user, project.id)
 
-        redirect_to_project(project_accounts, socket)
-      else
-        project_account = Projects.get_project_account_by_project_id(user.last_visited_project_id)
+    slug = Projects.get_project_slug_from_id(project.id)
 
-        {:ok,
-         redirect(socket,
-           to: ~p"/#{project_account.account.name}/#{project_account.project.name}"
-         )}
-      end
-    else
-      project = current_project(params)
-      account = current_account(user)
-
-      Accounts.update_last_visited_project(user, project.id)
-
-      slug = Projects.get_project_slug_from_id(project.id)
-
-      {
-        :ok,
-        socket
-        |> assign(:current_user, user)
-        |> assign(:current_account, account)
-        |> assign(:current_owner, params["owner"])
-        |> assign(:current_project, params["project"])
-        |> assign(:page_title, gettext("Dashboard") <> " - #{slug}")
-        |> assign(
-          :date_range,
-          params["date_range"]
-        )
-        |> assign(
-          :projects,
-          Projects.get_all_project_accounts(user)
-        )
-        |> assign(
-          :can_update_billing,
-          Authorization.can(user, :update, account, :billing)
-        )
-      }
-    end
+    {
+      :ok,
+      socket
+      |> assign(:page_title, gettext("Dashboard") <> " - #{slug}")
+      |> assign(
+        :date_range,
+        params["date_range"]
+      )
+    }
   end
 
-  def handle_params(params, _uri, socket) do
-    project = current_project(params)
-
+  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     date_range =
       if is_nil(params["date_range"]) do
         "last_30_days"
@@ -150,27 +117,6 @@ defmodule TuistCloudWeb.HomeLive do
         date_range
       )
     }
-  end
-
-  def current_project(params) do
-    Projects.get_project_by_account_and_project_name(params["owner"], params["project"])
-  end
-
-  def current_account(user) do
-    user |> TuistCloud.Accounts.get_account_from_user()
-  end
-
-  defp redirect_to_project(project_accounts, socket) do
-    if Enum.empty?(project_accounts) do
-      {:ok, redirect(socket, to: ~p"/get-started")}
-    else
-      project_account = hd(project_accounts)
-
-      {:ok,
-       redirect(socket,
-         to: ~p"/#{project_account.account.name}/#{project_account.project.name}"
-       )}
-    end
   end
 
   attr :id, :string, required: true

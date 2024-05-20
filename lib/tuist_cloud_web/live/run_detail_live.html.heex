@@ -1,0 +1,106 @@
+<link phx-track-static rel="stylesheet" href={~p"/css/pages/run_detail.css"} />
+
+<div class="run-detail page">
+  <.stack gap="4xl">
+    <.stack gap="lg" direction="horizontal">
+      <h5>
+        <%= "tuist " <> (@command_event.command_arguments || @command_event.name) %>
+      </h5>
+      <.command_event_status_badge command_event={@command_event} />
+    </.stack>
+    <.card class="run-detail__cache-hits-breakdown">
+      <.stack gap="2xl">
+        <.section_header title={gettext("Cache hits")} />
+        <.stack direction="horizontal" class="run-detail__cache-hits-breakdown__content">
+          <chart-l id="cache-hits-breakdown-chart" type="donut"></chart-l>
+          <.table
+            class="run-detail__cache-hits-breakdown__table"
+            id="cacheable_targets"
+            rows={@cacheable_targets}
+          >
+            <:col :let={cacheable_target} label={gettext("Name")}>
+              <%= cacheable_target.name %>
+            </:col>
+            <:col :let={cacheable_target} label={gettext("Cache hit")}>
+              <div class="run-detail__cache-hits-breakdown__table__badge-container">
+                <.badge
+                  title={Atom.to_string(cacheable_target.cache_hit) |> String.capitalize()}
+                  kind={
+                    case cacheable_target.cache_hit do
+                      :local -> :brand_subtle
+                      :remote -> :brand
+                      :miss -> :warning
+                    end
+                  }
+                />
+              </div>
+            </:col>
+          </.table>
+        </.stack>
+      </.stack>
+    </.card>
+    <.card>
+      <.stack gap="2xl">
+        <.section_header title={gettext("Run details")} />
+        <.stack>
+          <.run_detail_row title={gettext("Ran by")}>
+            <.command_event_ran_by_badge command_event={@command_event} />
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Status")}>
+            <.command_event_status_badge command_event={@command_event} />
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Duration")}>
+            <%= gettext("%{duration} s", duration: Float.round(@command_event.duration / 1000, 1)) %>
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Finished at")}>
+            <%= Calendar.strftime(@command_event.created_at, "%b %d %Y, %I:%M:%S") %>
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Tuist version")}>
+            <%= @command_event.tuist_version %>
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Swift version")}>
+            <%= @command_event.swift_version %>
+          </.run_detail_row>
+          <.run_detail_row title={gettext("macOS version")}>
+            <%= @command_event.macos_version %>
+          </.run_detail_row>
+          <.run_detail_row title={gettext("Tuist version")}>
+            <%= @command_event.tuist_version %>
+          </.run_detail_row>
+        </.stack>
+      </.stack>
+    </.card>
+  </.stack>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts">
+</script>
+<script>
+  const cacheHitsBreakdownChart = document.querySelector("#cache-hits-breakdown-chart");
+  cacheHitsBreakdownChart.data = {
+      data: <%= raw Jason.encode!([length(@command_event.local_cache_target_hits), length(@command_event.remote_cache_target_hits), length(@cache_misses)]) %>,
+      labels: <%= raw Jason.encode!(["Local hits", "Remote hits", "Misses"]) %>
+  };
+  cacheHitsBreakdownChart.colors = [cssvar("--utility-brand-600"), cssvar("--utility-brand-400"), cssvar("--utility-warning-600")];
+  cacheHitsBreakdownChart.stroke = {
+    colors: [cssvar("--bg-secondary")],
+  };
+  cacheHitsBreakdownChart.plotOptions = {
+    pie: {
+      expandOnClick: false,
+      donut: {
+        labels: {
+          show: true,
+          value: {
+            color: cssvar("--text-primary"),
+          },
+          total: {
+            show: true,
+            fontSize: cssvar('--font-size-text-small'),
+            color: cssvar("--text-primary"),
+            label: <%= raw Jason.encode!(gettext("Cacheable targets")) %>
+          },
+        },
+      },
+    }
+  }
+</script>

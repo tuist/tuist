@@ -6,7 +6,7 @@
 class ChartComponent extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
+    this.attachShadow({ mode: "open" });
   }
 
   connectedCallback() {
@@ -14,19 +14,21 @@ class ChartComponent extends HTMLElement {
   }
 
   render() {
-    function cssvar(name) {
-      return getComputedStyle(
-        document.documentElement,
-      ).getPropertyValue(name);
-    }
-
-    const chartDiv = document.createElement('div');
+    const chartDiv = document.createElement("div");
     this.shadowRoot.appendChild(chartDiv);
-
     const options = {
-      series: [this.data],
+      series: this.type == "donut" ? this.data.data : [this.data],
+      labels: this.data.labels,
+      stroke: this.stroke,
+
+      responsive: [
+        {
+          breakpoint: undefined,
+          options: {},
+        },
+      ],
       chart: {
-        height: '400px',
+        height: "400px",
         type: this.type,
         toolbar: {
           show: false,
@@ -35,15 +37,15 @@ class ChartComponent extends HTMLElement {
           enabled: false,
         },
       },
-      colors: [cssvar('--utility-brand-600')],
+      colors: this.colors,
       dataLabels: {
         enabled: false,
       },
       fill: {
-        colors: [cssvar('--utility-brand-600')],
+        colors: this.colors,
         gradient: {
-          shade: 'dark',
-          type: 'vertical',
+          shade: "dark",
+          type: "vertical",
           opacityFrom: 0.6,
           opacityTo: 0,
           stops: [0, 100],
@@ -51,15 +53,21 @@ class ChartComponent extends HTMLElement {
         },
       },
       grid: {
-        borderColor: cssvar('--border-tertiary'),
+        borderColor: cssvar("--border-tertiary"),
       },
       tooltip: {
         intersect: false,
       },
+      legend: {
+        position: "left",
+        labels: {
+          colors: cssvar("--text-tertiary"),
+        },
+      },
       xaxis: {
         categories: this.data.labels,
         tickAmount:
-          this.data.labels.length > 12
+          this.data.labels && this.data.labels.length > 12
             ? this.data.labels.length / 2
             : this.data.labels.length,
         axisTicks: {
@@ -70,8 +78,8 @@ class ChartComponent extends HTMLElement {
         },
         labels: {
           style: {
-            colors: cssvar('--text-tertiary'),
-            cssClass: 'text-xs text--regular color--text-tertiary',
+            colors: cssvar("--text-tertiary"),
+            cssClass: "text-xs text--regular color--text-tertiary",
           },
         },
       },
@@ -82,6 +90,7 @@ class ChartComponent extends HTMLElement {
           formatter: this.yLabelFormatter,
         },
       },
+      plotOptions: this.plotOptions,
     };
 
     var chart = new ApexCharts(chartDiv, options);
@@ -90,10 +99,10 @@ class ChartComponent extends HTMLElement {
 
   get data() {
     return (
-      this.getAttribute('data') ?? {
+      this.getAttribute("data") ?? {
         data: [],
         labels: [],
-        name: '',
+        name: "",
       }
     );
   }
@@ -103,7 +112,7 @@ class ChartComponent extends HTMLElement {
   }
 
   get yLabelFormatter() {
-    return this.getAttribute('yLabelFormatter') ?? ((val) => val);
+    return this.getAttribute("yLabelFormatter") ?? ((val) => val);
   }
 
   set yLabelFormatter(val) {
@@ -111,20 +120,44 @@ class ChartComponent extends HTMLElement {
   }
 
   get type() {
-    return this.getAttribute('type') || 'area';
+    return this.getAttribute("type") || "area";
   }
 
   set type(val) {
-    return this.setAttribute('type', val);
+    return this.setAttribute("type", val);
   }
 
   get maxYValue() {
-    return this.getAttribute('maxYValue') ?? undefined;
+    return this.getAttribute("maxYValue") ?? undefined;
   }
 
   set maxYValue(val) {
-    return this.setAttribute('maxYValue', val);
+    return this.setAttribute("maxYValue", val);
+  }
+
+  get colors() {
+    return this.getAttribute("colors") ?? [cssvar("--utility-brand-500")];
+  }
+
+  set colors(val) {
+    return this.setAttribute("colors", val);
+  }
+
+  get plotOptions() {
+    return this.getAttribute("plotOptions") ?? {};
+  }
+
+  set plotOptions(val) {
+    return this.setAttribute("plotOptions", val);
+  }
+
+  get stroke() {
+    return this.getAttribute("stroke") ?? {};
+  }
+
+  set stroke(val) {
+    return this.setAttribute("stroke", val);
   }
 }
 
-customElements.define('chart-l', ChartComponent);
+customElements.define("chart-l", ChartComponent);

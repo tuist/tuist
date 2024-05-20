@@ -70,6 +70,10 @@ defmodule TuistCloud.CommandEvents do
     end
   end
 
+  def list_command_events(attrs) do
+    Flop.validate_and_run!(Event, attrs)
+  end
+
   def get_command_event_by_id(id) do
     Repo.get(Event, id)
   end

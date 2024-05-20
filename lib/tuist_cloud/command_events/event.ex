@@ -8,6 +8,11 @@ defmodule TuistCloud.CommandEvents.Event do
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts.Account
 
+  @derive {
+    Flop.Schema,
+    filterable: [:project_id, :name], sortable: [:created_at]
+  }
+
   schema "command_events" do
     field :name, :string
     field :duration, :integer
