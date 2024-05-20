@@ -149,6 +149,10 @@ defmodule TuistCloud.Environment do
       (!on_premise?() or s3_bucket_name(secrets) != nil)
   end
 
+  def slack_tuist_token(secrets \\ secrets()) do
+    get([:slack, :tuist, :token], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end

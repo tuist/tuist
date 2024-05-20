@@ -19,10 +19,12 @@ defmodule TuistCloud.AccountsFixtures do
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     Accounts.create_organization(%{name: name, creator: creator},
       sso_provider: sso_provider,
-      sso_organization_id: sso_organization_id
+      sso_organization_id: sso_organization_id,
+      created_at: created_at
     )
   end
 

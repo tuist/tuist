@@ -166,6 +166,7 @@ defmodule TuistCloud.Accounts do
       ) do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)
+    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
 
     {:ok, %{organization: organization}} =
       Ecto.Multi.new()
@@ -173,7 +174,8 @@ defmodule TuistCloud.Accounts do
         :organization,
         Organization.create_changeset(%Organization{}, %{
           sso_provider: sso_provider,
-          sso_organization_id: sso_organization_id
+          sso_organization_id: sso_organization_id,
+          created_at: created_at
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->

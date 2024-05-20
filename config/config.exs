@@ -48,17 +48,12 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 # Oban
+
+# TuistCloud.Slack.InternalDailyReportWorker
+
 config :tuist_cloud, Oban,
   repo: TuistCloud.Repo,
-  queues: [default: 10],
-  plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
-    {Oban.Plugins.Cron,
-     crontab: [
-       {"@hourly", TuistCloud.CommandEvents.UpdateCacheEventCountWorker}
-     ]}
-  ]
+  queues: [default: 10]
 
 base_url =
   cond do

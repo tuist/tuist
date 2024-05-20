@@ -17,10 +17,12 @@ defmodule TuistCloud.ProjectsFixtures do
       end)
 
     name = Keyword.get(opts, :name, "#{unique_integer()}")
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     Projects.create_project(%{
       name: name,
-      account: %{id: account_id}
+      account: %{id: account_id},
+      created_at: created_at
     })
   end
 end

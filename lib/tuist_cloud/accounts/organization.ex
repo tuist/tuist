@@ -17,7 +17,7 @@ defmodule TuistCloud.Accounts.Organization do
 
   def create_changeset(organization, attrs \\ %{}) do
     organization
-    |> cast(attrs, [:sso_provider, :sso_organization_id])
+    |> cast(attrs, [:sso_provider, :sso_organization_id, :created_at])
     |> validate_inclusion(:sso_provider, [:google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
