@@ -5,6 +5,8 @@ defmodule TuistCloud.Release do
   """
   @app :tuist_cloud
 
+  require Logger
+
   def migrate do
     load_app()
 
