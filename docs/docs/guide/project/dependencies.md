@@ -46,7 +46,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
 
-> [!NOTE] DEPENDENCY CONDITIONS 
+> [!NOTE] DEPENDENCY CONDITIONS
 > Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 
 > [!TIP] ENFORCING EXPLICIT DEPENDENCIES
@@ -144,7 +144,7 @@ let project = Project(
 ```
 :::
 
-> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES 
+> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 > The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
 
 #### Xcode's default integration
@@ -166,6 +166,55 @@ let target = .target(name: "MyTarget", dependencies: [
 ```
 
 For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+
+> [!WARNING] SPM Build Tool Plugins
+> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+
+A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "Framework",
+    products: [
+        .library(name: "Framework", targets: ["Framework"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+    ],
+    targets: [
+        .target(
+            name: "Framework",
+            plugins: [
+                .plugin(name: "SwiftLint", package: "SwiftLintPlugin"),
+            ]
+        ),
+    ]
+)
+```
+
+To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+
+```swift
+import ProjectDescription
+
+let project = Project(
+    name: "Framework",
+    packages: [
+        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+    ],
+    targets: [
+        .target(
+            name: "Framework",
+            dependencies: [
+                .package(product: "SwiftLint", type: .plugin),
+            ]
+        ),
+    ]
+)
+```
 
 ### Carthage
 
@@ -192,7 +241,7 @@ tuist generate
 pod install
 ```
 
-> [!WARNING] 
+> [!WARNING]
 > CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
 
 ## Objective-C Dependencies
