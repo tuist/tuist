@@ -83,7 +83,7 @@ const guideSidebar = [
     ],
   },
   {
-    text: "Project",
+    text: "Tuist Projects",
     items: [
       {
         text: "Manifests",
@@ -112,33 +112,50 @@ const guideSidebar = [
         text: "Plugins",
         link: "/guide/project/plugins",
       },
-    ],
-  },
-  {
-    text: "Automation",
-    items: [
-      { text: "Generate", link: "/guide/automation/generate" },
-      { text: "Build", link: "/guide/automation/build" },
-      { text: "Test", link: "/guide/automation/test" },
-      { text: "Run", link: "/guide/automation/run" },
-      { text: "Graph", link: "/guide/automation/graph" },
-      { text: "Clean", link: "/guide/automation/clean" },
-    ],
-  },
-  {
-    text: "Scale",
-    items: [
-      // {
-      //   text: "Xcode",
-      //   link: "/guide/scale/xcode",
-      // },
       {
-        text: "µFeatures architecture",
-        link: "/guide/scale/ufeatures-architecture",
+        text: "Commands",
+        collapsed: true,
+        items: [
+          { text: "Generate", link: "/guide/automation/generate" },
+          { text: "Build", link: "/guide/automation/build" },
+          { text: "Test", link: "/guide/automation/test" },
+          { text: "Run", link: "/guide/automation/run" },
+          { text: "Graph", link: "/guide/automation/graph" },
+          { text: "Clean", link: "/guide/automation/clean" },
+        ],
       },
       {
-        text: "Tuist Cloud",
+        text: "The Modular Architecture",
+        link: "/guide/scale/tma-architecture",
+      },
+    ],
+  },
+  {
+    text: "Tuist Cloud",
+    items: [
+      {
+        text: "What is Tuist Cloud?",
         link: "/cloud/what-is-cloud",
+      },
+      {
+        text: "Get started",
+        link: "/cloud/get-started",
+      },
+      {
+        text: "Binary caching",
+        link: "/cloud/binary-caching",
+      },
+      {
+        text: "Selective testing",
+        link: "/cloud/selective-testing",
+      },
+      {
+        text: "Hashing",
+        link: "/cloud/hashing",
+      },
+      {
+        text: "On-premise",
+        link: "/cloud/on-premise",
       },
     ],
   },
@@ -208,6 +225,8 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
+/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
@@ -219,8 +238,10 @@ export default defineConfig({
     },
     nav: [
       { text: "Guide", link: "/" },
-      { text: "Reference", link: "/reference/project-description/structs/project" },
-      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
+      {
+        text: "Reference",
+        link: "/reference/project-description/structs/project",
+      },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
     ],
@@ -247,37 +268,6 @@ export default defineConfig({
             {
               text: "Principles",
               link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/cloud": [
-        {
-          text: "Tuist Cloud",
-          items: [
-            {
-              text: "What is Tuist Cloud?",
-              link: "/cloud/what-is-cloud",
-            },
-            {
-              text: "Get started",
-              link: "/cloud/get-started",
-            },
-            {
-              text: "Binary caching",
-              link: "/cloud/binary-caching",
-            },
-            {
-              text: "Selective testing",
-              link: "/cloud/selective-testing",
-            },
-            {
-              text: "Hashing",
-              link: "/cloud/hashing",
-            },
-            {
-              text: "On-premise",
-              link: "/cloud/on-premise",
             },
           ],
         },
