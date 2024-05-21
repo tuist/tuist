@@ -125,7 +125,7 @@ const guideSidebar = [
         ],
       },
       {
-        text: "The Modular Architecture (TMA)",
+        text: "The Modular Architecture",
         link: "/guide/scale/tma-architecture",
       },
     ],

@@ -56,7 +56,7 @@ Reusing code across apps and other products like extensions is encouraged using 
 
 When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
-Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend not using dependency-injection solutions that might add tooling indirection, make the logic harder to follow, or build on platform APIs that were not designed for this goal and therefore might make the solution brittle.
+Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
 
 ## Product types
 
@@ -69,6 +69,20 @@ We recommend using dynamic libraries or frameworks during development using [bun
 # and use it to change the linking type
 TUIST_PRODUCT_TYPE=static-library tuist generate
 ```
+
+```swift
+// You can place this in your manifest files or helpers
+// and use the returned value when instantiating targets.
+func productType() -> Product {
+    if case let .string(productType) = Environment.productType {
+        return productType == "static-library" ? .staticLibrary : .framework
+    } else {
+        return .framework
+    }
+}
+```
+
+
 > [!IMPORTANT] MERGEABLE LIBRARIES
 > Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
 
