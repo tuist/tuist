@@ -16,25 +16,6 @@
     </.button_group>
   </.stack>
   <.analytics_chart
-    id="average-duration-chart"
-    title={gettext("Average build")}
-    summary_value={
-      gettext("%{duration} s",
-        duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1)
-      )
-    }
-    trend={@build_duration_analytics.trend}
-    trend_positive={@build_duration_analytics.trend < 0}
-  />
-  <.analytics_chart
-    id="build-runs-chart"
-    type={:bar}
-    title={gettext("Build runs")}
-    summary_value={gettext("%{runs_count} runs", runs_count: @build_runs_analytics.runs_count)}
-    trend={@build_runs_analytics.trend}
-    trend_positive={@build_runs_analytics.trend > 0}
-  />
-  <.analytics_chart
     id="cache-hit-rate-chart"
     title={gettext("Cache hit rate")}
     summary_value={
@@ -101,6 +82,25 @@
     summary_value={gettext("%{runs_count} runs", runs_count: @generate_runs_analytics.runs_count)}
     trend={@generate_runs_analytics.trend}
     trend_positive={@generate_runs_analytics.trend > 0}
+  />
+  <.analytics_chart
+    id="average-duration-chart"
+    title={gettext("Average build")}
+    summary_value={
+      gettext("%{duration} s",
+        duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1)
+      )
+    }
+    trend={@build_duration_analytics.trend}
+    trend_positive={@build_duration_analytics.trend < 0}
+  />
+  <.analytics_chart
+    id="build-runs-chart"
+    type={:bar}
+    title={gettext("Build runs")}
+    summary_value={gettext("%{runs_count} runs", runs_count: @build_runs_analytics.runs_count)}
+    trend={@build_runs_analytics.trend}
+    trend_positive={@build_runs_analytics.trend > 0}
   />
 </div>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts">
