@@ -22,4 +22,4 @@ tuist run MyApp --device "iPhone 15" --os "17.4.1"
 :::
 
 > [!NOTE] EXISTING SIMULATORS
-> If Tuist can't find a destination that matches the specified device and OS, it will use the first available simulator.
+> If Tuist can't find a destination that matches the specified device and OS or none is provided, it will ask in which available simulator to run, in case of many available, or pick the only one available otherwise.

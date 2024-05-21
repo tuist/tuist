@@ -153,8 +153,12 @@ public final class TargetRunner: TargetRunning {
         let settings = try await xcodeBuildController
             .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration, derivedDataPath: nil)
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
-        let simulator = try await simulatorController
-            .findAvailableDevice(platform: platform, version: version, minVersion: minVersion, deviceName: deviceName)
+        let simulator = try await simulatorController.askForAvailableDevice(
+            platform: platform,
+            version: version,
+            minVersion: minVersion,
+            deviceName: deviceName
+        )
 
         logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
         logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
