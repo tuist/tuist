@@ -1364,6 +1364,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ActuallyTaylor",
+      "name": "Taylor Lineman",
+      "avatar_url": "https://avatars.githubusercontent.com/u/32944568?v=4",
+      "profile": "http://actuallytaylor.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
