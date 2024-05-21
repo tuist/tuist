@@ -74,7 +74,7 @@ TUIST_PRODUCT_TYPE=static-library tuist generate
 
 ## Code
 
-TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience with our users:
+TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience:
 
 - **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
 - **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
