@@ -268,6 +268,16 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/crunchyroll.svg" alt="crunchyroll_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://altel.kz" target="_blank">
+          <img src="assets/companies/altel.svg" alt="altel_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://tele2.kz" target="_blank">
+          <img src="assets/companies/tele2.svg" alt="altel_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
