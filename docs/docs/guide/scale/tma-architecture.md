@@ -19,7 +19,7 @@ A module represents an application feature and is a combination of the following
 - **Source:** Contains the feature source code (Swift, Objective-C, C++, React Native...) and its resources (images, fonts, storyboards, xibs).
 - **Interface:** It's a companion target that contains the public interface and models of the feature.
 - **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used for the tests and from the example app. It also provides mocks for module classes and protocols that can be used by other features as we'll see later.
+- **Testing:** Provides testing data that can be used in tests and the example app. It also provides mocks for module classes and protocols that can be used by other features as we'll see later.
 - **Example:** Contains an example app that developers can use to try out the feature under certain conditions (different languages, screen sizes, settings).
 
 We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
