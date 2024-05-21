@@ -5,7 +5,7 @@ TMA is an architectural approach to structure Apple OS applications to enable sc
 
 These guidelines introduce the principles of the architecture, helping you identify and organize your application features in different layers. It also introduces tips, tools, and advice if you decide to use this architecture.
 
-> [!INFO] uFEATURES
+> [!INFO] µFEATURES
 > This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
 
 ## Core principle
