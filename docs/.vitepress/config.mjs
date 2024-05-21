@@ -124,8 +124,8 @@ const guideSidebar = [
         ],
       },
       {
-        text: "µFeatures architecture",
-        link: "/guide/scale/ufeatures-architecture",
+        text: "The Modular Architecture (TMA)",
+        link: "/guide/scale/tma-architecture",
       },
     ],
   },
@@ -195,6 +195,8 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
+/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
