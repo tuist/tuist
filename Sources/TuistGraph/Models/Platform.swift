@@ -1,4 +1,14 @@
 import Foundation
+import TuistSupport
+
+struct UnsupportedPlatformError: FatalError, CustomStringConvertible, Equatable {
+    let type: TuistSupport.ErrorType = .abort
+
+    let input: String
+    var description: String {
+        "Specified platform \(input) does not map to any of these supported platforms: \(Platform.allCases.map(\.caseValue).joined(separator: ", ")) "
+    }
+}
 
 public enum Platform: String, CaseIterable, Codable, Comparable {
     case iOS = "ios"
@@ -15,6 +25,17 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
         case .watchOS: return "watchOS"
         case .visionOS: return "visionOS"
         }
+    }
+
+    init?(commandLineValue: String) {
+        self.init(rawValue: commandLineValue.lowercased())
+    }
+
+    public static func from(commandLineValue: String) throws -> Platform {
+        guard let platform = Platform(rawValue: commandLineValue.lowercased()) else {
+            throw UnsupportedPlatformError(input: commandLineValue)
+        }
+        return platform
     }
 
     public static func < (lhs: Platform, rhs: Platform) -> Bool {
