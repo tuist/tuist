@@ -79,7 +79,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates  \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client  \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
@@ -98,6 +98,7 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist_cloud ./
 COPY priv/secrets/secrets.yml.enc /app/priv/secrets/secrets.yml.enc
+COPY priv/repo/structure.sql /app/priv/repo/structure.sql
 ENV SECRETS_PATH=/app/priv/secrets/secrets.yml.enc
 
 USER nobody
