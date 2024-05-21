@@ -8,8 +8,14 @@ defmodule TuistCloud.AccountsFixtures do
     email = Keyword.get(opts, :email, unique_user_email())
     password = Keyword.get(opts, :password, valid_user_password())
     confirmed_at = Keyword.get(opts, :confirmed_at, DateTime.utc_now())
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    user = Accounts.create_user(email, password: password, confirmed_at: confirmed_at)
+    user =
+      Accounts.create_user(email,
+        password: password,
+        confirmed_at: confirmed_at,
+        created_at: created_at
+      )
 
     user
   end

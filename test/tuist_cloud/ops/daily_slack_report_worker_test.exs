@@ -10,7 +10,7 @@ defmodule TuistCloud.Ops.DailySlackReportWorkerTest do
     # Given
     TuistCloud.Time |> stub(:utc_now, fn -> ~U[2024-05-21 10:20:30Z] end)
     created_at = ~U[2024-05-20 10:20:30Z]
-    user = AccountsFixtures.user_fixture() |> Repo.preload(:account)
+    user = AccountsFixtures.user_fixture(created_at: created_at) |> Repo.preload(:account)
 
     project =
       ProjectsFixtures.project_fixture(account_id: user.account.id, created_at: created_at)

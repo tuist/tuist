@@ -32,7 +32,7 @@ defmodule TuistCloud.Accounts.User do
     attrs = Map.put(attrs, :encrypted_password, Bcrypt.hash_pwd_salt(password_to_hash))
 
     user
-    |> cast(attrs, [:token, :email, :encrypted_password, :confirmed_at])
+    |> cast(attrs, [:token, :email, :encrypted_password, :confirmed_at, :created_at])
     |> validate_required([:token, :email])
     |> unique_constraint(:token, name: "index_users_on_token")
     |> unique_constraint(:email, name: "index_users_on_email")
