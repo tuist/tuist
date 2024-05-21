@@ -57,7 +57,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                    share/
                        Templates
                 */
-            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share/Templates")),
+            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share")),
             // swiftlint:disable:previous force_try
         ]
         let candidates = paths.map { path in
