@@ -8,7 +8,7 @@ defmodule TuistCloudWeb.API.Schemas.CommandEvent do
   OpenApiSpex.schema(%{
     type: :object,
     description: "The schema for the command analytics event.",
-    required: [:id, :name],
+    required: [:id, :name, :url],
     properties: %{
       id: %Schema{
         type: :number,
@@ -17,6 +17,10 @@ defmodule TuistCloudWeb.API.Schemas.CommandEvent do
       name: %Schema{
         type: :string,
         description: "Name of the command"
+      },
+      url: %Schema{
+        type: :string,
+        description: "URL to the command event"
       }
     }
   })

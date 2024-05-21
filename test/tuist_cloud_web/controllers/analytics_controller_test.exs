@@ -49,13 +49,15 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
       assert response == %{
                "name" => "generate",
                "id" => response["id"],
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.is_ci == false
       assert command_event.client_id == "client-id"
       assert command_event.cacheable_targets == ["target1", "target2"]
@@ -96,13 +98,15 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
       assert response == %{
                "name" => "generate",
-               "id" => response["id"],
-               "project_id" => project.id
+               "id" => command_event.id,
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.is_ci == false
       assert command_event.client_id == "client-id"
     end
@@ -144,13 +148,15 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
       assert response == %{
                "name" => "generate",
                "id" => response["id"],
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.status == :failure
       assert command_event.error_message == "An error occurred"
       assert command_event.user_id == user.id
@@ -195,13 +201,15 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
       assert response == %{
                "id" => response["id"],
                "name" => "generate",
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
       assert command_event.is_ci == true
     end
   end

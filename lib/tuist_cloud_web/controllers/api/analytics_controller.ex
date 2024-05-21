@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.API.AnalyticsController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloud.Repo
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
   alias TuistCloud.CommandEvents
   alias TuistCloudWeb.Authentication
@@ -165,7 +166,10 @@ defmodule TuistCloudWeb.API.AnalyticsController do
         Authentication.current_user(conn).id
       end
 
-    project = EnsureProjectPresencePlug.get_project(conn)
+    project =
+      EnsureProjectPresencePlug.get_project(conn)
+      |> Repo.preload(:account)
+
     project_id = project_id
 
     if Authorization.can(subject, :create, project, :command_event) do
@@ -197,7 +201,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
       |> json(%{
         id: command_event.id,
         project_id: command_event.project_id,
-        name: command_event.name
+        name: command_event.name,
+        url: url(~p"/#{project.account.name}/#{project.name}/runs/#{command_event.id}")
       })
     else
       conn
