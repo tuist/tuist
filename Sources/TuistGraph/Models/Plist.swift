@@ -140,6 +140,9 @@ public enum Entitlements: Equatable, Codable {
     // User defined dictionary of keys/values for an .entitlements file.
     case dictionary([String: Plist.Value])
 
+    // A user defined xcconfig variable map to .entitlements file
+    case variable(String)
+
     // MARK: - Public
 
     public var path: AbsolutePath? {
@@ -156,6 +159,10 @@ public enum Entitlements: Equatable, Codable {
 
 extension Entitlements: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+        if value.hasPrefix("$(") {
+            self = .variable(value)
+        } else {
+            self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+        }
     }
 }
