@@ -14,7 +14,7 @@ Developers should be able to **build, test and try** their features fast, with i
 
 ## What is a module
 
-A module represents an application feature and is a combination of the following five targets (referring with target to a Xcode target):
+A module represents an application feature and is a combination of the following five targets (where target referts to an Xcode target):
 
 - **Source:** Contains the feature source code (Swift, Objective-C, C++, React Native...) and its resources (images, fonts, storyboards, xibs).
 - **Interface:** It's a companion target that contains the public interface and models of the feature.
