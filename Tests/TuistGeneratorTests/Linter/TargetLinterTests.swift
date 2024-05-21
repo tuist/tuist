@@ -27,12 +27,12 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = self.subject.lint(target: target)
             let reason: String
             switch target.product {
-            case .app, .commandLineTool:
-                reason =
-                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
-            default:
+            case .framework, .staticFramework:
                 reason =
                     "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), and underscore (_) characters."
+            default:
+                reason =
+                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), hyphen (-), and underscore (_) characters."
             }
 
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
@@ -44,11 +44,14 @@ final class TargetLinterTests: TuistUnitTestCase {
         }
 
         XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp.iOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp-iOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .bundle, productName: "MyBundle.macOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .bundle, productName: "MyBundle-macOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework_iOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework"))
 
         XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework.iOS"))
-        XCTAssertInvalidProductNameApp(Target.test(productName: "MyFramework-iOS"))
+        XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework-iOS"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ⅫFramework"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
     }
