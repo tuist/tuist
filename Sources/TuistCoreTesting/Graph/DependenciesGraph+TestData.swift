@@ -678,7 +678,7 @@ extension DependenciesGraph {
             "USE_HEADERMAP": "NO",
             "OTHER_SWIFT_FLAGS": ["-package-name", packageName.quotedIfContainsSpaces],
         ]
-        var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
+        var settingsDictionary = defaultSpmSettings.combine(with: customSettings)
 
         if let moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)

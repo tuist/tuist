@@ -76,14 +76,14 @@ class TargetLinter: TargetLinting {
     private func lintProductName(target: Target) -> [LintingIssue] {
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
-        let allowsDot = target.product == .app || target.product == .commandLineTool
-        if allowsDot {
-            allowed.formUnion(CharacterSet(charactersIn: "."))
+        let allowsExtraCharacters = target.product != .framework && target.product != .staticFramework
+        if allowsExtraCharacters {
+            allowed.formUnion(CharacterSet(charactersIn: ".-"))
         }
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason =
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsDot ? ", period (.)" : ""), and underscore (_) characters."
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsExtraCharacters ? ", period (.), hyphen (-)" : ""), and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }

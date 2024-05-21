@@ -1364,6 +1364,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ActuallyTaylor",
+      "name": "Taylor Lineman",
+      "avatar_url": "https://avatars.githubusercontent.com/u/32944568?v=4",
+      "profile": "http://actuallytaylor.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "nandodelauni",
+      "name": "Miguel Ferrando",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1938501?v=4",
+      "profile": "https://github.com/nandodelauni",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

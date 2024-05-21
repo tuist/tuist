@@ -866,6 +866,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .file(path: "/path/fonts/font1.ttf"),
             .file(path: "/path/fonts/font2.ttf"),
             .file(path: "/path/fonts/font3.ttf", condition: .when([.macos])),
+            .file(path: "/path/fonts/font4.ttf", codeSignOnCopy: true),
+            .file(path: "/path/fonts/font5.ttf", condition: .when([.macos]), codeSignOnCopy: true),
+            .file(path: "/path/fonts/font6.ttf", codeSignOnCopy: false),
         ]
 
         let templates: [CopyFileElement] = [
@@ -898,12 +901,27 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "font1.ttf",
             "font2.ttf",
             "font3.ttf",
+            "font4.ttf",
+            "font5.ttf",
+            "font6.ttf",
         ])
 
         XCTAssertEqual(firstBuildPhase.files?.map(\.platformFilters), [
             nil,
             nil,
             ["macos"],
+            nil,
+            ["macos"],
+            nil,
+        ])
+
+        XCTAssertEqual(firstBuildPhase.files?.map(\.settings) as? [[String: [String]]?], [
+            nil,
+            nil,
+            nil,
+            ["ATTRIBUTES": ["CodeSignOnCopy"]],
+            ["ATTRIBUTES": ["CodeSignOnCopy"]],
+            nil,
         ])
 
         let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)

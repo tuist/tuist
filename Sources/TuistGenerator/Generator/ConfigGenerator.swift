@@ -251,12 +251,16 @@ final class ConfigGenerator: ConfigGenerating {
         }
 
         // Entitlements
-        if let entitlements = target.entitlements, let path = entitlements.path {
-            let relativePath = path.relative(to: sourceRootPath).pathString
-            if project.xcodeProjPath.parentDirectory == sourceRootPath {
-                settings["CODE_SIGN_ENTITLEMENTS"] = .string(relativePath)
-            } else {
-                settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
+        if let entitlements = target.entitlements {
+            if let path = entitlements.path {
+                let relativePath = path.relative(to: sourceRootPath).pathString
+                if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                    settings["CODE_SIGN_ENTITLEMENTS"] = .string(relativePath)
+                } else {
+                    settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
+                }
+            } else if case let .variable(configName) = entitlements {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string(configName)
             }
         }
 
