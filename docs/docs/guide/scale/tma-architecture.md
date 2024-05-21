@@ -10,7 +10,7 @@ These guidelines introduce the principles of the architecture, helping you ident
 
 ## Core principle
 
-Developers should be able to **build, test and try** their features fast, with independence of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
+Developers should be able to **build, test, and try** their features fast, independently of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
 
 ## What is a module
 
