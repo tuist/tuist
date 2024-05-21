@@ -19,7 +19,6 @@ function capitalize(text) {
   if (projectDescriptionTypesData.find((item) => item.category === category)) {
     projectDescriptionSidebar.items.push({
       text: capitalize(category),
-      collapsed: true,
       items: projectDescriptionTypesData
         .filter((item) => item.category === category)
         .map((item) => ({
@@ -83,7 +82,7 @@ const guideSidebar = [
     ],
   },
   {
-    text: "Project",
+    text: "Tuist Projects",
     items: [
       {
         text: "Manifests",
@@ -112,33 +111,21 @@ const guideSidebar = [
         text: "Plugins",
         link: "/guide/project/plugins",
       },
-    ],
-  },
-  {
-    text: "Automation",
-    items: [
-      { text: "Generate", link: "/guide/automation/generate" },
-      { text: "Build", link: "/guide/automation/build" },
-      { text: "Test", link: "/guide/automation/test" },
-      { text: "Run", link: "/guide/automation/run" },
-      { text: "Graph", link: "/guide/automation/graph" },
-      { text: "Clean", link: "/guide/automation/clean" },
-    ],
-  },
-  {
-    text: "Scale",
-    items: [
-      // {
-      //   text: "Xcode",
-      //   link: "/guide/scale/xcode",
-      // },
+      {
+        text: "Commands",
+        collapsed: true,
+        items: [
+          { text: "Generate", link: "/guide/automation/generate" },
+          { text: "Build", link: "/guide/automation/build" },
+          { text: "Test", link: "/guide/automation/test" },
+          { text: "Run", link: "/guide/automation/run" },
+          { text: "Graph", link: "/guide/automation/graph" },
+          { text: "Clean", link: "/guide/automation/clean" },
+        ],
+      },
       {
         text: "µFeatures architecture",
         link: "/guide/scale/ufeatures-architecture",
-      },
-      {
-        text: "Tuist Cloud",
-        link: "/cloud/what-is-cloud",
       },
     ],
   },
@@ -219,7 +206,10 @@ export default defineConfig({
     },
     nav: [
       { text: "Guide", link: "/" },
-      { text: "Reference", link: "/reference/project-description/structs/project" },
+      {
+        text: "Reference",
+        link: "/reference/project-description/structs/project",
+      },
       { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
