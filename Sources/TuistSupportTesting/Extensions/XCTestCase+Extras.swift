@@ -147,11 +147,11 @@ extension XCTestCase {
     ) async {
         do {
             _ = try await closure()
+            XCTFail("No error was thrown", file: file, line: line)
         } catch {
-            XCTAssertTrue(true)
-            return
+            // Succeeded
         }
-        XCTFail("No error was thrown", file: file, line: line)
+        
     }
 
     public func XCTAssertCodableEqualToJson<C: Codable>(

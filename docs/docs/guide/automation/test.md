@@ -21,14 +21,14 @@ Test flakiness is a tremendous source of frustration for developers and loss of 
 
 ## Running scheme tests
 
-To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the `xcodebuild` command-line tool. We support the use of the `--` terminator to forward all subsequent arguments directly to `xcodebuild. Arguments such as `-workspace` or `-project` cannot be used because tuist takes care of them.
+To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the `xcodebuild` command-line tool. We support the use of the `--` terminator to forward all subsequent arguments directly to `xcodebuild`. Arguments such as `-workspace` or `-project` cannot be used because tuist takes care of them.
 
 ::: code-group
 ```bash [Running scheme tests]
 tuist test MyScheme
 ```
 ```bash [Running all tests without binary cache]
-tuist test -- --no-binary-cache
+tuist test --no-binary-cache
 ```
 
 ```bash [Running all tests without selective testing]
