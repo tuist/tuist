@@ -10,7 +10,7 @@ enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .alreadyHandled(argument):
-            "The argument \(argument) added after the terminator (--) cannot be passthrough to xcodebuild because it is handled by tuist"
+            "The argument \(argument) added after the terminator (--) cannot be passed through to xcodebuild because it is handled by Tuist."
         }
     }
 
@@ -96,7 +96,7 @@ public struct BuildOptions: ParsableArguments {
 
     @Argument(
         parsing: .postTerminator,
-        help: "xcodebuild arguments that will be passthrough"
+        help: "Arguments that will be passed through to xcodebuild"
     )
     var passthroughXcodeBuildArguments: [String] = []
 }
