@@ -307,6 +307,7 @@ defmodule TuistCloud.Accounts do
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
     suffix = opts |> Keyword.get(:suffix, "")
     attempt = opts |> Keyword.get(:attempt, 0)
+    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
 
     name =
       (email
@@ -323,7 +324,8 @@ defmodule TuistCloud.Accounts do
           email: email,
           token: token,
           password: password,
-          confirmed_at: confirmed_at
+          confirmed_at: confirmed_at,
+          created_at: created_at
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
