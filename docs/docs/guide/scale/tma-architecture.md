@@ -42,7 +42,7 @@ We recommend following a naming convention for targets, something that you can e
 
 ### Clear and concise APIs
 
-When all the app source code lives in the same target is very easy to build implicit dependencies in code, and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
+When all the app source code lives in the same target it is very easy to build implicit dependencies in code and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
 
 ### Small modules
 
