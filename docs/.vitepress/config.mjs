@@ -19,6 +19,7 @@ function capitalize(text) {
   if (projectDescriptionTypesData.find((item) => item.category === category)) {
     projectDescriptionSidebar.items.push({
       text: capitalize(category),
+      collapsed: true,
       items: projectDescriptionTypesData
         .filter((item) => item.category === category)
         .map((item) => ({
@@ -129,6 +130,35 @@ const guideSidebar = [
       },
     ],
   },
+  {
+    text: "Tuist Cloud",
+    items: [
+      {
+        text: "What is Tuist Cloud?",
+        link: "/cloud/what-is-cloud",
+      },
+      {
+        text: "Get started",
+        link: "/cloud/get-started",
+      },
+      {
+        text: "Binary caching",
+        link: "/cloud/binary-caching",
+      },
+      {
+        text: "Selective testing",
+        link: "/cloud/selective-testing",
+      },
+      {
+        text: "Hashing",
+        link: "/cloud/hashing",
+      },
+      {
+        text: "On-premise",
+        link: "/cloud/on-premise",
+      },
+    ],
+  },
 ];
 
 // https://vitepress.dev/reference/site-config
@@ -212,7 +242,6 @@ export default defineConfig({
         text: "Reference",
         link: "/reference/project-description/structs/project",
       },
-      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
     ],
@@ -239,37 +268,6 @@ export default defineConfig({
             {
               text: "Principles",
               link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/cloud": [
-        {
-          text: "Tuist Cloud",
-          items: [
-            {
-              text: "What is Tuist Cloud?",
-              link: "/cloud/what-is-cloud",
-            },
-            {
-              text: "Get started",
-              link: "/cloud/get-started",
-            },
-            {
-              text: "Binary caching",
-              link: "/cloud/binary-caching",
-            },
-            {
-              text: "Selective testing",
-              link: "/cloud/selective-testing",
-            },
-            {
-              text: "Hashing",
-              link: "/cloud/hashing",
-            },
-            {
-              text: "On-premise",
-              link: "/cloud/on-premise",
             },
           ],
         },
