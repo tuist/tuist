@@ -67,7 +67,7 @@ The level of effectiveness that can be achieved with binary caching depends stro
 2. Define dependencies with protocol/interface targets instead of implementation ones, and dependency-inject implementations from the top-most targets.
 3. Split frequently-modified targets into smaller ones whose likelihood of change is lower.
 
-The above suggestions are part of the [µFeatures architecture](/guide/scale/ufeatures-architecture), which we propose as a way to structure your projects to maximize the benefits not only of binary caching but also of Xcode's capabilities.
+The above suggestions are part of the [µFeatures architecture](/guide/scale/tma-architecture), which we propose as a way to structure your projects to maximize the benefits not only of binary caching but also of Xcode's capabilities.
 
 ## Recommended setup
 
