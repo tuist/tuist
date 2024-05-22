@@ -251,7 +251,7 @@ config :tuist_cloud, Oban,
        [
          {"@hourly", TuistCloud.CommandEvents.UpdateCacheEventCountWorker}
        ] ++
-         if(TuistCloud.Environment.on_premise?(),
+         if(TuistCloud.Environment.on_premise?() and env == :prod,
            do: [],
            else: [
              {"0 10 * * 1-5", TuistCloud.Ops.DailySlackReportWorker}
