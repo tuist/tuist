@@ -37,9 +37,19 @@ defmodule TuistCloud.Projects do
   end
 
   def get_project_by_account_and_project_name(account_name, project_name) do
-    with {:account, %{id: account_id}} <- {:account, Repo.get_by(Account, name: account_name)},
+    with {:account, %{id: account_id}} <-
+           {:account,
+            Repo.one(
+              from a in Account,
+                where: fragment("lower(?)", a.name) == ^String.downcase(account_name)
+            )},
          {:project, project} <-
-           {:project, Repo.get_by(Project, name: project_name, account_id: account_id)} do
+           {:project,
+            Repo.one(
+              from p in Project,
+                where: fragment("lower(?)", p.name) == ^String.downcase(project_name),
+                where: p.account_id == ^account_id
+            )} do
       project
     else
       {:account, nil} -> nil

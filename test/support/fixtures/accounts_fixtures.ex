@@ -9,6 +9,7 @@ defmodule TuistCloud.AccountsFixtures do
     password = Keyword.get(opts, :password, valid_user_password())
     confirmed_at = Keyword.get(opts, :confirmed_at, DateTime.utc_now())
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    preloads = Keyword.get(opts, :preloads, [])
 
     user =
       Accounts.create_user(email,
@@ -17,7 +18,7 @@ defmodule TuistCloud.AccountsFixtures do
         created_at: created_at
       )
 
-    user
+    user |> TuistCloud.Repo.preload(preloads)
   end
 
   def organization_fixture(opts \\ []) do
