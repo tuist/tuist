@@ -50,7 +50,10 @@ defmodule TuistCloud.BillingTest do
     |> stub(:stripe_configured?, fn -> true end)
 
     Stripe.Customer
-    |> stub(:create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
+    |> stub(
+      :create,
+      fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end
+    )
 
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
