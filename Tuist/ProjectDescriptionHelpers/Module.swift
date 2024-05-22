@@ -181,6 +181,13 @@ public enum Module: String, CaseIterable {
         }
         return dependencies + sharedDependencies
     }
+    
+    public var strictConcurrencySetting: String? {
+        switch self {
+        default:
+            return nil
+        }
+    }
 
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] = switch self {
@@ -628,6 +635,12 @@ public enum Module: String, CaseIterable {
             debugSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
             releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         }
+        
+        if let strictConcurrencySetting {
+            debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+            releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+        }
+        
         let settings = Settings.settings(
             configurations: [
                 .debug(
