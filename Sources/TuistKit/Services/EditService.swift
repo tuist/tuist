@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistGenerator
 import TuistGraph
 import TuistLoader
@@ -30,6 +31,7 @@ final class EditService {
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
     private let signalHandler: SignalHandling
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
     private static var temporaryDirectory: AbsolutePath?
 
@@ -38,13 +40,15 @@ final class EditService {
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
-        signalHandler: SignalHandling = SignalHandler()
+        signalHandler: SignalHandling = SignalHandler(),
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
         self.configLoader = configLoader
         self.pluginService = pluginService
         self.signalHandler = signalHandler
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
     func run(
@@ -56,27 +60,28 @@ final class EditService {
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
-            try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
-                EditService.temporaryDirectory = generationDirectory
-
-                signalHandler.trap { _ in
-                    try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
-                    exit(0)
-                }
-
-                guard let selectedXcode = try XcodeController.shared.selected() else {
-                    throw EditServiceError.xcodeNotSelected
-                }
-
-                let workspacePath = try projectEditor.edit(
-                    at: path,
-                    in: generationDirectory,
-                    onlyCurrentDirectory: onlyCurrentDirectory,
-                    plugins: plugins
-                )
-                logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-                try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
+            let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
+            let generationDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
+            EditService.temporaryDirectory = generationDirectory
+            
+            signalHandler.trap { _ in
+                try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
+                exit(0)
             }
+            
+            guard let selectedXcode = try XcodeController.shared.selected() else {
+                throw EditServiceError.xcodeNotSelected
+            }
+            
+            let workspacePath = try projectEditor.edit(
+                at: path,
+                in: generationDirectory,
+                onlyCurrentDirectory: onlyCurrentDirectory,
+                plugins: plugins
+            )
+            logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
+            try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
+            
         } else {
             let workspacePath = try projectEditor.edit(
                 at: path,
