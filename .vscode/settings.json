@@ -9,6 +9,10 @@
   "[json]": {
     "editor.formatOnSave": true
   },
+  "[elixir]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls",
+    "editor.formatOnSave": true
+  },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "sorbet.enabled": true,
   "files.exclude": {
@@ -19,9 +23,6 @@
   },
   "emmet.includeLanguages": {
     "html-eex": "html"
-  },
-  "[elixir]": {
-    "editor.defaultFormatter": "JakeBecker.elixir-ls"
   },
   "rust-analyzer.linkedProjects": [
     "native/tuistcloud_native/Cargo.toml"
