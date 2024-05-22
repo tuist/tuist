@@ -35,6 +35,17 @@ tuist_cloud_acceptance_tests_project =
       )
   end
 
+org_account =
+  if Accounts.get_organization_account_by_name("tuist-org") do
+    Accounts.get_organization_account_by_name("tuist-org").organization
+  else
+    Accounts.create_organization(%{name: "tuist-org", creator: user})
+  end
+
+_org_project =
+  Projects.get_project_by_slug("tuist-org/tuist") ||
+    Projects.create_project(%{name: "tuist", account: %{id: org_account.id}}, token: "tuist")
+
 for _event <- 1..10000 do
   names = ["build", "test", "cache", "generate"]
   name = Enum.random(names)
