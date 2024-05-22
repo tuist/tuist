@@ -1019,25 +1019,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
-                            .glob(
-                                pattern: .path(
-                                    basePath
-                                        .appending(
-                                            try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/Folder/**")
-                                        )
-                                        .pathString
-                                ),
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
-                                            )
-                                            .pathString
-                                    ),
-                                ],
-                                tags: []
-                            ),
                         ]
                     ),
                 ]
