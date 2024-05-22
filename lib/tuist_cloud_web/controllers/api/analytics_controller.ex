@@ -163,7 +163,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
       if is_nil(current_user) do
         nil
       else
-        Authentication.current_user(conn).id
+        current_user.id
       end
 
     project =
@@ -172,7 +172,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
 
     project_id = project_id
 
-    if Authorization.can(subject, :create, project, :command_event) do
+    if Authorization.can(subject, :create, project, :command_event, is_ci: body_params.is_ci) do
       command_event =
         CommandEvents.create_command_event(%{
           name: body_params.name,

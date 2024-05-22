@@ -13,6 +13,44 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/analytics" do
+    test "returns forbidden when not CI and authenticated as a project", %{conn: conn, user: user} do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response == %{
+               "message" =>
+                 "You don't have permission to create command events for #{account.name}/#{project.name}."
+             }
+    end
+
     test "returns newly created command event", %{conn: conn, user: user} do
       # Given
       conn =
