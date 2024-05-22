@@ -758,6 +758,12 @@ defmodule TuistCloud.AccountsTest do
       assert is_nil(user.confirmed_at)
     end
 
+    test "create a user lowercasing the email" do
+      email = "#{TuistCloud.TestUtilities.unique_integer()}@TUIST.io"
+      user = Accounts.create_user(email, password: valid_user_password())
+      assert user.email == String.downcase(email)
+    end
+
     test "create a user with a password when email has a dot in the username" do
       email = "username.with.dot@tuist.io"
       user = Accounts.create_user(email, password: valid_user_password())
