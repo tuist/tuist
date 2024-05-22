@@ -41,7 +41,7 @@ defmodule TuistCloud.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.get_by(Account, name: handle)
+    Repo.one(from a in Account, where: fragment("lower(?)", a.name) == ^String.downcase(handle))
   end
 
   @doc ~S"""
@@ -58,7 +58,7 @@ defmodule TuistCloud.Accounts do
       from a in Account,
         join: o in Organization,
         on: a.owner_type == "Organization" and a.owner_id == o.id,
-        where: a.name == ^name,
+        where: fragment("lower(?)", a.name) == ^String.downcase(name),
         select: %OrganizationAccount{organization: o, account: a}
 
     Repo.one(query)
@@ -142,7 +142,7 @@ defmodule TuistCloud.Accounts do
     - `email` - The email address of the user.
   """
   def get_user_by_email(email) do
-    Repo.get_by(User, email: email)
+    Repo.one(from u in User, where: fragment("lower(?)", u.email) == ^String.downcase(email))
   end
 
   def get_user_by_id(id) do
@@ -738,7 +738,11 @@ defmodule TuistCloud.Accounts do
   def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{
         id: organization_id
       }) do
-    Repo.get_by(Invitation, invitee_email: invitee_email, organization_id: organization_id)
+    Repo.one(
+      from i in Invitation,
+        where: fragment("lower(?)", i.invitee_email) == ^String.downcase(invitee_email),
+        where: i.organization_id == ^organization_id
+    )
   end
 
   def cancel_invitation(%Invitation{} = invitation) do
@@ -788,7 +792,8 @@ defmodule TuistCloud.Accounts do
   """
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: email)
+    user =
+      Repo.one(from u in User, where: fragment("lower(?)", u.email) == ^String.downcase(email))
 
     if User.valid_password?(user, password) do
       if is_nil(user.confirmed_at) do

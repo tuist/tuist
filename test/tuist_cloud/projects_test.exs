@@ -174,4 +174,23 @@ defmodule TuistCloud.ProjectsTest do
              ] == got
     end
   end
+
+  describe "get_project_by_account_and_project_name/2" do
+    test "returns the project if it exists doing a case-insensitive search" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      got =
+        Projects.get_project_by_account_and_project_name(
+          String.upcase(account.name),
+          String.upcase(project.name)
+        )
+
+      # Then
+      assert got == project
+    end
+  end
 end

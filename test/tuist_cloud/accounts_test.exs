@@ -299,7 +299,7 @@ defmodule TuistCloud.AccountsTest do
   end
 
   describe "get_invitation_by_invitee_email_and_organization/2" do
-    test "returns a given invitation" do
+    test "returns a given invitation doing a case-insensitive search" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
@@ -319,7 +319,10 @@ defmodule TuistCloud.AccountsTest do
 
       # When
       got =
-        Accounts.get_invitation_by_invitee_email_and_organization("new@tuist.io", organization)
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          String.upcase("new@tuist.io"),
+          organization
+        )
 
       # Then
       assert got == invitation
@@ -487,9 +490,9 @@ defmodule TuistCloud.AccountsTest do
       refute Accounts.get_user_by_email("unknown@example.com")
     end
 
-    test "returns the user if the email exists" do
+    test "returns the user if the email exists doing a case-insensitive search" do
       %{id: id} = user = user_fixture()
-      assert %User{id: ^id} = Accounts.get_user_by_email(user.email)
+      assert %User{id: ^id} = Accounts.get_user_by_email(String.upcase(user.email))
     end
   end
 
@@ -513,11 +516,14 @@ defmodule TuistCloud.AccountsTest do
                Accounts.get_user_by_email_and_password(user.email, "invalid")
     end
 
-    test "returns the user if the email and password are valid" do
+    test "returns the user if the email and password are valid doing a case-insensitive search" do
       %{id: id} = user = user_fixture()
 
       assert {:ok, %User{id: ^id}} =
-               Accounts.get_user_by_email_and_password(user.email, valid_user_password())
+               Accounts.get_user_by_email_and_password(
+                 String.upcase(user.email),
+                 valid_user_password()
+               )
     end
   end
 
@@ -732,20 +738,33 @@ defmodule TuistCloud.AccountsTest do
   end
 
   describe "get_organization_account_by_name/1" do
-    test "gets a given organization account" do
+    test "gets a given organization account doing a case-insensitive search" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = Accounts.create_organization(%{name: "tuist", creator: user})
       account = Accounts.get_account_from_organization(organization)
 
       # When
-      got = Accounts.get_organization_account_by_name("tuist")
+      got = Accounts.get_organization_account_by_name("TUIST")
 
       # Then
       assert %OrganizationAccount{
                account: account,
                organization: organization
              } == got
+    end
+  end
+
+  describe "get_account_by_handle/1" do
+    test "does case-insensitive searches" do
+      # Given
+      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preloads: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle(String.upcase(handle))
+
+      # Then
+      assert got != nil
     end
   end
 
