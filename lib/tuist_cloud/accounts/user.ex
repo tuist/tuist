@@ -33,6 +33,7 @@ defmodule TuistCloud.Accounts.User do
 
     user
     |> cast(attrs, [:token, :email, :encrypted_password, :confirmed_at, :created_at])
+    |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
     |> unique_constraint(:token, name: "index_users_on_token")
     |> unique_constraint(:email, name: "index_users_on_email")
