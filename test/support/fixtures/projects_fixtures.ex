@@ -11,8 +11,7 @@ defmodule TuistCloud.ProjectsFixtures do
         organization_id = TuistCloud.AccountsFixtures.organization_fixture().id
 
         Repo.get_by!(TuistCloud.Accounts.Account,
-          owner_type: "Organization",
-          owner_id: organization_id
+          organization_id: organization_id
         ).id
       end)
 

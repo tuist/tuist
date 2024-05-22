@@ -478,7 +478,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
 
-      is_nil(member_account) or member_account.owner_type != "User" ->
+      is_nil(member_account) or is_nil(member_account.user_id) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
@@ -489,7 +489,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
-        member = Accounts.get_user_by_id(member_account.owner_id)
+        member = Accounts.get_user_by_id(member_account.user_id)
         organization = organization_account.organization
 
         cond do
@@ -584,7 +584,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
 
-      is_nil(member_account) or member_account.owner_type != "User" ->
+      is_nil(member_account) or is_nil(member_account.user_id) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
@@ -595,7 +595,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
-        member = Accounts.get_user_by_id(member_account.owner_id)
+        member = Accounts.get_user_by_id(member_account.user_id)
         member_account = Accounts.get_account_from_user(member)
         organization = organization_account.organization
 

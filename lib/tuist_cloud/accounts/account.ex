@@ -10,8 +10,8 @@ defmodule TuistCloud.Accounts.Account do
   schema "accounts" do
     field :plan, Ecto.Enum, values: [none: 0, enterprise: 1, indie: 2, pro: 3]
     field :name, :string
-    field :owner_type, :string
-    field :owner_id, :integer
+    field :user_id, :integer
+    field :organization_id, :integer
     field :cache_upload_event_count, :integer
     field :cache_download_event_count, :integer
     field :customer_id, :string
@@ -23,11 +23,28 @@ defmodule TuistCloud.Accounts.Account do
   end
 
   def create_changeset(account, attrs) do
-    account
-    |> cast(attrs, [:name, :owner_type, :owner_id, :customer_id, :plan])
+    changeset =
+      account
+      |> cast(attrs, [:name, :user_id, :organization_id, :customer_id, :plan])
+
+    user_id = get_field(changeset, :user_id)
+
+    changeset
     |> validate_required(
-      [:name, :owner_type, :owner_id] ++ if(Billing.enabled?(), do: [:customer_id], else: [])
+      [:name] ++
+        if(Billing.enabled?(), do: [:customer_id], else: []) ++
+        if(is_nil(user_id), do: [:organization_id], else: [:user_id])
     )
+    |> validate_change(:organization_id, fn :organization_id, organization_id ->
+      if not is_nil(user_id) and not is_nil(organization_id) do
+        [
+          organization_id: "only one of user_id or organization_id can be present",
+          user_id: "only one of user_id or organization_id can be present"
+        ]
+      else
+        []
+      end
+    end)
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do
         [name: "can't contain a dot"]
@@ -36,11 +53,9 @@ defmodule TuistCloud.Accounts.Account do
       end
     end)
     |> validate_inclusion(:plan, [:none, :enterprise, :indie, :pro])
-    |> validate_inclusion(:owner_type, ["User", "Organization"])
     |> update_change(:name, &String.downcase/1)
     |> unique_constraint(:name, name: "index_accounts_on_name")
-    |> unique_constraint([:owner_id, :owner_type],
-      name: "index_accounts_on_owner_id_and_owner_type"
-    )
+    |> unique_constraint([:user_id])
+    |> unique_constraint([:organization_id])
   end
 end

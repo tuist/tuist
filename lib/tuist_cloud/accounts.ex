@@ -57,7 +57,7 @@ defmodule TuistCloud.Accounts do
     query =
       from a in Account,
         join: o in Organization,
-        on: a.owner_type == "Organization" and a.owner_id == o.id,
+        on: a.organization_id == o.id,
         where: fragment("lower(?)", a.name) == ^String.downcase(name),
         select: %OrganizationAccount{organization: o, account: a}
 
@@ -185,8 +185,7 @@ defmodule TuistCloud.Accounts do
 
         repo.insert(
           Account.create_changeset(%Account{}, %{
-            owner_type: "Organization",
-            owner_id: organization_id,
+            organization_id: organization_id,
             name: name,
             customer_id: customer_id
           })
@@ -237,13 +236,7 @@ defmodule TuistCloud.Accounts do
   end
 
   def delete_organization(%Organization{} = organization) do
-    account = get_account_from_organization(organization)
-
-    {:ok, _} =
-      Ecto.Multi.new()
-      |> Ecto.Multi.delete(:delete_organization, organization)
-      |> Ecto.Multi.delete(:delete_account, account)
-      |> Repo.transaction()
+    Repo.delete!(organization)
   end
 
   def find_or_create_user_from_oauth2(
@@ -333,8 +326,7 @@ defmodule TuistCloud.Accounts do
 
         repo.insert(
           Account.create_changeset(%Account{}, %{
-            owner_type: "User",
-            owner_id: user_id,
+            user_id: user_id,
             name: name,
             customer_id: customer_id
           })
@@ -420,10 +412,10 @@ defmodule TuistCloud.Accounts do
   end
 
   def organization_from_account(%Account{} = account) do
-    if account.owner_type == "Organization" do
-      account.owner_id |> get_organization_by_id()
-    else
+    if is_nil(account.organization_id) do
       nil
+    else
+      account.organization_id |> get_organization_by_id()
     end
   end
 
@@ -438,7 +430,7 @@ defmodule TuistCloud.Accounts do
   def get_account_from_user(%User{} = user) do
     query =
       from(a in Account,
-        where: a.owner_type == "User" and a.owner_id == ^user.id
+        where: a.user_id == ^user.id
       )
 
     query |> Repo.one()
@@ -447,7 +439,7 @@ defmodule TuistCloud.Accounts do
   def get_account_from_organization(%Organization{} = organization) do
     query =
       from(a in Account,
-        where: a.owner_type == "Organization" and a.owner_id == ^organization.id
+        where: a.organization_id == ^organization.id
       )
 
     query |> Repo.one()
@@ -483,7 +475,7 @@ defmodule TuistCloud.Accounts do
   end
 
   defp owns_account?(user, account) do
-    account.owner_type == "User" and account.owner_id == user.id
+    account.user_id == user.id
   end
 
   def add_user_to_organization(
@@ -601,7 +593,7 @@ defmodule TuistCloud.Accounts do
         join: o in Organization,
         on: o.id == r.resource_id,
         join: a in Account,
-        on: a.owner_type == "Organization" and a.owner_id == o.id,
+        on: a.organization_id == o.id,
         where: u.user_id == ^user_id and r.resource_type == "Organization",
         select: {o, a}
       )
@@ -615,7 +607,7 @@ defmodule TuistCloud.Accounts do
           oauth.provider_organization_id == org.sso_organization_id and
             org.sso_provider == oauth.provider,
         join: a in Account,
-        on: a.owner_type == "Organization" and a.owner_id == org.id,
+        on: a.organization_id == org.id,
         where: oauth.user_id == ^user_id,
         select: {org, a}
       )

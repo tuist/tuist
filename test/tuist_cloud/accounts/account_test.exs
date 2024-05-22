@@ -10,7 +10,7 @@ defmodule TuistCloud.AccountTest do
     |> stub(:enabled?, fn -> true end)
 
     changeset =
-      Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
+      Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
 
     assert changeset.valid? == false
     assert "can't be blank" in errors_on(changeset).customer_id
@@ -24,8 +24,7 @@ defmodule TuistCloud.AccountTest do
     changeset =
       Account.create_changeset(%Account{}, %{
         name: "Test",
-        owner_type: "User",
-        owner_id: 1,
+        user_id: 1,
         customer_id: "cus_123"
       })
 
@@ -38,17 +37,54 @@ defmodule TuistCloud.AccountTest do
     |> stub(:enabled?, fn -> false end)
 
     changeset =
-      Account.create_changeset(%Account{}, %{name: "Test", owner_type: "User", owner_id: 1})
+      Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
 
     assert changeset.valid? == true
   end
 
   test "name cannot contain dots" do
     changeset =
-      Account.create_changeset(%Account{}, %{name: "my.name", owner_type: "User", owner_id: 1})
+      Account.create_changeset(%Account{}, %{name: "my.name", user_id: 1})
 
     assert changeset.valid? == false
     assert "can't contain a dot" in errors_on(changeset).name
+  end
+
+  describe "user_id and organization_id validity" do
+    test "changeset is valid when user_id is present" do
+      changeset =
+        Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
+
+      assert changeset.valid? == true
+    end
+
+    test "changeset is valid when organization_id is present" do
+      changeset =
+        Account.create_changeset(%Account{}, %{name: "Test", organization_id: 1})
+
+      assert changeset.valid? == true
+    end
+
+    test "only one of user_id or organization_id can be present" do
+      changeset =
+        Account.create_changeset(%Account{}, %{name: "Test", user_id: 1, organization_id: 1})
+
+      assert changeset.valid? == false
+
+      assert ["only one of user_id or organization_id can be present"] ==
+               errors_on(changeset).organization_id
+
+      assert ["only one of user_id or organization_id can be present"] ==
+               errors_on(changeset).user_id
+    end
+
+    test "user_id or organization_id must be specified" do
+      changeset =
+        Account.create_changeset(%Account{}, %{name: "Test"})
+
+      assert changeset.valid? == false
+      assert ["can't be blank"] == errors_on(changeset).organization_id
+    end
   end
 
   describe "plan validity" do

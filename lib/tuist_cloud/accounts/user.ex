@@ -18,7 +18,7 @@ defmodule TuistCloud.Accounts.User do
     field :confirmed_at, :naive_datetime
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
 
-    has_one(:account, Account, foreign_key: :owner_id, on_delete: :delete_all)
+    has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:oauth2_identities, Oauth2Identity, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:user_roles, UserRole, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:device_codes, DeviceCode, on_delete: :delete_all)
