@@ -37,6 +37,7 @@ defmodule TuistCloud.Accounts.Account do
     end)
     |> validate_inclusion(:plan, [:none, :enterprise, :indie, :pro])
     |> validate_inclusion(:owner_type, ["User", "Organization"])
+    |> update_change(:name, &String.downcase/1)
     |> unique_constraint(:name, name: "index_accounts_on_name")
     |> unique_constraint([:owner_id, :owner_type],
       name: "index_accounts_on_owner_id_and_owner_type"
