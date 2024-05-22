@@ -35,5 +35,6 @@ defmodule TuistCloud.Projects.Project do
         []
       end
     end)
+    |> update_change(:name, &String.downcase/1)
   end
 end
