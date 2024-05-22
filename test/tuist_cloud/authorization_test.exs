@@ -135,7 +135,19 @@ defmodule TuistCloud.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :create, project, :command_event) == true
+    assert Authorization.can(user, :create, project, :command_event, is_ci: false) == true
+  end
+
+  test "can.create.project.command_event when the subject is a user that belongs to the project organization and is ci" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :create, project, :command_event, is_ci: true) == false
   end
 
   test "can.create.project.command_event when the subject is a user that doesn't belong to the project organization" do
@@ -146,7 +158,15 @@ defmodule TuistCloud.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :create, project, :command_event) == false
+    assert Authorization.can(user, :create, project, :command_event, is_ci: false) == false
+  end
+
+  test "can.create.project.command_event when the subject is the same project being read and is not ci" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(project, :create, project, :command_event, is_ci: false) == false
   end
 
   test "can.create.project.command_event when the subject is the same project being read" do
@@ -154,7 +174,7 @@ defmodule TuistCloud.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(project, :create, project, :command_event) == true
+    assert Authorization.can(project, :create, project, :command_event, is_ci: true) == true
   end
 
   test "can.create.project.command_event when the subject is not the same project being read" do
@@ -163,7 +183,8 @@ defmodule TuistCloud.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(another_project, :create, project, :command_event) == false
+    assert Authorization.can(another_project, :create, project, :command_event, is_ci: true) ==
+             false
   end
 
   test "can.create.account.project when the subject is a user that belongs to an organization" do
