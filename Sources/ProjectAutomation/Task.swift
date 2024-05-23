@@ -19,10 +19,10 @@ public struct Task {
     }
 
     private func runIfNeeded() {
-        guard let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),
+        guard let taskCommandLineIndex = ProcessInfo.processInfo.arguments.firstIndex(of: "--tuist-task"),
               CommandLine.argc > taskCommandLineIndex
         else { return }
-        let attributesString = CommandLine.arguments[taskCommandLineIndex + 1]
+        let attributesString = ProcessInfo.processInfo.arguments[taskCommandLineIndex + 1]
         // swiftlint:disable force_try
         let attributes: [String: String] = try! JSONDecoder().decode(
             [String: String].self,

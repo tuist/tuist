@@ -184,6 +184,8 @@ public enum Module: String, CaseIterable {
     
     public var strictConcurrencySetting: String? {
         switch self {
+        case .projectAutomation, .projectDescription:
+            return "complete"
         default:
             return nil
         }
