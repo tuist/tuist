@@ -16,12 +16,24 @@ defmodule TuistCloudWeb.RunDetailLive do
          Enum.map(cache_misses, &%{name: &1, cache_hit: :miss}))
       |> Enum.sort_by(& &1.name)
 
+    test_misses =
+      command_event.test_targets --
+        (command_event.local_test_target_hits ++ command_event.remote_test_target_hits)
+
+    test_targets =
+      (Enum.map(command_event.local_test_target_hits, &%{name: &1, cache_hit: :local}) ++
+         Enum.map(command_event.remote_test_target_hits, &%{name: &1, cache_hit: :remote}) ++
+         Enum.map(test_misses, &%{name: &1, cache_hit: :miss}))
+      |> Enum.sort_by(& &1.name)
+
     {
       :ok,
       socket
       |> assign(:command_event, command_event)
       |> assign(:cache_misses, cache_misses)
       |> assign(:cacheable_targets, cacheable_targets)
+      |> assign(:test_misses, test_misses)
+      |> assign(:test_targets, test_targets)
     }
   end
 
@@ -39,6 +51,43 @@ defmodule TuistCloudWeb.RunDetailLive do
         <%= render_slot(@inner_block) %>
       </span>
     </.stack>
+    """
+  end
+
+  attr(:title, :string, required: true)
+  attr(:id, :string, required: true)
+  attr(:targets, :list, required: true)
+
+  def cache_hits_card(assigns) do
+    ~H"""
+    <.card class="run-detail__target-breakdown">
+      <.stack gap="2xl">
+        <.section_header title={@title} />
+        <.stack direction="horizontal" class="run-detail__target-breakdown__content">
+          <chart-l class="target-breakdown-chart" id={@id <> "-breakdown-chart"} type="donut">
+          </chart-l>
+          <.table class="run-detail__target-breakdown__table" id={@id} rows={@targets}>
+            <:col :let={target} label={gettext("Name")}>
+              <%= target.name %>
+            </:col>
+            <:col :let={target} label={gettext("Cache hit")}>
+              <div class="run-detail__target-breakdown__table__badge-container">
+                <.badge
+                  title={Atom.to_string(target.cache_hit) |> String.capitalize()}
+                  kind={
+                    case target.cache_hit do
+                      :local -> :brand_subtle
+                      :remote -> :brand
+                      :miss -> :warning
+                    end
+                  }
+                />
+              </div>
+            </:col>
+          </.table>
+        </.stack>
+      </.stack>
+    </.card>
     """
   end
 end
