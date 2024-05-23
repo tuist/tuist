@@ -74,6 +74,7 @@ defmodule TuistCloudWeb.CoreComponents do
   attr(:id, :string, required: true)
   slot(:inner_block, required: true)
   slot(:content, required: true)
+  slot(:icon, required: false)
 
   def dropdown_picker(assigns) do
     ~H"""
@@ -85,18 +86,30 @@ defmodule TuistCloudWeb.CoreComponents do
         id={"#{@id}-button"}
         aria-expanded="false"
         phx-click={JS.toggle(to: "##{@id}-menu")}
-        phx-click-away={JS.hide(to: "##{@id}-menu")}
         phx-window-keydown={JS.hide(to: "##{@id}-menu")}
         phx-key="Escape"
+        type="button"
       >
+        <:icon_start>
+          <%= if @icon != [] do %>
+            <%= render_slot(@icon) %>
+          <% end %>
+        </:icon_start>
         <%= render_slot(@inner_block) %>
-        <:icon><.chevron_down /></:icon>
+        <:icon>
+          <%= if @icon == [] do %>
+            <.chevron_down />
+          <% end %>
+        </:icon>
       </.button>
 
-      <div id={"#{@id}-menu"} hidden>
-        <nav class="dropdown-menu">
-          <%= render_slot(@content) %>
-        </nav>
+      <div
+        class="dropdown-menu"
+        id={"#{@id}-menu"}
+        hidden
+        phx-click-away={JS.hide(to: "##{@id}-menu")}
+      >
+        <%= render_slot(@content) %>
       </div>
     </div>
     """
@@ -123,7 +136,16 @@ defmodule TuistCloudWeb.CoreComponents do
     ~H"""
     <button class={"button--#{@variant} button--#{@size} #{@class}"} {@rest}>
       <%= render_slot(@icon_start) %>
-      <span class={"text--#{@size} font--semibold"}><%= render_slot(@inner_block) %></span>
+      <span class={"text--#{case @size do
+        "small" -> "small"
+        "medium" -> "small"
+        "large" -> "medium"
+        "extraLarge" -> "medium"
+        "extraExtraLarge" -> "large"
+      end
+      } font--semibold"}>
+        <%= render_slot(@inner_block) %>
+      </span>
       <%= render_slot(@icon) %>
     </button>
     """
@@ -443,6 +465,30 @@ defmodule TuistCloudWeb.CoreComponents do
         <input type="hidden" name={@name} value="false" />
         <input type="checkbox" id={@id} name={@name} value="true" checked={@checked} {@rest} />
         <%= @label %>
+        <%= if @inner_block != [] do %>
+          <%= render_slot(@inner_block) %>
+        <% end %>
+      </label>
+      <.error :for={msg <- @errors}><%= msg %></.error>
+    </div>
+    """
+  end
+
+  def input(%{type: "radio"} = assigns) do
+    assigns =
+      assign_new(assigns, :checked, fn ->
+        Phoenix.HTML.Form.normalize_value("radio", assigns[:value])
+      end)
+
+    ~H"""
+    <div phx-feedback-for={@name} class="radio-container">
+      <label class="radio-container__label text--small font--medium color--text-secondary">
+        <input type="hidden" name={@name} value="false" />
+        <input type="radio" id={@id} name={@name} value="true" checked={@checked} {@rest} />
+        <%= @label %>
+        <%= if @inner_block != [] do %>
+          <%= render_slot(@inner_block) %>
+        <% end %>
       </label>
       <.error :for={msg <- @errors}><%= msg %></.error>
     </div>

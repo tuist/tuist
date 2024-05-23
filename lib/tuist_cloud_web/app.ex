@@ -40,7 +40,7 @@ defmodule TuistCloudWeb.App do
 
       {:cont,
        socket
-       |> assign(:current_owner, params["owner"])
+       |> assign(:selected_owner, params["owner"])
        |> assign(:selected_project, project)
        |> assign(:current_user, user)
        |> assign(:selected_account, account)

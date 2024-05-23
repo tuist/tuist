@@ -108,246 +108,385 @@ defmodule TuistCloud.CommandEventsTest do
     end
   end
 
-  test "returns command average duration" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+  describe "get_total_command_period_average_duration/5" do
+    test "returns command average duration" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
-    project = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
 
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2024-03-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 500,
-      created_at: ~N[2024-03-05 00:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_total_command_period_average_duration(
-        "generate",
-        project.id,
-        start_date: Date.add(Time.utc_now(), -60),
-        end_date: Date.add(Time.utc_now(), -30)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-03-30 03:00:00]
       )
 
-    # Then
-    assert got == 1000.0
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 500,
+        created_at: ~N[2024-03-05 00:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_total_command_period_average_duration(
+          "generate",
+          project.id,
+          start_date: Date.add(Time.utc_now(), -60),
+          end_date: Date.add(Time.utc_now(), -30)
+        )
+
+      # Then
+      assert got == 1000.0
+    end
+
+    test "returns command average duration for CI only" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        is_ci: true,
+        created_at: ~N[2024-03-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 500,
+        is_ci: false,
+        created_at: ~N[2024-03-05 00:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_total_command_period_average_duration(
+          "generate",
+          project.id,
+          start_date: Date.add(Time.utc_now(), -60),
+          end_date: Date.add(Time.utc_now(), -30),
+          is_ci: true
+        )
+
+      # Then
+      assert got == 1500.0
+    end
   end
 
-  test "returns duration analytics for the last three days" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+  describe "get_command_duration_analytics/4" do
+    test "returns duration analytics for the last three days" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
-    project = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
 
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 2000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2024-04-29 10:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 2000,
-      created_at: ~N[2024-04-27 10:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_command_duration_analytics("generate",
+      CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
-        start_date: Date.add(Time.utc_now(), -2)
+        name: "generate",
+        duration: 2000,
+        created_at: ~N[2024-04-30 03:00:00]
       )
 
-    # Then
-    assert got.values == [0, 1500.0, 1500.0]
-    assert got.trend == -25.0
-    assert got.total_average_duration == 1500
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1000,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-29 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 2000,
+        created_at: ~N[2024-04-27 10:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_command_duration_analytics("generate",
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -2)
+        )
+
+      # Then
+      assert got.values == [0, 1500.0, 1500.0]
+      assert got.trend == -25.0
+      assert got.total_average_duration == 1500
+    end
+
+    test "returns duration analytics for user runs only" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 2000,
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1000,
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: true
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-29 10:00:00],
+        is_ci: false
+      )
+
+      # When
+      got =
+        CommandEvents.get_command_duration_analytics("generate",
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -2),
+          is_ci: false
+        )
+
+      # Then
+      assert got.values == [0, 1500.0, 2000.0]
+      assert got.trend == 0.0
+      assert got.total_average_duration == 1750.0
+    end
+
+    test "returns runs analytics for the last 3 days" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 2000,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1000,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-29 01:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-27 01:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_command_runs_analytics("generate",
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -2)
+        )
+
+      # Then
+      assert got.values == [0, 1, 2]
+      assert got.dates == ["Apr 28", "Apr 29", "Apr 30"]
+      assert got.trend == 200
+      assert got.runs_count == 3
+    end
+
+    test "returns runs analytics for the last year" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 2000,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1000,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-02-29 01:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2023-03-27 01:00:00]
+      )
+
+      # When
+      got =
+        CommandEvents.get_command_runs_analytics("generate",
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -365)
+        )
+
+      # Then
+      assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]
+
+      assert got.dates == [
+               "May 2023",
+               "Jun 2023",
+               "Jul 2023",
+               "Aug 2023",
+               "Sep 2023",
+               "Oct 2023",
+               "Nov 2023",
+               "Dec 2023",
+               "Jan 2024",
+               "Feb 2024",
+               "Mar 2024",
+               "Apr 2024"
+             ]
+
+      assert got.trend == 200
+      assert got.runs_count == 3
+    end
   end
 
-  test "returns runs analytics for the last 3 days" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+  describe "get_cache_hit_rate_analytics/4" do
+    test "returns cache hit rates for the last three days" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
-    project = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
 
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 2000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2024-04-29 01:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2024-04-27 01:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_command_runs_analytics("generate",
+      CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
-        start_date: Date.add(Time.utc_now(), -2)
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
       )
 
-    # Then
-    assert got.values == [0, 1, 2]
-    assert got.dates == ["Apr 28", "Apr 29", "Apr 30"]
-    assert got.trend == 200
-    assert got.runs_count == 3
-  end
-
-  test "returns runs analytics for the last year" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
-    project = ProjectsFixtures.project_fixture()
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 2000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1000,
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2024-02-29 01:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      duration: 1500,
-      created_at: ~N[2023-03-27 01:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_command_runs_analytics("generate",
+      CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
-        start_date: Date.add(Time.utc_now(), -365)
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["E", "F"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
       )
 
-    # Then
-    assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]
-
-    assert got.dates == [
-             "May 2023",
-             "Jun 2023",
-             "Jul 2023",
-             "Aug 2023",
-             "Sep 2023",
-             "Oct 2023",
-             "Nov 2023",
-             "Dec 2023",
-             "Jan 2024",
-             "Feb 2024",
-             "Mar 2024",
-             "Apr 2024"
-           ]
-
-    assert got.trend == 200
-    assert got.runs_count == 3
-  end
-
-  test "returns cache hit rates for the last three days" do
-    # Given
-    TuistCloud.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
-    project = ProjectsFixtures.project_fixture()
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      cacheable_targets: ["A", "B", "C", "D"],
-      local_cache_target_hits: ["A"],
-      remote_cache_target_hits: ["C"],
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      cacheable_targets: ["A", "B", "C", "D"],
-      local_cache_target_hits: ["E", "F"],
-      remote_cache_target_hits: [],
-      created_at: ~N[2024-04-30 03:00:00]
-    )
-
-    CommandEventsFixtures.command_event_fixture(
-      project_id: project.id,
-      name: "generate",
-      cacheable_targets: ["A", "B"],
-      local_cache_target_hits: [],
-      remote_cache_target_hits: ["B"],
-      created_at: ~N[2024-04-27 03:00:00]
-    )
-
-    # When
-    got =
-      CommandEvents.get_cache_hit_rate_analytics(
+      CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
-        start_date: Date.add(Time.utc_now(), -2),
-        end_date: DateTime.to_date(Time.utc_now())
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
       )
 
-    # Then
-    assert got.values == [0, 0, 0.5]
-    assert got.cache_hit_rate == 0.5
+      # When
+      got =
+        CommandEvents.get_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -2),
+          end_date: DateTime.to_date(Time.utc_now())
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.cache_hit_rate == 0.5
+    end
+
+    test "returns cache hit rates for the last three days for ci only" do
+      # Given
+      TuistCloud.Time
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: true
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B", "C"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: ["B"],
+        created_at: ~N[2024-04-29 03:00:00],
+        is_ci: true
+      )
+
+      # When
+      got =
+        CommandEvents.get_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: Date.add(Time.utc_now(), -2),
+          end_date: DateTime.to_date(Time.utc_now()),
+          is_ci: true
+        )
+
+      # Then
+      assert got.values == [0, 0.5, 0.5]
+      assert got.cache_hit_rate == 0.5
+    end
   end
 
   describe "get_cache_event/1" do

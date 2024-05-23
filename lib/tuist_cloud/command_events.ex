@@ -88,6 +88,7 @@ defmodule TuistCloud.CommandEvents do
     project_id = Keyword.get(opts, :project_id)
     start_date = Keyword.get(opts, :start_date)
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
 
     days_delta = Date.diff(end_date, start_date)
 
@@ -106,7 +107,8 @@ defmodule TuistCloud.CommandEvents do
         name,
         project_id,
         start_date: start_date,
-        end_date: end_date
+        end_date: end_date,
+        is_ci: is_ci
       )
 
     average_durations =
@@ -115,7 +117,8 @@ defmodule TuistCloud.CommandEvents do
         project_id,
         start_date: start_date,
         end_date: end_date,
-        date_period: date_period
+        date_period: date_period,
+        is_ci: is_ci
       )
 
     %{
@@ -270,17 +273,18 @@ defmodule TuistCloud.CommandEvents do
         project_id,
         opts \\ []
       ) do
-    start_date = opts |> Keyword.get(:start_date, Date.add(Time.utc_now(), -30))
-    end_date = opts |> Keyword.get(:end_date, DateTime.to_date(Time.utc_now()))
+    start_date = Keyword.get(opts, :start_date, Date.add(Time.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
 
-    query =
-      from e in Event,
+    average =
+      from(e in Event,
         where:
           e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
             e.project_id == ^project_id
-
-    average = Repo.aggregate(query, :avg, :duration)
+      )
+      |> add_filters(opts)
+      |> Repo.aggregate(:avg, :duration)
 
     if is_nil(average) do
       0
@@ -301,18 +305,19 @@ defmodule TuistCloud.CommandEvents do
     time_bucket = time_bucket_for_date_period(date_period)
 
     command_averages =
-      Repo.all(
-        from e in Event,
-          group_by: selected_as(^date_period),
-          where:
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-              e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
-              e.project_id == ^project_id,
-          select: %{
-            date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-            average: avg(e.duration)
-          }
+      from(e in Event,
+        group_by: selected_as(^date_period),
+        where:
+          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+            e.project_id == ^project_id,
+        select: %{
+          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
+          average: avg(e.duration)
+        }
       )
+      |> add_filters(opts)
+      |> Repo.all()
       |> Map.new(&{normalise_date(&1.date, date_period), &1.average})
 
     date_range_for_date_period(date_period, start_date: start_date, end_date: end_date)
@@ -335,6 +340,7 @@ defmodule TuistCloud.CommandEvents do
     project_id = Keyword.get(opts, :project_id)
     start_date = Keyword.get(opts, :start_date, Date.add(Time.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(Time.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
 
     days_delta = Date.diff(end_date, start_date)
 
@@ -344,21 +350,24 @@ defmodule TuistCloud.CommandEvents do
       get_cache_hit_rate(
         project_id,
         start_date: start_date,
-        end_date: end_date
+        end_date: end_date,
+        is_ci: is_ci
       )
 
     previous_cache_hit_rate =
       get_cache_hit_rate(
         project_id,
         start_date: Date.add(start_date, -days_delta),
-        end_date: start_date
+        end_date: start_date,
+        is_ci: is_ci
       )
 
     cache_hit_rates =
       get_cache_hit_rates(project_id,
         start_date: start_date,
         end_date: end_date,
-        date_period: date_period
+        date_period: date_period,
+        is_ci: is_ci
       )
 
     %{
@@ -392,22 +401,22 @@ defmodule TuistCloud.CommandEvents do
     time_bucket = time_bucket_for_date_period(date_period)
 
     cache_hit_rate_metadata_map =
-      Repo.all(
-        from e in Event,
-          group_by: selected_as(^date_period),
-          where:
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-              e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-              e.project_id == ^project_id,
-          select: %{
-            date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-            cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-            local_cache_target_hits:
-              sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-            remote_cache_target_hits:
-              sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
-          }
+      from(e in Event,
+        group_by: selected_as(^date_period),
+        where:
+          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.project_id == ^project_id,
+        select: %{
+          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
+          cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
+          local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
+          remote_cache_target_hits:
+            sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+        }
       )
+      |> add_filters(opts)
+      |> Repo.all()
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -443,8 +452,8 @@ defmodule TuistCloud.CommandEvents do
     start_date = opts |> Keyword.get(:start_date, Date.add(Time.utc_now(), -30))
     end_date = DateTime.to_date(Time.utc_now())
 
-    query =
-      from e in Event,
+    result =
+      from(e in Event,
         where:
           e.project_id == ^project_id and
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -456,8 +465,10 @@ defmodule TuistCloud.CommandEvents do
           remote_cache_target_hits_count:
             sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
+      )
+      |> add_filters(opts)
+      |> Repo.one()
 
-    result = Repo.one(query)
     local_cache_target_hits_count = result.local_cache_target_hits_count || 0
     remote_cache_target_hits_count = result.remote_cache_target_hits_count || 0
     cacheable_targets_count = result.cacheable_targets_count || 0
@@ -573,6 +584,16 @@ defmodule TuistCloud.CommandEvents do
     case date_period do
       :day -> date
       :month -> Date.beginning_of_month(date)
+    end
+  end
+
+  defp add_filters(query, opts) do
+    is_ci = Keyword.get(opts, :is_ci)
+
+    case is_ci do
+      nil -> query
+      true -> where(query, [e], e.is_ci == true)
+      false -> where(query, [e], e.is_ci == false)
     end
   end
 end

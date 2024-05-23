@@ -49,7 +49,7 @@ defmodule TuistCloudWeb.AppTest do
         )
 
       # Then
-      assert socket.assigns.current_owner == "tuist-org"
+      assert socket.assigns.selected_owner == "tuist-org"
     end
 
     test "assigns current project", %{session: session, project: project} do
