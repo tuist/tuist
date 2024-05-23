@@ -40,7 +40,8 @@ RUN mix local.hex --force && \
     mix local.rebar --force
 
 # set build ENV
-ENV MIX_ENV="prod"
+ARG MIX_ENV=prod
+ENV MIX_ENV=$MIX_ENV
 
 # install mix dependencies
 COPY mix.exs mix.lock ./
@@ -93,7 +94,9 @@ WORKDIR "/app"
 RUN chown nobody /app
 
 # set runner ENV
-ENV MIX_ENV="prod"
+ARG MIX_ENV=prod
+ENV MIX_ENV=$MIX_ENV
+ENV TUIST_VERSION=$TUIST_VERSION
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist_cloud ./
