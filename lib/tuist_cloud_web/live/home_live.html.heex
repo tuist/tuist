@@ -3,17 +3,85 @@
 <div class="analytics page">
   <.stack class="analytics__header-section" gap="3xl">
     <h5 class="analytics__header-section__title"><%= gettext("Dashboard") %></h5>
-    <.button_group selected_key={@date_range}>
-      <:button key="last_7_days">
-        <a href="?date_range=last_7_days"><%= gettext("7 days") %></a>
-      </:button>
-      <:button key="last_30_days">
-        <a href="?date_range=last_30_days"><%= gettext("30 days") %></a>
-      </:button>
-      <:button key="last_12_months">
-        <a href="?date_range=last_12_months"><%= gettext("12 months") %></a>
-      </:button>
-    </.button_group>
+    <.stack class="analytics__header-section__controls" direction="horizontal">
+      <.button_group selected_key={@date_range}>
+        <:button key="last_7_days">
+          <a href="?date_range=last_7_days"><%= gettext("7 days") %></a>
+        </:button>
+        <:button key="last_30_days">
+          <a href="?date_range=last_30_days"><%= gettext("30 days") %></a>
+        </:button>
+        <:button key="last_12_months">
+          <a href="?date_range=last_12_months"><%= gettext("12 months") %></a>
+        </:button>
+      </.button_group>
+      <.dropdown_picker id="home-filter-dropdown">
+        <%= gettext("Filter") %>
+        <:content>
+          <div class="analytics__header-section__controls__filter">
+            <form phx-submit="apply_filters">
+              <.stack class="analytics__header-section__controls__filter__content" gap="3xl">
+                <.stack gap="xs">
+                  <p class="text--large font--semibold color--text-primary">Filters</p>
+                  <p class="text--small font--regular color--text-tertiary">
+                    <%= gettext("Apply filters to the dashboard data") %>
+                  </p>
+                </.stack>
+                <.stack gap="xl">
+                  <p class="text--small font--medium color--text-secondary">
+                    <%= gettext("Ran by") %>
+                  </p>
+                  <.input
+                    type="checkbox"
+                    name="ran_by[user]"
+                    value={not is_nil(@ran_by) and "user" in @ran_by}
+                  >
+                    <.badge title={gettext("User")} kind={:brand}>
+                      <:icon><.user /></:icon>
+                    </.badge>
+                  </.input>
+                  <.input
+                    type="checkbox"
+                    name="ran_by[ci]"
+                    value={not is_nil(@ran_by) and "ci" in @ran_by}
+                  >
+                    <.badge title={gettext("CI")} kind={:neutral}>
+                      <:icon><.settings /></:icon>
+                    </.badge>
+                  </.input>
+                </.stack>
+              </.stack>
+              <.stack
+                direction="horizontal"
+                gap="lg"
+                class="analytics__header-section__controls__filter__content__footer"
+              >
+                <.button
+                  variant="secondary"
+                  size="medium"
+                  type="button"
+                  phx-click={JS.hide(to: "#home-filter-dropdown-menu")}
+                >
+                  <%= gettext("Cancel") %>
+                </.button>
+                <.button
+                  variant="primary"
+                  size="medium"
+                  type="submit"
+                  phx-click={JS.hide(to: "#home-filter-dropdown-menu")}
+                  class="analytics__header-section__controls__filter__content__footer__apply-button"
+                >
+                  <%= gettext("Apply") %>
+                </.button>
+              </.stack>
+            </form>
+          </div>
+        </:content>
+        <:icon>
+          <.filter />
+        </:icon>
+      </.dropdown_picker>
+    </.stack>
   </.stack>
   <.analytics_chart
     id="cache-hit-rate-chart"

@@ -27,7 +27,7 @@ defmodule TuistCloud.CommandEventsFixtures do
         test_targets: Keyword.get(attrs, :test_targets, []),
         local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
         remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
-        is_ci: false,
+        is_ci: Keyword.get(attrs, :is_ci, false),
         client_id: "client-id",
         user_id: Keyword.get(attrs, :user_id, 1),
         status: Keyword.get(attrs, :status, :success),
