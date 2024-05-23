@@ -55,14 +55,6 @@ config :tuist_cloud, Oban,
   repo: TuistCloud.Repo,
   queues: [default: 10]
 
-base_url =
-  cond do
-    config_env() == :prod -> "https://cloud.tuist.io/users/auth"
-    config_env() == :stag -> "https://cloud-staging.tuist.io/users/auth"
-    config_env() == :can -> "https://cloud-canary.tuist.io/users/auth"
-    true -> "http://127.0.0.1:8080/users/auth"
-  end
-
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
   providers: [
