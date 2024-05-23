@@ -46,7 +46,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
 
-> [!NOTE] DEPENDENCY CONDITIONS 
+> [!NOTE] DEPENDENCY CONDITIONS
 > Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 
 > [!TIP] ENFORCING EXPLICIT DEPENDENCIES
@@ -144,7 +144,7 @@ let project = Project(
 ```
 :::
 
-> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES 
+> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 > The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
 
 #### Xcode's default integration
@@ -192,13 +192,61 @@ tuist generate
 pod install
 ```
 
-> [!WARNING] 
+> [!WARNING]
 > CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
 
-## Objective-C Dependencies
+## Troubleshooting
+
+### Objective-C Dependencies
 
 When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
 
 Since the build system and Tuist have no way of inferring whether the flag is necessary or not, and since the flag comes with potentially undesirable side effects, Tuist will not automatically apply any of these flags, and because Swift Package Manager considers `-ObjC` to be included via an `.unsafeFlag` most packages cannot include it as part of their default linking settings when required.
 
-Consumers of Objective-C dependencies (or internal Objective-C targets) should apply  `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
+Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
+
+### Firebase & Other Google Libraries
+
+Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
+
+Here are a few tips that may be necessary to follow to integrate Firebase and Google's other Apple-platform libraries:
+
+#### Ensure `-ObjC` is added to `OTHER_LDFLAGS`
+
+Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in it's `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
+
+```swift
+Target.target(
+    ...
+    settings: .settings(
+        base: ["OTHER_LDFLAGS": "$(inherited) -ObjC"]
+    )
+    ...
+)
+```
+
+Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
+
+#### Set the product type for `FBLPromises` to dynamic framework
+
+Certain Google libraries depend on `FBLPromises`, another of Google's libraries. If you encounter a crash in your app that mentions `FBLPromises`, a possible fix is to explicitly set its product type as `.framework` in your `Package.swift` file.
+
+```swift [Tuist/Package.swift]
+// swift-tools-version: 5.10
+
+import PackageDescription
+
+#if TUIST
+import ProjectDescription
+import ProjectDescriptionHelpers
+
+let packageSettings = PackageSettings(
+    productTypes: [
+        "FPLPromises": .framework,
+    ]
+)
+#endif
+
+let package = Package(
+...
+```
