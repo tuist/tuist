@@ -1,5 +1,5 @@
 import Combine
-import CombineExt
+@preconcurrency import CombineExt
 import Foundation
 import TSCBasic
 
@@ -73,11 +73,11 @@ public final class System: Systeming {
     // swiftlint:disable force_try
 
     /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
-    private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
+    private static let swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
 
     /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
     /// command.
-    private static var swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
+    private static let swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
 
     // swiftlint:enable force_try
 
