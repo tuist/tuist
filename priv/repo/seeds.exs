@@ -74,7 +74,39 @@ for _event <- 1..10000 do
   remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..14))
 
   local_cache_target_hits =
-    Enum.take(cacheable_targets, Enum.random(length(remote_cache_target_hits)..14))
+    cacheable_targets
+    |> Enum.reverse()
+    |> Enum.take(Enum.random(0..(14 - length(remote_cache_target_hits))))
+
+  test_targets =
+    if name == "test" do
+      [
+        "TestTargetOne",
+        "TestTargetTwo",
+        "TestTargetThree",
+        "TestTargetFour",
+        "TestTargetFive",
+        "TestTargetSix",
+        "TestTargetSeven",
+        "TestTargetEight",
+        "TestTargetNine",
+        "TestTargetTen",
+        "TestTargetEleven",
+        "TestTargetTwelve",
+        "TestTargetThirteen",
+        "TestTargetFourteen",
+        "TestTargetFifteen"
+      ]
+    else
+      []
+    end
+
+  remote_test_target_hits = Enum.take(test_targets, Enum.random(0..14))
+
+  local_test_target_hits =
+    test_targets
+    |> Enum.reverse()
+    |> Enum.take(Enum.random(0..(14 - length(remote_test_target_hits))))
 
   CommandEvents.create_command_event(
     %{
@@ -85,9 +117,9 @@ for _event <- 1..10000 do
       cacheable_targets: cacheable_targets,
       local_cache_target_hits: local_cache_target_hits,
       remote_cache_target_hits: remote_cache_target_hits,
-      test_targets: [],
-      local_test_target_hits: [],
-      remote_test_target_hits: [],
+      test_targets: test_targets,
+      local_test_target_hits: local_test_target_hits,
+      remote_test_target_hits: remote_test_target_hits,
       swift_version: "5.2",
       macos_version: "10.15",
       subcommand: "",

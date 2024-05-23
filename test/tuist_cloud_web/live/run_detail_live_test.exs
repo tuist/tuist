@@ -99,4 +99,66 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     assert has_element?(lv, "table tbody tr:nth-child(3)", "C")
     assert has_element?(lv, "table tbody tr:nth-child(3)", "Miss")
   end
+
+  test "renders test targets table if the command name is not test", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test"
+      )
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ "Tested targets"
+  end
+
+  test "doesn't render test targets table if the command name is not test", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    refute html =~ "Selective testing hits"
+  end
+
+  test "renders test targets in the alphabetical order with their test result", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        status: :success,
+        test_targets: ["C", "B", "A"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"]
+      )
+
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "Local")
+
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "B")
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "Remote")
+
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "C")
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "Miss")
+  end
 end

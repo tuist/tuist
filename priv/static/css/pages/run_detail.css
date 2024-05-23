@@ -3,11 +3,11 @@
   margin-right: var(--spacing-4xl);
 }
 
-#cache-hits-breakdown-chart {
+.target-breakdown-chart {
   flex-grow: 1;
 }
 
-.run-detail__cache-hits-breakdown__table {
+.run-detail__target-breakdown__table {
   flex-grow: 6;
   overflow-y: auto;
   max-height: 420px;
@@ -18,11 +18,11 @@
   }
 }
 
-.run-detail__cache-hits-breakdown__table__badge-container {
+.run-detail__target-breakdown__table__badge-container {
   display: flex;
 }
 
-.run-detail__cache-hits-breakdown__content {
+.run-detail__target-breakdown__content {
   align-items: start;
 }
 
