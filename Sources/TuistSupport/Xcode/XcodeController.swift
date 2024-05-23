@@ -17,7 +17,7 @@ public protocol XcodeControlling: Sendable {
     func selectedVersion() throws -> Version
 }
 
-public class XcodeController: XcodeControlling,  @unchecked Sendable {
+public class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.

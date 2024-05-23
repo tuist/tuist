@@ -12,4 +12,3 @@ func dumpIfNeeded(_ entity: some Encodable) {
     print(manifest)
     print("TUIST_MANIFEST_END")
 }
-  

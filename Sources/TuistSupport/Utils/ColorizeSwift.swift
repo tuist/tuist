@@ -57,7 +57,6 @@ public enum TerminalStyle {
 }
 
 extension String {
-
     public func bold() -> String {
         applyStyle(TerminalStyle.bold)
     }
