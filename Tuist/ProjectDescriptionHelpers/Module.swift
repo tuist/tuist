@@ -186,6 +186,8 @@ public enum Module: String, CaseIterable {
         switch self {
         case .projectAutomation, .projectDescription:
             return "complete"
+        case .support:
+            return "targeted"
         default:
             return nil
         }
