@@ -6,7 +6,7 @@ import Foundation
 /// - bug: error thrown when a bug is found and the execution cannot continue.
 /// - abortSilent: like abort but without printing anything to the user.
 /// - bugSilent: like bug but without printing anything to the user.
-public enum ErrorType {
+public enum ErrorType: Sendable {
     case abort
     case bug
     case abortSilent
@@ -42,7 +42,7 @@ public struct UnhandledError: FatalError {
 }
 
 /// Fatal error protocol.
-public protocol FatalError: Error, CustomStringConvertible {
+public protocol FatalError: Error, CustomStringConvertible, Sendable {
     /// Error type.
     var type: ErrorType { get }
 }
