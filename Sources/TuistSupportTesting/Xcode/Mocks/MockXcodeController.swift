@@ -4,7 +4,6 @@ import TuistSupport
 import XCTest
 
 public final class MockXcodeController: XcodeControlling, @unchecked Sendable {
-    
     @Atomic
     public var selectedStub: Result<Xcode, Error>?
 
