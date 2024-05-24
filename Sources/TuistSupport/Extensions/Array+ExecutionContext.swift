@@ -50,7 +50,9 @@ extension Array where Element: Sendable {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the array
-    public func concurrentCompactMap<B: Sendable>(_ transform: @Sendable @escaping (Element) async throws -> B?) async throws -> [B] {
+    public func concurrentCompactMap<B: Sendable>(_ transform: @Sendable @escaping (Element) async throws -> B?) async throws
+        -> [B]
+    {
         let tasks = map { element in
             Task {
                 try await transform(element)
