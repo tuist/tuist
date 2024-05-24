@@ -9,7 +9,7 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    public enum Order: String, Codable, Equatable {
+    public enum Order: String, Codable, Equatable, Sendable {
         case pre
         case post
     }
@@ -19,7 +19,7 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
     /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
     /// - scriptPath: Executes the file at the path with the given arguments.
     /// - text: Executes the embedded script. This should be a short command.
-    public enum Script: Equatable, Codable {
+    public enum Script: Equatable, Codable, Sendable {
         case tool(path: String, args: [String])
         case scriptPath(path: Path, args: [String])
         case embedded(String)

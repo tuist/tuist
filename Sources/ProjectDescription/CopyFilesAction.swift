@@ -19,7 +19,7 @@ public struct CopyFilesAction: Codable, Equatable, Sendable {
     public var files: [CopyFileElement]
 
     /// Destination path.
-    public enum Destination: String, Codable, Equatable {
+    public enum Destination: String, Codable, Equatable, Sendable {
         case absolutePath
         case productsDirectory
         case wrapper
