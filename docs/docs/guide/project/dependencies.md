@@ -213,7 +213,7 @@ Here are a few tips that may be necessary to follow to integrate Firebase and Go
 
 #### Ensure `-ObjC` is added to `OTHER_LDFLAGS`
 
-Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in it's `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
+Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
 
 ```swift
 Target.target(
