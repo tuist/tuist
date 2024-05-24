@@ -1,16 +1,16 @@
 import Foundation
 
-public struct Task {
+public struct Task: Sendable {
     public let options: [Option]
-    public let task: ([String: String]) throws -> Void
+    public let task: @Sendable([String: String]) throws -> Void
 
-    public enum Option: Equatable {
+    public enum Option: Equatable, Sendable {
         case option(String)
     }
 
     public init(
         options: [Option] = [],
-        task: @escaping ([String: String]) throws -> Void
+        task: @Sendable @escaping ([String: String]) throws -> Void
     ) {
         self.options = options
         self.task = task

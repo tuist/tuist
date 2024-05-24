@@ -1,7 +1,7 @@
 import Foundation
 
 /// The structure defining the output schema of an Xcode scheme.
-public struct Scheme: Codable, Equatable {
+public struct Scheme: Codable, Equatable, Sendable {
     /// The name of the scheme.
     public let name: String
 
