@@ -229,7 +229,13 @@ Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above
 
 #### Set the product type for `FBLPromises` to dynamic framework
 
-Certain Google libraries depend on `FBLPromises`, another of Google's libraries. If you encounter a crash in your app that mentions `FBLPromises`, a possible fix is to explicitly set its product type as `.framework` in your `Package.swift` file.
+Certain Google libraries depend on `FBLPromises`, another of Google's libraries. You may encounter a crash that mentions `FBLPromises`, looking something like this:
+
+```
+NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
+```
+
+Explicitly setting the product type of `FBLPromises` to `.framework` in your `Package.swift` file should fix the issue:
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
