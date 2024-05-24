@@ -640,7 +640,7 @@ public enum Module: String, CaseIterable {
             releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         }
 
-        if let strictConcurrencySetting {
+        if let strictConcurrencySetting, product == .framework {
             debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
             releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
         }
