@@ -56,4 +56,18 @@ defmodule TuistCloudWeb.AutoRedirectToProjectPlugTest do
     # Then
     assert redirected_to(conn) == ~p"/get-started"
   end
+
+  test "returns the same connection for any path", %{
+    current_user: _,
+    plug_opts: plug_opts
+  } do
+    # Given
+    conn = build_conn(:get, "/random-path", nil)
+
+    # When
+    got = conn |> AutoRedirectToProjectPlug.call(plug_opts)
+
+    # Then
+    assert got == conn
+  end
 end
