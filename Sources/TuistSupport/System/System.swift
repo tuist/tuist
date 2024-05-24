@@ -1,5 +1,5 @@
 import Combine
-@preconcurrency import CombineExt
+import CombineExt
 import Foundation
 import TSCBasic
 
