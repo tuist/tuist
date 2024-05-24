@@ -1,6 +1,6 @@
 import Foundation
 
-extension Array {
+extension Array where Element: Sendable {
     /// Map (with execution context)
     ///
     /// - Parameters:
@@ -19,7 +19,7 @@ extension Array {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the array
-    public func concurrentMap<B>(_ transform: @escaping (Element) async throws -> B) async throws -> [B] {
+    public func concurrentMap<B: Sendable>(_ transform: @Sendable @escaping (Element) async throws -> B) async throws -> [B] {
         let tasks = map { element in
             Task {
                 try await transform(element)
@@ -50,7 +50,7 @@ extension Array {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the array
-    public func concurrentCompactMap<B>(_ transform: @escaping (Element) async throws -> B?) async throws -> [B] {
+    public func concurrentCompactMap<B: Sendable>(_ transform: @Sendable @escaping (Element) async throws -> B?) async throws -> [B] {
         let tasks = map { element in
             Task {
                 try await transform(element)
