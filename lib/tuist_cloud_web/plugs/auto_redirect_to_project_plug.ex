@@ -9,9 +9,6 @@ defmodule TuistCloudWeb.AutoRedirectToProjectPlug do
 
   def init(opts), do: opts
 
-  def call(%{request_path: "/get-started"} = conn, _opts), do: conn
-  def call(%{params: %{"owner" => _, "project" => _}} = conn, _opts), do: conn
-
   def call(%{request_path: "/", state: state} = conn, _opts)
       when state in [:unset] do
     user = Authentication.current_user(conn)
@@ -24,6 +21,8 @@ defmodule TuistCloudWeb.AutoRedirectToProjectPlug do
       redirect(conn, to: ~p"/get-started") |> halt()
     end
   end
+
+  def call(conn, _opts), do: conn
 
   defp project_to_redirect_to(user) do
     if is_nil(user.last_visited_project_id) do
