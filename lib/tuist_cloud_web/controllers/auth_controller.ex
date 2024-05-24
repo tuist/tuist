@@ -12,12 +12,14 @@ defmodule TuistCloudWeb.AuthController do
     |> put_flash(:info, "You have been logged out!")
     |> clear_session()
     |> redirect(to: ~p"/")
+    |> halt()
   end
 
   def callback(%{assigns: %{ueberauth_failure: _failure}} = conn, _params) do
     conn
     |> put_flash(:error, "Failed to authenticate.")
     |> redirect(to: ~p"/")
+    |> halt()
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -37,5 +39,6 @@ defmodule TuistCloudWeb.AuthController do
 
     conn
     |> redirect(to: ~p"/auth/cli/success/#{device_code}")
+    |> halt()
   end
 end

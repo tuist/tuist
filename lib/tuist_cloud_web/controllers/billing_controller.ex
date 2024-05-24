@@ -15,7 +15,7 @@ defmodule TuistCloudWeb.BillingController do
 
     if Authorization.can(user, :update, account, :billing) do
       session = Billing.create_session(account.customer_id)
-      redirect(conn, external: session.url)
+      redirect(conn, external: session.url) |> halt()
     else
       raise TuistCloudWeb.Errors.UnauthorizedError,
             "You don't have permission to access this account."
