@@ -34,7 +34,7 @@ jobs:
         uses: pozetroninc/github-action-get-latest-release@master
         with:
           owner: tuist
-          repo: cloud-on-premise
+          repo: app
           token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
       - name: "Generate Changelog"
         id: changelog
@@ -58,7 +58,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/tuist/cloud-on-premise
+            ghcr.io/tuist/tuist
           flavor: |
             latest=true
           tags: |
@@ -66,7 +66,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=Tuist Cloud
             org.opencontainers.image.vendor=Tuist GmbH
-            org.opencontainers.image.source=https://github.com/tuist/cloud-on-premise
+            org.opencontainers.image.source=https://github.com/tuist/app
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -84,11 +84,11 @@ jobs:
           tagging_message: ${{ steps.version.outputs.version }}
           commit_options: "--allow-empty"
           commit_message: Release ${{ steps.version.outputs.version }}
-      - name: Create GitHub Release on tuist/cloud-on-premise
+      - name: Create GitHub Release on tuist/app
         uses: softprops/action-gh-release@v1
         with:
           draft: false
-          repository: tuist/cloud-on-premise
+          repository: tuist/app
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
