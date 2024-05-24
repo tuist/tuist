@@ -2,7 +2,7 @@ import Foundation
 
 public struct Task: Sendable {
     public let options: [Option]
-    public let task: @Sendable([String: String]) throws -> Void
+    public let task: @Sendable ([String: String]) throws -> Void
 
     public enum Option: Equatable, Sendable {
         case option(String)
