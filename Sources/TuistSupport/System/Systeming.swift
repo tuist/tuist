@@ -63,12 +63,6 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the command.
     func publisher(_ arguments: [String], verbose: Bool, environment: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
 
-    /// Runs a command in the shell and wraps the standard output and error in a publisher.
-    /// - Parameters:
-    ///   - arguments: Command.
-    ///   - secondArguments: Second Command.
-    func publisher(_ arguments: [String], pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
-
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
     ///
