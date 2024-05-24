@@ -1,11 +1,11 @@
 extension Config {
     /// Options for project generation.
-    public struct GenerationOptions: Codable, Equatable {
+    public struct GenerationOptions: Codable, Equatable, Sendable {
         /**
          This enum represents the targets against which Tuist will run the check for potential side effects
          caused by static transitive dependencies.
          */
-        public enum StaticSideEffectsWarningTargets: Codable, Equatable {
+        public enum StaticSideEffectsWarningTargets: Codable, Equatable, Sendable {
             case all
             case none
             case excluding([String])

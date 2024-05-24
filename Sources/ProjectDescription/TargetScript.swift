@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Target scripts, represented as target script build phases in the generated Xcode projects, are useful to define actions to be
 /// executed before of after the build process of a target.
-public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_body_length
+public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:this type_body_length
     /// Order when the script gets executed.
     ///
     /// - pre: Before the sources and resources build phase.

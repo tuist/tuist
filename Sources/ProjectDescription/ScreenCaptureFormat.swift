@@ -7,7 +7,7 @@ import Foundation
 /// In Xcode 15 screen recordings are enabled by default (in favour of screenshots).
 /// This setting is ignored by Xcode 14.x and prior.
 ///
-public enum ScreenCaptureFormat: String, Codable {
+public enum ScreenCaptureFormat: String, Codable, Sendable {
     /// Screenshots
     case screenshots
     /// Automatic screen recordings

@@ -2,7 +2,7 @@ import Foundation
 
 extension Project {
     /// Options to configure a project.
-    public struct Options: Codable, Equatable {
+    public struct Options: Codable, Equatable, Sendable {
         /// Configures automatic target schemes generation.
         public var automaticSchemesOptions: AutomaticSchemesOptions
 

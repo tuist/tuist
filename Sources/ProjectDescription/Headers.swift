@@ -1,9 +1,9 @@
 import Foundation
 
 /// A group of public, private and project headers.
-public struct Headers: Codable, Equatable {
+public struct Headers: Codable, Equatable, Sendable {
     /// Determine how to resolve cases, when the same files found in different header scopes
-    public enum AutomaticExclusionRule: Int, Codable {
+    public enum AutomaticExclusionRule: Int, Codable, Sendable {
         /// Project headers = all found - private headers - public headers
         ///
         /// Order of tuist search:

@@ -10,7 +10,7 @@ import Foundation
 ///  - if your template doesn't start with comment and whitespace or newline, we add a space - otherwise your header would be
 /// glued to implicit comment slashes which you probably do not want
 ///  - if your template has trailing newline, we remove it as it is implicitly added by Xcode
-public enum FileHeaderTemplate: Codable, Equatable, ExpressibleByStringInterpolation {
+public enum FileHeaderTemplate: Codable, Equatable, ExpressibleByStringInterpolation, Sendable {
     /// Load template stored in file
     case file(Path)
     /// Use inline string as template
