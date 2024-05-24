@@ -42,7 +42,7 @@ public struct UnhandledError: FatalError {
 }
 
 /// Fatal error protocol.
-public protocol FatalError: Error, CustomStringConvertible, Sendable {
+public protocol FatalError: Error, CustomStringConvertible {
     /// Error type.
     var type: ErrorType { get }
 }
