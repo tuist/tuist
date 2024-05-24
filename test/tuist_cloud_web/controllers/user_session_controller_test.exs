@@ -22,7 +22,7 @@ defmodule TuistCloudWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/"
 
       # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/")
+      conn = build_conn() |> log_in_user(user) |> get(~p"/")
       response = html_response(conn, 302)
       assert response =~ ~p"/get-started"
     end

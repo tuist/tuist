@@ -32,11 +32,13 @@ defmodule TuistCloudWeb.UserSessionController do
         conn
         |> put_flash(:error, "Invalid email or password")
         |> redirect(to: ~p"/users/log_in")
+        |> halt()
 
       {:error, :not_confirmed} ->
         conn
         |> put_flash(:error, "Please confirm your account before logging in.")
         |> redirect(to: ~p"/users/log_in")
+        |> halt()
     end
   end
 

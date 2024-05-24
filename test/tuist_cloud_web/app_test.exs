@@ -1,7 +1,6 @@
 defmodule TuistCloudWeb.AppTest do
   use TuistCloudWeb.ConnCase, async: true
 
-  alias TuistCloud.Projects
   alias TuistCloud.ProjectsFixtures
   alias TuistCloudWeb.Authentication
   alias TuistCloudWeb.App
@@ -160,63 +159,6 @@ defmodule TuistCloudWeb.AppTest do
 
     # Then
     assert socket.assigns.can_update_billing == false
-  end
-
-  test "redirects to the first project when a project was not specified", %{session: session} do
-    # When
-    {:halt, socket} =
-      App.on_mount(
-        :mount_app,
-        %{},
-        session,
-        %LiveView.Socket{}
-      )
-
-    # Then
-    assert socket.redirected == {:redirect, %{to: "/tuist-org/tuist"}}
-  end
-
-  test "redirects to get-started if a user has no projects", %{conn: conn} do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    user_token = Accounts.generate_user_session_token(user)
-
-    session =
-      conn
-      |> fetch_cookies()
-      |> Authentication.log_in_user(user)
-      |> get_session()
-      |> Map.put(:user_token, user_token)
-
-    # When
-    {:halt, socket} =
-      App.on_mount(
-        :mount_app,
-        %{},
-        session,
-        %LiveView.Socket{}
-      )
-
-    # Then
-    assert socket.redirected == {:redirect, %{to: "/get-started"}}
-  end
-
-  test "redirects to last_visited_project_id", %{session: session, user: user} do
-    # Given
-    {:ok, project_two} = Projects.get_project_by_slug("tuist-org-2/tuist-2")
-    Accounts.update_last_visited_project(user, project_two.id)
-
-    # When
-    {:halt, socket} =
-      App.on_mount(
-        :mount_app,
-        %{},
-        session,
-        %LiveView.Socket{}
-      )
-
-    # Then
-    assert socket.redirected == {:redirect, %{to: "/tuist-org-2/tuist-2"}}
   end
 
   test "raises NotFoundError when a project does not exist", %{session: session} do

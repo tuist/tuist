@@ -171,7 +171,13 @@ defmodule TuistCloudWeb.Router do
 
   # Authenticated routes
   scope "/", TuistCloudWeb do
-    pipe_through [:open_api, :browser, :require_authenticated_user, :analytics]
+    pipe_through [
+      :open_api,
+      :browser,
+      :require_authenticated_user,
+      :analytics,
+      TuistCloudWeb.AutoRedirectToProjectPlug
+    ]
 
     live_session :authenticated,
       on_mount: [

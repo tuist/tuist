@@ -755,10 +755,10 @@ defmodule TuistCloud.Accounts do
   end
 
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
-    {:ok, _} =
+    {:ok, user} =
       Repo.update(user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id))
 
-    Repo.reload(user)
+    user
   end
 
   def update_plan(%Account{} = account, plan) do
