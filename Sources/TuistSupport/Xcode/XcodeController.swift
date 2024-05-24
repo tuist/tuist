@@ -21,7 +21,7 @@ public class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.
-    public static let shared: XcodeControlling = XcodeController()
+    public static var shared: XcodeControlling = XcodeController()
 
     /// Cached response of `xcode-select` command
     @Atomic
