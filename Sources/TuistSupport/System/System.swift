@@ -211,23 +211,6 @@ public final class System: Systeming {
 
     // MARK: Helpers
 
-    /// Converts an array of arguments into a `Foundation.Process`
-    /// - Parameters:
-    ///   - arguments: Arguments for the process, first item being the executable URL.
-    ///   - environment: Environment
-    /// - Returns: A `Foundation.Process`
-    static func process(
-        _ arguments: [String],
-        environment: [String: String]
-    ) -> Foundation.Process {
-        let executablePath = arguments.first!
-        let process = Foundation.Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = Array(arguments.dropFirst())
-        process.environment = environment
-        return process
-    }
-
     /// Pipe the output of one Process to another
     /// - Parameters:
     ///   - processOne: First Process
@@ -243,20 +226,6 @@ public final class System: Systeming {
         processOne.standardOutput = processPipe
         processTwo.standardInput = processPipe
         return processPipe
-    }
-
-    /// PIpe the output of a process into separate output and error pipes
-    /// - Parameter process: The process to pipe
-    /// - Returns: Tuple that contains the output and error Pipe.
-    static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
-        let stdOut = Pipe()
-        let stdErr = Pipe()
-
-        // Redirect output of Process Two
-        process.standardOutput = stdOut
-        process.standardError = stdErr
-
-        return (stdOut, stdErr)
     }
 
     public func chmod(

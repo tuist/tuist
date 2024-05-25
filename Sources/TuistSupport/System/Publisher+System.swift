@@ -51,20 +51,6 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
         }.eraseToAnyPublisher()
     }
 
-    /// It collects the standard output and error into an object that is sent
-    /// as a single event when the process completes.
-    public func collectOutput() -> AnyPublisher<SystemCollectedOutput, Error> {
-        reduce(SystemCollectedOutput()) { collected, event -> SystemCollectedOutput in
-            var collected = collected
-            switch event {
-            case let .standardError(error):
-                collected.standardError.append(error)
-            case let .standardOutput(output):
-                collected.standardOutput.append(output)
-            }
-            return collected
-        }.eraseToAnyPublisher()
-    }
 }
 
 extension Publisher {
