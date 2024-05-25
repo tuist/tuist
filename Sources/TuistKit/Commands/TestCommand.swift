@@ -25,7 +25,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: .shortAndLong,
-        help: "[Deprecated] When passed, it cleans the project before testing it."
+        help: "When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
 
@@ -37,31 +37,31 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "[Deprecated] Test on a specific device."
+        help: "Test on a specific device."
     )
     var device: String?
 
     @Option(
         name: .long,
-        help: "[Deprecated] Test on a specific platform."
+        help: "Test on a specific platform."
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "[Deprecated] Test with a specific version of the OS."
+        help: "Test with a specific version of the OS."
     )
     var os: String?
 
     @Flag(
         name: .long,
-        help: "[Deprecated] When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
     )
     var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "[Deprecated] The configuration to be used when testing the scheme."
+        help: "The configuration to be used when testing the scheme."
     )
     var configuration: String?
 
@@ -73,7 +73,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.long, .customShort("T")],
-        help: "[Deprecated] Path where test result bundle will be saved."
+        help: "Path where test result bundle will be saved."
     )
     var resultBundlePath: String?
 
@@ -163,34 +163,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         }
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
-        if platform != nil || os != nil || device != nil || rosetta {
-            logger
-                .warning(
-                    "--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
-        if let configuration {
-            logger
-                .warning(
-                    "--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
-        if clean {
-            logger
-                .warning(
-                    "--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
         if let derivedDataPath {
             logger
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
-        if let resultBundlePath {
-            logger
-                .warning(
-                    "--resultBundlePath is deprecated please use -resultBundlePath \(resultBundlePath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
         }
         if retryCount > 0 {

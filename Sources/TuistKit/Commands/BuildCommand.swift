@@ -36,7 +36,7 @@ public struct BuildOptions: ParsableArguments {
     public var generate: Bool = false
 
     @Flag(
-        help: "[Deprecated] When passed, it cleans the project before building it"
+        help: "When passed, it cleans the project before building it"
     )
     public var clean: Bool = false
 
@@ -49,31 +49,31 @@ public struct BuildOptions: ParsableArguments {
 
     @Option(
         name: .shortAndLong,
-        help: "[Deprecated] Build on a specific device."
+        help: "Build on a specific device."
     )
     public var device: String?
 
     @Option(
         name: .long,
-        help: "[Deprecated] Build for a specific platform."
+        help: "Build for a specific platform."
     )
     public var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "[Deprecated] Build with a specific version of the OS."
+        help: "Build with a specific version of the OS."
     )
     public var os: String?
 
     @Flag(
         name: .long,
-        help: "[Deprecated] When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
     )
     public var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "[Deprecated] The configuration to be used when building the scheme."
+        help: "The configuration to be used when building the scheme."
     )
     public var configuration: String?
 
@@ -130,24 +130,6 @@ public struct BuildCommand: AsyncParsableCommand {
         }
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
-        if buildOptions.platform != nil || buildOptions.os != nil || buildOptions.device != nil || buildOptions.rosetta {
-            logger
-                .warning(
-                    "--platform, --os, --device, and --rosetta are deprecated please use -destination DESTINATION after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
-        if let configuration = buildOptions.configuration {
-            logger
-                .warning(
-                    "--configuration is deprecated please use -configuration \(configuration) after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
-        if buildOptions.clean {
-            logger
-                .warning(
-                    "--clean is deprecated please use clean after the terminator (--) instead to passthrough parameters to xcodebuild"
-                )
-        }
         if let derivedDataPath = buildOptions.derivedDataPath {
             logger
                 .warning(

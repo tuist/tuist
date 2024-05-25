@@ -151,7 +151,6 @@ extension XCTestCase {
         } catch {
             // Succeeded
         }
-        
     }
 
     public func XCTAssertCodableEqualToJson<C: Codable>(
