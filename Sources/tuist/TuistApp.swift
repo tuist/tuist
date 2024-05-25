@@ -16,6 +16,6 @@ private enum TuistApp {
 
         try TuistSupport.Environment.shared.bootstrap()
 
-        await TuistCommand.main()
+        try await TuistCommand.main()
     }
 }

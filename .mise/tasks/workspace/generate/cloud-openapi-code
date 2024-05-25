@@ -1,0 +1,9 @@
+#!/bin/bash
+# mise description="Generates the Swift code off the Open API specification."
+
+set -euo pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIR=$($SCRIPT_DIR/../../../utilities/root_dir.sh)
+
+mint run apple/swift-openapi-generator@0.1.5 generate --mode types --mode client --output-directory $ROOT_DIR/Sources/TuistApp/OpenAPI $ROOT_DIR/Sources/TuistApp/OpenAPI/cloud.yml

@@ -14,13 +14,13 @@ import XCTest
 final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!
     private var rootDirectoryLocator: MockRootDirectoryLocator!
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
     override func setUpWithError() throws {
         super.setUp()
         rootDirectoryLocator = MockRootDirectoryLocator()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = .init()
         manifestFilesLocator = MockManifestFilesLocating()
 
         subject = CleanService(
@@ -44,7 +44,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         let cachePaths = try createFolders(["tuist/Manifests", "tuist/ProjectDescriptionHelpers"])
 
         let cachePath = cachePaths[0].parentDirectory.parentDirectory
-        cacheDirectoriesProvider.cacheDirectoryStub = cachePath
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(cachePath)
         rootDirectoryLocator.locateStub = cachePath
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -70,6 +72,11 @@ final class CleanServiceTests: TuistUnitTestCase {
                     .appending(component: Constants.SwiftPackageManager.packageSwiftName)
             )
 
+        let cachePath = localPaths[0].parentDirectory.parentDirectory
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(cachePath)
+
         // When
         try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
 
@@ -90,6 +97,11 @@ final class CleanServiceTests: TuistUnitTestCase {
                     .appending(component: Constants.SwiftPackageManager.packageSwiftName)
             )
 
+        let cachePath = localPaths[0].parentDirectory.parentDirectory
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(cachePath)
+
         // When
         try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
 
@@ -103,7 +115,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         let cachePaths = try createFolders(["tuist/Manifests"])
         let cachePath = cachePaths[0].parentDirectory.parentDirectory
 
-        cacheDirectoriesProvider.cacheDirectoryStub = cachePath
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(cachePath)
 
         let projectPath = try temporaryPath()
         rootDirectoryLocator.locateStub = projectPath

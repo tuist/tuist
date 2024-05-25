@@ -302,6 +302,20 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistApp",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            swiftToolsSupportDependency,
+            .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+        ],
+        exclude: ["OpenAPI/cloud.yml"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ]
 
 #if TUIST
@@ -391,6 +405,10 @@ let package = Package(
             name: "TuistAcceptanceTesting",
             targets: ["TuistAcceptanceTesting"]
         ),
+        .library(
+            name: "TuistApp",
+            targets: ["TuistApp"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -424,6 +442,8 @@ let package = Package(
         .package(url: "https://github.com/cpisciotta/xcbeautify", exact: "2.0.1"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.2"),
+        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: targets
 )

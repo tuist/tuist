@@ -4,6 +4,7 @@ import Combine
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueueTesting
+import TuistCore
 import TuistSupport
 import XCTest
 
@@ -71,7 +72,6 @@ final class TrackableCommandTests: TuistTestCase {
     func test_whenCommandFails_dispatchesEventWithExpectedInfo() async throws {
         // Given
         makeSubject(flag: false, shouldFail: true)
-        let expectedParams: [String: AnyCodable] = ["flag": false]
         // When
         await XCTAssertThrowsSpecific(try await subject.run(), TestCommand.TestError.commandFailed)
 
