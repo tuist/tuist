@@ -29,6 +29,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
     func test_tagCommand_tagsExpectedCommand() throws {
         // Given
         let info = TrackableCommandInfo(
+            runId: "run-id",
             name: "cache",
             subcommand: "warm",
             parameters: ["foo": "bar"],
@@ -37,6 +38,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             status: .failure("Failed!")
         )
         let expectedEvent = CommandEvent(
+            runId: "run-id",
             name: "cache",
             subcommand: "warm",
             params: ["foo": "bar"],

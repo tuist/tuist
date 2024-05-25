@@ -15,16 +15,18 @@ import XCTest
 
 final class CloudAuthServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionControlling!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
     private var subject: CloudAuthService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = .init()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(cloud: .test(url: cloudURL)))
 
         subject = CloudAuthService(
             cloudSessionController: cloudSessionController,

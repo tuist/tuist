@@ -21,6 +21,7 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
     }
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = ""
 
     @Option(
         help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",

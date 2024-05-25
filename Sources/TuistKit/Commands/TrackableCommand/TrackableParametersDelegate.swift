@@ -4,6 +4,8 @@ import Foundation
 /// Commands that conform to `HasTrackableParameters` can report extra parameters that are only known at runtime
 public protocol HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate? { get set }
+    /// ID that uniquely identifies the command run
+    var runId: String { get set }
 }
 
 /// `TrackableParametersDelegate` contains the callback that should be called

@@ -66,13 +66,18 @@ public final class TestService { // swiftlint:disable:this type_body_length
 
     private let testsCacheTemporaryDirectory: TemporaryDirectory
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let configLoader: ConfigLoading
 
     public convenience init(
         testsCacheTemporaryDirectory: TemporaryDirectory
     ) {
+        let manifestLoaderFactory = ManifestLoaderFactory()
+        let manifestLoader = manifestLoaderFactory.createManifestLoader()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generatorFactory: GeneratorFactory()
+            generatorFactory: GeneratorFactory(),
+            configLoader: configLoader
         )
     }
 
@@ -90,7 +95,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        configLoader: ConfigLoading
     ) {
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.generatorFactory = generatorFactory
@@ -99,6 +105,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.configLoader = configLoader
     }
 
     public func validateParameters(
@@ -153,6 +160,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
 
     // swiftlint:disable:next function_body_length
     public func run(
+        runId: String,
         schemeName: String?,
         clean: Bool,
         configuration: String?,
@@ -180,9 +188,6 @@ public final class TestService { // swiftlint:disable:this type_body_length
             )
         }
         // Load config
-        let manifestLoaderFactory = ManifestLoaderFactory()
-        let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
 
         let testGenerator: Generating
@@ -222,6 +227,28 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
             )
+        }
+
+        let passedResultBundlePath = resultBundlePath
+
+        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
+            .tuistCacheDirectory(for: .runs)
+            .appending(components: runId, Constants.resultBundleName)
+
+        let resultBundlePath: AbsolutePath?
+        if config.cloud == nil {
+            resultBundlePath = passedResultBundlePath
+        } else {
+            resultBundlePath = passedResultBundlePath ?? runResultBundlePath
+        }
+
+        defer {
+            if let resultBundlePath, runResultBundlePath != resultBundlePath, config.cloud != nil {
+                if !FileHandler.shared.exists(runResultBundlePath.parentDirectory) {
+                    try? FileHandler.shared.createFolder(runResultBundlePath.parentDirectory)
+                }
+                try? FileHandler.shared.copy(from: resultBundlePath, to: runResultBundlePath)
+            }
         }
 
         if let schemeName {

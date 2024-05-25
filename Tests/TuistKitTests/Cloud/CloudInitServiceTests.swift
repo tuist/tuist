@@ -2,7 +2,7 @@ import MockableTest
 import TSCBasic
 import TuistGraph
 import TuistGraphTesting
-import TuistLoaderTesting
+import TuistLoader
 import TuistServer
 import TuistSupport
 import XCTest
@@ -13,7 +13,7 @@ import XCTest
 final class CloudInitServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionControlling!
     private var createProjectService: MockCreateProjectServicing!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
     private var subject: CloudInitService!
 
@@ -21,7 +21,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         super.setUp()
         cloudSessionController = MockCloudSessionControlling()
         createProjectService = .init()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
         subject = CloudInitService(
             cloudSessionController: cloudSessionController,
@@ -47,8 +47,12 @@ final class CloudInitServiceTests: TuistUnitTestCase {
                 serverURL: .value(URL(string: Constants.URLs.production)!)
             )
             .willReturn(.test(fullName: "tuist/test"))
-        configLoader.loadConfigStub = { _ in Config.test(cloud: nil) }
-        configLoader.locateConfigStub = { _ in AbsolutePath("/some-path") }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(Config.test(cloud: nil))
+        given(configLoader)
+            .locateConfig(at: .any)
+            .willReturn(AbsolutePath("/some-path"))
 
         // When
         try await subject.createProject(
@@ -67,7 +71,12 @@ final class CloudInitServiceTests: TuistUnitTestCase {
     func test_cloud_init_when_config_does_not_exist() async throws {
         // Given
         var content: String?
-        configLoader.locateConfigStub = { _ in nil }
+        given(configLoader)
+            .locateConfig(at: .any)
+            .willReturn(nil)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         fileHandler.stubWrite = { stubContent, _, _ in content = stubContent }
         given(createProjectService)
             .createProject(
@@ -98,9 +107,11 @@ final class CloudInitServiceTests: TuistUnitTestCase {
 
     func test_cloud_init_when_cloud_exists() async throws {
         // Given
-        configLoader.loadConfigStub = { _ in
-            Config.test(cloud: Cloud.test(url: self.cloudURL))
-        }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(cloud: Cloud.test(url: cloudURL))
+            )
 
         // When / Then
         await XCTAssertThrowsSpecific(

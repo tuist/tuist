@@ -17,15 +17,15 @@ import XCTest
 final class CloudSessionServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionControlling!
     private var subject: CloudSessionService!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionControlling()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
         subject = CloudSessionService(
             cloudSessionController: cloudSessionController,
             configLoader: configLoader

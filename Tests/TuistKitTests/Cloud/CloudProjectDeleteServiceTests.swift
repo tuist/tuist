@@ -1,7 +1,7 @@
 import Foundation
 import MockableTest
 import TuistGraph
-import TuistLoaderTesting
+import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
@@ -13,7 +13,7 @@ final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
     private var getProjectService: MockGetProjectServicing!
     private var deleteProjectService: MockDeleteProjectServicing!
     private var credentialsStore: MockCloudCredentialsStoring!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
     private var subject: CloudProjectDeleteService!
 
@@ -23,9 +23,9 @@ final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
         getProjectService = .init()
         deleteProjectService = .init()
         credentialsStore = .init()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
         subject = CloudProjectDeleteService(
             deleteProjectService: deleteProjectService,
             getProjectService: getProjectService,

@@ -7,6 +7,7 @@ import TuistSupport
 public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = ""
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(

@@ -14,7 +14,7 @@ import XCTest
 final class EditServiceTests: XCTestCase {
     var subject: EditService!
     var opener: MockOpener!
-    var configLoader: MockConfigLoader!
+    var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
     var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
@@ -23,8 +23,12 @@ final class EditServiceTests: XCTestCase {
     override func setUpWithError() throws {
         super.setUp()
         opener = MockOpener()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         pluginService = MockPluginService()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
 
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
