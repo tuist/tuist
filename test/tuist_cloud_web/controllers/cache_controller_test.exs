@@ -175,12 +175,12 @@ defmodule TuistCloudWeb.CacheControllerTest do
       end)
 
       Storage
-      |> expect(:get_object, fn %{
-                                  hash: ^hash,
-                                  name: ^name,
-                                  project_slug: ^project_id,
-                                  cache_category: ^cache_category
-                                } ->
+      |> expect(:head_object, fn %{
+                                   hash: ^hash,
+                                   name: ^name,
+                                   project_slug: ^project_id,
+                                   cache_category: ^cache_category
+                                 } ->
         %{content_length: 1024}
       end)
 
@@ -226,7 +226,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
       |> stub(:complete_multipart_upload, fn _, _, _ -> :ok end)
 
       Storage
-      |> stub(:get_object, fn _ -> %{content_length: 1024} end)
+      |> stub(:head_object, fn _ -> %{content_length: 1024} end)
 
       conn =
         conn

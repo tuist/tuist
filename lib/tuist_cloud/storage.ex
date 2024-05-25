@@ -103,9 +103,9 @@ defmodule TuistCloud.Storage do
     end
   end
 
-  def get_object(item) do
+  def head_object(item) do
     {:ok, object} =
-      Environment.s3_bucket_name() |> ExAws.S3.get_object(object_key(item)) |> ExAws.request()
+      Environment.s3_bucket_name() |> ExAws.S3.head_object(object_key(item)) |> ExAws.request()
 
     %{
       content_length: String.to_integer(Map.new(object.headers)["Content-Length"])
