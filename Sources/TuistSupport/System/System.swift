@@ -146,13 +146,20 @@ public final class System: Systeming {
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        var values = publisher(arguments)
-            .mapToString()
-            .collectOutput().values.makeAsyncIterator()
-
-        return try await values.next()!
+        let process = Process(
+            arguments: arguments,
+            environment: env,
+            outputRedirection: .collect,
+            startNewProcessGroup: true
+        )
+        
+        try process.launch()
+        
+        let result = try await process.waitUntilExit()
+        
+        return SystemCollectedOutput(standardOutput: try result.utf8Output(),
+                                     standardError: try result.utf8stderrOutput())
     }
-
     public func async(_ arguments: [String]) throws {
         let process = Process(
             arguments: arguments,
