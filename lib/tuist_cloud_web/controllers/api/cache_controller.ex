@@ -488,7 +488,7 @@ defmodule TuistCloudWeb.API.CacheController do
         end)
       )
 
-    object = Storage.get_object(item)
+    object = Storage.head_object(item)
 
     if is_nil(CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})) do
       CommandEvents.create_cache_event(%{
