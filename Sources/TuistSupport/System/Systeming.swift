@@ -51,6 +51,7 @@ public protocol Systeming {
     ///   - arguments: Command.
     ///   - verbose: When true it prints the command that will be executed before executing it.
     ///   - environment: Environment that should be used when running the task.
+    ///   - redirection: Output Redirection behavior for the underlying `Process`
     /// - Throws: An error if the command fails.
     func runAndPrint(
         _ arguments: [String],
