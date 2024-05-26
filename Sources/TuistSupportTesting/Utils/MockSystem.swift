@@ -62,14 +62,19 @@ public final class MockSystem: Systeming {
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        var values = publisher(arguments)
-            .mapToString()
-            .collectOutput()
-            .eraseToAnyPublisher()
-            .stream
-            .makeAsyncIterator()
+        let command = arguments.joined(separator: " ")
+        guard let stub = self.stubs[command] else {
+            throw TuistSupport.SystemError
+                .terminated(command: arguments.first!, code: 1, standardError: Data())
+        }
+        
+        guard stub.exitstatus == 0 else {
+            throw TuistSupport.SystemError
+                .terminated(command: arguments.first!, code: 1, standardError: stub.stderror?.data(using: .utf8) ?? Data())
+        }
 
-        return try await values.next()!
+        return SystemCollectedOutput(standardOutput: stub.stdout ?? "",
+                                     standardError: stub.stderror ?? "")
     }
 
     public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
@@ -183,20 +188,5 @@ public final class MockSystem: Systeming {
         options: Set<FileMode.Option>
     ) throws {
         try chmodStub?(mode, path, options)
-    }
-}
-
-extension Publisher where Output == SystemEvent<String>, Failure == Error {
-    public func collectOutput() -> AnyPublisher<SystemCollectedOutput, Error> {
-        reduce(SystemCollectedOutput()) { collected, event -> SystemCollectedOutput in
-            var collected = collected
-            switch event {
-            case let .standardError(error):
-                collected.standardError.append(error)
-            case let .standardOutput(output):
-                collected.standardOutput.append(output)
-            }
-            return collected
-        }.eraseToAnyPublisher()
     }
 }
