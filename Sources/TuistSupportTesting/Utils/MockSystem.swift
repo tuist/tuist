@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import TSCBasic
 import XCTest
@@ -86,76 +85,6 @@ public final class MockSystem: Systeming {
             standardOutput: stub.stdout ?? "",
             standardError: stub.stderror ?? ""
         )
-    }
-
-    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        publisher(arguments, verbose: false, environment: env)
-    }
-
-    public func publisher(
-        _ arguments: [String],
-        verbose _: Bool,
-        environment _: [String: String]
-    ) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher<SystemEvent<Data>, Error>.create { subscriber in
-            let command = arguments.joined(separator: " ")
-            guard let stub = self.stubs[command] else {
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-                return AnyCancellable {}
-            }
-            guard stub.exitstatus == 0 else {
-                if let error = stub.stderror {
-                    subscriber.send(.standardError(error.data(using: .utf8)!))
-                }
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-
-                return AnyCancellable {}
-            }
-            if let stdout = stub.stdout {
-                subscriber.send(.standardOutput(stdout.data(using: .utf8)!))
-            }
-            subscriber.send(completion: .finished)
-            return AnyCancellable {}
-        }
-    }
-
-    public func publisher(_ arguments: [String], pipeTo _: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher<SystemEvent<Data>, Error>.create { subscriber in
-            let command = arguments.joined(separator: " ")
-            guard let stub = self.stubs[command] else {
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-                return AnyCancellable {}
-            }
-            guard stub.exitstatus == 0 else {
-                if let error = stub.stderror {
-                    subscriber.send(.standardError(error.data(using: .utf8)!))
-                }
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-
-                return AnyCancellable {}
-            }
-            if let stdout = stub.stdout {
-                subscriber.send(.standardOutput(stdout.data(using: .utf8)!))
-            }
-            subscriber.send(completion: .finished)
-            return AnyCancellable {}
-        }
     }
 
     public func async(_ arguments: [String]) throws {

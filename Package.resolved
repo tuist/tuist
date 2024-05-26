@@ -29,15 +29,6 @@
       }
     },
     {
-      "identity" : "combineext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CombineCommunity/CombineExt.git",
-      "state" : {
-        "revision" : "d7b896fa9ca8b47fa7bcde6b43ef9b70bf8c1f56",
-        "version" : "1.8.1"
-      }
-    },
-    {
       "identity" : "difference",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/krzysztofzablocki/Difference.git",
