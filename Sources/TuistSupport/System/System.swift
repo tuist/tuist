@@ -67,7 +67,6 @@ public enum SystemError: FatalError, Equatable {
 
 // swiftlint:disable:next type_body_length
 public final class System: Systeming {
-    
     /// Shared system instance.
     public static var shared: Systeming = System()
 
@@ -133,10 +132,10 @@ public final class System: Systeming {
         try runAndPrint(arguments, verbose: false, environment: env, redirection: .none)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String : String]) throws {
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
         try runAndPrint(arguments, verbose: false, environment: environment, redirection: .none)
     }
-    
+
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
         let process = Process(
             arguments: arguments,
@@ -144,15 +143,17 @@ public final class System: Systeming {
             outputRedirection: .collect,
             startNewProcessGroup: true
         )
-        
+
         try process.launch()
-        
+
         let result = try await process.waitUntilExit()
-        
-        return SystemCollectedOutput(standardOutput: try result.utf8Output(),
-                                     standardError: try result.utf8stderrOutput())
+
+        return SystemCollectedOutput(
+            standardOutput: try result.utf8Output(),
+            standardError: try result.utf8stderrOutput()
+        )
     }
-    
+
     public func async(_ arguments: [String]) throws {
         let process = Process(
             arguments: arguments,

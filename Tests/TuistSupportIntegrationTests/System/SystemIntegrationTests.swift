@@ -29,14 +29,19 @@ final class SystemIntegrationTests: TuistTestCase {
     }
 
     func test_run_output_is_redirected() throws {
-        var output: String = ""
-        try subject.runAndPrint(["echo", "hola"], verbose: false, environment: System.shared.env, redirection: .stream(stdout: { bytes in
-            output = String(decoding: bytes, as: Unicode.UTF8.self)
-        }, stderr: { _ in }))
-        
+        var output = ""
+        try subject.runAndPrint(
+            ["echo", "hola"],
+            verbose: false,
+            environment: System.shared.env,
+            redirection: .stream(stdout: { bytes in
+                output = String(decoding: bytes, as: Unicode.UTF8.self)
+            }, stderr: { _ in })
+        )
+
         XCTAssertEqual(output.spm_chomp(), "hola")
     }
-    
+
     func test_run_errors() throws {
         do {
             try subject.runAndPrint(["/usr/bin/xcrun", "invalid"], verbose: false, environment: System.shared.env)

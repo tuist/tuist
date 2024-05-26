@@ -5,7 +5,6 @@ import XCTest
 @testable import TuistSupport
 
 public final class MockSystem: Systeming {
-    
     public var env: [String: String] = [:]
 
     // swiftlint:disable:next large_tuple
@@ -57,29 +56,36 @@ public final class MockSystem: Systeming {
     public func runAndPrint(_ arguments: [String]) throws {
         _ = try capture(arguments, verbose: false, environment: env)
     }
-   
+
     public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
         _ = try capture(arguments, verbose: false, environment: env)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String], redirection _: TSCBasic.Process.OutputRedirection) throws {
+    public func runAndPrint(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String],
+        redirection _: TSCBasic.Process.OutputRedirection
+    ) throws {
         _ = try capture(arguments, verbose: false, environment: env)
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
         let command = arguments.joined(separator: " ")
-        guard let stub = self.stubs[command] else {
+        guard let stub = stubs[command] else {
             throw TuistSupport.SystemError
                 .terminated(command: arguments.first!, code: 1, standardError: Data())
         }
-        
+
         guard stub.exitstatus == 0 else {
             throw TuistSupport.SystemError
                 .terminated(command: arguments.first!, code: 1, standardError: stub.stderror?.data(using: .utf8) ?? Data())
         }
 
-        return SystemCollectedOutput(standardOutput: stub.stdout ?? "",
-                                     standardError: stub.stderror ?? "")
+        return SystemCollectedOutput(
+            standardOutput: stub.stdout ?? "",
+            standardError: stub.stderror ?? ""
+        )
     }
 
     public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {

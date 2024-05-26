@@ -319,7 +319,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
         }, stderr: { bytes in
             log(bytes, isError: true)
         }))
-        
        
     }
     

@@ -77,7 +77,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
-    ) throws  -> Void {
+    ) throws {
         if let testStub {
             testStub(
                 target,
@@ -115,7 +115,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) throws -> Void {
+    ) throws {
         if let archiveStub {
             archiveStub(target, scheme, clean, archivePath, arguments, derivedDataPath)
         } else {
@@ -124,7 +124,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             )
         }
     }
-    
+
     var createXCFrameworkStub: (
         ([String], AbsolutePath)
             -> Void
@@ -132,7 +132,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     func createXCFramework(
         arguments: [String],
         output: AbsolutePath
-    ) throws -> Void {
+    ) throws {
         if let createXCFrameworkStub {
             createXCFrameworkStub(arguments, output)
         } else {
@@ -140,7 +140,6 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
             )
         }
-
     }
 
     var showBuildSettingsStub: ((XcodeBuildTarget, String, String, AbsolutePath?) -> [String: XcodeBuildSettings])?

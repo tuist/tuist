@@ -57,7 +57,7 @@ extension SystemEvent where T == Data {
             return .standardOutput(String(data: data, encoding: .utf8)!)
         }
     }
-    
+
     public var utf8String: String {
         switch self {
         case let .standardOutput(data), let .standardError(data):

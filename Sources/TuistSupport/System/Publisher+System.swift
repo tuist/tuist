@@ -50,7 +50,6 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
             return collected
         }.eraseToAnyPublisher()
     }
-
 }
 
 extension Publisher {
