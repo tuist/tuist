@@ -278,6 +278,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/tele2.svg" alt="altel_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://ozon.tech" target="_blank">
+          <img src="assets/companies/ozontech.svg" alt="ozontech_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
