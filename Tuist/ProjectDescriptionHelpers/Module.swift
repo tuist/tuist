@@ -228,7 +228,6 @@ public enum Module: String, CaseIterable {
                 .external(name: "AnyCodable"),
                 .external(name: "XcodeProj"),
                 .external(name: "KeychainAccess"),
-                .external(name: "CombineExt"),
                 .external(name: "Logging"),
                 .external(name: "ZIPFoundation"),
                 .external(name: "Difference"),
