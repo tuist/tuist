@@ -185,3 +185,18 @@ public final class MockSystem: Systeming {
         try chmodStub?(mode, path, options)
     }
 }
+
+extension Publisher where Output == SystemEvent<String>, Failure == Error {
+    public func collectOutput() -> AnyPublisher<SystemCollectedOutput, Error> {
+        reduce(SystemCollectedOutput()) { collected, event -> SystemCollectedOutput in
+            var collected = collected
+            switch event {
+            case let .standardError(error):
+                collected.standardError.append(error)
+            case let .standardOutput(output):
+                collected.standardOutput.append(output)
+            }
+            return collected
+        }.eraseToAnyPublisher()
+    }
+}
