@@ -5,6 +5,7 @@ import XCTest
 @testable import TuistSupport
 
 public final class MockSystem: Systeming {
+    
     public var env: [String: String] = [:]
 
     // swiftlint:disable:next large_tuple
@@ -56,8 +57,12 @@ public final class MockSystem: Systeming {
     public func runAndPrint(_ arguments: [String]) throws {
         _ = try capture(arguments, verbose: false, environment: env)
     }
-
+   
     public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+        _ = try capture(arguments, verbose: false, environment: env)
+    }
+
+    public func runAndPrint(_ arguments: [String], verbose _: Bool, environment _: [String: String], redirection _: TSCBasic.Process.OutputRedirection) throws {
         _ = try capture(arguments, verbose: false, environment: env)
     }
 

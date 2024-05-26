@@ -26,7 +26,7 @@ public protocol XcodeBuildControlling {
         clean: Bool,
         arguments: [XcodeBuildArgument],
         passthroughXcodeBuildArguments: [String]
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -55,7 +55,7 @@ public protocol XcodeBuildControlling {
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:
@@ -72,7 +72,7 @@ public protocol XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
@@ -81,8 +81,7 @@ public protocol XcodeBuildControlling {
     func createXCFramework(
         arguments: [String],
         output: AbsolutePath
-    )
-        throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:

@@ -67,6 +67,7 @@ public enum SystemError: FatalError, Equatable {
 
 // swiftlint:disable:next type_body_length
 public final class System: Systeming {
+    
     /// Shared system instance.
     public static var shared: Systeming = System()
 
@@ -129,22 +130,13 @@ public final class System: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env)
+        try runAndPrint(arguments, verbose: false, environment: env, redirection: .none)
     }
 
-    public func runAndPrint(
-        _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String]
-    ) throws {
-        try runAndPrint(
-            arguments,
-            verbose: verbose,
-            environment: environment,
-            redirection: .none
-        )
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String : String]) throws {
+        try runAndPrint(arguments, verbose: false, environment: environment, redirection: .none)
     }
-
+    
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
         let process = Process(
             arguments: arguments,
@@ -160,6 +152,7 @@ public final class System: Systeming {
         return SystemCollectedOutput(standardOutput: try result.utf8Output(),
                                      standardError: try result.utf8stderrOutput())
     }
+    
     public func async(_ arguments: [String]) throws {
         let process = Process(
             arguments: arguments,
@@ -236,11 +229,11 @@ public final class System: Systeming {
         try localFileSystem.chmod(mode, path: path, options: options)
     }
 
-    private func runAndPrint(
+    public func runAndPrint(
         _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String],
-        redirection: TSCBasic.Process.OutputRedirection
+        verbose: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        redirection: TSCBasic.Process.OutputRedirection = .none
     ) throws {
         let process = Process(
             arguments: arguments,
@@ -265,62 +258,5 @@ public final class System: Systeming {
         logger.debug("\(output)")
 
         try result.throwIfErrored()
-    }
-
-    public func publisher(
-        _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String]
-    ) -> AnyPublisher<SystemEvent<Data>, Error> {
-        .create { subscriber in
-            let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
-            var errorData: [UInt8] = []
-            let process = Process(
-                arguments: arguments,
-                environment: environment,
-                outputRedirection: .stream(stdout: { bytes in
-                    synchronizationQueue.async {
-                        subscriber.send(.standardOutput(Data(bytes)))
-                    }
-                }, stderr: { bytes in
-                    synchronizationQueue.async {
-                        errorData.append(contentsOf: bytes)
-                        subscriber.send(.standardError(Data(bytes)))
-                    }
-                }),
-                startNewProcessGroup: false,
-                loggingHandler: verbose ? { stdoutStream.send($0).send("\n").flush() } : nil
-            )
-            DispatchQueue.global().async {
-                do {
-                    try process.launch()
-                    var result = try process.waitUntilExit()
-                    result = ProcessResult(
-                        arguments: result.arguments,
-                        environment: environment,
-                        exitStatus: result.exitStatus,
-                        output: result.output,
-                        stderrOutput: result.stderrOutput.map { _ in errorData }
-                    )
-                    try result.throwIfErrored()
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .finished)
-                    }
-                } catch {
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .failure(error))
-                    }
-                }
-            }
-            return AnyCancellable {
-                if process.launched {
-                    process.signal(9) // SIGKILL
-                }
-            }
-        }
-    }
-
-    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        publisher(arguments, verbose: false, environment: env)
     }
 }

@@ -122,7 +122,6 @@ public final class TargetBuilder: TargetBuilding {
                 arguments: buildArguments,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
-            .printFormattedOutput()
 
         if let buildOutputPath {
             let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?

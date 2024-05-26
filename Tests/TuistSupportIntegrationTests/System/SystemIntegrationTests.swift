@@ -28,28 +28,20 @@ final class SystemIntegrationTests: TuistTestCase {
         XCTAssertThrowsError(try subject.run(["ls", "abcdefghi"]))
     }
 
-    func test_observable() throws {
-        // Given
-        let publisher = subject.publisher(["echo", "hola"]).mapToString()
-
-        // When
-        let elements = try publisher.toBlocking()
-
-        // Then
-        XCTAssertEqual(elements.count, 1)
-        XCTAssertTrue(elements.first?.value.spm_chomp() == "hola")
+    func test_run_output_is_redirected() throws {
+        var output: String = ""
+        try subject.runAndPrint(["echo", "hola"], verbose: false, environment: System.shared.env, redirection: .stream(stdout: { bytes in
+            output = String(decoding: bytes, as: Unicode.UTF8.self)
+        }, stderr: { _ in }))
+        
+        XCTAssertEqual(output.spm_chomp(), "hola")
     }
-
-    func test_observable_when_it_errors() throws {
-        // Given
-        let publisher = subject.publisher(["/usr/bin/xcrun", "invalid"]).mapToString()
-
+    
+    func test_run_errors() throws {
         do {
-            // When
-            _ = try publisher.toBlocking()
+            try subject.runAndPrint(["/usr/bin/xcrun", "invalid"], verbose: false, environment: System.shared.env)
             XCTFail("expected command to fail but it did not")
         } catch {
-            // Then
             XCTAssertTrue(error is TuistSupport.SystemError)
         }
     }

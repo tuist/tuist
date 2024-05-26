@@ -378,6 +378,5 @@ public final class TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
-        .printFormattedOutput()
     }
 }
