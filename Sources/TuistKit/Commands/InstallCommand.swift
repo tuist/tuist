@@ -15,13 +15,15 @@ public struct InstallCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .installPath
     )
     var path: String?
 
     @Flag(
         name: .shortAndLong,
-        help: "Instead of simple install, update external content when available."
+        help: "Instead of simple install, update external content when available.",
+        envKey: .installUpdate
     )
     var update: Bool = false
 

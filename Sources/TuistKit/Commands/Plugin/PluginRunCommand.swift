@@ -18,12 +18,12 @@ public struct PluginRunCommand: ParsableCommand {
     @Flag(
         help: "Build both source and test targets."
     )
-    var buildTests = false
+    var buildTests: Bool = false
 
     @Flag(
         help: "Skip building the plugin."
     )
-    var skipBuild = false
+    var skipBuild: Bool = false
 
     @Argument(
         help: "The plugin task to run."

@@ -23,7 +23,8 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: [.customShort("t"), .long],
-        help: "Skip Test targets during graph rendering."
+        help: "Skip Test targets during graph rendering.",
+        envKey: .graphSkipTarget
     )
     var skipTestTargets: Bool = false
 
@@ -98,10 +99,12 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 }
 
-enum GraphFormat: String, ExpressibleByArgument {
+enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
     case dot, json, png, svg
 }
 
-extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}
-
-extension TuistGraph.Platform: ExpressibleByArgument {}
+extension GraphViz.LayoutAlgorithm: ExpressibleByArgument, EnumerableFlag {
+    public static var allCases: [LayoutAlgorithm] {
+        []
+    }
+}

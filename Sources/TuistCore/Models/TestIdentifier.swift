@@ -1,4 +1,5 @@
 import TuistSupport
+import ArgumentParser
 
 public struct TestIdentifier: CustomStringConvertible, Hashable {
     enum Error: FatalError {
@@ -73,6 +74,17 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
         }
         return description
     }
+}
+
+extension TestIdentifier: ExpressibleByArgument {
+    public init?(argument: String) {
+        do {
+            try self.init(string: argument)
+        } catch {
+            return nil
+        }
+    }
+    
 }
 
 extension String? {

@@ -35,19 +35,22 @@ public struct ScaffoldCommand: AsyncParsableCommand {
     }
 
     @Flag(
-        help: "The output in JSON format"
+        help: "The output in JSON format",
+        envKey: .scaffoldJson
     )
     var json: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the template will be generated (Default: Current directory)",
-        completion: .directory
+        completion: .directory,
+        envKey: .scaffoldPath
     )
     var path: String?
 
     @Argument(
-        help: "Name of template you want to use"
+        help: "Name of template you want to use",
+        envKey: .scaffoldTemplate
     )
     var template: String
 

@@ -3,29 +3,36 @@ import Foundation
 import TSCBasic
 import TSCUtility
 import TuistSupport
+import TuistGraph
 
 public struct BuildOptions: ParsableArguments {
     public init() {}
-
+    
     @Argument(
-        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
+        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
+        envKey: .buildSchemes
+        
     )
-    public var scheme: String?
+    public var schemes: [String]
 
     @Flag(
-        help: "Force the generation of the project before building."
+        help: "Force the generation of the project before building.",
+        envKey: .buildGenerate
+
     )
     public var generate: Bool = false
 
     @Flag(
-        help: "When passed, it cleans the project before building it"
+        help: "When passed, it cleans the project before building it",
+        envKey: .buildClean
     )
     public var clean: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built.",
-        completion: .directory
+        completion: .directory,
+        envKey: .buildPath
     )
     public var path: String?
 
@@ -33,46 +40,53 @@ public struct BuildOptions: ParsableArguments {
         name: .shortAndLong,
         help: "Build on a specific device."
     )
-    public var device: String?
+    public var device: String? 
 
     @Option(
         name: .long,
-        help: "Build for a specific platform."
+        help: "Build for a specific platform.",
+        envKey: .buildSchemes
     )
-    public var platform: String?
+    public var platform: TuistGraph.Platform?
 
     @Option(
         name: .shortAndLong,
-        help: "Build with a specific version of the OS."
+        help: "Build with a specific version of the OS.",
+        envKey: .buildOs
     )
-    public var os: String?
+    public var os: Version?
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
+        envKey: .buildRosetta
     )
     public var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when building the scheme."
+        help: "The configuration to be used when building the scheme.",
+        envKey: .buildConfiguration
     )
     public var configuration: String?
 
     @Option(
         help: "The directory where build products will be copied to when the project is built.",
-        completion: .directory
+        completion: .directory,
+        envKey: .buildOutputPath
     )
     public var buildOutputPath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when building the project."
+        help: "Overrides the folder that should be used for derived data when building the project.",
+        envKey: .buildDerivedDataPath
     )
     public var derivedDataPath: String?
 
     @Flag(
         name: .long,
-        help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
+        help: "When passed, it generates the project and skips building. This is useful for debugging purposes.",
+        envKey: .buildGenerateOnly
     )
     public var generateOnly: Bool = false
 }
@@ -100,7 +114,7 @@ public struct BuildCommand: AsyncParsableCommand {
         }
 
         try await BuildService().run(
-            schemeName: buildOptions.scheme,
+            schemeNames: buildOptions.schemes,
             generate: buildOptions.generate,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,

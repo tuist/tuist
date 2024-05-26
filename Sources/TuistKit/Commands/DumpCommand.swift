@@ -17,7 +17,8 @@ struct DumpCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the manifest is",
-        completion: .directory
+        completion: .directory,
+        envKey: .dumpPath
     )
     var path: String?
 

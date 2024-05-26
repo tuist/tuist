@@ -19,20 +19,22 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .generatePath
     )
     var path: String?
 
     @Flag(
         name: .shortAndLong,
-        help: "Don't open the project after generating it."
+        help: "Don't open the project after generating it.",
+        envKey: .generateOpen
     )
-    var noOpen: Bool = false
+    var open: Bool = true
 
     public func run() async throws {
         try await GenerateService().run(
             path: path,
-            noOpen: noOpen
+            noOpen: !open
         )
     }
 }

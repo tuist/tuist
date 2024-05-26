@@ -6,7 +6,7 @@ import TuistSupport
 
 public struct RunCommand: AsyncParsableCommand {
     public init() {}
-
+    
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
@@ -23,50 +23,60 @@ public struct RunCommand: AsyncParsableCommand {
             // to the application.
         )
     }
-
-    @Flag(help: "Force the generation of the project before running.")
+    
+    @Flag(
+        help: "Force the generation of the project before running.",
+        envKey: .runGenerate)
     var generate: Bool = false
-
-    @Flag(help: "When passed, it cleans the project before running.")
+    
+    @Flag(
+        help: "When passed, it cleans the project before running.",
+        envKey: .runClean
+    )
     var clean: Bool = false
-
+    
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project with the target or scheme to be run.",
         completion: .directory
     )
     var path: String?
-
+    
     @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when building the scheme."
     )
     var configuration: String?
-
+    
     @Option(help: "The simulator device name to run the target or scheme on.")
     var device: String?
-
+    
     @Option(
         name: .shortAndLong,
-        help: "The OS version of the simulator."
+        help: "The OS version of the simulator.",
+        envKey: .runOs
     )
     var os: String?
-
+    
     @Flag(
         name: .long,
         help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
     )
     var rosetta: Bool = false
-
-    @Argument(help: "The scheme to be run.")
+    
+    @Argument(
+        help: "The scheme to be run.",
+        envKey: .runScheme
+    )
     var scheme: String
-
+    
     @Argument(
         parsing: .captureForPassthrough,
-        help: "The arguments to pass to the runnable target during execution."
+        help: "The arguments to pass to the runnable target during execution.",
+        envKey: .runArguments
     )
     var arguments: [String] = []
-
+    
     public func run() async throws {
         try await RunService().run(
             path: path,

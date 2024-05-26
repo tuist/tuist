@@ -19,78 +19,94 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     @Argument(
-        help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory."
+        help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",
+        envKey: .testScheme
     )
     var scheme: String?
 
     @Flag(
         name: .shortAndLong,
-        help: "When passed, it cleans the project before testing it."
+        help: "When passed, it cleans the project before testing it.",
+        envKey: .testClean
     )
     var clean: Bool = false
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project to be tested."
+        help: "The path to the directory that contains the project to be tested.",
+        completion: .directory,
+        envKey: .testPath
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Test on a specific device."
+        help: "Test on a specific device.",
+        envKey: .testDevice
     )
     var device: String?
 
     @Option(
         name: .long,
-        help: "Test on a specific platform."
+        help: "Test on a specific platform.",
+        envKey: .testPlatform
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Test with a specific version of the OS."
+        help: "Test with a specific version of the OS.",
+        envKey: .testOs
     )
     var os: String?
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
+        envKey: .testRosetta
     )
     var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when testing the scheme."
+        help: "The configuration to be used when testing the scheme.",
+        envKey: .testConfiguration
     )
     var configuration: String?
 
     @Flag(
         name: .long,
-        help: "When passed, it skips testing UI Tests targets."
+        help: "When passed, it skips testing UI Tests targets.",
+        envKey: .testSkipUiTests
     )
     var skipUITests: Bool = false
 
     @Option(
         name: [.long, .customShort("T")],
-        help: "Path where test result bundle will be saved."
+        help: "Path where test result bundle will be saved.",
+        completion: .directory,
+        envKey: .testResultBundlePath
     )
     var resultBundlePath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when testing a project."
+        help: "Overrides the folder that should be used for derived data when testing a project.",
+        completion: .directory,
+        envKey: .testDerivedDataPath
     )
     var derivedDataPath: String?
 
     @Option(
         name: .long,
-        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
+        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times.",
+        envKey: .testRetryCount
     )
     var retryCount: Int = 0
 
     @Option(
         name: .long,
-        help: "The test plan to run."
+        help: "The test plan to run.",
+        envKey: .testPlan
     )
     var testPlan: String?
 
@@ -98,7 +114,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         name: .long,
         parsing: .upToNextOption,
         help: "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
-        transform: TestIdentifier.init(string:)
+        envKey: .testTargets
     )
     var testTargets: [TestIdentifier] = []
 
@@ -106,27 +122,30 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         name: .long,
         parsing: .upToNextOption,
         help: "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
-        transform: TestIdentifier.init(string:)
+        envKey: .testSkipTestTargets
     )
     var skipTestTargets: [TestIdentifier] = []
 
     @Option(
         name: .customLong("filter-configurations"),
         parsing: .upToNextOption,
-        help: "The list of configurations you want to test. It is applied before --skip-configuration"
+        help: "The list of configurations you want to test. It is applied before --skip-configuration",
+        envKey: .testFilterConfigurations
     )
     var configurations: [String] = []
 
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of configurations you want to skip testing."
+        help: "The list of configurations you want to skip testing.",
+        envKey: .testSkipConfigurations
     )
     var skipConfigurations: [String] = []
 
     @Flag(
         name: .long,
-        help: "When passed, it generates the project and skips testing. This is useful for debugging purposes."
+        help: "When passed, it generates the project and skips testing. This is useful for debugging purposes.",
+        envKey: .testGenerateOnly
     )
     var generateOnly: Bool = false
 

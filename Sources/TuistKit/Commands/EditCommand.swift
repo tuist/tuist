@@ -29,7 +29,8 @@ public struct EditCommand: AsyncParsableCommand {
 
     @Flag(
         name: [.long, .customShort("o")],
-        help: "It only includes the manifest in the current directory."
+        help: "It only includes the manifest in the current directory.",
+        envKey: .editOnlyCurrentDirectory
     )
     var onlyCurrentDirectory: Bool = false
 
