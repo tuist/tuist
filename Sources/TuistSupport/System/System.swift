@@ -238,7 +238,7 @@ public final class System: Systeming {
         // the `ProcessResult` type will not contain either unless outputRedirection is set to `.collect`
         var errorData: [UInt8] = []
         var stdOutData: [UInt8] = []
-        
+
         let process = Process(
             arguments: arguments,
             environment: environment,
@@ -256,11 +256,11 @@ public final class System: Systeming {
         )
 
         logger.debug("\(escaped(arguments: arguments))")
-        
+
         try process.launch()
         let result = try process.waitUntilExit()
         let output = String(decoding: stdOutData, as: Unicode.UTF8.self)
-        
+
         logger.debug("\(output)")
 
         switch result.exitStatus {
