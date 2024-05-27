@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-mint run apple/swift-openapi-generator@0.1.5 generate --mode types --mode client --output-directory $MISE_PROJECT_ROOT/Sources/TuistApp/OpenAPI $MISE_PROJECT_ROOT/Sources/TuistApp/OpenAPI/cloud.yml
+mint run apple/swift-openapi-generator@0.1.5 generate --mode types --mode client --output-directory $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI/cloud.yml

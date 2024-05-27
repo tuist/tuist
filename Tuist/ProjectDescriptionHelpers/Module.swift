@@ -21,7 +21,7 @@ public enum Module: String, CaseIterable {
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
-    case app = "TuistApp"
+    case app = "TuistServer"
 
     public var isRunnable: Bool {
         switch self {

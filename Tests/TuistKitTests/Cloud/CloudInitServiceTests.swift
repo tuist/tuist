@@ -1,6 +1,6 @@
 import MockableTest
 import TSCBasic
-import TuistApp
+import TuistServer
 import TuistGraph
 import TuistGraphTesting
 import TuistLoaderTesting

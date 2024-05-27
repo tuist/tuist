@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistApp
+import TuistServer
 import TuistLoader
 import TuistSupport
 

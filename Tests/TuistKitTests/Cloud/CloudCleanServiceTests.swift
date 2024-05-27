@@ -1,5 +1,5 @@
 import MockableTest
-import TuistApp
+import TuistServer
 import TuistGraph
 import TuistGraphTesting
 import TuistLoaderTesting

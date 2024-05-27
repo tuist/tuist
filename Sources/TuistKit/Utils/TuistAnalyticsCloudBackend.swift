@@ -1,6 +1,6 @@
 import Foundation
 import TuistAnalytics
-import TuistApp
+import TuistServer
 import TuistAsyncQueue
 import TuistCore
 import TuistGraph

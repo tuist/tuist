@@ -90,7 +90,7 @@ var targets: [Target] = [
             "TuistPlugin",
             "TuistGraph",
             "Mockable",
-            "TuistApp",
+            "TuistServer",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -304,7 +304,7 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistApp",
+        name: "TuistServer",
         dependencies: [
             "TuistCore",
             "TuistSupport",
@@ -407,8 +407,8 @@ let package = Package(
             targets: ["TuistAcceptanceTesting"]
         ),
         .library(
-            name: "TuistApp",
-            targets: ["TuistApp"]
+            name: "TuistServer",
+            targets: ["TuistServer"]
         ),
         /// TuistGenerator
         ///

@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TSCBasic
-import TuistApp
+import TuistServer
 import TuistCore
 import TuistLoader
 import TuistSupport

@@ -2,7 +2,7 @@ import Foundation
 import TuistSupport
 import XCTest
 
-@testable import TuistApp
+@testable import TuistServer
 @testable import TuistSupportTesting
 
 final class CloudCredentialsStoreTests: TuistUnitTestCase {

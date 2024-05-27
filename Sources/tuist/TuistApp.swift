@@ -6,7 +6,7 @@ import TuistSupport
 
 @main
 @_documentation(visibility: private)
-private enum TuistApp {
+private enum TuistServer {
     static func main() async throws {
         if CommandLine.arguments.contains("--verbose") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")

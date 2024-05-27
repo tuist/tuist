@@ -1,6 +1,6 @@
 import Mockable
 import MockableTest
-import TuistApp
+import TuistServer
 import TuistCore
 import TuistGraph
 import TuistSupport
