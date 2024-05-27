@@ -139,7 +139,7 @@ public final class System: Systeming {
             arguments: arguments,
             environment: env,
             outputRedirection: .collect,
-            startNewProcessGroup: true
+            startNewProcessGroup: false
         )
 
         try process.launch()
