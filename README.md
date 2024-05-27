@@ -541,6 +541,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/lucas-paim/"><img src="https://avatars.githubusercontent.com/u/7849484?v=4" width="100px;" alt=""/><br /><sub><b>Lucas Mrowskovsky Paim</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://actuallytaylor.com"><img src="https://avatars.githubusercontent.com/u/32944568?v=4" width="100px;" alt=""/><br /><sub><b>Taylor Lineman</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/nandodelauni"><img src="https://avatars.githubusercontent.com/u/1938501?v=4" width="100px;" alt=""/><br /><sub><b>Miguel Ferrando</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/barredewe"><img src="https://avatars.githubusercontent.com/u/19188911?v=4" width="100px;" alt=""/><br /><sub><b>BarredEwe</b></sub></a></td>
     </tr>
   </tbody>
 </table>
