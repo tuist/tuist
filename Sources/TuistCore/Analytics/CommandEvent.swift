@@ -1,6 +1,5 @@
 import AnyCodable
 import Foundation
-import TuistCore
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
@@ -23,7 +22,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
 
     public let id = UUID()
     public let date = Date()
-    public let dispatcherId = TuistAnalyticsDispatcher.dispatcherId
+    public let dispatcherId = "TuistAnalytics"
 
     private enum CodingKeys: String, CodingKey {
         case name
@@ -68,3 +67,36 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.status = status
     }
 }
+
+#if MOCKING
+    extension CommandEvent {
+        public static func test(
+            name: String = "generate",
+            subcommand: String? = nil,
+            params: [String: AnyCodable] = [:],
+            commandArguments: [String] = [],
+            durationInMs: Int = 20,
+            clientId: String = "123",
+            tuistVersion: String = "1.2.3",
+            swiftVersion: String = "5.2",
+            macOSVersion: String = "10.15",
+            machineHardwareName: String = "arm64",
+            status: Status = .success
+        ) -> CommandEvent {
+            CommandEvent(
+                name: name,
+                subcommand: subcommand,
+                params: params,
+                commandArguments: commandArguments,
+                durationInMs: durationInMs,
+                clientId: clientId,
+                tuistVersion: tuistVersion,
+                swiftVersion: swiftVersion,
+                macOSVersion: macOSVersion,
+                machineHardwareName: machineHardwareName,
+                isCI: false,
+                status: status
+            )
+        }
+    }
+#endif
