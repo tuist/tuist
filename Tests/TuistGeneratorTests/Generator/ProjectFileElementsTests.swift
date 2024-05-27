@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
@@ -10,19 +11,23 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    var subject: ProjectFileElements!
-    var groups: ProjectGroups!
-    var pbxproj: PBXProj!
-    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var subject: ProjectFileElements!
+    private var groups: ProjectGroups!
+    private var pbxproj: PBXProj!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
 
     override func setUpWithError() throws {
         super.setUp()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = .init()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try! temporaryPath())
 
         subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }

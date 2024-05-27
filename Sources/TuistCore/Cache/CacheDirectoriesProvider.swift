@@ -1,11 +1,18 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistGraph
 import TuistSupport
 
+@Mockable
 public protocol CacheDirectoriesProviding {
     /// Returns the cache directory for a Tuist cache category
     func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath
+
+    func tuistCloudCacheDirectory(for category: CacheCategory.App) throws -> AbsolutePath
+    func tuistCloudSelectiveTestsDirectory() throws -> AbsolutePath
+    func tuistCloudBinaryCacheDirectory() throws -> AbsolutePath
+    func tuistCloudCacheDirectory() throws -> AbsolutePath
 
     func cacheDirectory() throws -> AbsolutePath
 }
@@ -35,5 +42,28 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
         } else {
             return FileHandler.shared.homeDirectory.appending(components: ".cache")
         }
+    }
+
+    public static func tuistCloudCacheDirectory(for category: CacheCategory.App, cacheDirectory: AbsolutePath) -> AbsolutePath {
+        cacheDirectory.appending(components: ["tuist-cloud", category.directoryName])
+    }
+
+    public func tuistCloudCacheDirectory(for category: CacheCategory.App) throws -> AbsolutePath {
+        switch category {
+        case .binaries: return try tuistCloudBinaryCacheDirectory()
+        case .selectiveTests: return try tuistCloudSelectiveTestsDirectory()
+        }
+    }
+
+    public func tuistCloudSelectiveTestsDirectory() throws -> AbsolutePath {
+        try tuistCloudCacheDirectory().appending(component: CacheCategory.App.selectiveTests.directoryName)
+    }
+
+    public func tuistCloudBinaryCacheDirectory() throws -> AbsolutePath {
+        try tuistCloudCacheDirectory().appending(component: CacheCategory.App.binaries.directoryName)
+    }
+
+    public func tuistCloudCacheDirectory() throws -> AbsolutePath {
+        try cacheDirectory().appending(components: ["tuist-cloud"])
     }
 }

@@ -3,6 +3,7 @@ import ArgumentParser
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
+import TuistCore
 import TuistSupport
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
