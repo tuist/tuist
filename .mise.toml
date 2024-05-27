@@ -10,10 +10,6 @@ sourcedocs = "2.0.1"
 python = 'https://github.com/asdf-community/asdf-tuist'
 sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
 
-[tasks."tuist:build"]
-description = "Build the project using Tuist"
-run = "./make/tasks/tuist/build.sh"
-
 [tasks."tuist:test"]
 description = "Test the project using Tuist"
 run = "./make/tasks/tuist/test.sh"
