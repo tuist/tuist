@@ -90,6 +90,7 @@ var targets: [Target] = [
             "TuistPlugin",
             "TuistGraph",
             "Mockable",
+            "TuistApp",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
