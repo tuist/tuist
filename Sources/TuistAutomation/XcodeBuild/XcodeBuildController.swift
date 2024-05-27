@@ -313,7 +313,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         try System.shared.runAndPrint(command,
                                       verbose: false,
                                       environment: System.shared.env,
-                                      redirection: TSCBasic.Process.OutputRedirection.stream(stdout: { bytes in
+                                      redirection: .stream(stdout: { bytes in
             log(bytes)
         }, stderr: { bytes in
             log(bytes, isError: true)

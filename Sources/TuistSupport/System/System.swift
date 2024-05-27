@@ -234,13 +234,20 @@ public final class System: Systeming {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         redirection: TSCBasic.Process.OutputRedirection = .none
     ) throws {
+        // We have to collect both stderr and stdout because we want to stream the output
+        // the `ProcessResult` type will not contain either unless outputRedirection is set to `.collect`
+        var errorData: [UInt8] = []
+        var stdOutData: [UInt8] = []
+        
         let process = Process(
             arguments: arguments,
             environment: environment,
             outputRedirection: .stream(stdout: { bytes in
+                stdOutData.append(contentsOf: bytes)
                 FileHandle.standardOutput.write(Data(bytes))
                 redirection.outputClosures?.stdoutClosure(bytes)
             }, stderr: { bytes in
+                errorData.append(contentsOf: bytes)
                 FileHandle.standardError.write(Data(bytes))
                 redirection.outputClosures?.stderrClosure(bytes)
             }),
@@ -249,13 +256,22 @@ public final class System: Systeming {
         )
 
         logger.debug("\(escaped(arguments: arguments))")
-
+        
         try process.launch()
         let result = try process.waitUntilExit()
-        let output = try result.utf8Output()
-
+        let output = String(decoding: stdOutData, as: Unicode.UTF8.self)
+        
         logger.debug("\(output)")
 
-        try result.throwIfErrored()
+        switch result.exitStatus {
+        case let .signalled(code):
+            let data = Data(errorData)
+            throw TuistSupport.SystemError.signalled(command: result.command(), code: code, standardError: data)
+        case let .terminated(code):
+            if code != 0 {
+                let data = Data(errorData)
+                throw TuistSupport.SystemError.terminated(command: result.command(), code: code, standardError: data)
+            }
+        }
     }
 }
