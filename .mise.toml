@@ -9,11 +9,3 @@ sourcedocs = "2.0.1"
 [plugins]
 python = 'https://github.com/asdf-community/asdf-tuist'
 sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
-
-[tasks."lint"]
-description = "Lint the workspace"
-run = "./make/tasks/workspace/lint.sh"
-
-[tasks."lint:fix"]
-description = "Lint the workspace fixing the issues"
-run = "./make/tasks/workspace/lint-fix.sh"
