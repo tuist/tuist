@@ -202,24 +202,6 @@ public final class System: Systeming {
     }
 
     // MARK: Helpers
-
-    /// Pipe the output of one Process to another
-    /// - Parameters:
-    ///   - processOne: First Process
-    ///   - processTwo: Second Process
-    /// - Returns: The pipe
-    @discardableResult
-    static func pipe(
-        _ processOne: inout Foundation.Process,
-        _ processTwo: inout Foundation.Process
-    ) -> Pipe {
-        let processPipe = Pipe()
-
-        processOne.standardOutput = processPipe
-        processTwo.standardInput = processPipe
-        return processPipe
-    }
-
     public func chmod(
         _ mode: FileMode,
         path: AbsolutePath,
