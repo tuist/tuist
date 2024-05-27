@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistServer
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 protocol CloudProjectListServicing {

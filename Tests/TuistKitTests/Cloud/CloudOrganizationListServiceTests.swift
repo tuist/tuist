@@ -1,9 +1,9 @@
 import Foundation
 import Mockable
 import MockableTest
-import TuistServer
 import TuistGraph
 import TuistLoaderTesting
+import TuistServer
 import TuistSupportTesting
 import XCTest
 @testable import TuistKit

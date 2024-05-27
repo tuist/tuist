@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
-import TuistServer
 import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 protocol CloudLogoutServicing: AnyObject {

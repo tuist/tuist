@@ -1,9 +1,9 @@
 import Foundation
 import TuistAnalytics
-import TuistServer
 import TuistAsyncQueue
 import TuistCore
 import TuistGraph
+import TuistServer
 import TuistSupport
 
 public class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {

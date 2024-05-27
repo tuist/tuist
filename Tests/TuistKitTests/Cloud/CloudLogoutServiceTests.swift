@@ -1,13 +1,13 @@
 import Foundation
 import MockableTest
 import TSCBasic
-import TuistServer
 import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistLoader
 import TuistLoaderTesting
+import TuistServer
 import TuistSupport
 import XCTest
 

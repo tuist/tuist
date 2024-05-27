@@ -1,9 +1,9 @@
 import Foundation
 import Mockable
 import TSCBasic
-import TuistServer
 import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 @Mockable

@@ -1,8 +1,8 @@
 import MockableTest
-import TuistServer
 import TuistGraph
 import TuistGraphTesting
 import TuistLoaderTesting
+import TuistServer
 import TuistSupport
 import XCTest
 
