@@ -27,7 +27,7 @@ Workspace.swift
 - **Tuist directory:** This directory has two purposes. First, it signals **where the root of the project is**. This allows constructing paths relative to the root of the project, and also also running Tuist commands from any directory within the project. Second, it's the container for the following files:
   - [**Config.swift:**](/guide/project/manifests.html#config-swift) This file contains configuration for Tuist that's shared across all the projects, workspaces, and environments. For example, it can be used to disable automatic generation of schemes, or to define the deployment target of the projects.
   - **ProjectDescriptionHelpers:** This directory contains Swift code that's shared across all the manifest files. Manifest files can `import ProjectDescriptionHelpers` to use the code defined in this directory. Sharing code is useful to avoid duplications and ensure consistency across the projects.
-  - **Package.swift:** This file contains Swift Package dependencies for Tuist to integrate them using Xcode projects and targets (like [CocoaPods](https://cococapods)) that are configurable and optimizable. Learn more [here](doc:dependencies).
+  - **Package.swift:** This file contains Swift Package dependencies for Tuist to integrate them using Xcode projects and targets (like [CocoaPods](https://cococapods)) that are configurable and optimizable. Learn more [here](/guide/project/dependencies).
 
 - **Root directory**: The root directory of your project that also contains the `Tuist` directory.
   - [**Workspace.swift:**](/guide/project/manifests.html#workspace-swift) This manifest represents an Xcode workspace. It's used to group other projects and can also add additional files and schemes.
