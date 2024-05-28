@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginArchiveCommannd: ParsableCommand {
+struct PluginArchiveCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",

@@ -77,7 +77,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     @Flag(
         name: .long,
         help: "When passed, it skips testing UI Tests targets.",
-        envKey: .testScheme
+        envKey: .testSkipUITests
     )
     var skipUITests: Bool = false
 

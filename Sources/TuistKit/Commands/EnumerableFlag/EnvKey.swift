@@ -76,7 +76,6 @@ public enum EnvKey: String, CaseIterable {
     case pluginTestBuildTests = "TUIST_PLUGIN_TEST_BUILD_TESTS"
     case pluginTestTestProducts = "TUIST_PLUGIN_TEST_TEST_PRODUCTS"
 
-
     // PLUGIN OPTIONS
     case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
     case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
@@ -160,12 +159,22 @@ extension Argument {
         completion: CompletionKind? = nil,
         envKey: EnvKey
     ) where T: ExpressibleByArgument, Value == [T] {
-        self.init(
-            wrappedValue: wrappedValue.isEmpty ? envKey.envArrayValue() : wrappedValue,
-            parsing: parsingStrategy,
-            help: help?.withEnvKey(envKey),
-            completion: completion
-        )
+        let envValue: Value? = envKey.envArrayValue()
+        if let envValue {
+            self.init(
+                wrappedValue: envValue,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        } else {
+            self.init(
+                wrappedValue: wrappedValue,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        }
     }
     
     init(
@@ -174,9 +183,9 @@ extension Argument {
     ) where Value: ExpressibleByArgument {
         let envValue: Value? = envKey.envValue()
         if let envValue {
-            self.init(wrappedValue: envValue, help: help)
+            self.init(wrappedValue: envValue, help: help?.withEnvKey(envKey))
         } else {
-            self.init(help: help)
+            self.init(help: help?.withEnvKey(envKey))
         }
     }
     

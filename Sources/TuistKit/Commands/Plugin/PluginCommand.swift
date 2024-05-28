@@ -8,7 +8,7 @@ struct PluginCommand: ParsableCommand {
             commandName: "plugin",
             abstract: "A set of commands for plugin's management.",
             subcommands: [
-                PluginArchiveCommannd.self,
+                PluginArchiveCommand.self,
                 PluginBuildCommand.self,
                 PluginRunCommand.self,
                 PluginTestCommand.self,

@@ -13,7 +13,7 @@ public protocol CleanCategory: ExpressibleByArgument & CaseIterable {
     ) throws -> AbsolutePath?
 }
 
-public enum TuistCleanCategory: CleanCategory {
+public enum TuistCleanCategory: CleanCategory, Equatable {
     public static let allCases = CacheCategory.allCases.map { .global($0) } + [Self.dependencies]
 
     /// The global cache

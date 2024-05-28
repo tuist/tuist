@@ -17,7 +17,7 @@ public struct PluginRunCommand: ParsableCommand {
 
     @Flag(
         help: "Build both source and test targets.",
-        envKey: .pluginRunTask
+        envKey: .pluginRunBuildTests
     )
     var buildTests: Bool = false
     
