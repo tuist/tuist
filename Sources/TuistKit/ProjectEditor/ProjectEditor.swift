@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -25,6 +26,7 @@ enum ProjectEditorError: FatalError, Equatable {
     }
 }
 
+@Mockable
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
