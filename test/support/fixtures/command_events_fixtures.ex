@@ -13,7 +13,7 @@ defmodule TuistCloud.CommandEventsFixtures do
 
     CommandEvents.create_command_event(
       %{
-        name: Keyword.get(attrs, :name),
+        name: Keyword.get(attrs, :name, "generate"),
         subcommand: "",
         command_arguments: [],
         duration: Keyword.get(attrs, :duration, 0),

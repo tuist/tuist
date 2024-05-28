@@ -1,4 +1,5 @@
 defmodule TuistCloudWeb.CacheControllerTest do
+  alias TuistCloud.Repo
   alias TuistCloud.CommandEvents
   alias TuistCloud.AccountsFixtures
   alias TuistCloudWeb.Authentication
@@ -17,6 +18,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
     project_id = "#{account.name}/#{project.name}"
     cache_category = "builds"
     download_url = "https://cloud.tuist.io/download/1234"
+    object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
     CommandEvents.create_cache_event(%{
       project_id: project.id,
@@ -27,13 +29,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
     })
 
     Storage
-    |> expect(:generate_download_url, fn %{
-                                           hash: ^hash,
-                                           name: ^name,
-                                           project_slug: ^project_id,
-                                           cache_category: ^cache_category
-                                         },
-                                         _ ->
+    |> expect(:generate_download_url, fn ^object_key, _ ->
       download_url
     end)
 
@@ -72,14 +68,10 @@ defmodule TuistCloudWeb.CacheControllerTest do
       project_id = "#{account.name}/#{project.name}"
       cache_category = "builds"
       upload_id = "12344"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
       Storage
-      |> expect(:multipart_start, fn %{
-                                       hash: ^hash,
-                                       name: ^name,
-                                       project_slug: ^project_id,
-                                       cache_category: ^cache_category
-                                     } ->
+      |> expect(:multipart_start, fn ^object_key ->
         upload_id
       end)
 
@@ -94,7 +86,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
           ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
         )
 
-      # Then
+      # # Then
       response = json_response(conn, 200)
       assert response["status"] == "success"
       response_data = response["data"]
@@ -113,14 +105,10 @@ defmodule TuistCloudWeb.CacheControllerTest do
     upload_id = "1234"
     part_number = "3"
     upload_url = "https://cloud.tuist.io/upload/1234"
+    object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
     Storage
-    |> expect(:generate_multipart_upload_url, fn %{
-                                                   hash: ^hash,
-                                                   name: ^name,
-                                                   project_slug: ^project_id,
-                                                   cache_category: ^cache_category
-                                                 },
+    |> expect(:generate_multipart_upload_url, fn ^object_key,
                                                  ^upload_id,
                                                  ^part_number,
                                                  [expires_in: _] ->
@@ -155,6 +143,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
       project_id = "#{account.name}/#{project.name}"
       cache_category = "builds"
       upload_id = "1234"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -163,24 +152,14 @@ defmodule TuistCloudWeb.CacheControllerTest do
       ]
 
       Storage
-      |> expect(:complete_multipart_upload, fn %{
-                                                 hash: ^hash,
-                                                 name: ^name,
-                                                 project_slug: ^project_id,
-                                                 cache_category: ^cache_category
-                                               },
+      |> expect(:complete_multipart_upload, fn ^object_key,
                                                ^upload_id,
                                                [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok
       end)
 
       Storage
-      |> expect(:head_object, fn %{
-                                   hash: ^hash,
-                                   name: ^name,
-                                   project_slug: ^project_id,
-                                   cache_category: ^cache_category
-                                 } ->
+      |> expect(:head_object, fn ^object_key ->
         %{content_length: 1024}
       end)
 
@@ -265,9 +244,16 @@ defmodule TuistCloudWeb.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      builds_prefix = "#{account.name}/#{project.name}/builds"
+      tests_prefix = "#{account.name}/#{project.name}/tests"
 
       Storage
-      |> expect(:delete_all_objects, fn _project_id ->
+      |> expect(:delete_all_objects, fn ^builds_prefix ->
+        :ok
+      end)
+
+      Storage
+      |> expect(:delete_all_objects, fn ^tests_prefix ->
         :ok
       end)
 
@@ -293,9 +279,16 @@ defmodule TuistCloudWeb.CacheControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       user = AccountsFixtures.user_fixture()
       Accounts.add_user_to_organization(user, organization)
+      builds_prefix = "#{account.name}/#{project.name}/builds"
+      tests_prefix = "#{account.name}/#{project.name}/tests"
 
       Storage
-      |> expect(:delete_all_objects, fn _project_id ->
+      |> expect(:delete_all_objects, fn ^builds_prefix ->
+        :ok
+      end)
+
+      Storage
+      |> expect(:delete_all_objects, fn ^tests_prefix ->
         :ok
       end)
 
@@ -320,7 +313,10 @@ defmodule TuistCloudWeb.CacheControllerTest do
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      user = AccountsFixtures.user_fixture()
+
+      user =
+        AccountsFixtures.user_fixture()
+        |> Repo.preload(:account)
 
       conn =
         conn
@@ -335,7 +331,7 @@ defmodule TuistCloudWeb.CacheControllerTest do
       response = json_response(conn, :forbidden)
 
       assert response["message"] ==
-               "The authenticated subject is not authorized to perform this action"
+               "#{user.account.name} is not authorized to update cache"
     end
 
     test "not found error is returned when project doesn't exist",

@@ -11,7 +11,7 @@ defmodule TuistCloudWeb.API.Schemas.CacheArtifactDownloadURL do
     description: "The URL to download the artifact from the cache.",
     type: :object,
     properties: %{
-      status: %Schema{type: :string, default: "success"},
+      status: %Schema{type: :string, default: "success", enum: ["success"]},
       data: %Schema{
         type: :object,
         properties: %{
