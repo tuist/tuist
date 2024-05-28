@@ -120,6 +120,84 @@ public enum EnvKey: String, CaseIterable {
     case testConfigurations = "TUIST_TEST_CONFIGURATIONS"
     case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
+    
+    // CLOUD ORGANIZATION DELETE
+    case cloudOrganizationDeleteOrganizationName = "TUIST_CLOUD_ORGANIZATION_DELETE_ORGANIZATION_NAME"
+    case cloudOrganizationDeletePath = "TUIST_CLOUD_ORGANIZATION_DELETE_PATH"
+    
+    // CLOUD PROJECT TOKEN
+    case cloudProjectTokenProjectName = "TUIST_CLOUD_PROJECT_TOKEN_PROJECT_NAME"
+    case cloudProjectTokenOrganizationName = "TUIST_CLOUD_PROJECT_TOKEN_ORGANIZATION_NAME"
+    case cloudProjectTokenPath = "TUIST_CLOUD_PROJECT_TOKEN_PATH"
+    
+    // CLOUD ORGANIZATION LIST
+    case cloudOrganizationListJson = "TUIST_CLOUD_ORGANIZATION_LIST_JSON"
+    case cloudOrganizationListPath = "TUIST_CLOUD_ORGANIZATION_LIST_PATH"
+    
+    // CLOUD ORGANIZATION REMOVE INVITE
+    case cloudOrganizationRemoveInviteOrganizationName = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_ORGANIZATION_NAME"
+    case cloudOrganizationRemoveInviteEmail = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_EMAIL"
+    case cloudOrganizationRemoveInvitePath = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_PATH"
+    
+    // CLOUD ORGANIZATION REMOVE SSO
+    case cloudOrganizationRemoveSSOOrganizationName = "TUIST_CLOUD_ORGANIZATION_REMOVE_SSO_ORGANIZATION_NAME"
+    case cloudOrganizationRemoveSSOPath = "TUIST_CLOUD_ORGANIZATION_REMOVE_SSO_PATH"
+    
+    // CLOUD ORGANIZATION UPDATE SSO
+    case cloudOrganizationUpdateSSOOrganizationName = "TUIST_CLOUD_ORGANIZATION_UPDATE_SSO_ORGANIZATION_NAME"
+    case cloudOrganizationUpdateSSOProvider = "TUIST_CLOUD_ORGANIZATION_UPDATE_SSO_PROVIDER"
+    case cloudOrganizationUpdateSSOOrganizationId = "TUIST_CLOUD_ORGANIZATION_UPDATE_SSO_ORGANIZATION_ID"
+    case cloudOrganizationUpdateSSOPath = "TUIST_CLOUD_ORGANIZATION_UPDATE_SSO_PATH"
+    
+    // CLOUD PROJECT DELETE
+    case cloudProjectDeleteProject = "TUIST_CLOUD_PROJECT_DELETE_PROJECT"
+    case cloudProjectDeleteOrganization = "TUIST_CLOUD_PROJECT_DELETE_ORGANIZATION"
+    case cloudProjectDeletePath = "TUIST_CLOUD_PROJECT_DELETE_PATH"
+    
+    // CLOUD PROJECT CREATE
+    case cloudProjectCreateName = "TUIST_CLOUD_PROJECT_CREATE_NAME"
+    case cloudProjectCreateOrganization = "TUIST_CLOUD_PROJECT_CREATE_ORGANIZATION"
+    case cloudProjectCreatePath = "TUIST_CLOUD_PROJECT_CREATE_PATH"
+    
+    // CLOUD INIT
+    case cloudInitName = "TUIST_CLOUD_INIT_NAME"
+    case cloudInitOrganization = "TUIST_CLOUD_INIT_ORGANIZATION"
+    case cloudInitPath = "TUIST_CLOUD_INIT_PATH"
+    
+    // CLOUD ORGANIZATION INVITE
+    case cloudOrganizationInviteOrganizationName = "TUIST_CLOUD_ORGANIZATION_INVITE_ORGANIZATION_NAME"
+    case cloudOrganizationInviteEmail = "TUIST_CLOUD_ORGANIZATION_INVITE_EMAIL"
+    case cloudOrganizationInvitePath = "TUIST_CLOUD_ORGANIZATION_INVITE_PATH"
+    
+    // CLOUD ORGANIZATION SHOW
+    case cloudOrganizationShowOrganizationName = "TUIST_CLOUD_ORGANIZATION_SHOW_ORGANIZATION_NAME"
+    case cloudOrganizationShowJson = "TUIST_CLOUD_ORGANIZATION_SHOW_JSON"
+    case cloudOrganizationShowPath = "TUIST_CLOUD_ORGANIZATION_SHOW_PATH"
+    
+    // CLOUD PROJECT LIST
+    case cloudProjectListJson = "TUIST_CLOUD_PROJECT_LIST_JSON"
+    case cloudProjectListPath = "TUIST_CLOUD_PROJECT_LIST_PATH"
+    
+    // CLOUD ORGANIZATION UPDATE MEMBER
+    case cloudOrganizationUpdateMemberOrganizationName = "TUIST_CLOUD_ORGANIZATION_UPDATE_MEMBER_ORGANIZATION_NAME"
+    case cloudOrganizationUpdateMemberUsername = "TUIST_CLOUD_ORGANIZATION_UPDATE_MEMBER_USERNAME"
+    case cloudOrganizationUpdateMemberRole = "TUIST_CLOUD_ORGANIZATION_UPDATE_MEMBER_ROLE"
+    case cloudOrganizationUpdateMemberPath = "TUIST_CLOUD_ORGANIZATION_UPDATE_MEMBER_PATH"
+    
+    // CLOUD AUTH
+    case cloudAuthPath = "TUIST_CLOUD_AUTH_PATH"
+    
+    // CLOUD SESSION
+    case cloudSessionPath = "TUIST_CLOUD_SESSION_PATH"
+    
+    // CLOUD LOGOUT
+    case cloudLogoutPath = "TUIST_CLOUD_LOGOUT_PATH"
+    
+    // CLOUD ANALYTICS
+    case cloudAnalyticsPath = "TUIST_CLOUD_ANALYTICS_PATH"
+    
+    // CLOUD CLEAN
+    case cloudCleanPath = "TUIST_CLOUD_CLEAN_PATH"
 }
 
 extension EnvKey {
