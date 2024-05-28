@@ -25,7 +25,7 @@ final class EditServiceTests: XCTestCase {
         opener = MockOpener()
         configLoader = MockConfigLoader()
         pluginService = MockPluginService()
-        
+
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
@@ -33,7 +33,7 @@ final class EditServiceTests: XCTestCase {
         given(cacheDirectoryProviderFactory)
             .cacheDirectories()
             .willReturn(mockCacheDirectoriesProvider)
-        
+
         projectEditor = MockProjectEditing()
 
         subject = EditService(
