@@ -64,16 +64,16 @@ final class EditService {
             let cacheDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
             EditService.temporaryDirectory = cachedManifestDirectory
-            
+
             signalHandler.trap { _ in
                 try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
                 exit(0)
             }
-            
+
             guard let selectedXcode = try XcodeController.shared.selected() else {
                 throw EditServiceError.xcodeNotSelected
             }
-            
+
             let workspacePath = try projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
@@ -82,7 +82,7 @@ final class EditService {
             )
             logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
-            
+
         } else {
             let workspacePath = try projectEditor.edit(
                 at: path,

@@ -7,10 +7,8 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
-@testable import TuistSupportTesting
 @testable import TuistPluginTesting
-
-
+@testable import TuistSupportTesting
 
 final class EditServiceTests: XCTestCase {
     var subject: EditService!
@@ -32,37 +30,41 @@ final class EditServiceTests: XCTestCase {
         cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         projectEditor = MockProjectEditor()
 
-        subject = EditService(projectEditor: projectEditor,
-                              opener: opener,
-                              configLoader: configLoader,
-                              pluginService: pluginService,
-                              signalHandler: signalHandler,
-                              cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory)
+        subject = EditService(
+            projectEditor: projectEditor,
+            opener: opener,
+            configLoader: configLoader,
+            pluginService: pluginService,
+            signalHandler: signalHandler,
+            cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory
+        )
     }
-    
+
     func test_edit_uses_caches_directory() async throws {
-        try await subject.run(path: "/private/tmp",
-                              permanent: false,
-                              onlyCurrentDirectory: false)
-        
-        
+        try await subject.run(
+            path: "/private/tmp",
+            permanent: false,
+            onlyCurrentDirectory: false
+        )
+
         let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
         let projectDirectory = cacheDirectory.appending(component: "/private/tmp".md5)
         let openArgs = try XCTUnwrap(opener.openArgs.first)
-        
+
         XCTAssertEqual(opener.openCallCount, 1)
         XCTAssertEqual(openArgs.0, projectDirectory.pathString)
         XCTAssertEqual(projectEditor.editingPath, "/private/tmp")
         XCTAssertEqual(projectEditor.onlyCurrentDirectory, false)
         XCTAssertEqual(projectEditor.destinationDirectory, projectDirectory)
     }
-    
-    
+
     func test_edit_permanent_does_not_open_workspace() async throws {
-        try await subject.run(path: "/private/tmp",
-                              permanent: true,
-                              onlyCurrentDirectory: true)
-        
+        try await subject.run(
+            path: "/private/tmp",
+            permanent: true,
+            onlyCurrentDirectory: true
+        )
+
         XCTAssertEqual(opener.openCallCount, 0)
         XCTAssertEqual(projectEditor.editingPath, "/private/tmp")
         XCTAssertEqual(projectEditor.destinationDirectory, "/private/tmp")
