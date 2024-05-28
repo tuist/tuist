@@ -7,10 +7,7 @@
 
 set -e
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROOT_DIR=$($SCRIPT_DIR/root_dir.sh)
-
-source $ROOT_DIR/make/utilities/setup.sh
+source $MISE_PROJECT_ROOT/.mise/utilities/setup.sh
 
 # Check for jq
 if ! command -v jq >/dev/null 2>&1; then
