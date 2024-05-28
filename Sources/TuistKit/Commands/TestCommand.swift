@@ -56,7 +56,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     @Option(
         name: .shortAndLong,
         help: "Test with a specific version of the OS.",
-        envKey: .testOs
+        envKey: .testOS
     )
     var os: String?
 
@@ -77,7 +77,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     @Flag(
         name: .long,
         help: "When passed, it skips testing UI Tests targets.",
-        envKey: .testSkipUiTests
+        envKey: .testScheme
     )
     var skipUITests: Bool = false
 
@@ -106,7 +106,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     @Option(
         name: .long,
         help: "The test plan to run.",
-        envKey: .testPlan
+        envKey: .testTestPlan
     )
     var testPlan: String?
 
@@ -114,7 +114,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         name: .long,
         parsing: .upToNextOption,
         help: "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
-        envKey: .testTargets
+        envKey: .testTestTargets
     )
     var testTargets: [TestIdentifier] = []
 
@@ -130,7 +130,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         name: .customLong("filter-configurations"),
         parsing: .upToNextOption,
         help: "The list of configurations you want to test. It is applied before --skip-configuration",
-        envKey: .testFilterConfigurations
+        envKey: .testConfigurations
     )
     var configurations: [String] = []
 
@@ -157,6 +157,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     public func run() async throws {
+    
         let absolutePath: AbsolutePath
 
         if let path {

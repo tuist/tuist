@@ -15,7 +15,7 @@ public struct ListCommand: AsyncParsableCommand {
 
     @Flag(
         help: "The output in JSON format",
-        envKey: .listJson
+        envKey: .scaffoldListJson
     )
     var json: Bool = false
 
@@ -23,7 +23,7 @@ public struct ListCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path where you want to list templates from",
         completion: .directory,
-        envKey: .listPath
+        envKey: .scaffoldListPath
     )
     var path: String?
 

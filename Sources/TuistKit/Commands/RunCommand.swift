@@ -54,7 +54,7 @@ public struct RunCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The OS version of the simulator.",
-        envKey: .runOs
+        envKey: .runOS
     )
     var os: String?
     

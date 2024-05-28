@@ -24,7 +24,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     @Flag(
         name: [.customShort("t"), .long],
         help: "Skip Test targets during graph rendering.",
-        envKey: .graphSkipTarget
+        envKey: .graphSkipTestTargets
     )
     var skipTestTargets: Bool = false
 

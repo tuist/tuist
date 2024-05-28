@@ -1,141 +1,290 @@
 import Foundation
 import ArgumentParser
+import TuistSupport
 
-public enum EnvKey: String {
-    // Specific to PluginCommand
-    case pluginBuildTests
-    case pluginShowBinPath
-    case pluginTargets
-    case pluginProducts
-    case pluginTask
-    case pluginArguments
+public enum EnvKey: String, CaseIterable {
+    // BUILD OPTIONS
+    case buildOptionsSchemes = "TUIST_BUILD_OPTIONS_SCHEMES"
+    case buildOptionsGenerate = "TUIST_BUILD_OPTIONS_GENERATE"
+    case buildOptionsClean = "TUIST_BUILD_OPTIONS_CLEAN"
+    case buildOptionsPath = "TUIST_BUILD_OPTIONS_PATH"
+    case buildOptionsDevice = "TUIST_BUILD_OPTIONS_DEVICE"
+    case buildOptionsPlatform = "TUIST_BUILD_OPTIONS_PLATFORM"
+    case buildOptionsOS = "TUIST_BUILD_OPTIONS_OS"
+    case buildOptionsRosetta = "TUIST_BUILD_OPTIONS_ROSETTA"
+    case buildOptionsConfiguration = "TUIST_BUILD_OPTIONS_CONFIGURATION"
+    case buildOptionsOutputPath = "TUIST_BUILD_OPTIONS_BUILD_OUTPUT_PATH"
+    case buildOptionsDerivedDataPath = "TUIST_BUILD_OPTIONS_DERIVED_DATA_PATH"
+    case buildOptionsGenerateOnly = "TUIST_BUILD_OPTIONS_GENERATE_ONLY"
     
-    // Specific to BuildOptions
-    case buildSchemes
-    case buildGenerate
-    case buildClean
-    case buildPath
-    case buildDevice
-    case buildPlatform
-    case buildOs
-    case buildRosetta
-    case buildConfiguration
-    case buildOutputPath
-    case buildDerivedDataPath
-    case buildGenerateOnly
+    // CLEAN
+    case cleanCleanCategories = "TUIST_CLEAN_CLEAN_CATEGORIES"
+    case cleanPath = "TUIST_CLEAN_PATH"
     
-    // Specific to CleanCommand
-    case cleanCategories
-    case cleanPath
+    // DUMP
+    case dumpPath = "TUIST_DUMP_PATH"
+    case dumpManifest = "TUIST_DUMP_MANIFEST"
     
-    // Specific to DumpCommand
-    case dumpPath
-    case dumpManifest
+    // EDIT
+    case editPath = "TUIST_EDIT_PATH"
+    case editPermanent = "TUIST_EDIT_PERMANENT"
+    case editOnlyCurrentDirectory = "TUIST_EDIT_ONLY_CURRENT_DIRECTORY"
     
-    case editOnlyCurrentDirectory
+    // INSTALL
+    case installPath = "TUIST_INSTALL_PATH"
+    case installUpdate = "TUIST_INSTALL_UPDATE"
     
-    // Specific to MigrationCommands
-    case migrationXcodeprojPath
-    case migrationTarget
-    case migrationXcconfigPath
+    // GENERATE
+    case generatePath = "TUIST_GENERATE_PATH"
+    case generateOpen = "TUIST_GENERATE_OPEN"
     
-    // Specific to GenerateCommand
-    case generatePath
-    case generateOpen
+    // GRAPH
+    case graphSkipTestTargets = "TUIST_GRAPH_SKIP_TEST_TARGETS"
+    case graphSkipExternalDependencies = "TUIST_GRAPH_SKIP_EXTERNAL_DEPENDENCIES"
+    case graphPlatform = "TUIST_GRAPH_PLATFORM"
+    case graphFormat = "TUIST_GRAPH_FORMAT"
+    case graphNoOpen = "TUIST_GRAPH_NO_OPEN"
+    case graphLayoutAlgorithm = "TUIST_GRAPH_LAYOUT_ALGORITHM"
+    case graphTargets = "TUIST_GRAPH_TARGETS"
+    case graphPath = "TUIST_GRAPH_PATH"
+    case graphOutputPath = "TUIST_GRAPH_OUTPUT_PATH"
     
-    // Specific to GraphCommand
-    case graphSkipTarget
-    case graphSkipExternalDependencies
-    case graphPlatform
-    case graphFormat
-    case graphNoOpen
-    case graphLayoutAlgorithm
-    case graphTargets
-    case graphPath
-    case graphOutputPath
+    // INIT
+    case initPlatform = "TUIST_INIT_PLATFORM"
+    case initName = "TUIST_INIT_NAME"
+    case initTemplate = "TUIST_INIT_TEMPLATE"
+    case initPath = "TUIST_INIT_PATH"
+    
+    // MIGRATION
+    case migrationSettingsToXcconfigXcodeprojPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCODEPROJ_PATH"
+    case migrationSettingsToXcconfigXcconfigPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCCONFIG_PATH"
+    case migrationSettingsToXcconfigTarget = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_TARGET"
+    case migrationCheckEmptySettingsXcodeprojPath = "TUIST_MIGRATION_CHECK_EMPTY_SETTINGS_XCODEPROJ_PATH"
+    case migrationCheckEmptySettingsTarget = "TUIST_MIGRATION_CHECK_EMPTY_SETTINGS_TARGET"
+    case migrationListTargetsXcodeprojPath = "TUIST_MIGRATION_LIST_TARGETS_XCODEPROJ_PATH"
+    
+    // PLUGIN
+    case pluginArchivePath = "TUIST_PLUGIN_ARCHIVE_PATH"
+    case pluginBuildBuildTests = "TUIST_PLUGIN_BUILD_BUILD_TESTS"
+    case pluginBuildShowBinPath = "TUIST_PLUGIN_BUILD_SHOW_BIN_PATH"
+    case pluginBuildTargets = "TUIST_PLUGIN_BUILD_TARGETS"
+    case pluginBuildProducts = "TUIST_PLUGIN_BUILD_PRODUCTS"
+    case pluginRunBuildTests = "TUIST_PLUGIN_RUN_BUILD_TESTS"
+    case pluginRunSkipBuild = "TUIST_PLUGIN_RUN_SKIP_BUILD"
+    case pluginRunTask = "TUIST_PLUGIN_RUN_TASK"
+    case pluginRunArguments = "TUIST_PLUGIN_RUN_ARGUMENTS"
+    case pluginTestBuildTests = "TUIST_PLUGIN_TEST_BUILD_TESTS"
+    case pluginTestTestProducts = "TUIST_PLUGIN_TEST_TEST_PRODUCTS"
 
+
+    // PLUGIN OPTIONS
+    case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
+    case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
     
-    // InitCommand
-    case initPlatform
-    case initPath
-    case initName
-    case initTemplate
+    // RUN
+    case runBuildTests = "TUIST_RUN_BUILD_TESTS"
+    case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
+    case runTask = "TUIST_RUN_TASK"
+    case runArguments = "TUIST_RUN_ARGUMENTS"
+    case runGenerate = "TUIST_RUN_GENERATE"
+    case runClean = "TUIST_RUN_CLEAN"
+    case runPath = "TUIST_RUN_PATH"
+    case runConfiguration = "TUIST_RUN_CONFIGURATION"
+    case runDevice = "TUIST_RUN_DEVICE"
+    case runOS = "TUIST_RUN_OS"
+    case runRosetta = "TUIST_RUN_ROSETTA"
+    case runScheme = "TUIST_RUN_SCHEME"
     
-    // InstallCommand
-    case installPath
-    case installUpdate
+    // SCAFFOLD
+    case scaffoldTemplate = "TUIST_SCAFFOLD_TEMPLATE"
+    case scaffoldJson = "TUIST_SCAFFOLD_JSON"
+    case scaffoldPath = "TUIST_SCAFFOLD_PATH"
+    case scaffoldListJson = "TUIST_SCAFFOLD_LIST_JSON"
+    case scaffoldListPath = "TUIST_SCAFFOLD_LIST_PATH"
     
-    // ListCommand
-    case listJson
-    case listPath
-    
-    // RunCommand
-    case runGenerate
-    case runClean
-    case runPath
-    case runConfiguration
-    case runDevice
-    case runOs
-    case runRosetta
-    case runScheme
-    case runArguments
-    
-    // ScaffoldCommand
-    case scaffoldJson
-    case scaffoldPath
-    case scaffoldTemplate
-    
-    // TestCommand
-    case testScheme
-    case testClean
-    case testPath
-    case testDevice
-    case testPlatform
-    case testOs
-    case testRosetta
-    case testConfiguration
-    case testSkipUiTests
-    case testResultBundlePath
-    case testDerivedDataPath
-    case testRetryCount
-    case testPlan
-    case testTargets
-    case testSkipTestTargets
-    case testFilterConfigurations
-    case testSkipConfigurations
-    case testGenerateOnly
+    // TEST
+    case testScheme = "TUIST_TEST_SCHEME"
+    case testClean = "TUIST_TEST_CLEAN"
+    case testPath = "TUIST_TEST_PATH"
+    case testDevice = "TUIST_TEST_DEVICE"
+    case testPlatform = "TUIST_TEST_PLATFORM"
+    case testOS = "TUIST_TEST_OS"
+    case testRosetta = "TUIST_TEST_ROSETTA"
+    case testConfiguration = "TUIST_TEST_CONFIGURATION"
+    case testSkipUITests = "TUIST_TEST_SKIP_UITESTS"
+    case testResultBundlePath = "TUIST_TEST_RESULT_BUNDLE_PATH"
+    case testDerivedDataPath = "TUIST_TEST_DERIVED_DATA_PATH"
+    case testRetryCount = "TUIST_TEST_RETRY_COUNT"
+    case testTestPlan = "TUIST_TEST_TEST_PLAN"
+    case testTestTargets = "TUIST_TEST_TEST_TARGETS"
+    case testSkipTestTargets = "TUIST_TEST_SKIP_TEST_TARGETS"
+    case testConfigurations = "TUIST_TEST_CONFIGURATIONS"
+    case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
+    case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
 }
 
 extension EnvKey {
-    var envKey: String {
-        rawValue.reduce(into: "TUIST_") { result, character in
-            if character.isUppercase {
-                result.append("_")
-            }
-            result.append(character)
-        }.uppercased()
-    }
-    
     var envValueString: String? {
-        ProcessInfo.processInfo.environment[envKey]
+        Environment.shared.tuistVariables[rawValue]
     }
     
     func envValue<T: ExpressibleByArgument>() -> T? {
         guard let envValueString else {
             return nil
         }
-        return T.init(argument: envValueString)
-
+        return T(argument: envValueString)
     }
     
     func envArrayValue<T: ExpressibleByArgument>() -> [T] {
         guard let envValueString else {
             return []
         }
-        return envValueString.split(separator: ",").compactMap { T.init(argument: String($0)) }
+        return envValueString.split(separator: ",").compactMap { T(argument: String($0)) }
     }
 }
 
+extension ArgumentHelp {
+    func withEnvKey(_ envKey: EnvKey) -> ArgumentHelp {
+        var help = self
+        help.abstract += " (env: \(envKey.rawValue))"
+        return help
+    }
+}
+
+// Argument Extensions
+extension Argument {
+    init<T>(
+        wrappedValue: [T] = [],
+        parsing parsingStrategy: ArgumentArrayParsingStrategy = .remaining,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where T: ExpressibleByArgument, Value == [T] {
+        self.init(
+            wrappedValue: wrappedValue.isEmpty ? envKey.envArrayValue() : wrappedValue,
+            parsing: parsingStrategy,
+            help: help?.withEnvKey(envKey),
+            completion: completion
+        )
+    }
+    
+    init(
+        help: ArgumentHelp? = nil,
+        envKey: EnvKey
+    ) where Value: ExpressibleByArgument {
+        let envValue: Value? = envKey.envValue()
+        if let envValue {
+            self.init(wrappedValue: envValue, help: help)
+        } else {
+            self.init(help: help)
+        }
+    }
+    
+    public init<T>(
+        wrappedValue _value: Optional<T> = nil,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where T: ExpressibleByArgument, Value == Optional<T> {
+        self.init(
+            wrappedValue: _value ?? envKey.envValue(),
+            help: help?.withEnvKey(envKey),
+            completion: completion
+        )
+    }
+}
+
+// Option Extensions
+extension Option {
+    public init<T>(
+        wrappedValue _value: [T] = [],
+        name: NameSpecification = .long,
+        parsing parsingStrategy: ArrayParsingStrategy = .singleValue,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where T: ExpressibleByArgument, Value == [T] {
+        self.init(
+            wrappedValue: _value.isEmpty ? envKey.envArrayValue() : _value,
+            name: name,
+            parsing: parsingStrategy,
+            help: help?.withEnvKey(envKey),
+            completion: completion
+        )
+    }
+    
+    public init<T>(
+        wrappedValue _value: Optional<T> = nil,
+        name: NameSpecification = .long,
+        parsing parsingStrategy: SingleValueParsingStrategy = .next,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where T: ExpressibleByArgument, Value == Optional<T> {
+        self.init(
+            wrappedValue: _value ?? envKey.envValue(),
+            name: name,
+            parsing: parsingStrategy,
+            help: help?.withEnvKey(envKey),
+            completion: completion
+        )
+    }
+    
+    init(
+        wrappedValue _value: Value,
+        name: NameSpecification = .long,
+        parsing parsingStrategy: SingleValueParsingStrategy = .next,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where Value: ExpressibleByArgument {
+        let envValue: Value? = envKey.envValue()
+        if let envValue {
+            self.init(
+                wrappedValue: envValue,
+                name: name,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        } else {
+            self.init(
+                name: name,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        }
+    }
+    
+    init(
+        name: NameSpecification = .long,
+        parsing parsingStrategy: SingleValueParsingStrategy = .next,
+        help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
+        envKey: EnvKey
+    ) where Value: ExpressibleByArgument {
+        let envValue: Value? = envKey.envValue()
+        if let envValue {
+            self.init(
+                wrappedValue: envValue,
+                name: name,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        } else {
+            self.init(
+                name: name,
+                parsing: parsingStrategy,
+                help: help?.withEnvKey(envKey),
+                completion: completion
+            )
+        }
+    }
+}
+
+// Flag Extensions
 extension Flag where Value == Bool {
     public init(
         wrappedValue: Bool,
@@ -148,111 +297,7 @@ extension Flag where Value == Bool {
             wrappedValue: envValue || wrappedValue,
             name: name,
             inversion: .prefixedNo,
-            help: help
+            help: help?.withEnvKey(envKey)
         )
     }
 }
-
-extension Argument {
-    init<T>(
-        wrappedValue: [T] = [],
-        parsing parsingStrategy: ArgumentArrayParsingStrategy = .remaining,
-        help: ArgumentHelp? = nil,
-        completion: CompletionKind? = nil,
-        envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == [T] {
-        self.init(
-            wrappedValue: wrappedValue.isEmpty ? envKey.envArrayValue() : wrappedValue,
-            parsing: parsingStrategy,
-            help: help,
-            completion: completion
-        )
-    }
-}
-
-extension Argument where Value: ExpressibleByArgument {
-    init(
-        help: ArgumentHelp? = nil,
-        envKey: EnvKey
-    ) {
-        let envValue: Value? = envKey.envValue()
-        if let envValue {
-            self.init(wrappedValue: envValue, help: help)
-        } else {
-            self.init(help: help)
-        }
-    }
-}
-
-extension Option {
-    public init<T>(
-        wrappedValue _value: [T] = [],
-        name: NameSpecification = .long,
-        parsing parsingStrategy: ArrayParsingStrategy = .singleValue,
-        help: ArgumentHelp? = nil,
-        completion: CompletionKind? = nil,
-        envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == [T] {
-        
-        self.init(
-            wrappedValue: _value.isEmpty ? envKey.envArrayValue() : _value,
-            name: name,
-            parsing: parsingStrategy,
-            help: help,
-            completion: completion
-        )
-    }
-}
-
-extension Option {
-    public init<T>(
-        wrappedValue _value: Optional<T> = nil,
-        name: NameSpecification = .long,
-        parsing parsingStrategy: SingleValueParsingStrategy = .next,
-        help: ArgumentHelp? = nil,
-        completion: CompletionKind? = nil,
-        envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == Optional<T> {
-        self.init(
-            wrappedValue: _value ?? envKey.envValue(),
-            name: name,
-            parsing: parsingStrategy,
-            help: help,
-            completion: completion
-        )
-    }
-}
-
-extension Option where Value: ExpressibleByArgument {
-    init(
-        wrappedValue _value: Value,
-        name: NameSpecification = .long,
-        parsing parsingStrategy: SingleValueParsingStrategy = .next,
-        help: ArgumentHelp? = nil,
-        completion: CompletionKind? = nil,
-        envKey: EnvKey
-    ) {
-        let envValue: Value? = envKey.envValue()
-        if let envValue {
-            self.init(wrappedValue: envValue, name: name, parsing: parsingStrategy, help: help, completion: completion)
-        } else {
-            self.init(wrappedValue: _value, name: name, parsing: parsingStrategy, help: help, completion: completion)
-        }
-    }
-}
-
-extension Argument {
-    public init<T>(
-        wrappedValue _value: Optional<T> = nil,
-        help: ArgumentHelp? = nil,
-        completion: CompletionKind? = nil,
-        envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == Optional<T> {
-        self.init(
-            wrappedValue: _value ?? envKey.envValue(),
-            help: help,
-            completion: completion
-        )
-    }
-}
-

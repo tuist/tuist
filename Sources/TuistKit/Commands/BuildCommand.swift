@@ -10,21 +10,21 @@ public struct BuildOptions: ParsableArguments {
     
     @Argument(
         help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
-        envKey: .buildSchemes
+        envKey: .buildOptionsSchemes
         
     )
     public var schemes: [String]
 
     @Flag(
         help: "Force the generation of the project before building.",
-        envKey: .buildGenerate
+        envKey: .buildOptionsGenerate
 
     )
     public var generate: Bool = false
 
     @Flag(
         help: "When passed, it cleans the project before building it",
-        envKey: .buildClean
+        envKey: .buildOptionsClean
     )
     public var clean: Bool = false
 
@@ -32,61 +32,62 @@ public struct BuildOptions: ParsableArguments {
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built.",
         completion: .directory,
-        envKey: .buildPath
+        envKey: .buildOptionsPath
     )
     public var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Build on a specific device."
+        help: "Build on a specific device.",
+        envKey: .buildOptionsDevice
     )
     public var device: String? 
 
     @Option(
         name: .long,
         help: "Build for a specific platform.",
-        envKey: .buildSchemes
+        envKey: .buildOptionsPlatform
     )
     public var platform: TuistGraph.Platform?
 
     @Option(
         name: .shortAndLong,
         help: "Build with a specific version of the OS.",
-        envKey: .buildOs
+        envKey: .buildOptionsOS
     )
     public var os: Version?
 
     @Flag(
         name: .long,
         help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
-        envKey: .buildRosetta
+        envKey: .buildOptionsRosetta
     )
     public var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when building the scheme.",
-        envKey: .buildConfiguration
+        envKey: .buildOptionsConfiguration
     )
     public var configuration: String?
 
     @Option(
         help: "The directory where build products will be copied to when the project is built.",
         completion: .directory,
-        envKey: .buildOutputPath
+        envKey: .buildOptionsOutputPath
     )
     public var buildOutputPath: String?
 
     @Option(
         help: "Overrides the folder that should be used for derived data when building the project.",
-        envKey: .buildDerivedDataPath
+        envKey: .buildOptionsDerivedDataPath
     )
     public var derivedDataPath: String?
 
     @Flag(
         name: .long,
         help: "When passed, it generates the project and skips building. This is useful for debugging purposes.",
-        envKey: .buildGenerateOnly
+        envKey: .buildOptionsGenerateOnly
     )
     public var generateOnly: Bool = false
 }
@@ -104,7 +105,7 @@ public struct BuildCommand: AsyncParsableCommand {
 
     @OptionGroup()
     var buildOptions: BuildOptions
-
+    
     public func run() async throws {
         let absolutePath: AbsolutePath
         if let path = buildOptions.path {

@@ -16,21 +16,23 @@ struct PluginCommand: ParsableCommand {
         )
     }
 
-    enum PackageConfiguration: String, ExpressibleByArgument, RawRepresentable {
+    enum PackageConfiguration: String, ExpressibleByArgument, RawRepresentable, EnumerableFlag {
         case debug, release
     }
 
     struct PluginOptions: ParsableArguments {
         @Option(
             name: .shortAndLong,
-            help: "Choose configuration (default: debug)."
+            help: "Choose configuration (default: debug).",
+            envKey: .pluginOptionsConfiguration
         )
         var configuration: PackageConfiguration = .debug
 
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the definition of the plugin.",
-            completion: .directory
+            completion: .directory,
+            envKey: .pluginOptionsPath
         )
         var path: String?
     }

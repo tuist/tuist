@@ -108,7 +108,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // Then
         try await subject.testRun(
-            schemeName: scheme.name,
+            schemeNames: [scheme.name],
             path: path
         )
     }
@@ -153,7 +153,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // Then
         try await subject.testRun(
-            schemeName: scheme.name,
+            schemeNames: [scheme.name],
             path: path
         )
     }
@@ -260,7 +260,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
         // Then
         try await subject.testRun(
-            schemeName: "A",
+            schemeNames: ["A"],
             path: path
         )
     }
@@ -301,7 +301,7 @@ final class BuildServiceTests: TuistUnitTestCase {
 
 extension BuildService {
     fileprivate func testRun(
-        schemeName: String? = nil,
+        schemeNames: [String] = [],
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
@@ -309,13 +309,13 @@ extension BuildService {
         derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
-        platform: String? = nil,
-        osVersion: String? = nil,
+        platform: TuistGraph.Platform? = nil,
+        osVersion: Version? = nil,
         rosetta: Bool = false,
         generateOnly: Bool = false
     ) async throws {
         try await run(
-            schemeName: schemeName,
+            schemeNames: schemeNames,
             generate: generate,
             clean: clean,
             configuration: configuration,
