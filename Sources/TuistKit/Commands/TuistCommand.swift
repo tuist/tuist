@@ -1,5 +1,8 @@
 @_exported import ArgumentParser
 import Foundation
+import TSCBasic
+import TuistAnalytics
+import TuistLoader
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -23,6 +26,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
+                CloudCommand.self,
             ]
         )
     }
@@ -31,7 +35,26 @@ public struct TuistCommand: AsyncParsableCommand {
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot,
         execute: ((_ command: ParsableCommand, _ commandArguments: [String]) async throws -> Void)? = nil
-    ) async {
+    ) async throws {
+        let path: AbsolutePath
+        if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
+            path = try AbsolutePath(validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
+        } else {
+            path = .current
+        }
+
+        let backend: TuistAnalyticsBackend?
+        let config = try ConfigLoader().loadConfig(path: path)
+        if let cloud = config.cloud {
+            backend = TuistAnalyticsCloudBackend(
+                config: cloud
+            )
+        } else {
+            backend = nil
+        }
+        let dispatcher = TuistAnalyticsDispatcher(backend: backend)
+        try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+
         let execute = execute ?? Self.execute
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void

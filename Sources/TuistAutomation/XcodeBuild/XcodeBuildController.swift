@@ -298,18 +298,32 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     if self?.environment.isVerbose == true {
                         return SystemEvent.standardError(XcodeBuildOutput(raw: line))
                     } else {
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.format(line) ?? ""))
                     }
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
                     if self?.environment.isVerbose == true {
                         return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
                     } else {
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.format(line) ?? ""))
                     }
                 }
             }
             .eraseToAnyPublisher()
             .stream
+    }
+}
+
+// MARK: - Helpers
+
+fileprivate extension XcodeBuildController {
+    func format(_ multiLineText: String) -> String {
+        multiLineText.split(separator: "\n").map {
+            let line = String($0)
+            let formattedLine = formatter.format(line)
+
+            return formattedLine ?? ""
+        }
+        .joined(separator: "\n")
     }
 }

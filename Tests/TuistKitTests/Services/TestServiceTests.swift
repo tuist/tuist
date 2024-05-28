@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TuistAutomation
 import TuistCore
@@ -21,7 +22,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var simulatorController: MockSimulatorController!
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -33,8 +34,12 @@ final class TestServiceTests: TuistUnitTestCase {
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
         generatorFactory.stubbedTestResult = generator
-        let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
+        given(cacheDirectoryProviderFactory)
+            .cacheDirectories()
+            .willReturn(mockCacheDirectoriesProvider)
 
         contentHasher.hashStub = { _ in
             "hash"
@@ -47,7 +52,7 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
+            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory
         )
     }
 

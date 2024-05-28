@@ -46,7 +46,7 @@ You can also retrieve the string or boolean `Environment` variable using either 
 ::: code-group
 
 ```swift [String]
-Environment.appName.getString(default: "TuistApp")
+Environment.appName.getString(default: "TuistServer")
 ```
 
 ```swift [Boolean]
