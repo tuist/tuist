@@ -24,7 +24,7 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
         name: [.customShort("x"), .long],
         help: "The path to the .xcconfig file where build settings will be extracted.",
         completion: .directory,
-        envKey: .migrationSettingsToXcconfigXcodeprojPath
+        envKey: .migrationSettingsToXcconfigXcconfigPath
     )
     var xcconfigPath: String
 

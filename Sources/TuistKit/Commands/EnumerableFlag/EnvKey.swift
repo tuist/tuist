@@ -43,7 +43,7 @@ public enum EnvKey: String, CaseIterable {
     case graphSkipExternalDependencies = "TUIST_GRAPH_SKIP_EXTERNAL_DEPENDENCIES"
     case graphPlatform = "TUIST_GRAPH_PLATFORM"
     case graphFormat = "TUIST_GRAPH_FORMAT"
-    case graphNoOpen = "TUIST_GRAPH_NO_OPEN"
+    case graphOpen = "TUIST_GRAPH_OPEN"
     case graphLayoutAlgorithm = "TUIST_GRAPH_LAYOUT_ALGORITHM"
     case graphTargets = "TUIST_GRAPH_TARGETS"
     case graphPath = "TUIST_GRAPH_PATH"
@@ -292,12 +292,20 @@ extension Flag where Value == Bool {
         help: ArgumentHelp? = nil,
         envKey: EnvKey
     ) {
-        let envValue: Bool = envKey.envValue() ?? false
-        self.init(
-            wrappedValue: envValue || wrappedValue,
-            name: name,
-            inversion: .prefixedNo,
-            help: help?.withEnvKey(envKey)
-        )
+        if let envValue: Value = envKey.envValue() {
+            self.init(
+                wrappedValue: envValue,
+                name: name,
+                inversion: .prefixedNo,
+                help: help?.withEnvKey(envKey)
+            )
+        } else {
+            self.init(
+                wrappedValue: wrappedValue,
+                name: name,
+                inversion: .prefixedNo,
+                help: help?.withEnvKey(envKey)
+            )
+        }
     }
 }

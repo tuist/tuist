@@ -22,7 +22,7 @@ struct DumpCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @Argument(help: "The manifest to be dumped")
+    @Argument(help: "The manifest to be dumped")//, envKey: .dumpManifest)
     var manifest: DumpableManifest = .project
 
     func run() async throws {

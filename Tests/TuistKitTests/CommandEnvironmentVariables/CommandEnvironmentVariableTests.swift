@@ -68,7 +68,9 @@ final class ArgumentParserEnvTests: XCTestCase {
     }
     
     func testCleanCommandWithEnvVars() throws {
-        // TODO: Implement test for CleanCommand
+        mockEnvironment.tuistVariables[EnvKey.cleanCleanCategories.rawValue] = "category1,category2"
+        mockEnvironment.tuistVariables[EnvKey.cleanPath.rawValue] = "/path/to/clean"
+        
     }
     
     func testDumpCommandWithEnvVars() throws {
@@ -76,39 +78,177 @@ final class ArgumentParserEnvTests: XCTestCase {
     }
     
     func testEditCommandWithEnvVars() throws {
-        // TODO: Implement test for EditCommand
+        mockEnvironment.tuistVariables[EnvKey.editPath.rawValue] = "/path/to/edit"
+        mockEnvironment.tuistVariables[EnvKey.editPermanent.rawValue] = "true"
+        mockEnvironment.tuistVariables[EnvKey.editOnlyCurrentDirectory.rawValue] = "true"
+        
+        let editCommand1 = try EditCommand.parse([])
+        XCTAssertEqual(editCommand1.path, "/path/to/edit")
+        XCTAssertTrue(editCommand1.permanent)
+        XCTAssertTrue(editCommand1.onlyCurrentDirectory)
+        
+        let editCommand2 = try EditCommand.parse(["--path", "/new/edit/path", "--no-permanent", "--no-only-current-directory"])
+        XCTAssertEqual(editCommand2.path, "/new/edit/path")
+        XCTAssertFalse(editCommand2.permanent)
+        XCTAssertFalse(editCommand2.onlyCurrentDirectory)
     }
+
     
     func testGenerateCommandWithEnvVars() throws {
-        // TODO: Implement test for GenerateCommand
+        // Set environment variables for Generate command
+        mockEnvironment.tuistVariables[EnvKey.generatePath.rawValue] = "/path/to/generate"
+        mockEnvironment.tuistVariables[EnvKey.generateOpen.rawValue] = "false"
+        
+        let generateCommand1 = try GenerateCommand.parse([])
+        XCTAssertEqual(generateCommand1.path, "/path/to/generate")
+        print(generateCommand1.open)
+        XCTAssertFalse(generateCommand1.open)
+        
+        let generateCommand2 = try GenerateCommand.parse(["--path", "/new/generate/path", "--open"])
+        XCTAssertEqual(generateCommand2.path, "/new/generate/path")
+        XCTAssertTrue(generateCommand2.open)
     }
+
     
     func testGraphCommandWithEnvVars() throws {
-        // TODO: Implement test for GraphCommand
+        // Set environment variables for Graph command
+        mockEnvironment.tuistVariables[EnvKey.graphSkipTestTargets.rawValue] = "true"
+        mockEnvironment.tuistVariables[EnvKey.graphSkipExternalDependencies.rawValue] = "true"
+        mockEnvironment.tuistVariables[EnvKey.graphPlatform.rawValue] = "ios"
+        mockEnvironment.tuistVariables[EnvKey.graphFormat.rawValue] = "svg"
+        mockEnvironment.tuistVariables[EnvKey.graphOpen.rawValue] = "false"
+        mockEnvironment.tuistVariables[EnvKey.graphLayoutAlgorithm.rawValue] = "circo"
+        mockEnvironment.tuistVariables[EnvKey.graphTargets.rawValue] = "Target1,Target2"
+        mockEnvironment.tuistVariables[EnvKey.graphPath.rawValue] = "/path/to/graph"
+        mockEnvironment.tuistVariables[EnvKey.graphOutputPath.rawValue] = "/path/to/output"
+        
+        // Execute GraphCommand without command line arguments
+        let graphCommand1 = try GraphCommand.parse([])
+        XCTAssertTrue(graphCommand1.skipTestTargets)
+        XCTAssertTrue(graphCommand1.skipExternalDependencies)
+        XCTAssertEqual(graphCommand1.platform, .iOS)
+        XCTAssertEqual(graphCommand1.format, .svg)
+        XCTAssertFalse(graphCommand1.open)
+        XCTAssertEqual(graphCommand1.layoutAlgorithm, .circo)
+        XCTAssertEqual(graphCommand1.targets, ["Target1", "Target2"])
+        XCTAssertEqual(graphCommand1.path, "/path/to/graph")
+        XCTAssertEqual(graphCommand1.outputPath, "/path/to/output")
+        
+        // Execute GraphCommand with command line arguments
+        let graphCommand2 = try GraphCommand.parse(["--no-skip-test-targets", "--no-skip-external-dependencies", "--platform", "macos", "--format", "json", "--open", "--algorithm", "fdp", "Target3", "Target4", "--path", "/new/graph/path", "--output-path", "/new/graph/output"])
+        XCTAssertFalse(graphCommand2.skipTestTargets)
+        XCTAssertFalse(graphCommand2.skipExternalDependencies)
+        XCTAssertEqual(graphCommand2.platform, .macOS)
+        XCTAssertEqual(graphCommand2.format, .json)
+        XCTAssertTrue(graphCommand2.open)
+        XCTAssertEqual(graphCommand2.layoutAlgorithm, .fdp)
+        XCTAssertEqual(graphCommand2.targets, ["Target3", "Target4"])
+        XCTAssertEqual(graphCommand2.path, "/new/graph/path")
+        XCTAssertEqual(graphCommand2.outputPath, "/new/graph/output")
     }
+
     
     func testInitCommandWithEnvVars() throws {
-        // TODO: Implement test for InitCommand
+        // Set environment variables for Init command
+        mockEnvironment.tuistVariables[EnvKey.initPlatform.rawValue] = "macos"
+        mockEnvironment.tuistVariables[EnvKey.initName.rawValue] = "MyProject"
+        mockEnvironment.tuistVariables[EnvKey.initTemplate.rawValue] = "MyTemplate"
+        mockEnvironment.tuistVariables[EnvKey.initPath.rawValue] = "/path/to/init"
+        
+        // Execute InitCommand without command line arguments
+        let initCommand1 = try InitCommand.parse([])
+//        XCTAssertEqual(initCommand1.platform, Platform.IOS)
+        XCTAssertEqual(initCommand1.name, "MyProject")
+        XCTAssertEqual(initCommand1.template, "MyTemplate")
+        XCTAssertEqual(initCommand1.path, "/path/to/init")
+        
+        // Execute InitCommand with command line arguments
+        let initCommand2 = try InitCommand.parse(["--platform", "ios", "--name", "NewProject", "--template", "NewTemplate", "--path", "/new/init/path"])
+//        XCTAssertEqual(initCommand2.platform, .ios)
+        XCTAssertEqual(initCommand2.name, "NewProject")
+        XCTAssertEqual(initCommand2.template, "NewTemplate")
+        XCTAssertEqual(initCommand2.path, "/new/init/path")
     }
-    
+
     func testInstallCommandWithEnvVars() throws {
-        // TODO: Implement test for InstallCommand
+        // Set environment variables for Install command
+        mockEnvironment.tuistVariables[EnvKey.installPath.rawValue] = "/path/to/install"
+        mockEnvironment.tuistVariables[EnvKey.installUpdate.rawValue] = "true"
+        
+        // Execute InstallCommand without command line arguments
+        let installCommand1 = try InstallCommand.parse([])
+        XCTAssertEqual(installCommand1.path, "/path/to/install")
+        XCTAssertTrue(installCommand1.update)
+        
+        // Execute InstallCommand with command line arguments
+        let installCommand2 = try InstallCommand.parse(["--path", "/new/install/path", "--no-update"])
+        XCTAssertEqual(installCommand2.path, "/new/install/path")
+        XCTAssertFalse(installCommand2.update)
     }
-    
+
     func testListCommandWithEnvVars() throws {
-        // TODO: Implement test for ListCommand
+        // Set environment variables for List command
+        mockEnvironment.tuistVariables[EnvKey.scaffoldListJson.rawValue] = "true"
+        mockEnvironment.tuistVariables[EnvKey.scaffoldListPath.rawValue] = "/path/to/list"
+        
+        // Execute ListCommand without command line arguments
+        let listCommand1 = try ListCommand.parse([])
+        XCTAssertTrue(listCommand1.json)
+        XCTAssertEqual(listCommand1.path, "/path/to/list")
+        
+        // Execute ListCommand with command line arguments
+        let listCommand2 = try ListCommand.parse(["--no-json", "--path", "/new/list/path"])
+        XCTAssertFalse(listCommand2.json)
+        XCTAssertEqual(listCommand2.path, "/new/list/path")
     }
+
     
     func testMigrationCheckEmptyBuildSettingsCommandWithEnvVars() throws {
-        // TODO: Implement test for MigrationCheckEmptyBuildSettingsCommand
+        // Set environment variables for MigrationCheckEmptyBuildSettingsCommand
+        mockEnvironment.tuistVariables[EnvKey.migrationCheckEmptySettingsXcodeprojPath.rawValue] = "/path/to/xcodeproj"
+        mockEnvironment.tuistVariables[EnvKey.migrationCheckEmptySettingsTarget.rawValue] = "MyTarget"
+        
+        // Execute MigrationCheckEmptyBuildSettingsCommand without command line arguments
+        let migrationCommand1 = try MigrationCheckEmptyBuildSettingsCommand.parse([])
+        XCTAssertEqual(migrationCommand1.xcodeprojPath, "/path/to/xcodeproj")
+        XCTAssertEqual(migrationCommand1.target, "MyTarget")
+        
+        // Execute MigrationCheckEmptyBuildSettingsCommand with command line arguments
+        let migrationCommand2 = try MigrationCheckEmptyBuildSettingsCommand.parse(["--xcodeproj-path", "/new/xcodeproj/path", "--target", "NewTarget"])
+        XCTAssertEqual(migrationCommand2.xcodeprojPath, "/new/xcodeproj/path")
+        XCTAssertEqual(migrationCommand2.target, "NewTarget")
     }
-    
+
     func testMigrationSettingsToXCConfigCommandWithEnvVars() throws {
-        // TODO: Implement test for MigrationSettingsToXCConfigCommand
+        // Set environment variables for MigrationSettingsToXCConfigCommand
+        mockEnvironment.tuistVariables[EnvKey.migrationSettingsToXcconfigXcodeprojPath.rawValue] = "/path/to/xcodeproj"
+        mockEnvironment.tuistVariables[EnvKey.migrationSettingsToXcconfigXcconfigPath.rawValue] = "/path/to/xcconfig"
+        mockEnvironment.tuistVariables[EnvKey.migrationSettingsToXcconfigTarget.rawValue] = "MyTarget"
+        
+        // Execute MigrationSettingsToXCConfigCommand without command line arguments
+        let migrationCommand1 = try MigrationSettingsToXCConfigCommand.parse([])
+        XCTAssertEqual(migrationCommand1.xcodeprojPath, "/path/to/xcodeproj")
+        XCTAssertEqual(migrationCommand1.xcconfigPath, "/path/to/xcconfig")
+        XCTAssertEqual(migrationCommand1.target, "MyTarget")
+        
+        // Execute MigrationSettingsToXCConfigCommand with command line arguments
+        let migrationCommand2 = try MigrationSettingsToXCConfigCommand.parse(["--xcodeproj-path", "/new/xcodeproj/path", "--xcconfig-path", "/new/xcconfig/path", "--target", "NewTarget"])
+        XCTAssertEqual(migrationCommand2.xcodeprojPath, "/new/xcodeproj/path")
+        XCTAssertEqual(migrationCommand2.xcconfigPath, "/new/xcconfig/path")
+        XCTAssertEqual(migrationCommand2.target, "NewTarget")
     }
     
     func testMigrationTargetsByDependenciesCommandWithEnvVars() throws {
-        // TODO: Implement test for MigrationTargetsByDependenciesCommand
+        // Set environment variables for MigrationTargetsByDependenciesCommand
+        mockEnvironment.tuistVariables[EnvKey.migrationListTargetsXcodeprojPath.rawValue] = "/path/to/xcodeproj"
+        
+        // Execute MigrationTargetsByDependenciesCommand without command line arguments
+        let migrationCommand1 = try MigrationTargetsByDependenciesCommand.parse([])
+        XCTAssertEqual(migrationCommand1.xcodeprojPath, "/path/to/xcodeproj")
+        
+        // Execute MigrationTargetsByDependenciesCommand with command line arguments
+        let migrationCommand2 = try MigrationTargetsByDependenciesCommand.parse(["--xcodeproj-path", "/new/xcodeproj/path"])
+        XCTAssertEqual(migrationCommand2.xcodeprojPath, "/new/xcodeproj/path")
     }
     
     func testPluginArchiveCommandWithEnvVars() throws {
