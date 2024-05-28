@@ -16,8 +16,8 @@ final class EditServiceTests: XCTestCase {
     var opener: MockOpener!
     var configLoader: MockConfigLoader!
     var pluginService: MockPluginService!
-    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
-    var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
+    var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     var projectEditor: MockProjectEditing!
 
     override func setUpWithError() throws {
@@ -25,8 +25,15 @@ final class EditServiceTests: XCTestCase {
         opener = MockOpener()
         configLoader = MockConfigLoader()
         pluginService = MockPluginService()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
-        cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
+        
+        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
+        cacheDirectoriesProviderFactory = cacheDirectoryProviderFactory
+        given(cacheDirectoryProviderFactory)
+            .cacheDirectories()
+            .willReturn(mockCacheDirectoriesProvider)
+        
         projectEditor = MockProjectEditing()
 
         subject = EditService(
