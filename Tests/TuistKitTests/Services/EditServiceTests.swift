@@ -18,6 +18,7 @@ final class EditServiceTests: XCTestCase {
     var configLoader: MockConfigLoader!
     var pluginService: MockPluginService!
     var signalHandler: MockSignalHandler!
+    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
     var projectEditor: MockProjectEditor!
 
@@ -27,7 +28,8 @@ final class EditServiceTests: XCTestCase {
         configLoader = MockConfigLoader()
         pluginService = MockPluginService()
         signalHandler = MockSignalHandler()
-        cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider:  try MockCacheDirectoriesProvider())
+        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         projectEditor = MockProjectEditor()
 
         subject = EditService(projectEditor: projectEditor,
@@ -38,4 +40,31 @@ final class EditServiceTests: XCTestCase {
                               cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory)
     }
     
+    func test_edit_uses_caches_directory() async throws {
+        try await subject.run(path: "/private/tmp",
+                              permanent: false,
+                              onlyCurrentDirectory: false)
+        
+        
+        let cacheDir = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let openArgs = try XCTUnwrap(opener.openArgs.first)
+        
+        XCTAssertEqual(opener.openCallCount, 1)
+        XCTAssertEqual(openArgs.0, cacheDir.pathString)
+        XCTAssertEqual(projectEditor.editingPath, "/private/tmp")
+        XCTAssertEqual(projectEditor.onlyCurrentDirectory, false)
+        XCTAssertEqual(projectEditor.destinationDirectory, cacheDir)
+    }
+    
+    
+    func test_edit_permanent_does_not_open_workspace() async throws {
+        try await subject.run(path: "/private/tmp",
+                              permanent: true,
+                              onlyCurrentDirectory: true)
+        
+        XCTAssertEqual(opener.openCallCount, 0)
+        XCTAssertEqual(projectEditor.editingPath, "/private/tmp")
+        XCTAssertEqual(projectEditor.destinationDirectory, "/private/tmp")
+        XCTAssertEqual(projectEditor.onlyCurrentDirectory, true)
+    }
 }
