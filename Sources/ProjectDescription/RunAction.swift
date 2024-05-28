@@ -3,7 +3,7 @@ import Foundation
 /// An action that runs the built products.
 ///
 /// It's initialized with the .runAction static method.
-public struct RunAction: Equatable, Codable {
+public struct RunAction: Equatable, Codable, Sendable {
     /// Indicates the build configuration the product should run with.
     public var configuration: ConfigurationName
 

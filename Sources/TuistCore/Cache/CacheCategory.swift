@@ -24,4 +24,18 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "Manifests"
         }
     }
+
+    public enum App: String, CaseIterable {
+        case binaries
+        case selectiveTests
+
+        public var directoryName: String {
+            switch self {
+            case .binaries:
+                return "BinaryCache"
+            case .selectiveTests:
+                return "SelectiveTests"
+            }
+        }
+    }
 }

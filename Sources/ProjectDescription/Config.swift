@@ -27,7 +27,7 @@
 ///     swiftVersion: "5.9.0"
 /// )
 /// ```
-public struct Config: Codable, Equatable {
+public struct Config: Codable, Equatable, Sendable {
     /// Generation options.
     public let generationOptions: GenerationOptions
 

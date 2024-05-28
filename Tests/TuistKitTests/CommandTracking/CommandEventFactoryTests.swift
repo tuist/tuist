@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistAnalytics
+import TuistCore
 import TuistSupport
 import XCTest
 

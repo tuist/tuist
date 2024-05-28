@@ -1,5 +1,5 @@
 /// On-demand resources tags associated with Initial Install and Prefetched Order categories
-public struct OnDemandResourcesTags: Codable, Equatable {
+public struct OnDemandResourcesTags: Codable, Equatable, Sendable {
     /// Initial install tags associated with on demand resources
     public let initialInstall: [String]?
     /// Prefetched tag order associated with on demand resources

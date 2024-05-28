@@ -4,7 +4,7 @@ extension BuildRule {
     /// The type of compiler spec which is used for a selected file type.
     /// All the values are taken from build rule options hidden under a pup-up button's menu next to a label `Using` in a target's
     /// `Build Rules` section.
-    public enum CompilerSpec: Codable {
+    public enum CompilerSpec: Codable, Sendable {
         case appIntentsMetadataExtractor
         case appShortcutStringsMetadataExtractor
         case appleClang

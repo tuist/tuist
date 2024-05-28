@@ -1,4 +1,4 @@
-import Combine
+@preconcurrency import Combine
 import Foundation
 
 extension Publisher where Output == SystemEvent<Data>, Failure == Error {

@@ -4,7 +4,7 @@ import Foundation
  It represents the interface of a tool that can collect warnings during the execution of a program and flush
  them when the program decides.
  */
-public protocol WarningControlling {
+public protocol WarningControlling: Sendable {
     /// Appends a new warning to the list of warnings to be shown.
     /// - Parameter warning: The warning to be appended.
     func append(warning: String)
@@ -13,7 +13,7 @@ public protocol WarningControlling {
     func flush()
 }
 
-public final class WarningController: WarningControlling {
+public final class WarningController: WarningControlling, @unchecked Sendable {
     private let warningsQueue = DispatchQueue(label: "io.tuist.TuistSupport.WarningController")
     private var _warnings: Set<String> = Set()
     private var warnings: Set<String> {
@@ -25,7 +25,7 @@ public final class WarningController: WarningControlling {
         }
     }
 
-    public static var shared: WarningControlling = WarningController()
+    public static let shared: WarningControlling = WarningController()
 
     init() {}
 

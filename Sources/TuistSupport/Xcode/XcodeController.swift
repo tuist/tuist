@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TSCUtility
 
-public protocol XcodeControlling {
+public protocol XcodeControlling: Sendable {
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
@@ -17,7 +17,7 @@ public protocol XcodeControlling {
     func selectedVersion() throws -> Version
 }
 
-public class XcodeController: XcodeControlling {
+public class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.

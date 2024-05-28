@@ -1,0 +1,6 @@
+#!/bin/bash
+# mise description="Lint the workspace fixing issues"
+set -euo pipefail
+
+swiftformat $MISE_PROJECT_ROOT
+swiftlint lint --fix --quiet --config $MISE_PROJECT_ROOT/.swiftlint.yml $MISE_PROJECT_ROOT/Sources

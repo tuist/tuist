@@ -13,7 +13,7 @@ import Foundation
 ///
 /// - seealso: [Wikipedia page - List of HTTP status codes](http://en.wikipedia.org/wiki/List_of_HTTP_status_codes)
 /// - seealso: [HTTP protocol standard - Status Code Definitions](https://tools.ietf.org/html/rfc2616#section-10)
-@objc public enum HTTPStatusCode: Int {
+@objc public enum HTTPStatusCode: Int, Sendable {
     /// Continue: 100
     ///
     /// - seealso: [RFC7231, Section 6.2.1](http://www.iana.org/go/rfc7231#section-6.2.1)

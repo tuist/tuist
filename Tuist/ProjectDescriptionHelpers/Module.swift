@@ -21,6 +21,7 @@ public enum Module: String, CaseIterable {
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
+    case app = "TuistServer"
 
     public var isRunnable: Bool {
         switch self {
@@ -127,7 +128,7 @@ public enum Module: String, CaseIterable {
     public var testingTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation, .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting:
+             .dependencies, .acceptanceTesting, .app:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -147,7 +148,7 @@ public enum Module: String, CaseIterable {
     public var integrationTestsTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription, .graph, .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .app:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -180,6 +181,17 @@ public enum Module: String, CaseIterable {
             []
         }
         return dependencies + sharedDependencies
+    }
+
+    public var strictConcurrencySetting: String? {
+        switch self {
+        case .projectAutomation, .projectDescription:
+            return "complete"
+        case .support:
+            return "targeted"
+        default:
+            return nil
+        }
     }
 
     public var dependencies: [TargetDependency] {
@@ -226,6 +238,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.generator.targetName),
                 .target(name: Module.automation.targetName),
+                .target(name: Module.app.targetName),
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.projectAutomation.targetName),
                 .target(name: Module.loader.targetName),
@@ -326,6 +339,13 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .external(name: "XcodeProj"),
                 .external(name: "XcbeautifyLib"),
+            ]
+        case .app:
+            [
+                .target(name: Module.core.targetName),
+                .target(name: Module.support.targetName),
+                .external(name: "OpenAPIRuntime"),
+                .external(name: "OpenAPIURLSession"),
             ]
         }
         if self != .projectDescription, self != .projectAutomation {
@@ -443,6 +463,11 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.graph.testingTargetName!),
             ]
+        case .app:
+            [
+                .target(name: Module.support.testingTargetName!),
+                .target(name: Module.core.testingTargetName!),
+            ]
         }
         dependencies = dependencies + sharedDependencies + [.target(name: targetName), .external(name: "MockableTest")]
         if let testingTargetName {
@@ -528,6 +553,8 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.graph.testingTargetName!),
             ]
+        case .app:
+            []
         }
         return dependencies + sharedDependencies + [.target(name: targetName)]
     }
@@ -600,6 +627,8 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.graph.testingTargetName!),
             ]
+        case .app:
+            []
         }
         dependencies.append(contentsOf: sharedDependencies)
         dependencies.append(.target(name: targetName))
@@ -628,6 +657,12 @@ public enum Module: String, CaseIterable {
             debugSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
             releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         }
+
+        if let strictConcurrencySetting, product == .framework {
+            debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+            releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+        }
+
         let settings = Settings.settings(
             configurations: [
                 .debug(

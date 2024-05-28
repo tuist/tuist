@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.15.0 - 2024-05-23
+
+### Tuist
+
+#### Added
+
+- Support "Code Sign on Copy" in Copy Files Actions [#6302](https://github.com/tuist/tuist/pull/6302) by [@ActuallyTaylor](https://github.com/ActuallyTaylor)
+- Add capability to specify variable entitlements [#6293](https://github.com/tuist/tuist/pull/6293) by [@lucasmpaim](https://github.com/lucasmpaim)
+
+#### Fixed
+
+- Fix missing -package-name when a target has custom swiftSettings [#6299](https://github.com/tuist/tuist/pull/6299) by [@fortmarek](https://github.com/fortmarek)
+- Fix target linter warnings for target products that allow dots and hyphens [#6290](https://github.com/tuist/tuist/pull/6290) by [@kapitoshka438](https://github.com/kapitoshka438)
+- Fix --platform case sensitivity with test and build commands [#6268](https://github.com/tuist/tuist/pull/6268) by [@waltflanagan](https://github.com/waltflanagan)
+- Fix the initialization of projects in Homebrew-managed installations [#6309](https://github.com/tuist/tuist/pull/6309) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.14.0 - 2024-05-20
 
 ### Tuist
