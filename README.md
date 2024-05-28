@@ -284,6 +284,13 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
     </tr>
+    <tr>
+      <td width="20%" align="center">
+        <a href="https://smlab.digital" target="_blank">
+          <img src="assets/companies/smlab.svg" alt="smlab_logo" height="75"/>
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
