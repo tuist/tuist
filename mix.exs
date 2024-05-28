@@ -79,7 +79,7 @@ defmodule TuistCloud.MixProject do
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:req, "~> 0.4.14"},
+      {:req, "~> 0.5.0"},
       {:telemetry_test, "~> 0.1.2"},
       {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.25.0"},
