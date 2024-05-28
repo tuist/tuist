@@ -1,7 +1,7 @@
 import Foundation
 
 /// Possible products types.
-public enum Product: String, Codable, Equatable {
+public enum Product: String, Codable, Equatable, Sendable {
     /// An application.
     case app
     /// A static library.

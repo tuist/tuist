@@ -3,7 +3,7 @@ import Foundation
 // MARK: - DeploymentTargets
 
 /// A struct representing the minimum deployment versions for each platform.
-public struct DeploymentTargets: Hashable, Codable {
+public struct DeploymentTargets: Hashable, Codable, Sendable {
     /// Minimum deployment version for iOS
     public var iOS: String?
     /// Minimum deployment version for macOS

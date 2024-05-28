@@ -1,7 +1,7 @@
 /// A struct representing a semver version.
 /// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for
 /// specifying version number requirements inside of Project.swift
-public struct Version: Hashable, Codable {
+public struct Version: Hashable, Codable, Sendable {
     /// The major version.
     public var major: Int
 

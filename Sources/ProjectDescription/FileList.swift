@@ -4,7 +4,7 @@ import Foundation
 ///
 /// The list of files can be initialized with a string that represents the glob pattern, or an array of strings, which represents
 /// a list of glob patterns.
-public struct FileList: Codable, Equatable {
+public struct FileList: Codable, Equatable, Sendable {
     /// Glob pattern to the files.
     public let globs: [FileListGlob]
 

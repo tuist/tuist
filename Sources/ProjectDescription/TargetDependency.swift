@@ -2,7 +2,7 @@ import Foundation
 
 /// Dependency status used by `.framework` and `.xcframework` target
 /// dependencies
-public enum FrameworkStatus: String, Codable, Hashable {
+public enum FrameworkStatus: String, Codable, Hashable, Sendable {
     /// Required dependency
     case required
 
@@ -11,7 +11,7 @@ public enum FrameworkStatus: String, Codable, Hashable {
 }
 
 /// Dependency status used by `.sdk` target dependencies
-public enum SDKStatus: String, Codable, Hashable {
+public enum SDKStatus: String, Codable, Hashable, Sendable {
     /// Required dependency
     case required
 
@@ -20,7 +20,7 @@ public enum SDKStatus: String, Codable, Hashable {
 }
 
 /// Dependency type used by `.sdk` target dependencies
-public enum SDKType: String, Codable, Hashable {
+public enum SDKType: String, Codable, Hashable, Sendable {
     /// Library SDK dependency
     case library
 
@@ -29,8 +29,8 @@ public enum SDKType: String, Codable, Hashable {
 }
 
 /// A target dependency.
-public enum TargetDependency: Codable, Hashable {
-    public enum PackageType: Codable, Hashable {
+public enum TargetDependency: Codable, Hashable, Sendable {
+    public enum PackageType: Codable, Hashable, Sendable {
         /// A runtime package type represents a standard package whose sources are linked at runtime.
         /// For example importing the framework and consuming from dependent targets.
         case runtime

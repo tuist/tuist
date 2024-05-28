@@ -4,7 +4,7 @@ public typealias SettingsDictionary = [String: SettingValue]
 
 /// A value or a collection of values used for settings configuration.
 public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable,
-    Codable
+    Codable, Sendable
 {
     case string(String)
     case array([String])
@@ -32,8 +32,8 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
 
 /// A the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release`
 /// static method.
-public struct Configuration: Equatable, Codable {
-    public enum Variant: String, Codable {
+public struct Configuration: Equatable, Codable, Sendable {
+    public enum Variant: String, Codable, Sendable {
         case debug
         case release
     }
@@ -89,7 +89,7 @@ public struct Configuration: Equatable, Codable {
 /// Specifies the default set of settings applied to all the projects and targets.
 /// The default settings can be overridden via `Settings base: SettingsDictionary`
 /// and `Configuration settings: SettingsDictionary`.
-public enum DefaultSettings: Codable, Equatable {
+public enum DefaultSettings: Codable, Equatable, Sendable {
     /// Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you
     /// need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`.
     case recommended(excluding: Set<String> = [])
@@ -114,7 +114,7 @@ extension DefaultSettings {
 // MARK: - Settings
 
 /// A group of settings configuration.
-public struct Settings: Equatable, Codable {
+public struct Settings: Equatable, Codable, Sendable {
     /// A dictionary with build settings that are inherited from all the configurations.
     public var base: SettingsDictionary
     public var configurations: [Configuration]

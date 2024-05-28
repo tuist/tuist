@@ -1,7 +1,7 @@
 import Foundation
 
 /// It represents an environment variable that is passed when running a scheme's action
-public struct EnvironmentVariable: Equatable, Codable, Hashable, ExpressibleByStringLiteral {
+public struct EnvironmentVariable: Equatable, Codable, Hashable, ExpressibleByStringLiteral, Sendable {
     // MARK: - Attributes
 
     /// The value of the environment variable

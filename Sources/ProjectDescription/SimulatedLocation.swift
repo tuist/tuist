@@ -1,7 +1,7 @@
 import Foundation
 
 /// Simulated location represents a GPS location that is used when running an app on the simulator.
-public struct SimulatedLocation: Codable, Equatable {
+public struct SimulatedLocation: Codable, Equatable, Sendable {
     /// The identifier of the location (e.g. London, England)
     public var identifier: String?
     /// Path to a .gpx file that indicates the location
