@@ -170,7 +170,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
         generator: Generating? = nil,
-        generateOnly: Bool
+        generateOnly: Bool,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -260,7 +261,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }
         } else {
@@ -289,7 +291,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }
         }
@@ -314,7 +317,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
@@ -371,7 +375,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
             retryCount: retryCount,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration
+            testPlanConfiguration: testPlanConfiguration,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
         .printFormattedOutput()
     }

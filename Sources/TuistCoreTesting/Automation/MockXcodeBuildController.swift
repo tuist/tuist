@@ -12,7 +12,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         Bool,
         AbsolutePath?,
         Bool,
-        [XcodeBuildArgument]
+        [XcodeBuildArgument],
+        [String]
     ) -> [SystemEvent<XcodeBuildOutput>])?
 
     func build(
@@ -22,7 +23,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub {
             return buildStub(
@@ -32,7 +34,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 rosetta,
                 derivedDataPath,
                 clean,
-                arguments
+                arguments,
+                passthroughXcodeBuildArguments
             ).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -56,7 +59,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             Int,
             [TestIdentifier],
             [TestIdentifier],
-            TestPlanConfiguration?
+            TestPlanConfiguration?,
+            [String]
         )
             -> [SystemEvent<XcodeBuildOutput>]
     )?
@@ -73,7 +77,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let testStub {
             let results = testStub(
@@ -88,7 +93,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 retryCount,
                 testTargets,
                 skipTestTargets,
-                testPlanConfiguration
+                testPlanConfiguration,
+                passthroughXcodeBuildArguments
             )
             if let testErrorStub {
                 return AsyncThrowingStream {

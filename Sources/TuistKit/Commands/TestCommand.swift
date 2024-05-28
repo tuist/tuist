@@ -78,13 +78,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var resultBundlePath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when testing a project."
+        help: "[Deprecated] Overrides the folder that should be used for derived data when testing a project."
     )
     var derivedDataPath: String?
 
     @Option(
         name: .long,
-        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
+        help: "[Deprecated] Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
     )
     var retryCount: Int = 0
 
@@ -130,6 +130,12 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var generateOnly: Bool = false
 
+    @Argument(
+        parsing: .postTerminator,
+        help: "xcodebuild arguments that will be passthrough"
+    )
+    var passthroughXcodeBuildArguments: [String] = []
+
     public func validate() throws {
         try TestService().validateParameters(
             testTargets: testTargets,
@@ -137,13 +143,43 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
-    public func run() async throws {
-        let absolutePath: AbsolutePath
+    private var notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
 
-        if let path {
-            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+    public func run() async throws {
+        // Check if passthrough arguments are already handled by tuist
+        try notAllowedPassthroughXcodeBuildArguments.forEach {
+            if passthroughXcodeBuildArguments.contains($0) {
+                throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
+            }
+        }
+
+        // Suggest the user to use passthrough arguments if already supported by xcodebuild
+        if let derivedDataPath {
+            logger
+                .warning(
+                    "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
+        }
+        if retryCount > 0 {
+            logger
+                .warning(
+                    "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
+        }
+
+        let absolutePath = if let path {
+            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            absolutePath = FileHandler.shared.currentPath
+            FileHandler.shared.currentPath
         }
 
         try await TestService().run(
@@ -174,7 +210,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
-            generateOnly: generateOnly
+            generateOnly: generateOnly,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

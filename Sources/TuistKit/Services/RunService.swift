@@ -119,7 +119,8 @@ final class RunService {
             device: device,
             osVersion: version?.version(),
             rosetta: rosetta,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            passthroughXcodeBuildArguments: []
         )
 
         let minVersion: Version?
