@@ -30,24 +30,19 @@ final class EditService {
     private let opener: Opening
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
-    private let signalHandler: SignalHandling
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-
-    private static var temporaryDirectory: AbsolutePath?
 
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
-        signalHandler: SignalHandling = SignalHandler(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
         self.configLoader = configLoader
         self.pluginService = pluginService
-        self.signalHandler = signalHandler
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
@@ -63,12 +58,6 @@ final class EditService {
             let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
             let cacheDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
-            EditService.temporaryDirectory = cachedManifestDirectory
-
-            signalHandler.trap { _ in
-                try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
-                exit(0)
-            }
 
             guard let selectedXcode = try XcodeController.shared.selected() else {
                 throw EditServiceError.xcodeNotSelected
@@ -80,8 +69,8 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-            try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
+            logger.pretty("Opening Xcode to edit the project.")
+            try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
             let workspacePath = try projectEditor.edit(

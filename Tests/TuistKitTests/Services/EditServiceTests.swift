@@ -16,7 +16,6 @@ final class EditServiceTests: XCTestCase {
     var opener: MockOpener!
     var configLoader: MockConfigLoader!
     var pluginService: MockPluginService!
-    var signalHandler: MockSignalHandler!
     var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
     var projectEditor: MockProjectEditing!
@@ -26,7 +25,6 @@ final class EditServiceTests: XCTestCase {
         opener = MockOpener()
         configLoader = MockConfigLoader()
         pluginService = MockPluginService()
-        signalHandler = MockSignalHandler()
         cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
         cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         projectEditor = MockProjectEditing()
@@ -35,8 +33,6 @@ final class EditServiceTests: XCTestCase {
             projectEditor: projectEditor,
             opener: opener,
             configLoader: configLoader,
-            pluginService: pluginService,
-            signalHandler: signalHandler,
             cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory
         )
     }
