@@ -95,6 +95,22 @@ final class ArgumentParserEnvTests: XCTestCase {
         XCTAssertEqual(cleanCommandWithArgs.path, "/new/clean/path")
     }
     
+    func testDumpCommandUsesEnvVars() throws {
+        mockEnvironment.tuistVariables[EnvKey.dumpPath.rawValue] = "/path/to/dump"
+        mockEnvironment.tuistVariables[EnvKey.dumpManifest.rawValue] = "Project"
+        
+        let dumpCommandWithEnvVars = try DumpCommand.parse([])
+        XCTAssertEqual(dumpCommandWithEnvVars.path, "/path/to/dump")
+        XCTAssertEqual(dumpCommandWithEnvVars.manifest, .project)
+        
+        let dumpCommandWithArgs = try DumpCommand.parse([
+            "workspace",
+            "--path", "/new/dump/path"
+        ])
+        XCTAssertEqual(dumpCommandWithArgs.path, "/new/dump/path")
+        XCTAssertEqual(dumpCommandWithArgs.manifest, .workspace)
+    }
+    
     func testEditCommandUsesEnvVars() throws {
         mockEnvironment.tuistVariables[EnvKey.editPath.rawValue] = "/path/to/edit"
         mockEnvironment.tuistVariables[EnvKey.editPermanent.rawValue] = "true"
