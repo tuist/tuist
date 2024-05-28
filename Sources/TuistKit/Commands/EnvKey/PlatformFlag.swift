@@ -5,6 +5,10 @@ import Foundation
 import TuistSupport
 import TuistCore
 
-extension TuistGraph.Platform: EnumerableFlag, ExpressibleByArgument {}
+extension TuistGraph.Platform: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(commandLineValue: argument)
+    }
+}
 
 extension Version: ExpressibleByArgument { }
