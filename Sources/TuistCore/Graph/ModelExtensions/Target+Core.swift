@@ -106,8 +106,18 @@ extension Target {
                 .subtracting(excluded)
                 .filter { path in
                     guard let `extension` = path.extension else { return false }
-                    return Target.validSourceExtensions
+
+                    let hasValidSourceExtensions = Target.validSourceExtensions
                         .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+
+                    if hasValidSourceExtensions {
+                        // Addition check to prevent folders with name like `Foo.Swift` to be considered as source files.
+                        return !FileHandler.shared.isFolder(path)
+                    } else {
+                        // There are extensions should be considered as source files even if they are folders.
+                        return Target.validSourceCompatibleFolderExtensions
+                            .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+                    }
                 }
                 .forEach { sourceFiles[$0] = SourceFile(
                     path: $0,
