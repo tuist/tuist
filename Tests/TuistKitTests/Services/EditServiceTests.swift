@@ -46,14 +46,15 @@ final class EditServiceTests: XCTestCase {
                               onlyCurrentDirectory: false)
         
         
-        let cacheDir = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let projectDirectory = cacheDirectory.appending(component: "/private/tmp".md5)
         let openArgs = try XCTUnwrap(opener.openArgs.first)
         
         XCTAssertEqual(opener.openCallCount, 1)
-        XCTAssertEqual(openArgs.0, cacheDir.pathString)
+        XCTAssertEqual(openArgs.0, projectDirectory.pathString)
         XCTAssertEqual(projectEditor.editingPath, "/private/tmp")
         XCTAssertEqual(projectEditor.onlyCurrentDirectory, false)
-        XCTAssertEqual(projectEditor.destinationDirectory, cacheDir)
+        XCTAssertEqual(projectEditor.destinationDirectory, projectDirectory)
     }
     
     

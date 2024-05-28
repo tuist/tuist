@@ -61,8 +61,9 @@ final class EditService {
 
         if !permanent {
             let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
-            let generationDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
-            EditService.temporaryDirectory = generationDirectory
+            let cacheDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
+            let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
+            EditService.temporaryDirectory = cachedManifestDirectory
             
             signalHandler.trap { _ in
                 try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
@@ -75,7 +76,7 @@ final class EditService {
             
             let workspacePath = try projectEditor.edit(
                 at: path,
-                in: generationDirectory,
+                in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
