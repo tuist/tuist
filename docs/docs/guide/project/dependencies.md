@@ -167,6 +167,55 @@ let target = .target(name: "MyTarget", dependencies: [
 
 For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
 
+> [!WARNING] SPM Build Tool Plugins
+> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+
+A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "Framework",
+    products: [
+        .library(name: "Framework", targets: ["Framework"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+    ],
+    targets: [
+        .target(
+            name: "Framework",
+            plugins: [
+                .plugin(name: "SwiftLint", package: "SwiftLintPlugin"),
+            ]
+        ),
+    ]
+)
+```
+
+To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+
+```swift
+import ProjectDescription
+
+let project = Project(
+    name: "Framework",
+    packages: [
+        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+    ],
+    targets: [
+        .target(
+            name: "Framework",
+            dependencies: [
+                .package(product: "SwiftLint", type: .plugin),
+            ]
+        ),
+    ]
+)
+```
+
 ### Carthage
 
 Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
