@@ -237,6 +237,7 @@ NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selecto
 
 Explicitly setting the product type of `FBLPromises` to `.framework` in your `Package.swift` file should fix the issue:
 
+::: code-group
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
 
@@ -256,3 +257,4 @@ let packageSettings = PackageSettings(
 let package = Package(
 ...
 ```
+:::
