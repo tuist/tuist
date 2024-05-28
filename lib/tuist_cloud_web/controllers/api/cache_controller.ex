@@ -1,6 +1,8 @@
 defmodule TuistCloudWeb.API.CacheController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.API.Schemas.ArtifactMultipartUploadUrl
+  alias TuistCloudWeb.API.Schemas.ArtifactUploadId
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
   alias TuistCloud.Storage
   alias TuistCloud.CommandEvents
@@ -13,7 +15,7 @@ defmodule TuistCloudWeb.API.CacheController do
   )
 
   plug(TuistCloudWeb.API.EnsureProjectPresencePlug)
-  plug(TuistCloudWeb.API.Authorization.CachePlug, :cache)
+  plug(TuistCloudWeb.API.Authorization.AuthorizationPlug, :cache)
   plug(TuistCloudWeb.EnsureValidAccountPlanPlug)
 
   operation(:download,
@@ -76,7 +78,7 @@ defmodule TuistCloudWeb.API.CacheController do
 
     url =
       Storage.generate_download_url(
-        item,
+        object_key(item),
         expires_in: expires_in
       )
 
@@ -136,7 +138,7 @@ defmodule TuistCloudWeb.API.CacheController do
            description: "The artifact exists in the cache and can be downloaded",
            type: :object,
            properties: %{
-             status: %Schema{type: :string, default: "success"},
+             status: %Schema{type: :string, default: "success", enum: ["success"]},
              data: %Schema{
                type: :object,
                properties: %{}
@@ -180,12 +182,14 @@ defmodule TuistCloudWeb.API.CacheController do
         _params
       ) do
     exists =
-      Storage.exists(%{
-        hash: hash,
-        name: name,
-        project_slug: project_slug,
-        cache_category: cache_category
-      })
+      Storage.exists(
+        object_key(%{
+          hash: hash,
+          name: name,
+          project_slug: project_slug,
+          cache_category: cache_category
+        })
+      )
 
     if exists do
       conn |> json(%{status: "success", data: %{}})
@@ -228,25 +232,7 @@ defmodule TuistCloudWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok:
-        {"The upload has been started", "application/json",
-         %Schema{
-           title: "CacheArtifactUploadID",
-           description:
-             "The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads",
-           type: :object,
-           properties: %{
-             status: %Schema{type: :string, default: "success"},
-             data: %Schema{
-               type: :object,
-               properties: %{
-                 upload_id: %Schema{type: :string, description: "The upload ID"}
-               },
-               required: [:upload_id]
-             }
-           },
-           required: [:status, :data]
-         }},
+      ok: {"The upload has been started", "application/json", ArtifactUploadId},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -267,12 +253,14 @@ defmodule TuistCloudWeb.API.CacheController do
         _params
       ) do
     upload_id =
-      Storage.multipart_start(%{
-        hash: hash,
-        name: name,
-        project_slug: project_slug,
-        cache_category: cache_category
-      })
+      Storage.multipart_start(
+        object_key(%{
+          hash: hash,
+          name: name,
+          project_slug: project_slug,
+          cache_category: cache_category
+        })
+      )
 
     conn |> json(%{status: "success", data: %{upload_id: upload_id}})
   end
@@ -321,24 +309,7 @@ defmodule TuistCloudWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok:
-        {"The URL has been generated", "application/json",
-         %Schema{
-           title: "CacheArtifactMultipartUploadURL",
-           description: "The URL to upload a part has been generated.",
-           type: :object,
-           properties: %{
-             status: %Schema{type: :string, default: "success"},
-             data: %Schema{
-               type: :object,
-               properties: %{
-                 url: %Schema{type: :string, description: "The URL to upload the part"}
-               },
-               required: [:url]
-             }
-           },
-           required: [:status, :data]
-         }},
+      ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -364,12 +335,12 @@ defmodule TuistCloudWeb.API.CacheController do
 
     url =
       Storage.generate_multipart_upload_url(
-        %{
+        object_key(%{
           hash: hash,
           name: name,
           project_slug: project_slug,
           cache_category: cache_category
-        },
+        }),
         upload_id,
         part_number,
         expires_in: expires_in
@@ -441,7 +412,7 @@ defmodule TuistCloudWeb.API.CacheController do
              "This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.",
            type: :object,
            properties: %{
-             status: %Schema{type: :string, default: "success"},
+             status: %Schema{type: :string, default: "success", enum: ["success"]},
              data: %Schema{
                type: :object,
                properties: %{}
@@ -480,7 +451,7 @@ defmodule TuistCloudWeb.API.CacheController do
 
     :ok =
       Storage.complete_multipart_upload(
-        item,
+        object_key(item),
         upload_id,
         parts
         |> Enum.map(fn %{part_number: part_number, etag: etag} ->
@@ -488,7 +459,7 @@ defmodule TuistCloudWeb.API.CacheController do
         end)
       )
 
-    object = Storage.head_object(item)
+    object = Storage.head_object(object_key(item))
 
     if is_nil(CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})) do
       CommandEvents.create_cache_event(%{
@@ -543,9 +514,23 @@ defmodule TuistCloudWeb.API.CacheController do
         _params
       ) do
     project_slug = "#{account_name}/#{project_name}"
-    Storage.delete_all_objects(project_slug)
+    Storage.delete_all_objects("#{project_slug}/builds")
+    Storage.delete_all_objects("#{project_slug}/tests")
 
     conn
     |> send_resp(:no_content, "")
+  end
+
+  defp object_key(%{
+         hash: hash,
+         cache_category: cache_category,
+         name: name,
+         project_slug: project_slug
+       }) do
+    if cache_category != nil do
+      "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+    else
+      "#{project_slug}/#{hash}/#{name}"
+    end
   end
 end

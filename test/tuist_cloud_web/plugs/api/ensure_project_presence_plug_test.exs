@@ -1,8 +1,11 @@
 defmodule TuistCloudWeb.API.EnsureProjectPresencePlugTest do
+  alias TuistCloud.Storage
+  alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Accounts
   alias TuistCloud.ProjectsFixtures
   use TuistCloudWeb.ConnCase
   use Plug.Test
+  use Mimic
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
 
   test "loads and assigns the project to the connection if it exists" do
@@ -17,6 +20,49 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlugTest do
 
     # Then
     assert EnsureProjectPresencePlug.get_project(conn) == project
+  end
+
+  test "loads and assigns the project to the connection if the command event and project exist" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+    opts = EnsureProjectPresencePlug.init(:command_event)
+
+    Storage
+    |> expect(:multipart_start, fn _ ->
+      "id"
+    end)
+
+    conn =
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> TuistCloudWeb.Authentication.put_current_project(project)
+      |> post(~p"/api/runs/#{command_event.id}/start", type: "result_bundle")
+
+    # When
+    conn = conn |> EnsureProjectPresencePlug.call(opts)
+
+    # Then
+    assert EnsureProjectPresencePlug.get_project(conn) == project
+  end
+
+  test "errors and halts the connection if the command event is not found" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    conn =
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> TuistCloudWeb.Authentication.put_current_project(project)
+      |> post(~p"/api/runs/8439289/start", type: "result_bundle")
+
+    # Then
+    assert conn.halted == true
+
+    assert json_response(conn, :not_found) == %{
+             "message" => "The command event 8439289 was not found."
+           }
   end
 
   test "errors and halts the connection if the project is not found" do

@@ -6,6 +6,8 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
   use TuistCloudWeb, :controller
   use TuistCloudWeb, :verified_routes
 
+  alias TuistCloud.Repo
+  alias TuistCloud.CommandEvents
   alias TuistCloud.Projects
   alias TuistCloud.Projects.Project
 
@@ -49,6 +51,28 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
         _opts
       ) do
     assign_request_project_to_conn(project_slug, conn)
+  end
+
+  def call(
+        %{
+          path_params: %{
+            "run_id" => run_id
+          }
+        } = conn,
+        _opts
+      ) do
+    command_event =
+      CommandEvents.get_command_event_by_id(run_id)
+      |> Repo.preload(:project)
+
+    if is_nil(command_event) do
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "The command event #{run_id} was not found."})
+      |> halt()
+    else
+      conn |> assign(@project_key, command_event.project)
+    end
   end
 
   defp assign_request_project_to_conn(project_slug, conn) do

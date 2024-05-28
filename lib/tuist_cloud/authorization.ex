@@ -26,7 +26,11 @@ defmodule TuistCloud.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
 
-  def can(%User{} = user, :write, %Project{} = project, :cache) do
+  def can(%User{} = user, :create, %Project{} = project, :cache) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def can(%User{} = user, :update, %Project{} = project, :cache) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
@@ -66,9 +70,15 @@ defmodule TuistCloud.Authorization do
     current_project.id == project.id
   end
 
-  def can(%Project{} = current_project, :write, %Project{} = project, :cache) do
+  def can(%Project{} = current_project, :create, %Project{} = project, :cache) do
     current_project.id == project.id
   end
+
+  def can(%Project{} = current_project, :update, %Project{} = project, :cache) do
+    current_project.id == project.id
+  end
+
+  def can(subject, action, project, category, opts \\ [])
 
   def can(%User{} = user, :create, %Project{} = project, :command_event, opts) do
     is_ci = Keyword.get(opts, :is_ci, false)
@@ -80,5 +90,9 @@ defmodule TuistCloud.Authorization do
   def can(%Project{} = current_project, :create, %Project{} = project, :command_event, opts) do
     is_ci = Keyword.get(opts, :is_ci, true)
     is_ci and current_project.id == project.id
+  end
+
+  def can(%User{} = user, :read, %Project{} = project, :command_event, _opts) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 end

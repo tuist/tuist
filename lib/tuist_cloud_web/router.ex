@@ -54,6 +54,16 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     post "/analytics", AnalyticsController, :create
+    post "/runs/:run_id/start", AnalyticsController, :multipart_start
+
+    post "/runs/:run_id/generate-url",
+         AnalyticsController,
+         :multipart_generate_url
+
+    post "/runs/:run_id/complete",
+         AnalyticsController,
+         :multipart_complete
+
     get "/cache", CacheController, :download
     get "/cache/exists", CacheController, :exists
     post "/cache/multipart/start", CacheController, :multipart_start
