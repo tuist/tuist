@@ -85,15 +85,18 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        let events = System.shared.publisher(arguments).mapToString().values
-        for try await event in events {
-            switch event {
-            case let .standardError(error):
-                logger.error("\(error)")
-            case let .standardOutput(output):
+        try System.shared.runAndPrint(
+            arguments,
+            verbose: false,
+            environment: System.shared.env,
+            redirection: .stream(stdout: { bytes in
+                let output = String(decoding: bytes, as: Unicode.UTF8.self)
                 logger.debug("\(output)")
-            }
-        }
+            }, stderr: { bytes in
+                let error = String(decoding: bytes, as: Unicode.UTF8.self)
+                logger.error("\(error)")
+            })
+        )
 
         if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.delete(rootPackageResolvedPath)
