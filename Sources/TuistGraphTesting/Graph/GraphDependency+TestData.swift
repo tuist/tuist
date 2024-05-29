@@ -65,7 +65,7 @@ extension GraphDependency {
     }
 
     public static func testSDK(
-        name: String = "XCTest",
+        name: String = "XCTest.framework",
         path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "XCTest.framework")),
         status: SDKStatus = .required,
         source: SDKSource = .system
