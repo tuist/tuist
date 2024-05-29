@@ -498,7 +498,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resultBundlePath = gotResourceBundlePath
-            return []
         }
         generator.generateWithGraphStub = { path in
             (path, Graph.test())
