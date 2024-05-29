@@ -41,7 +41,9 @@ final class PluginServiceTests: TuistUnitTestCase {
             .willReturn(cacheDirectoriesProvider)
         fileUnarchiver = MockFileUnarchiving()
         let fileArchivingFactory = MockFileArchivingFactorying()
+
         given(fileArchivingFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)
+
         fileClient = MockFileClient()
         subject = PluginService(
             manifestLoader: manifestLoader,
