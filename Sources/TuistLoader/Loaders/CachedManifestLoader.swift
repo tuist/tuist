@@ -24,7 +24,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let encoder = JSONEncoder()
     @Atomic private var helpersCache: [AbsolutePath: String?] = [:]
     @Atomic private var pluginsHashCache: String?
-    @Atomic private var cacheDirectory: AbsolutePath!
+    private let cacheDirectory: ThrowableCaching<AbsolutePath>
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
@@ -55,12 +55,14 @@ public class CachedManifestLoader: ManifestLoading {
         self.environment = environment
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.tuistVersion = tuistVersion
+        cacheDirectory = ThrowableCaching {
+            try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
+        }
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try load(manifest: .config, at: path) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
             return projectDescriptionConfig
         }
     }
@@ -117,10 +119,6 @@ public class CachedManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
-        if cacheDirectory == nil {
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
-        }
-
         let manifestPath = path.appending(component: manifest.fileName(path))
         guard fileHandler.exists(manifestPath) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
@@ -137,7 +135,7 @@ public class CachedManifestLoader: ManifestLoading {
             return try loader()
         }
 
-        let cachedManifestPath = cachedPath(for: manifestPath)
+        let cachedManifestPath = try cachedPath(for: manifestPath)
         if let cached: T = loadCachedManifest(
             at: cachedManifestPath,
             hashes: hashes
@@ -211,11 +209,11 @@ public class CachedManifestLoader: ManifestLoading {
         return tuistEnvVariables.joined(separator: "-").md5
     }
 
-    private func cachedPath(for manifestPath: AbsolutePath) -> AbsolutePath {
+    private func cachedPath(for manifestPath: AbsolutePath) throws -> AbsolutePath {
         let pathHash = manifestPath.pathString.md5
         let cacheVersion = CachedManifest.currentCacheVersion.description
         let fileName = [cacheVersion, pathHash].joined(separator: ".")
-        return cacheDirectory.appending(component: fileName)
+        return try cacheDirectory.value.appending(component: fileName)
     }
 
     private func loadCachedManifest<T: Decodable>(
