@@ -500,7 +500,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
+        let version = try Version(versionString: try SwiftVersionProvider.shared.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
