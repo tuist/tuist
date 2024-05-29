@@ -17,6 +17,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let environment: Environmenting
+    private let simulatorController: SimulatorController
+    private let system: Systeming
 
     public convenience init() {
         self.init(formatter: Formatter(), environment: Environment.shared)
@@ -28,6 +30,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     ) {
         self.formatter = formatter
         self.environment = environment
+        self.simulatorController = SimulatorController(system: System.shared, devEnvironment: DeveloperEnvironment.shared)
+        self.system = System.shared
     }
 
     public func build(
@@ -69,7 +73,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
+            command.append(contentsOf: ["-destination",  simulatorController.macOSDestination()])
         case nil:
             break
         }
@@ -131,7 +135,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
+            command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
         }
 
         // Derived data path
@@ -310,10 +314,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
-        try System.shared.run(command,
-                                      verbose: false,
-                                      environment: System.shared.env,
-                                      redirection: .stream(stdout: { bytes in
+        try system.run(command,
+                       verbose: false,
+                       environment: system.env,
+                       redirection: .stream(stdout: { bytes in
             log(bytes)
         }, stderr: { bytes in
             log(bytes, isError: true)
@@ -328,7 +332,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // like that's happening.
         return try await Task.retrying(maxRetryCount: 5) {
             let systemTask = Task {
-                return try await System.shared.runAndCollectOutput(command).standardOutput
+                return try await self.system.runAndCollectOutput(command).standardOutput
             }
             
             let timeoutTask = Task {
