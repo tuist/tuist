@@ -240,7 +240,7 @@ public final class System: Systeming {
 
         try process.launch()
         let result = try process.waitUntilExit()
-        
+
         switch result.exitStatus {
         case let .signalled(code):
             let data = Data(stdErrData)
