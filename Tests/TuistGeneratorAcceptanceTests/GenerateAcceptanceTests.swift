@@ -859,6 +859,17 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     }
 }
 
+final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
+    func test_framework_with_macro_and_plugin_packages() async throws {
+        try setUpFixture(.frameworkWithMacroAndPluginPackages)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "--", "-skipPackagePluginValidation")
+    }
+}
+
+// frameworkWithMacroAndPluginPackages
+
 extension TuistAcceptanceTestCase {
     private func resourcePath(
         for productName: String,

@@ -9,7 +9,6 @@ let project = Project(
         .target(
             name: "Framework",
             destinations: [
-                .iPhone,
                 .mac,
             ],
             product: .framework,
