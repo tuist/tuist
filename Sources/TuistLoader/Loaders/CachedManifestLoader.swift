@@ -22,9 +22,12 @@ public class CachedManifestLoader: ManifestLoading {
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
-    @Atomic private var helpersCache: [AbsolutePath: String?] = [:]
-    @Atomic private var pluginsHashCache: String?
+    private let helpersCache: ThreadSafe<[AbsolutePath: String?]> = ThreadSafe([:])
+    private let pluginsHashCache: ThreadSafe<String?> = ThreadSafe(nil)
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
+    
+  
+    
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
@@ -112,7 +115,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func register(plugins: Plugins) throws {
-        pluginsHashCache = try calculatePluginsHash(for: plugins)
+        try pluginsHashCache.mutate { $0 = try calculatePluginsHash(for: plugins) }
         try manifestLoader.register(plugins: plugins)
     }
 
@@ -167,7 +170,7 @@ public class CachedManifestLoader: ManifestLoading {
         return Hashes(
             manifestHash: manifestHash,
             helpersHash: helpersHash,
-            pluginsHash: pluginsHashCache,
+            pluginsHash: pluginsHashCache.value,
             environmentHash: environmentHash
         )
     }
@@ -184,14 +187,16 @@ public class CachedManifestLoader: ManifestLoading {
             return nil
         }
 
-        if let cached = helpersCache[helpersDirectory] {
-            return cached
+        return try helpersCache.mutate { cache in
+            if let cached = cache[helpersDirectory] {
+                return cached
+            }
+
+            let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+            cache[helpersDirectory] = hash
+            
+            return hash
         }
-
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
-        helpersCache[helpersDirectory] = hash
-
-        return hash
     }
 
     private func calculatePluginsHash(for plugins: Plugins) throws -> String? {

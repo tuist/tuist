@@ -4,12 +4,29 @@ import TuistSupport
 import XCTest
 
 public final class MockXcodeController: XcodeControlling, @unchecked Sendable {
-    @Atomic
-    public var selectedStub: Result<Xcode, Error>?
 
-    @Atomic
-    public var selectedVersionStub: Result<Version, Error> = .success(Version(0, 0, 0))
+    public var selectedStub: Result<Xcode, Error>? {
+        get {
+            _selectedStub.value
+        }
+        set {
+            _selectedStub.mutate { $0 = newValue }
+        }
+    }
+    private var _selectedStub: ThreadSafe<Result<Xcode, Error>?> = ThreadSafe(nil)
 
+    public var selectedVersionStub: Result<Version, Error> {
+        get {
+            _selectedVersionStub.value
+        }
+        set {
+            _selectedVersionStub.mutate { $0 = newValue }
+        }
+    }
+    
+    public let _selectedVersionStub: ThreadSafe<Result<Version, Error>> = ThreadSafe(.success(Version(0, 0, 0)))
+
+    
     public func selected() throws -> Xcode? {
         guard let selectedStub else { return nil }
 
