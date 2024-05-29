@@ -231,23 +231,18 @@ public final class TestService { // swiftlint:disable:this type_body_length
 
         let passedResultBundlePath = resultBundlePath
 
-        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
-            .tuistCacheDirectory(for: .runs)
-            .appending(components: runId, Constants.resultBundleName)
-
-        let resultBundlePath: AbsolutePath?
-        if config.cloud == nil {
-            resultBundlePath = passedResultBundlePath
-        } else {
-            resultBundlePath = passedResultBundlePath ?? runResultBundlePath
-        }
+        let resultBundlePath = try self.resultBundlePath(
+            passedResultBundlePath: passedResultBundlePath,
+            runId: runId,
+            config: config
+        )
 
         defer {
-            if let resultBundlePath, runResultBundlePath != resultBundlePath, config.cloud != nil {
-                if !FileHandler.shared.exists(runResultBundlePath.parentDirectory) {
-                    try? FileHandler.shared.createFolder(runResultBundlePath.parentDirectory)
+            if let resultBundlePath, let passedResultBundlePath, config.cloud != nil {
+                if !FileHandler.shared.exists(resultBundlePath.parentDirectory) {
+                    try? FileHandler.shared.createFolder(resultBundlePath.parentDirectory)
                 }
-                try? FileHandler.shared.copy(from: resultBundlePath, to: runResultBundlePath)
+                try? FileHandler.shared.copy(from: passedResultBundlePath, to: resultBundlePath)
             }
         }
 
@@ -328,6 +323,23 @@ public final class TestService { // swiftlint:disable:this type_body_length
     }
 
     // MARK: - Helpers
+
+    /// - Returns: Result bundle path to use. Either passed by the user or a path in the Tuist cache
+    private func resultBundlePath(
+        passedResultBundlePath: AbsolutePath?,
+        runId: String,
+        config: Config
+    ) throws -> AbsolutePath? {
+        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
+            .tuistCacheDirectory(for: .runs)
+            .appending(components: runId, Constants.resultBundleName)
+
+        if config.cloud == nil {
+            return passedResultBundlePath
+        } else {
+            return passedResultBundlePath ?? runResultBundlePath
+        }
+    }
 
     // swiftlint:disable:next function_body_length
     private func testScheme(
