@@ -244,6 +244,55 @@ pod install
 > [!WARNING]
 > CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
 
+## Static or dynamic
+
+Frameworks and libraries can be linked either statically or dynamically, a choice that has significant implications for aspects like app size and boot time. Despite its importance, this decision is often made without much consideration. Tools like [Swift Package Manager](https://www.swift.org/documentation/package-manager/) and [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries) automatically make this choice during build-time, which, while convenient, adds complexity to the build process and introduces potential sources of non-determinism. This can cause some Xcode features, such as SwiftUI previews, to become unreliable.
+
+**Our recommendation is to trade some build-time convenience for the reliability and determinism of making this decision yourself.** By doing so, Xcode will work more reliably with your project, and your builds will be more predictable.
+
+The simplest approach is to link everything statically in release builds for faster booting and dynamically in debug builds for faster iteration. You can use [dynamic configurations](http://localhost:5173/guide/project/dynamic-configuration.html#reading-the-environment-variables-from-manifests) to manage this at generation-time. You need to include a helper function in your manifest files that returns the appropriate product type based on the environment variable `TUIST_LINKING`:
+
+```swift
+func productType() -> Product {
+    if case let .string(linking) = Environment.linking {
+        return linking == "static" ? .staticFramework : .framework
+    } else {
+        return .framework
+    }
+}
+```
+
+> [!NOTE] PACKAGE PRODUCT TYPE OVERRIDES
+> Tuist allows you to specify the product type for Swift Packages in the `Package.swift` [file](http://localhost:5173/guide/project/dependencies.html#tuist-s-xcodeproj-based-integration). If the integration is done through Xcode's default mechanism, the product type is inferred at build-time.
+
+If making all the targets either static or dynamic is not feasible, you need to be cautious with targets that depend transitively on a static target through dynamic targets. In these cases, Tuist will display a "static side effect" warning to help you identify the issue. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+
+> [!TIP] COMPOSABLE ARCHITECTURE
+> A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). Due to the the implementation of the packages, linking them statically causes applications to blow up at runtime. To avoid this, you'll have to override the product type for the package in the `Package.swift` file.
+> ```swift
+> #if TUIST
+> import ProjectDescription
+> let packageSettings = PackageSettings(
+>    productTypes: [
+>            "ComposableArchitecture": .framework,
+>            "Dependencies": .framework,
+>            "Clocks": .framework,
+>            "ConcurrencyExtras": .framework,
+>            "CombineSchedulers": .framework,
+>            "IdentifiedCollections": .framework,
+>            "OrderedCollections": .framework,
+>            "_CollectionsUtilities": .framework,
+>            "DependenciesMacros": .framework,
+>            "SwiftUINavigationCore": .framework,
+>            "Perception": .framework,
+>            "CasePaths": .framework,
+>            "CustomDump": .framework,
+>            "XCTestDynamicOverlay": .framework
+>        ]
+>)
+>#endif
+>```
+
 ## Troubleshooting
 
 ### Objective-C Dependencies
