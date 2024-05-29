@@ -10,6 +10,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = ""
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -183,6 +184,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         }
 
         try await TestService().run(
+            runId: runId,
             schemeName: scheme,
             clean: clean,
             configuration: configuration,

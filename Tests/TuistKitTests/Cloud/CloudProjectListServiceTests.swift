@@ -1,7 +1,7 @@
 import Foundation
 import MockableTest
 import TuistGraph
-import TuistLoaderTesting
+import TuistLoader
 import TuistServer
 import TuistSupportTesting
 import XCTest
@@ -10,15 +10,15 @@ import XCTest
 final class CloudProjectListServiceTests: TuistUnitTestCase {
     private var listProjectsService: MockListProjectsServicing!
     private var subject: CloudProjectListService!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
 
     override func setUp() {
         super.setUp()
         listProjectsService = .init()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
         subject = CloudProjectListService(
             listProjectsService: listProjectsService,
             configLoader: configLoader

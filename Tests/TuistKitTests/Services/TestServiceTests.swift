@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistLoader
 import TuistSupport
 import XCTest
 
@@ -23,6 +24,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var configLoader: MockConfigLoading!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -41,6 +43,13 @@ final class TestServiceTests: TuistUnitTestCase {
             .cacheDirectories()
             .willReturn(mockCacheDirectoriesProvider)
 
+        let runsCacheDirectory = try temporaryPath()
+        given(mockCacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .value(.runs))
+            .willReturn(runsCacheDirectory)
+
+        configLoader = .init()
+
         contentHasher.hashStub = { _ in
             "hash"
         }
@@ -52,7 +61,8 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory
+            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            configLoader: configLoader
         )
     }
 
@@ -179,6 +189,9 @@ final class TestServiceTests: TuistUnitTestCase {
             generatedPath = $0
             return ($0, Graph.test())
         }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
 
         // When
         try? await subject.testRun(
@@ -191,6 +204,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_wtih_specified_arch() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "App-Workspace"),
@@ -225,6 +241,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "App-Workspace"),
@@ -258,6 +277,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_all_project_schemes() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -300,6 +322,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_individual_scheme() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -337,6 +362,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_with_skipped_targets() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOneTests"),
@@ -364,6 +392,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
@@ -401,6 +432,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.workspaceSchemesStub = { _ in
             []
         }
@@ -424,6 +458,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_uses_resource_bundle_path() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
@@ -452,8 +489,55 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_saves_resource_bundle_when_cloud_is_configured() async throws {
+        // Given
+        var resultBundlePath: AbsolutePath?
+        let expectedResultBundlePath = try cacheDirectoriesProvider
+            .tuistCacheDirectory(for: .runs)
+            .appending(components: "run-id", Constants.resultBundleName)
+
+        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
+            resultBundlePath = gotResourceBundlePath
+            return []
+        }
+        generator.generateWithGraphStub = { path in
+            (path, Graph.test())
+        }
+        buildGraphInspector.workspaceSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectScheme"),
+            ]
+        }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    cloud: .test()
+                )
+            )
+
+        let runsCacheDirectory = try temporaryPath()
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .value(.runs))
+            .willReturn(runsCacheDirectory)
+
+        try fileHandler.createFolder(runsCacheDirectory)
+
+        // When
+        try await subject.testRun(
+            runId: "run-id",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(resultBundlePath, expectedResultBundlePath)
+    }
+
     func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
@@ -486,6 +570,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_passes_retry_count_as_argument() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -518,6 +605,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_defaults_retry_count_to_zero() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -549,6 +639,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_test_plan_success() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
         buildGraphInspector.testableSchemesStub = { _ in
@@ -593,6 +686,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_test_plan_failure() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
         buildGraphInspector.testableSchemesStub = { _ in
@@ -638,6 +734,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
 extension TestService {
     fileprivate func testRun(
+        runId: String = "run-id",
         schemeName: String? = nil,
         clean: Bool = false,
         configuration: String? = nil,
@@ -657,6 +754,7 @@ extension TestService {
         passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         try await run(
+            runId: runId,
             schemeName: schemeName,
             clean: clean,
             configuration: configuration,

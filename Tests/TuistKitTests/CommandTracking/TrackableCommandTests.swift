@@ -106,6 +106,7 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     var shouldFail: Bool = false
 
     static var analyticsDelegate: TrackableParametersDelegate?
+    var runId = ""
 
     func run() throws {
         if shouldFail {

@@ -587,8 +587,7 @@ public struct Client: APIProtocol {
                     )
                     let body: Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body =
                         try converter.getResponseBodyAsJSON(
-                            Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body
-                                .jsonPayload.self,
+                            Components.Schemas.ArtifactMultipartUploadURL.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
@@ -703,8 +702,7 @@ public struct Client: APIProtocol {
                     )
                     let body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body =
                         try converter.getResponseBodyAsJSON(
-                            Operations.startCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload
-                                .self,
+                            Components.Schemas.ArtifactUploadID.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
@@ -1917,6 +1915,275 @@ public struct Client: APIProtocol {
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    public func completeAnalyticsArtifactMultipartUpload(
+        _ input: Operations.completeAnalyticsArtifactMultipartUpload.Input
+    ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.completeAnalyticsArtifactMultipartUpload.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/runs/{}/complete",
+                    parameters: [input.path.run_id]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent.Headers =
+                            .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 403:
+                    let headers:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    public func generateAnalyticsArtifactMultipartUploadURL(
+        _ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input
+    ) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.generateAnalyticsArtifactMultipartUploadURL.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/runs/{}/generate-url",
+                    parameters: [input.path.run_id]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas.ArtifactMultipartUploadURL.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .ok(.init(headers: headers, body: body))
+                case 403:
+                    let headers:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden
+                            .Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound
+                            .Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It initiates a multipart upload for a command event artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    public func startAnalyticsArtifactMultipartUpload(
+        _ input: Operations.startAnalyticsArtifactMultipartUpload.Input
+    ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.startAnalyticsArtifactMultipartUpload.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/runs/{}/start",
+                    parameters: [input.path.run_id]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.ArtifactUploadID.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 403:
+                    let headers:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
                     return .notFound(.init(headers: headers, body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }

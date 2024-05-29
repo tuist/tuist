@@ -1,10 +1,12 @@
 import Foundation
+import Mockable
 import struct ProjectDescription.Config
 import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
 
+@Mockable
 public protocol ConfigLoading {
     /// Loads the Tuist configuration by traversing the file system till the Config manifest is found,
     /// otherwise returns the default configuration.
