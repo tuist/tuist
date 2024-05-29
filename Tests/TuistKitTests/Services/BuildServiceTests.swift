@@ -98,7 +98,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             return buildArguments
         }
         targetBuilder
-            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_scheme, scheme)
                 XCTAssertTrue(_clean)
@@ -145,7 +145,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
@@ -192,7 +192,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             return buildArguments
         }
         targetBuilder
-            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertNil(_device)
                 XCTAssertNil(_osVersion)
@@ -248,7 +248,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             if _scheme.name == "A" {
                 XCTAssertEqual(_scheme, schemeA)
@@ -312,7 +312,8 @@ extension BuildService {
         platform: String? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
-        generateOnly: Bool = false
+        generateOnly: Bool = false,
+        passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -326,7 +327,8 @@ extension BuildService {
             platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
-            generateOnly: generateOnly
+            generateOnly: generateOnly,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

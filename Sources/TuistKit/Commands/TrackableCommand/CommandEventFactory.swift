@@ -1,6 +1,7 @@
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
+import TuistCore
 import TuistSupport
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information

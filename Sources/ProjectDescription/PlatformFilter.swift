@@ -4,7 +4,7 @@ extension PlatformFilters {
     public static let all = Set(PlatformFilter.allCases)
 }
 
-public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable {
+public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable, Sendable {
     case ios
     case macos
     case tvos

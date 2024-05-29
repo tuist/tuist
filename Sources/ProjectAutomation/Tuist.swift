@@ -2,7 +2,7 @@ import Foundation
 
 /// Tuist includes all methods to interact with your tuist project
 public enum Tuist {
-    enum TuistError: Error {
+    enum TuistError: Error, Sendable {
         case signalled(command: String, code: Int32, standardError: Data)
         case terminated(command: String, code: Int32, standardError: Data)
 

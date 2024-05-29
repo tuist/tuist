@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Platform
 
 /// A supported platform representation.
-public enum Platform: String, Codable, Equatable, CaseIterable {
+public enum Platform: String, Codable, Equatable, CaseIterable, Sendable {
     /// The iOS platform
     case iOS = "ios"
     /// The macOS platform
@@ -17,7 +17,7 @@ public enum Platform: String, Codable, Equatable, CaseIterable {
 }
 
 /// A supported Swift Package Manager platform representation.
-public enum PackagePlatform: String, Codable, Equatable, CaseIterable {
+public enum PackagePlatform: String, Codable, Equatable, CaseIterable, Sendable {
     /// The iOS platform
     case iOS = "ios"
     /// The macOS platform

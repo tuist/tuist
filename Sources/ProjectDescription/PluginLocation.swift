@@ -1,7 +1,7 @@
 import Foundation
 
 /// A location to a plugin, either local or remote.
-public struct PluginLocation: Codable, Equatable {
+public struct PluginLocation: Codable, Equatable, Sendable {
     /// The type of location `local` or `git`.
     public var type: LocationType
 
@@ -43,7 +43,7 @@ public struct PluginLocation: Codable, Equatable {
 // MARK: - Codable
 
 extension PluginLocation {
-    public enum LocationType: Codable, Equatable {
+    public enum LocationType: Codable, Equatable, Sendable {
         case local(path: Path)
         case gitWithTag(url: String, tag: String, directory: String?, releaseUrl: String?)
         case gitWithSha(url: String, sha: String, directory: String?)

@@ -20,8 +20,8 @@ final class PluginServiceTests: TuistUnitTestCase {
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var gitHandler: MockGitHandler!
     private var subject: PluginService!
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
-    private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var fileUnarchiver: MockFileUnarchiving!
     private var fileClient: MockFileClient!
 
@@ -30,14 +30,20 @@ final class PluginServiceTests: TuistUnitTestCase {
         manifestLoader = MockManifestLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         gitHandler = MockGitHandler()
-        let mockCacheDirectoriesProvider = try! MockCacheDirectoriesProvider()
+        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
-        cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
-        cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-        cacheDirectoryProviderFactory.cacheDirectoriesStub = { mockCacheDirectoriesProvider }
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try! temporaryPath())
+        cacheDirectoryProviderFactory = .init()
+        given(cacheDirectoryProviderFactory)
+            .cacheDirectories()
+            .willReturn(cacheDirectoriesProvider)
         fileUnarchiver = MockFileUnarchiving()
         let fileArchivingFactory = MockFileArchivingFactorying()
+
         given(fileArchivingFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)
+
         fileClient = MockFileClient()
         subject = PluginService(
             manifestLoader: manifestLoader,
@@ -80,6 +86,9 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), directory: "Sub/Subfolder", releaseUrl: nil),
             ]
         )
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
         let pluginADirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginAFingerprint)
         let pluginBDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
@@ -136,6 +145,9 @@ final class PluginServiceTests: TuistUnitTestCase {
             invokedCheckoutID = id
             invokedCheckoutPath = path
         }
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
 
         // When
         _ = try await subject.fetchRemotePlugins(using: config)
@@ -177,6 +189,9 @@ final class PluginServiceTests: TuistUnitTestCase {
             invokedCheckoutID = id
             invokedCheckoutPath = path
         }
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
 
         // When
         _ = try await subject.fetchRemotePlugins(using: config)
@@ -207,10 +222,13 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         )
 
+        let temporaryDirectory = try temporaryPath()
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(temporaryDirectory)
+
         let pluginDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
-        let temporaryDirectory = try temporaryPath()
-        cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
         try fileHandler.touch(
             pluginDirectory
                 .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
@@ -256,6 +274,11 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
+
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
+
         let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
@@ -278,6 +301,9 @@ final class PluginServiceTests: TuistUnitTestCase {
                 releaseUrl: nil
             ),
         ])
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
 
         // When
         let plugins = try await subject.loadPlugins(using: config)
@@ -322,6 +348,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
         let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
@@ -392,6 +421,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .any)
+            .willReturn(try temporaryPath())
         let cachedPluginPath = try cacheDirectoriesProvider.tuistCacheDirectory(for: .plugins)
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"

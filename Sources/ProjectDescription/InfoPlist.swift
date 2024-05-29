@@ -3,7 +3,7 @@ import Foundation
 // MARK: - InfoPlist
 
 /// A info plist from a file, a custom dictonary or a extended defaults.
-public enum InfoPlist: Codable, Equatable {
+public enum InfoPlist: Codable, Equatable, Sendable {
     /// The path to an existing Info.plist file.
     case file(path: Path)
 

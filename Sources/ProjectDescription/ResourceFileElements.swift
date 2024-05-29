@@ -1,7 +1,7 @@
 import Foundation
 
 /// A collection of resource file.
-public struct ResourceFileElements: Codable, Equatable {
+public struct ResourceFileElements: Codable, Equatable, Sendable {
     /// List of resource file elements
     public var resources: [ResourceFileElement]
 

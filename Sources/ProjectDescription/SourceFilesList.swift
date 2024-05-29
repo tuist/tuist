@@ -1,7 +1,7 @@
 import Foundation
 
 /// A glob pattern configuration representing source files and its compiler flags, if any.
-public struct SourceFileGlob: Codable, Equatable {
+public struct SourceFileGlob: Codable, Equatable, Sendable {
     /// Glob pattern to the source files.
     public var glob: Path
 
@@ -66,7 +66,7 @@ extension SourceFileGlob: ExpressibleByStringInterpolation {
 }
 
 /// A collection of source file globs.
-public struct SourceFilesList: Codable, Equatable {
+public struct SourceFilesList: Codable, Equatable, Sendable {
     /// List glob patterns.
     public var globs: [SourceFileGlob]
 

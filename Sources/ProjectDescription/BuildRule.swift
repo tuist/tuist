@@ -1,7 +1,7 @@
 import Foundation
 
 /// A BuildRule is used to specify a method for transforming an input file in to an output file(s).
-public struct BuildRule: Codable, Equatable {
+public struct BuildRule: Codable, Equatable, Sendable {
     /// Compiler specification for element transformation.
     public var compilerSpec: CompilerSpec
 

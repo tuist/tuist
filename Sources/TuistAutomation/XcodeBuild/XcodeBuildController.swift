@@ -38,7 +38,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool = false,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -56,6 +57,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
 
         // Destination
         switch destination {
@@ -91,7 +95,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -110,6 +115,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
+        
         // Retry On Failure
         if retryCount > 0 {
             command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
@@ -298,18 +306,32 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     if self?.environment.isVerbose == true {
                         return SystemEvent.standardError(XcodeBuildOutput(raw: line))
                     } else {
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.format(line) ?? ""))
                     }
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
                     if self?.environment.isVerbose == true {
                         return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
                     } else {
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.format(line) ?? ""))
                     }
                 }
             }
             .eraseToAnyPublisher()
             .stream
+    }
+}
+
+// MARK: - Helpers
+
+fileprivate extension XcodeBuildController {
+    func format(_ multiLineText: String) -> String {
+        multiLineText.split(separator: "\n").map {
+            let line = String($0)
+            let formattedLine = formatter.format(line)
+
+            return formattedLine ?? ""
+        }
+        .joined(separator: "\n")
     }
 }

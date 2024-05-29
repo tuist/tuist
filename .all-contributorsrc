@@ -1382,6 +1382,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "BarredEwe",
+      "name": "BarredEwe",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19188911?v=4",
+      "profile": "https://www.linkedin.com/in/barredewe",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "chris-livefront",
+      "name": "Chris Sessions",
+      "avatar_url": "https://avatars.githubusercontent.com/u/126101032?v=4",
+      "profile": "https://github.com/chris-livefront",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -37,8 +37,8 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
-      - name: Up
-        script: mise run up
+      - name: Install dependencies
+        script: mise run install
       - name: Generate manifest docs
         script: mise run docs:generate-manifests-docs
       - name: Build the documentation
@@ -116,7 +116,8 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
-      - script: mise run up
+      - name: Install dependencies
+        script: mise run install
       - name: Generate manifest docs
         script: mise run docs:generate-manifests-docs
       - name: Build the documentation

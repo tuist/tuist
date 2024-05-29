@@ -4,7 +4,7 @@ import Foundation
 ///
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
 /// methods respectively.
-public struct TestAction: Equatable, Codable {
+public struct TestAction: Equatable, Codable, Sendable {
     /// List of test plans. The first in the list will be the default plan.
     public var testPlans: [Path]?
 

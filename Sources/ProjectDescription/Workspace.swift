@@ -22,7 +22,7 @@ import Foundation
 /// )
 /// ```
 
-public struct Workspace: Codable, Equatable {
+public struct Workspace: Codable, Equatable, Sendable {
     /// The name of the workspace. Also, the file name of the generated Xcode workspace.
     public let name: String
 

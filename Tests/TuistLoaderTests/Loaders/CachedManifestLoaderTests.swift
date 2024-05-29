@@ -1,6 +1,8 @@
 import Foundation
+import MockableTest
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import struct TuistGraph.Plugins
 import TuistSupport
 import XCTest
@@ -15,8 +17,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var manifestLoader = MockManifestLoader()
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var configManifests: [AbsolutePath: Config] = [:]
@@ -32,10 +34,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         super.setUp()
 
         do {
-            cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+            cacheDirectoriesProvider = .init()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
-            cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-            cacheDirectoriesProvider.tuistCacheDirectoryStub = cacheDirectory.parentDirectory
+            cacheDirectoriesProviderFactory = .init()
+            given(cacheDirectoriesProviderFactory)
+                .cacheDirectories()
+                .willReturn(cacheDirectoriesProvider)
+            given(cacheDirectoriesProvider)
+                .tuistCacheDirectory(for: .value(.manifests))
+                .willReturn(cacheDirectory)
         } catch {
             XCTFail("Failed to create temporary directory")
         }

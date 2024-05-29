@@ -4,6 +4,24 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 
+enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
+    case alreadyHandled(String)
+
+    var description: String {
+        switch self {
+        case let .alreadyHandled(argument):
+            "The argument \(argument) added after the terminator (--) cannot be passed through to xcodebuild because it is handled by Tuist."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .alreadyHandled:
+            .abort
+        }
+    }
+}
+
 public struct BuildOptions: ParsableArguments {
     public init() {}
 
@@ -66,7 +84,7 @@ public struct BuildOptions: ParsableArguments {
     public var buildOutputPath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when building the project."
+        help: "[Deprecated] Overrides the folder that should be used for derived data when building the project."
     )
     public var derivedDataPath: String?
 
@@ -75,6 +93,12 @@ public struct BuildOptions: ParsableArguments {
         help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
     )
     public var generateOnly: Bool = false
+
+    @Argument(
+        parsing: .postTerminator,
+        help: "Arguments that will be passed through to xcodebuild"
+    )
+    var passthroughXcodeBuildArguments: [String] = []
 }
 
 /// Command that builds a target from the project in the current directory.
@@ -91,12 +115,32 @@ public struct BuildCommand: AsyncParsableCommand {
     @OptionGroup()
     var buildOptions: BuildOptions
 
+    private var notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+    ]
+
     public func run() async throws {
-        let absolutePath: AbsolutePath
-        if let path = buildOptions.path {
-            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+        // Check if passthrough arguments are already handled by tuist
+        try notAllowedPassthroughXcodeBuildArguments.forEach {
+            if buildOptions.passthroughXcodeBuildArguments.contains($0) {
+                throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
+            }
+        }
+
+        // Suggest the user to use passthrough arguments if already supported by xcodebuild
+        if let derivedDataPath = buildOptions.derivedDataPath {
+            logger
+                .warning(
+                    "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
+        }
+
+        let absolutePath = if let path = buildOptions.path {
+            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
-            absolutePath = FileHandler.shared.currentPath
+            FileHandler.shared.currentPath
         }
 
         try await BuildService().run(
@@ -114,7 +158,8 @@ public struct BuildCommand: AsyncParsableCommand {
             platform: buildOptions.platform,
             osVersion: buildOptions.os,
             rosetta: buildOptions.rosetta,
-            generateOnly: buildOptions.generateOnly
+            generateOnly: buildOptions.generateOnly,
+            passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
         )
     }
 }
