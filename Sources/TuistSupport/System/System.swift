@@ -219,18 +219,16 @@ public final class System: Systeming {
     ) throws {
         // We have to collect both stderr and stdout because we want to stream the output
         // the `ProcessResult` type will not contain either unless outputRedirection is set to `.collect`
-        var errorData: [UInt8] = []
-        var stdOutData: [UInt8] = []
+        var stdErrData: [UInt8] = []
 
         let process = Process(
             arguments: arguments,
             environment: environment,
             outputRedirection: .stream(stdout: { bytes in
-                stdOutData.append(contentsOf: bytes)
                 FileHandle.standardOutput.write(Data(bytes))
                 redirection.outputClosures?.stdoutClosure(bytes)
             }, stderr: { bytes in
-                errorData.append(contentsOf: bytes)
+                stdErrData.append(contentsOf: bytes)
                 FileHandle.standardError.write(Data(bytes))
                 redirection.outputClosures?.stderrClosure(bytes)
             }),
@@ -242,17 +240,14 @@ public final class System: Systeming {
 
         try process.launch()
         let result = try process.waitUntilExit()
-        let output = String(decoding: stdOutData, as: Unicode.UTF8.self)
-
-        logger.debug("\(output)")
-
+        
         switch result.exitStatus {
         case let .signalled(code):
-            let data = Data(errorData)
+            let data = Data(stdErrData)
             throw TuistSupport.SystemError.signalled(command: result.command(), code: code, standardError: data)
         case let .terminated(code):
             if code != 0 {
-                let data = Data(errorData)
+                let data = Data(stdErrData)
                 throw TuistSupport.SystemError.terminated(command: result.command(), code: code, standardError: data)
             }
         }
