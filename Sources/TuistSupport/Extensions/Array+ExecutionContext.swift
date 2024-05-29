@@ -89,35 +89,17 @@ extension Array where Element: Sendable {
 // based on https://talk.objc.io/episodes/S01E90-concurrent-map
 //
 extension Array {
-    private final class ThreadSafe<A> {
-        private var _value: A
-        private let queue = DispatchQueue(label: "ThreadSafe")
-        init(_ value: A) {
-            _value = value
-        }
-
-        var value: A {
-            queue.sync { _value }
-        }
-
-        func atomically(_ transform: @escaping (inout A) -> Void) {
-            queue.async {
-                transform(&self._value)
-            }
-        }
-    }
-
     private func concurrentMap<B>(_ transform: (Element) throws -> B) rethrows -> [B] {
         let result = ThreadSafe([Result<B, Error>?](repeating: nil, count: count))
         DispatchQueue.concurrentPerform(iterations: count) { idx in
             let element = self[idx]
             do {
                 let transformed = try transform(element)
-                result.atomically {
+                result.mutate {
                     $0[idx] = .success(transformed)
                 }
             } catch {
-                result.atomically {
+                result.mutate {
                     $0[idx] = .failure(error)
                 }
             }
@@ -131,11 +113,11 @@ extension Array {
             let element = self[idx]
             do {
                 guard let transformed = try transform(element) else { return }
-                result.atomically {
+                result.mutate {
                     $0[idx] = .success(transformed)
                 }
             } catch {
-                result.atomically {
+                result.mutate {
                     $0[idx] = .failure(error)
                 }
             }
@@ -150,7 +132,7 @@ extension Array {
             do {
                 try perform(element)
             } catch {
-                result.atomically {
+                result.mutate {
                     $0[idx] = error
                 }
             }
