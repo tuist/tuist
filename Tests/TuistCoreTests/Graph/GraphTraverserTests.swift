@@ -88,7 +88,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: frameworkTarget.target.name, path: project.path): [
-                    .testSDK(name: "XCTest"),
+                    .testSDK(name: "XCTest.framework"),
                 ],
             ]
         )
