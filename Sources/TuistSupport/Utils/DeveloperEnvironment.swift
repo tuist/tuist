@@ -10,6 +10,7 @@ public protocol DeveloperEnvironmenting {
 }
 
 public final class DeveloperEnvironment: DeveloperEnvironmenting {
+
     /// Shared instance to be used publicly.
     /// Since the environment doesn't change during the execution of Tuist, we can cache
     /// state internally to speed up future access to environment attributes.
@@ -24,40 +25,39 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
 
     private init(fileHandler: FileHandling) {
         self.fileHandler = fileHandler
+        
+        derivedDataDirectoryCache = ThrowableCaching<AbsolutePath> {
+            let location: AbsolutePath
+            if let customLocation = try? System.shared.capture([
+                "/usr/bin/defaults",
+                "read",
+                "com.apple.dt.Xcode IDECustomDerivedDataLocation",
+            ]) {
+                location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
+            } else {
+                // Default location
+                // swiftlint:disable:next force_try
+                location = fileHandler.homeDirectory.appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+            }
+            return location
+        }
     }
 
     // swiftlint:disable identifier_name
 
-    /// https://pewpewthespells.com/blog/xcode_build_locations.html/// https://pewpewthespells.com/blog/xcode_build_locations.html
-    @Atomic private var _derivedDataDirectory: AbsolutePath?
-    public var derivedDataDirectory: AbsolutePath {
-        if let _derivedDataDirectory {
-            return _derivedDataDirectory
-        }
-        let location: AbsolutePath
-        if let customLocation = try? System.shared.capture([
-            "/usr/bin/defaults",
-            "read",
-            "com.apple.dt.Xcode IDECustomDerivedDataLocation",
-        ]) {
-            location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
-        } else {
-            // Default location
-            // swiftlint:disable:next force_try
-            location = fileHandler.homeDirectory.appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
-        }
-        _derivedDataDirectory = location
-        return location
+    /// https://pewpewthespells.com/blog/xcode_build_locations.html
+    private let derivedDataDirectoryCache: ThrowableCaching<AbsolutePath>
+    public var derivedDataDirectory: TSCBasic.AbsolutePath {
+        try! derivedDataDirectoryCache.value
     }
-
-    @Atomic private var _architecture: MacArchitecture?
+    
     public var architecture: MacArchitecture {
-        if let _architecture {
-            return _architecture
-        }
+        try! architectureCache.value
+    }
+    
+    private let architectureCache = ThrowableCaching<MacArchitecture> {
         // swiftlint:disable:next force_try
         let output = try! System.shared.capture(["/usr/bin/uname", "-m"]).chomp()
-        _architecture = MacArchitecture(rawValue: output)
-        return _architecture!
+        return MacArchitecture(rawValue: output)!
     } // swiftlint:enable identifier_name
 }
