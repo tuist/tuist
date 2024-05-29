@@ -43,7 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           owner: "tuist"
-          repo: "cloud"
+          repo: "app"
           configuration: ".github/changelog-configuration.json"
           fromTag: ${{ steps.last-release.outputs.release }}
           toTag: "main"
@@ -64,9 +64,9 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
           labels: |
-            org.opencontainers.image.title=Tuist Cloud
+            org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
-            org.opencontainers.image.source=https://github.com/tuist/app
+            org.opencontainers.image.source=https://github.com/tuist/registry
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
