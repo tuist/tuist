@@ -17,7 +17,7 @@ final class InstallService {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared),
         fileHandler: FileHandling = FileHandler.shared,
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {

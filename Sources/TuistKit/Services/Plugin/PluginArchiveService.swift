@@ -11,7 +11,7 @@ final class PluginArchiveService {
     private let fileArchiverFactory: FileArchivingFactorying
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
     ) {
