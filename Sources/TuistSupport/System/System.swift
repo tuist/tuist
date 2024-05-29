@@ -66,8 +66,11 @@ public enum SystemError: FatalError, Equatable {
 // swiftlint:disable:next type_body_length
 public final class System: Systeming {
     /// Shared system instance.
-    public static var shared: Systeming = System()
-
+    public static var shared: Systeming {
+        _shared.value
+    }
+    static let _shared: ThreadSafe<Systeming> = ThreadSafe(System())
+    
     /// Convenience shortcut to the environment.
     public var env: [String: String] {
         ProcessInfo.processInfo.environment

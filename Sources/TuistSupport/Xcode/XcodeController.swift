@@ -21,7 +21,10 @@ public class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.
-    public static var shared: XcodeControlling = XcodeController()
+    public static var shared: XcodeControlling {
+        _shared.value
+    }
+    static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command
     private let selectedXcode = ThrowableCaching<Xcode?> {

@@ -6,7 +6,9 @@
 //
 
 import Foundation
+import Mockable
 
+@Mockable
 public protocol SwiftVersionProviding {
     /// Returns the Swift version.
     ///
@@ -26,7 +28,7 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
         _shared.value
     }
     
-    private static let _shared = ThreadSafe(SwiftVersionProvider(System.shared))
+    static let _shared: ThreadSafe<SwiftVersionProviding> = ThreadSafe(SwiftVersionProvider(System.shared))
     // swiftlint:disable force_try
 
     /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.

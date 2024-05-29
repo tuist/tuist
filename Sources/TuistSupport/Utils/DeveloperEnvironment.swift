@@ -14,7 +14,10 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
     /// Shared instance to be used publicly.
     /// Since the environment doesn't change during the execution of Tuist, we can cache
     /// state internally to speed up future access to environment attributes.
-    public internal(set) static var shared: DeveloperEnvironmenting = DeveloperEnvironment()
+    public static var shared: DeveloperEnvironmenting {
+        _shared.value
+    }
+    static let _shared: ThreadSafe<DeveloperEnvironmenting> = ThreadSafe(DeveloperEnvironment())
 
     /// File handler instance.
     let fileHandler: FileHandling

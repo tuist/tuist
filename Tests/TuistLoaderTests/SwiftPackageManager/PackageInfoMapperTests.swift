@@ -1,4 +1,5 @@
 import ProjectDescription
+import MockableTest
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -16,7 +17,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        system.swiftVersionStub = { "5.9.0" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.9")
         subject = PackageInfoMapper()
     }
 
@@ -418,7 +421,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
-        system.swiftVersionStub = { "5.6.0" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.6.0")
 
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))

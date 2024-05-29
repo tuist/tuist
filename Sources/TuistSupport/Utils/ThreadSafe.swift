@@ -1,7 +1,7 @@
 import Foundation
 
 /// Type that ensures thread safe access to the underlying value.
-public final class ThreadSafe<T: Sendable>: @unchecked Sendable {
+public final class ThreadSafe<T>: @unchecked Sendable {
     private let _lock: UnsafeMutablePointer<os_unfair_lock> = {
         let lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
         lock.initialize(to: os_unfair_lock())

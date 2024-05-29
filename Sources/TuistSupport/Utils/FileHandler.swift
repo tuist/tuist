@@ -87,7 +87,11 @@ public protocol FileHandling: AnyObject {
 public class FileHandler: FileHandling {
     // MARK: - Attributes
 
-    public static var shared: FileHandling = FileHandler()
+    public static var shared: FileHandling {
+        _shared.value
+    }
+    static let _shared: ThreadSafe<FileHandling> = ThreadSafe(FileHandler())
+    
     private let fileManager: FileManager
     private let propertyListDecoder = PropertyListDecoder()
 
