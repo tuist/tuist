@@ -421,6 +421,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
+        
+        // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then this one.
+        swiftVersionProvider.reset()
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.6.0")
