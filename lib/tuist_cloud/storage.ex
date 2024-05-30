@@ -3,98 +3,120 @@ defmodule TuistCloud.Storage do
   A module that provides functions for storing and retrieving files from cloud storages
   """
   alias TuistCloud.Environment
+  alias TuistCloud.Native
+  alias TuistCloud.Native.S3DownloadPresignedURLOptions
+  alias TuistCloud.Native.S3ExistsOptions
+  alias TuistCloud.Native.S3MultipartStartOptions
+  alias TuistCloud.Native.S3MultipartGenerateURLOptions
+  alias TuistCloud.Native.S3MultipartCompleteUploadOptions
+  alias TuistCloud.Native.S3SizeOptions
+  alias TuistCloud.Native.S3DeleteAllObjectsOptions
+  alias TuistCloud.Native.S3AccessKeyPair
 
-  def generate_multipart_upload_url(object_key, upload_id, part_number, opts \\ []) do
-    expires_in = opts |> Keyword.get(:expires_in, 3600)
-    bucket = Environment.s3_bucket_name()
-
+  def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     {:ok, url} =
-      ExAws.Config.new(:s3)
-      |> ExAws.S3.presigned_url(:put, bucket, object_key,
-        query_params: [
-          {"partNumber", part_number},
-          {"uploadId", upload_id}
-        ],
-        headers: [],
-        virtual_host: true,
-        expires_in: expires_in
-      )
+      Native.s3_multipart_generate_url(%S3MultipartGenerateURLOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        expires_in: opts |> Keyword.get(:expires_in, 3600),
+        part_number: String.to_integer(part_number),
+        upload_id: upload_id,
+        credentials: native_credentials()
+      })
 
     url
   end
 
-  def complete_multipart_upload(object_key, upload_id, parts) do
-    {:ok, _} =
-      Environment.s3_bucket_name()
-      |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-      |> ExAws.request()
+  def multipart_complete_upload(object_key, upload_id, parts) do
+    :ok =
+      Native.s3_multipart_complete_upload(%S3MultipartCompleteUploadOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        upload_id: upload_id,
+        parts: parts,
+        credentials: native_credentials()
+      })
 
     :ok
   end
 
   def generate_download_url(object_key, opts \\ []) do
-    expires_in = opts |> Keyword.get(:expires_in, 3600)
-
     {:ok, url} =
-      ExAws.Config.new(:s3)
-      |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
-        query_params: [],
-        expires_in: expires_in,
-        virtual_host: true
-      )
+      Native.s3_download_presigned_url(%S3DownloadPresignedURLOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        expires_in: opts |> Keyword.get(:expires_in, 3600),
+        credentials: native_credentials()
+      })
 
     url
   end
 
   def exists(object_key) do
-    case Environment.s3_bucket_name()
-         |> ExAws.S3.head_object(object_key)
-         |> ExAws.request() do
-      {:ok, _} -> true
-      _ -> false
-    end
+    {:ok, exists} =
+      Native.s3_exists(%S3ExistsOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        credentials: native_credentials()
+      })
+
+    exists
   end
 
   def multipart_start(object_key) do
-    {:ok, response} =
-      Environment.s3_bucket_name()
-      |> ExAws.S3.initiate_multipart_upload(object_key)
-      |> ExAws.request()
+    {:ok, upload_id} =
+      Native.s3_multipart_start(%S3MultipartStartOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        credentials: native_credentials()
+      })
 
-    response.body.upload_id
+    upload_id
   end
 
   def delete_all_objects(project_slug) do
-    bucket_name = Environment.s3_bucket_name()
+    Native.s3_delete_all_objects(%S3DeleteAllObjectsOptions{
+      bucket_name: Environment.s3_bucket_name(),
+      region: native_region(),
+      prefix: project_slug,
+      credentials: native_credentials()
+    })
+  end
 
-    {:ok, %{body: %{contents: contents}}} =
-      ExAws.S3.list_objects_v2(bucket_name, prefix: project_slug, max_keys: 1) |> ExAws.request()
+  def size(object_key) do
+    {:ok, size} =
+      Native.s3_size(%S3SizeOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        credentials: native_credentials()
+      })
 
-    # Calling delete_all_objects when there are no objects with a given prefix returns a 400 error
-    if contents == [] do
-      :ok
+    size
+  end
+
+  defp native_region() do
+    if Environment.on_premise?() do
+      {:auto, Environment.s3_endpoint()}
     else
-      stream =
-        bucket_name
-        |> ExAws.S3.list_objects_v2(prefix: project_slug)
-        |> ExAws.stream!()
-        |> Stream.map(& &1.key)
-
-      {:ok, _} =
-        bucket_name
-        |> ExAws.S3.delete_all_objects(stream)
-        |> ExAws.request()
-
-      :ok
+      {:fixed, Environment.aws_region()}
     end
   end
 
-  def head_object(object_key) do
-    {:ok, object} =
-      Environment.s3_bucket_name() |> ExAws.S3.head_object(object_key) |> ExAws.request()
-
-    %{
-      content_length: String.to_integer(Map.new(object.headers)["Content-Length"])
-    }
+  defp native_credentials() do
+    if Environment.on_premise?() do
+      :environment
+    else
+      {:access_key,
+       %S3AccessKeyPair{
+         access_key: Environment.s3_access_key_id(),
+         secret_key: Environment.s3_secret_access_key()
+       }}
+    end
   end
 end

@@ -46,7 +46,7 @@ defmodule TuistCloud.Environment do
   end
 
   def analytics_enabled?() do
-    !on_premise?() and env() == :prod
+    not on_premise?() and env() == :prod
   end
 
   def license_expiration_date() do
@@ -116,7 +116,7 @@ defmodule TuistCloud.Environment do
   end
 
   def aws_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || "auto"
+    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || :auto
   end
 
   def aws_session_token(secrets \\ secrets()) do
@@ -124,7 +124,7 @@ defmodule TuistCloud.Environment do
   end
 
   def aws_profile(secrets \\ secrets()) do
-    System.get_env("AWS_PROFILE") || get([:aws, :profile], secrets) || :system
+    System.get_env("AWS_PROFILE") || get([:aws, :profile], secrets)
   end
 
   def aws_use_session_token?(secrets \\ secrets()) do
