@@ -334,7 +334,7 @@ defmodule TuistCloudWeb.API.CacheController do
     expires_in = 120
 
     url =
-      Storage.generate_multipart_upload_url(
+      Storage.multipart_generate_url(
         object_key(%{
           hash: hash,
           name: name,
@@ -450,7 +450,7 @@ defmodule TuistCloudWeb.API.CacheController do
     }
 
     :ok =
-      Storage.complete_multipart_upload(
+      Storage.multipart_complete_upload(
         object_key(item),
         upload_id,
         parts
@@ -459,13 +459,11 @@ defmodule TuistCloudWeb.API.CacheController do
         end)
       )
 
-    object = Storage.head_object(object_key(item))
-
     if is_nil(CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})) do
       CommandEvents.create_cache_event(%{
         name: name,
         event_type: :upload,
-        size: object.content_length,
+        size: Storage.size(object_key(item)),
         project_id: EnsureProjectPresencePlug.get_project(conn).id,
         hash: hash
       })

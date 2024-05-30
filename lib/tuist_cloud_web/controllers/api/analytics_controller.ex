@@ -299,7 +299,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
     expires_in = 120
 
     url =
-      Storage.generate_multipart_upload_url(
+      Storage.multipart_generate_url(
         object_key(conn, %{type: type, run_id: run_id}),
         upload_id,
         part_number,
@@ -359,7 +359,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
         _params
       ) do
     :ok =
-      Storage.complete_multipart_upload(
+      Storage.multipart_complete_upload(
         object_key(conn, %{type: type, run_id: run_id}),
         upload_id,
         parts

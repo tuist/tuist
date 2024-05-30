@@ -304,10 +304,10 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       Storage
-      |> expect(:generate_multipart_upload_url, fn ^object_key,
-                                                   ^upload_id,
-                                                   ^part_number,
-                                                   [expires_in: _] ->
+      |> expect(:multipart_generate_url, fn ^object_key,
+                                            ^upload_id,
+                                            ^part_number,
+                                            [expires_in: _] ->
         upload_url
       end)
 
@@ -351,7 +351,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       ]
 
       Storage
-      |> expect(:complete_multipart_upload, fn ^object_key,
+      |> expect(:multipart_complete_upload, fn ^object_key,
                                                ^upload_id,
                                                [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok

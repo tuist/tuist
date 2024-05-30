@@ -4,6 +4,12 @@ defmodule TuistCloud.Native do
   """
   use Rustler, otp_app: :tuist_cloud, crate: "tuistcloud_native"
 
-  # When your NIF is loaded, it will override this function.
   def license(), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_download_presigned_url(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_exists(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_multipart_start(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_multipart_generate_url(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_multipart_complete_upload(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_size(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_delete_all_objects(_options), do: :erlang.nif_error(:nif_not_loaded)
 end

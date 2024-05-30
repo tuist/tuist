@@ -108,10 +108,10 @@ defmodule TuistCloudWeb.CacheControllerTest do
     object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
     Storage
-    |> expect(:generate_multipart_upload_url, fn ^object_key,
-                                                 ^upload_id,
-                                                 ^part_number,
-                                                 [expires_in: _] ->
+    |> expect(:multipart_generate_url, fn ^object_key,
+                                          ^upload_id,
+                                          ^part_number,
+                                          [expires_in: _] ->
       upload_url
     end)
 
@@ -152,15 +152,15 @@ defmodule TuistCloudWeb.CacheControllerTest do
       ]
 
       Storage
-      |> expect(:complete_multipart_upload, fn ^object_key,
+      |> expect(:multipart_complete_upload, fn ^object_key,
                                                ^upload_id,
                                                [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok
       end)
 
       Storage
-      |> expect(:head_object, fn ^object_key ->
-        %{content_length: 1024}
+      |> expect(:size, fn ^object_key ->
+        1024
       end)
 
       conn =
@@ -202,10 +202,10 @@ defmodule TuistCloudWeb.CacheControllerTest do
       ]
 
       Storage
-      |> stub(:complete_multipart_upload, fn _, _, _ -> :ok end)
+      |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
 
       Storage
-      |> stub(:head_object, fn _ -> %{content_length: 1024} end)
+      |> stub(:size, fn _ -> 1024 end)
 
       conn =
         conn
