@@ -1,9 +1,11 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -36,21 +38,34 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 }
 
 final class BuildServiceTests: TuistUnitTestCase {
-    var generator: MockGenerator!
-    var generatorFactory: MockGeneratorFactory!
-    var buildGraphInspector: MockBuildGraphInspector!
-    var targetBuilder: MockTargetBuilder!
-    var subject: BuildService!
+    private var generator: MockGenerator!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var buildGraphInspector: MockBuildGraphInspector!
+    private var targetBuilder: MockTargetBuilder!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var subject: BuildService!
 
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
-        generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedDefaultResult = generator
+        generatorFactory = .init()
+        given(generatorFactory)
+            .building(
+                config: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
         buildGraphInspector = MockBuildGraphInspector()
         targetBuilder = MockTargetBuilder()
+        cacheStorageFactory = .init()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
         subject = BuildService(
             generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder
         )
@@ -61,6 +76,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         generatorFactory = nil
         buildGraphInspector = nil
         targetBuilder = nil
+        cacheStorageFactory = nil
         subject = nil
         super.tearDown()
     }
@@ -305,6 +321,7 @@ extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
+        ignoreBinaryCache: Bool = false,
         buildOutputPath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         path: AbsolutePath,
@@ -320,6 +337,7 @@ extension BuildService {
             generate: generate,
             clean: clean,
             configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
             buildOutputPath: buildOutputPath,
             derivedDataPath: derivedDataPath,
             path: path,

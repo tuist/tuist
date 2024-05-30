@@ -144,6 +144,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await run(command, arguments)
     }
 
+    public func run(_ command: GenerateCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
     public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = [
             "--no-open",

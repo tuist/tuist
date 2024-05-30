@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -36,20 +37,22 @@ final class RunServiceErrorTests: TuistUnitTestCase {
 }
 
 final class RunServiceTests: TuistUnitTestCase {
-    var generator: MockGenerator!
-    var generatorFactory: MockGeneratorFactory!
-    var buildGraphInspector: MockBuildGraphInspector!
-    var targetBuilder: MockTargetBuilder!
-    var targetRunner: MockTargetRunner!
-    var subject: RunService!
+    private var generator: MockGenerator!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var buildGraphInspector: MockBuildGraphInspector!
+    private var targetBuilder: MockTargetBuilder!
+    private var targetRunner: MockTargetRunner!
+    private var subject: RunService!
 
     private struct TestError: Equatable, Error {}
 
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
-        generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedDefaultResult = generator
+        generatorFactory = MockGeneratorFactorying()
+        given(generatorFactory)
+            .defaultGenerator(config: .any)
+            .willReturn(generator)
         buildGraphInspector = MockBuildGraphInspector()
         targetBuilder = MockTargetBuilder()
         targetRunner = MockTargetRunner()

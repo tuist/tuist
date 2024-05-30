@@ -5,44 +5,57 @@ import TuistGenerator
 import TuistGraph
 import TuistLoader
 import TuistPlugin
+import TuistServer
 import TuistSupport
 
 final class GenerateService {
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
+    private let cacheStorageFactory: CacheStorageFactorying
     private let generatorFactory: GeneratorFactorying
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
     init(
+        cacheStorageFactory: CacheStorageFactorying,
+        generatorFactory: GeneratorFactorying,
         clock: Clock = WallClock(),
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
+        self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
         self.manifestLoader = manifestLoader
         self.opener = opener
-        self.generatorFactory = generatorFactory
         self.pluginService = pluginService
         self.configLoader = configLoader
     }
 
     func run(
         path: String?,
-        noOpen: Bool
+        sources: Set<String>,
+        noOpen: Bool,
+        configuration: String?,
+        ignoreBinaryCache: Bool
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
-        let generator = generatorFactory.default(config: config)
-
+        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let generator = generatorFactory.generation(
+            config: config,
+            sources: sources,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            cacheStorage: cacheStorage
+        )
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)
