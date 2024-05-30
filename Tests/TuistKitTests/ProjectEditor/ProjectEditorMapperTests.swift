@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -7,7 +8,6 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphTesting
 import XCTest
-import MockableTest
 
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -18,11 +18,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         developerEnvironment.stubbedArchitecture = .arm64
         swiftPackageManagerController = MockSwiftPackageManagerController()
         subject = ProjectEditorMapper(

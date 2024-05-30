@@ -10,13 +10,13 @@ public protocol DeveloperEnvironmenting {
 }
 
 public final class DeveloperEnvironment: DeveloperEnvironmenting {
-
     /// Shared instance to be used publicly.
     /// Since the environment doesn't change during the execution of Tuist, we can cache
     /// state internally to speed up future access to environment attributes.
     public static var shared: DeveloperEnvironmenting {
         _shared.value
     }
+
     static let _shared: ThreadSafe<DeveloperEnvironmenting> = ThreadSafe(DeveloperEnvironment())
 
     /// File handler instance.
@@ -28,7 +28,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
 
     private init(fileHandler: FileHandling) {
         self.fileHandler = fileHandler
-        
+
         derivedDataDirectoryCache = ThrowableCaching<AbsolutePath> {
             let location: AbsolutePath
             if let customLocation = try? System.shared.capture([
@@ -40,7 +40,8 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             } else {
                 // Default location
                 // swiftlint:disable:next force_try
-                location = fileHandler.homeDirectory.appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+                location = fileHandler.homeDirectory
+                    .appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
             }
             return location
         }
@@ -53,11 +54,11 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
     public var derivedDataDirectory: TSCBasic.AbsolutePath {
         try! derivedDataDirectoryCache.value
     }
-    
+
     public var architecture: MacArchitecture {
         try! architectureCache.value
     }
-    
+
     private let architectureCache = ThrowableCaching<MacArchitecture> {
         // swiftlint:disable:next force_try
         let output = try! System.shared.capture(["/usr/bin/uname", "-m"]).chomp()

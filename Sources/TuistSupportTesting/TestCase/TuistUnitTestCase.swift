@@ -14,10 +14,10 @@ open class TuistUnitTestCase: TuistTestCase {
         // System
         system = MockSystem()
         System._shared.mutate { $0 = system }
-        
+
         swiftVersionProvider = MockSwiftVersionProviding()
         SwiftVersionProvider._shared.mutate { $0 = swiftVersionProvider }
-        
+
         // Xcode controller
         xcodeController = MockXcodeController()
         XcodeController._shared.mutate { $0 = xcodeController }
@@ -31,7 +31,7 @@ open class TuistUnitTestCase: TuistTestCase {
         // System
         system = nil
         System._shared.mutate { $0 = System() }
-        
+
         swiftVersionProvider = nil
         SwiftVersionProvider._shared.mutate { $0 = SwiftVersionProvider(System.shared) }
 

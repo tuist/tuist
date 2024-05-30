@@ -94,7 +94,7 @@ public final class MockSystem: Systeming {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
     }
-    
+
     public func which(_ name: String) throws -> String {
         if let path = try whichStub?(name) {
             return path

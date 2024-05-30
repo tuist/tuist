@@ -1,5 +1,5 @@
-import ProjectDescription
 import MockableTest
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -421,8 +421,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
-        
-        // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then this one.
+        // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then
+        // this one.
         swiftVersionProvider.reset()
         given(swiftVersionProvider)
             .swiftVersion()

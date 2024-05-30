@@ -25,9 +25,6 @@ public class CachedManifestLoader: ManifestLoading {
     private let helpersCache: ThreadSafe<[AbsolutePath: String?]> = ThreadSafe([:])
     private let pluginsHashCache: ThreadSafe<String?> = ThreadSafe(nil)
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
-    
-  
-    
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
@@ -194,7 +191,7 @@ public class CachedManifestLoader: ManifestLoading {
 
             let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
             cache[helpersDirectory] = hash
-            
+
             return hash
         }
     }

@@ -90,8 +90,9 @@ public class FileHandler: FileHandling {
     public static var shared: FileHandling {
         _shared.value
     }
+
     static let _shared: ThreadSafe<FileHandling> = ThreadSafe(FileHandler())
-    
+
     private let fileManager: FileManager
     private let propertyListDecoder = PropertyListDecoder()
 

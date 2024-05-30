@@ -20,7 +20,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         subject = ProjectDescriptorGenerator()
     }
 

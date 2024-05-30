@@ -16,11 +16,11 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        
+
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .serial))
     }
 

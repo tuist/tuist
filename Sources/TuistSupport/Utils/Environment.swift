@@ -48,6 +48,7 @@ public final class Environment: Environmenting {
     public static var shared: Environmenting {
         _shared.value
     }
+
     static let _shared: ThreadSafe<Environmenting> = ThreadSafe(Environment())
 
     /// Returns the default local directory.

@@ -1203,7 +1203,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1281,7 +1281,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1350,7 +1350,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
-        
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)

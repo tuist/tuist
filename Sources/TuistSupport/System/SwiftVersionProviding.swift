@@ -1,10 +1,3 @@
-//
-//  SwiftVersionProviding.swift
-//  TuistSupport
-//
-//  Created by Michael Simons on 5/29/24.
-//
-
 import Foundation
 import Mockable
 
@@ -27,7 +20,7 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
     public static var shared: SwiftVersionProviding {
         _shared.value
     }
-    
+
     static let _shared: ThreadSafe<SwiftVersionProviding> = ThreadSafe(SwiftVersionProvider(System.shared))
     // swiftlint:disable force_try
 
@@ -39,18 +32,18 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
     private static let swiftlangVersionRegex = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
 
     // swiftlint:enable force_try
-    
+
     public func swiftVersion() throws -> String {
         try cachedSwiftVersion.value
     }
-    
+
     public func swiftlangVersion() throws -> String {
         try cachedSwiftlangVersion.value
     }
-        
+
     let cachedSwiftVersion: ThrowableCaching<String>
     let cachedSwiftlangVersion: ThrowableCaching<String>
-    
+
     init(_ system: Systeming) {
         cachedSwiftVersion = ThrowableCaching<String> {
             let output = try system.capture(["/usr/bin/xcrun", "swift", "--version"])
