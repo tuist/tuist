@@ -246,13 +246,16 @@ pod install
 
 ## Static or dynamic
 
-Frameworks and libraries can be linked either statically or dynamically, a choice that has significant implications for aspects like app size and boot time. Despite its importance, this decision is often made without much consideration. Tools like [Swift Package Manager](https://www.swift.org/documentation/package-manager/) and [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries) automatically make this choice during build-time, which, while convenient, adds complexity to the build process and introduces potential sources of non-determinism. This can cause some Xcode features, such as SwiftUI previews, to become unreliable.
+Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration. 
 
-**Our recommendation is to trade some build-time convenience for the reliability and determinism of making this decision yourself.** By doing so, Xcode will work more reliably with your project, and your builds will be more predictable.
+The **general rule of thumb** is that you want as many things as possible to be statically linked in release builds to achieve fast boot times, and as many things as possible to be dynamically linked in debug builds to achieve fast iteration times.
 
-The simplest approach is to link everything statically in release builds for faster booting and dynamically in debug builds for faster iteration. You can use [dynamic configurations](http://localhost:5173/guide/project/dynamic-configuration.html#reading-the-environment-variables-from-manifests) to manage this at generation-time. You need to include a helper function in your manifest files that returns the appropriate product type based on the environment variable `TUIST_LINKING`:
+The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
+
+Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes [bundle accessors](http://localhost:5173/guide/project/synthesized-files.html#bundle-accessors) that are standard across linking types. In combination with [dynamic configurations via environment variables](/guide/project/dynamic-configuration), you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
 
 ```swift
+// Use the value returned by this function to set the product type of your targets.
 func productType() -> Product {
     if case let .string(linking) = Environment.linking {
         return linking == "static" ? .staticFramework : .framework
@@ -262,36 +265,19 @@ func productType() -> Product {
 }
 ```
 
-> [!NOTE] PACKAGE PRODUCT TYPE OVERRIDES
-> Tuist allows you to specify the product type for Swift Packages in the `Package.swift` [file](http://localhost:5173/guide/project/dependencies.html#tuist-s-xcodeproj-based-integration). If the integration is done through Xcode's default mechanism, the product type is inferred at build-time.
+Note that Tuist [does not default to convenience through implicit configuration due to its costs](/guide/introduction/cost-of-convenience). What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
-If making all the targets either static or dynamic is not feasible, you need to be cautious with targets that depend transitively on a static target through dynamic targets. In these cases, Tuist will display a "static side effect" warning to help you identify the issue. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+> [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
+> A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.
 
-> [!TIP] COMPOSABLE ARCHITECTURE
-> A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). Due to the the implementation of the packages, linking them statically causes applications to blow up at runtime. To avoid this, you'll have to override the product type for the package in the `Package.swift` file.
-> ```swift
-> #if TUIST
-> import ProjectDescription
-> let packageSettings = PackageSettings(
->    productTypes: [
->            "ComposableArchitecture": .framework,
->            "Dependencies": .framework,
->            "Clocks": .framework,
->            "ConcurrencyExtras": .framework,
->            "CombineSchedulers": .framework,
->            "IdentifiedCollections": .framework,
->            "OrderedCollections": .framework,
->            "_CollectionsUtilities": .framework,
->            "DependenciesMacros": .framework,
->            "SwiftUINavigationCore": .framework,
->            "Perception": .framework,
->            "CasePaths": .framework,
->            "CustomDump": .framework,
->            "XCTestDynamicOverlay": .framework
->        ]
->)
->#endif
->```
+### Scenarios
+
+There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
+
+- **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
+- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+
+When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 
 ## Troubleshooting
 
