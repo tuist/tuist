@@ -21,6 +21,7 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
         _shared.value
     }
 
+    // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<SwiftVersionProviding> = ThreadSafe(SwiftVersionProvider(System.shared))
     // swiftlint:disable force_try
 

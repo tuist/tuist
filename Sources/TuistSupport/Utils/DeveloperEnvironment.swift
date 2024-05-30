@@ -17,6 +17,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         _shared.value
     }
 
+    // swiftlint:disable identifier_name
     static let _shared: ThreadSafe<DeveloperEnvironmenting> = ThreadSafe(DeveloperEnvironment())
 
     /// File handler instance.
@@ -39,23 +40,24 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
                 location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
             } else {
                 // Default location
-                // swiftlint:disable:next force_try
                 location = fileHandler.homeDirectory
-                    .appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+                    .appending(try! RelativePath( // swiftlint:disable:this force_try
+                        validating: "Library/Developer/Xcode/DerivedData/"
+                    ))
             }
             return location
         }
     }
 
-    // swiftlint:disable identifier_name
-
     /// https://pewpewthespells.com/blog/xcode_build_locations.html
     private let derivedDataDirectoryCache: ThrowableCaching<AbsolutePath>
     public var derivedDataDirectory: TSCBasic.AbsolutePath {
+        // swiftlint:disable:next force_try
         try! derivedDataDirectoryCache.value
     }
 
     public var architecture: MacArchitecture {
+        // swiftlint:disable:next force_try
         try! architectureCache.value
     }
 

@@ -70,6 +70,7 @@ public final class System: Systeming {
         _shared.value
     }
 
+    // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<Systeming> = ThreadSafe(System())
 
     /// Convenience shortcut to the environment.

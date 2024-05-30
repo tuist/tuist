@@ -13,6 +13,7 @@ public final class MockXcodeController: XcodeControlling, @unchecked Sendable {
         }
     }
 
+    // swiftlint:disable:next identifier_name
     private var _selectedStub: ThreadSafe<Result<Xcode, Error>?> = ThreadSafe(nil)
 
     public var selectedVersionStub: Result<Version, Error> {
@@ -24,6 +25,7 @@ public final class MockXcodeController: XcodeControlling, @unchecked Sendable {
         }
     }
 
+    // swiftlint:disable:next identifier_name
     public let _selectedVersionStub: ThreadSafe<Result<Version, Error>> = ThreadSafe(.success(Version(0, 0, 0)))
 
     public func selected() throws -> Xcode? {

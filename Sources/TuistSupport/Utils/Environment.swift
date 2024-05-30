@@ -49,6 +49,7 @@ public final class Environment: Environmenting {
         _shared.value
     }
 
+    // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<Environmenting> = ThreadSafe(Environment())
 
     /// Returns the default local directory.

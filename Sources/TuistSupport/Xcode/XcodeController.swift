@@ -25,6 +25,7 @@ public class XcodeController: XcodeControlling, @unchecked Sendable {
         _shared.value
     }
 
+    // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command

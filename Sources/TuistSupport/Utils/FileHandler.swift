@@ -91,6 +91,7 @@ public class FileHandler: FileHandling {
         _shared.value
     }
 
+    // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<FileHandling> = ThreadSafe(FileHandler())
 
     private let fileManager: FileManager
