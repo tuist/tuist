@@ -42,10 +42,11 @@ struct S3DownloadPresignedURLOptions {
     bucket_name: String,
 }
 
+
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3Region {
-    Fixed(String),
-    Auto(String),
+    Auto,
+    Fixed { region: String, endpoint: String },
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -288,14 +289,14 @@ fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<
         },
     };
     let s3_region: Region = match region {
-        S3Region::Fixed(region) => match region.parse() {
-            Ok(region) => region,
-            Err(err) => return Err(err.to_string()),
-        },
-        S3Region::Auto(endpoint) => Region::Custom {
-            region: "auto".to_string(),
+        S3Region::Fixed {region, endpoint} => Region::Custom {
+            region: region,
             endpoint: endpoint,
         },
+        S3Region::Auto => match Region::from_default_env() {
+            Ok(region) => region,
+            Err(err) => return Err(err.to_string()),
+        }
     };
     let bucket = match Bucket::new(&name, s3_region, credentials) {
         Ok(bucket) => bucket,

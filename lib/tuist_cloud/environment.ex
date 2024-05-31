@@ -116,7 +116,7 @@ defmodule TuistCloud.Environment do
   end
 
   def aws_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || :auto
+    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || "auto"
   end
 
   def aws_session_token(secrets \\ secrets()) do
