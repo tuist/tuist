@@ -102,9 +102,9 @@ defmodule TuistCloud.Storage do
 
   defp native_region() do
     if Environment.on_premise?() do
-      {:auto, Environment.s3_endpoint()}
+      :auto
     else
-      {:fixed, Environment.aws_region()}
+      {:fixed, %{region: Environment.aws_region(), endpoint: Environment.s3_endpoint()}}
     end
   end
 
