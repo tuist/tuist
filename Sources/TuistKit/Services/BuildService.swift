@@ -4,6 +4,7 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 enum BuildServiceError: FatalError {
@@ -35,17 +36,20 @@ enum BuildServiceError: FatalError {
 
 public final class BuildService {
     private let generatorFactory: GeneratorFactorying
+    private let cacheStorageFactory: CacheStorageFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let configLoader: ConfigLoading
 
     public init(
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        generatorFactory: GeneratorFactorying,
+        cacheStorageFactory: CacheStorageFactorying,
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
         self.configLoader = configLoader
@@ -57,6 +61,7 @@ public final class BuildService {
         generate: Bool,
         clean: Bool,
         configuration: String?,
+        ignoreBinaryCache: Bool,
         buildOutputPath: AbsolutePath?,
         derivedDataPath: String?,
         path: AbsolutePath,
@@ -65,12 +70,18 @@ public final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator: ((Config) throws -> Generating)? = nil,
+        generator _: ((Config) throws -> Generating)? = nil,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph
         let config = try configLoader.loadConfig(path: path)
-        let generator = try generator?(config) ?? generatorFactory.default(config: config)
+        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let generator = generatorFactory.building(
+            config: config,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            cacheStorage: cacheStorage
+        )
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try await generator.generateWithGraph(path: path).1
         } else {

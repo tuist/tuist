@@ -3,6 +3,8 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
+import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
@@ -10,6 +12,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
+    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
     public var runId = ""
 
     public static var configuration: CommandConfiguration {
@@ -126,6 +130,18 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var skipConfigurations: [String] = []
 
     @Flag(
+        name: [.customLong("no-binary-cache")],
+        help: "Ignore binary cache and use sources only."
+    )
+    var ignoreBinaryCache: Bool = false
+
+    @Flag(
+        name: [.customLong("no-selective-testing")],
+        help: "Run all tests instead of selectively test only those that have changed since the last successful test run."
+    )
+    var ignoreSelectiveTesting: Bool = false
+
+    @Flag(
         name: .long,
         help: "When passed, it generates the project and skips testing. This is useful for debugging purposes."
     )
@@ -138,7 +154,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var passthroughXcodeBuildArguments: [String] = []
 
     public func validate() throws {
-        try TestService().validateParameters(
+        try TestService.validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
         )
@@ -183,7 +199,27 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             FileHandler.shared.currentPath
         }
 
-        try await TestService().run(
+        defer {
+            var parameters: [String: AnyCodable] = [
+                "no_binary_cache": AnyCodable(ignoreBinaryCache),
+                "no_selective_testing": AnyCodable(ignoreSelectiveTesting),
+            ]
+            parameters["cacheable_targets"] = AnyCodable(CacheAnalyticsStore.shared.cacheableTargets)
+            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits)
+            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits)
+            parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
+            parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
+            parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
+
+            TestCommand.analyticsDelegate?.addParameters(
+                parameters
+            )
+        }
+
+        try await TestService(
+            generatorFactory: Self.generatorFactory,
+            cacheStorageFactory: Self.cacheStorageFactory
+        ).run(
             runId: runId,
             schemeName: scheme,
             clean: clean,
@@ -212,6 +248,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
+            ignoreBinaryCache: ignoreBinaryCache,
+            ignoreSelectiveTesting: ignoreSelectiveTesting,
             generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )

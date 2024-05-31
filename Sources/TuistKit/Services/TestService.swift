@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 enum TestServiceError: FatalError, Equatable {
@@ -57,40 +58,34 @@ enum TestServiceError: FatalError, Equatable {
     }
 }
 
-public final class TestService { // swiftlint:disable:this type_body_length
+final class TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
+    private let cacheStorageFactory: CacheStorageFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
     private let contentHasher: ContentHashing
 
-    private let testsCacheTemporaryDirectory: TemporaryDirectory
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let configLoader: ConfigLoading
 
     public convenience init(
-        testsCacheTemporaryDirectory: TemporaryDirectory
+        generatorFactory: GeneratorFactorying,
+        cacheStorageFactory: CacheStorageFactorying
     ) {
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
-            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generatorFactory: GeneratorFactory(),
+            generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
             configLoader: configLoader
         )
     }
 
-    convenience init() throws {
-        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        self.init(
-            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory
-        )
-    }
-
     init(
-        testsCacheTemporaryDirectory: TemporaryDirectory,
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
@@ -98,8 +93,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         configLoader: ConfigLoading
     ) {
-        self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
@@ -108,7 +103,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         self.configLoader = configLoader
     }
 
-    public func validateParameters(
+    static func validateParameters(
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier]
     ) throws {
@@ -159,7 +154,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
     }
 
     // swiftlint:disable:next function_body_length
-    public func run(
+    func run(
         runId: String,
         schemeName: String?,
         clean: Bool,
@@ -177,32 +172,35 @@ public final class TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
-        generator: Generating? = nil,
+        ignoreBinaryCache: Bool,
+        ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         if validateTestTargetsParameters {
-            try validateParameters(
+            try Self.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             )
         }
         // Load config
         let config = try configLoader.loadConfig(path: path)
+        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
 
-        let testGenerator: Generating
-        if let generator {
-            testGenerator = generator
-        } else {
-            testGenerator = generatorFactory.test(
-                config: config,
-                testsCacheDirectory: testsCacheTemporaryDirectory.path,
-                testPlan: testPlanConfiguration?.testPlan,
-                includedTargets: Set(testTargets.map(\.target)),
-                excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
-                skipUITests: skipUITests
-            )
-        }
+        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+
+        let testGenerator = generatorFactory.testing(
+            config: config,
+            testsCacheDirectory: testsCacheTemporaryDirectory.path,
+            testPlan: testPlanConfiguration?.testPlan,
+            includedTargets: Set(testTargets.map(\.target)),
+            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            skipUITests: skipUITests,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            ignoreSelectiveTesting: ignoreSelectiveTesting,
+            cacheStorage: cacheStorage
+        )
 
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await testGenerator.generateWithGraph(
@@ -320,6 +318,16 @@ public final class TestService { // swiftlint:disable:this type_body_length
         }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
+
+        // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
+        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = try FileHandler.shared
+            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+            .reduce(into: [:]) { acc, hash in
+                guard let name = try FileHandler.shared.contentsOfDirectory(hash).first else { return }
+                acc[CacheStorableItem(name: name.basename, hash: hash.basename)] = [AbsolutePath]()
+            }
+
+        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
     }
 
     // MARK: - Helpers

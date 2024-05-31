@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
+import TuistServer
 import TuistSupport
 
 enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
@@ -24,6 +25,8 @@ enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
 
 public struct BuildOptions: ParsableArguments {
     public init() {}
+    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
+    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
 
     @Argument(
         help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
@@ -104,6 +107,8 @@ public struct BuildOptions: ParsableArguments {
 /// Command that builds a target from the project in the current directory.
 public struct BuildCommand: AsyncParsableCommand {
     public init() {}
+    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
+    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -114,6 +119,12 @@ public struct BuildCommand: AsyncParsableCommand {
 
     @OptionGroup()
     var buildOptions: BuildOptions
+
+    @Flag(
+        name: [.customLong("no-binary-cache")],
+        help: "Ignore binary cache and use sources only."
+    )
+    var ignoreBinaryCache: Bool = false
 
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",
@@ -143,11 +154,15 @@ public struct BuildCommand: AsyncParsableCommand {
             FileHandler.shared.currentPath
         }
 
-        try await BuildService().run(
+        try await BuildService(
+            generatorFactory: Self.generatorFactory,
+            cacheStorageFactory: Self.cacheStorageFactory
+        ).run(
             schemeName: buildOptions.scheme,
             generate: buildOptions.generate,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
             buildOutputPath: buildOptions.buildOutputPath.map { try AbsolutePath(
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
