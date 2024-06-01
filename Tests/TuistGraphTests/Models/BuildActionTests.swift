@@ -10,8 +10,10 @@ final class BuildActionTests: TuistUnitTestCase {
         let subject = BuildAction(
             targets: [
                 .init(
-                    projectPath: "/path/to/project",
-                    name: "name"
+                    targetReference: .init(
+                        projectPath: "/path/to/project",
+                        name: "name"
+                    )
                 ),
             ],
             preActions: [

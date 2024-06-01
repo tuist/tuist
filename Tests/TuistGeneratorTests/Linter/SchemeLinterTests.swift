@@ -55,7 +55,7 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesExist",
                 shared: true,
-                buildAction: .init(targets: [.init(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target")])
+                buildAction: .init(targetReferences: [.init(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target")])
             ),
         ])
 
@@ -72,7 +72,7 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesNotExist",
                 shared: true,
-                buildAction: .init(targets: [.init(
+                buildAction: .init(targetReferences: [.init(
                     projectPath: try! AbsolutePath(validating: "/Project/../Framework"),
                     name: "Framework"
                 )])

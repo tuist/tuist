@@ -21,10 +21,13 @@ extension TuistGraph.BuildAction {
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-        let targets: [TuistGraph.TargetReference] = try manifest.targets.map {
+        let targets: [TuistGraph.BuildAction.Target] = try manifest.targets.map {
             .init(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
-                name: $0.targetName
+                targetReference: TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.targetReference.projectPath),
+                    name: $0.targetReference.targetName
+                ),
+                buildFor: $0.buildFor.map({ .init(fromBuildFor: $0) })
             )
         }
         return TuistGraph.BuildAction(
@@ -33,5 +36,22 @@ extension TuistGraph.BuildAction {
             postActions: postActions,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure
         )
+    }
+}
+
+extension TuistGraph.BuildAction.Target.BuildFor {
+    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
+        switch buildFor {
+        case .running: 
+            self = .running
+        case .testing: 
+            self = .testing
+        case .profiling: 
+            self = .profiling
+        case .archiving: 
+            self = .archiving
+        case .analyzing: 
+            self = .analyzing
+        }
     }
 }
