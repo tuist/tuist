@@ -13,14 +13,16 @@ struct CloudOrganizationListCommand: AsyncParsableCommand {
     }
 
     @Flag(
-        help: "The output in JSON format."
+        help: "The output in JSON format.",
+        envKey: .cloudOrganizationListJson
     )
     var json: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationListPath
     )
     var path: String?
 

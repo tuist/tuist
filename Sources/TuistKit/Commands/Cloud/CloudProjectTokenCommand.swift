@@ -14,20 +14,23 @@ struct CloudProjectTokenCommand: AsyncParsableCommand {
 
     @Argument(
         help: "The name of the project to get the token for.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectTokenProjectName
     )
     var projectName: String
 
     @Option(
         name: .shortAndLong,
-        help: "Organization of the project. If not specified, it defaults to your user account."
+        help: "Organization of the project. If not specified, it defaults to your user account.",
+        envKey: .cloudProjectTokenOrganizationName
     )
     var organizationName: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectTokenPath
     )
     var path: String?
 

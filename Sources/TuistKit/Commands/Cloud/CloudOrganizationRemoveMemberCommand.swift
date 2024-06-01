@@ -13,19 +13,22 @@ struct CloudOrganizationRemoveMemberCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to remove the organization member from."
+        help: "The name of the organization to remove the organization member from.",
+        envKey: .cloudOrganizationRemoveMemberOrganizationName
     )
     var organizationName: String
 
     @Argument(
-        help: "The username of the member you want to remove from the organization."
+        help: "The username of the member you want to remove from the organization.",
+        envKey: .cloudOrganizationRemoveMemberUsername
     )
     var username: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationRemoveMemberPath
     )
     var path: String?
 

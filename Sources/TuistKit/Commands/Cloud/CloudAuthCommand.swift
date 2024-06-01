@@ -14,7 +14,8 @@ struct CloudAuthCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudAuthPath
     )
     var path: String?
 

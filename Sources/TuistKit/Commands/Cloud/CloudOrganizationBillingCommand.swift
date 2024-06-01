@@ -13,14 +13,16 @@ struct CloudOrganizationBillingCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to show billing dashboard for."
+        help: "The name of the organization to show billing dashboard for.",
+        envKey: .cloudOrganizationBillingOrganizationName
     )
     var organizationName: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationBillingPath
     )
     var path: String?
 

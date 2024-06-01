@@ -13,14 +13,16 @@ struct CloudOrganizationRemoveSSOCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization for which you want to update the SSO provider for."
+        help: "The name of the organization for which you want to update the SSO provider for.",
+        envKey: .cloudOrganizationRemoveSSOOrganizationName
     )
     var organizationName: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationRemoveSSOPath
     )
     var path: String?
 

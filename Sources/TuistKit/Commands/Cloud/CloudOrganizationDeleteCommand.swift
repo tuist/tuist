@@ -14,14 +14,16 @@ struct CloudOrganizationDeleteCommand: AsyncParsableCommand {
 
     @Argument(
         help: "The name of the organization to delete.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationDeleteOrganizationName
     )
     var organizationName: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationDeletePath
     )
     var path: String?
 

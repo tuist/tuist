@@ -121,6 +121,14 @@ public enum EnvKey: String, CaseIterable {
     case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
     
+    // CLOUD ORGANIZATION BILLING
+    case cloudOrganizationBillingOrganizationName = "TUIST_CLOUD_ORGANIZATION_BILLING_ORGANIZATION_NAME"
+    case cloudOrganizationBillingPath = "TUIST_CLOUD_ORGANIZATION_BILLING_PATH"
+    
+    // CLOUD ORGANIZATION CREATE
+    case cloudOrganizationCreateOrganizationName = "TUIST_CLOUD_ORGANIZATION_CREATE_ORGANIZATION_NAME"
+    case cloudOrganizationCreatePath = "TUIST_CLOUD_ORGANIZATION_CREATE_PATH"
+    
     // CLOUD ORGANIZATION DELETE
     case cloudOrganizationDeleteOrganizationName = "TUIST_CLOUD_ORGANIZATION_DELETE_ORGANIZATION_NAME"
     case cloudOrganizationDeletePath = "TUIST_CLOUD_ORGANIZATION_DELETE_PATH"
@@ -138,6 +146,11 @@ public enum EnvKey: String, CaseIterable {
     case cloudOrganizationRemoveInviteOrganizationName = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_ORGANIZATION_NAME"
     case cloudOrganizationRemoveInviteEmail = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_EMAIL"
     case cloudOrganizationRemoveInvitePath = "TUIST_CLOUD_ORGANIZATION_REMOVE_INVITE_PATH"
+    
+    // CLOUD ORGANIZATION REMOVE MEMBER
+    case cloudOrganizationRemoveMemberOrganizationName = "TUIST_CLOUD_ORGANIZATION_REMOVE_MEMBER_ORGANIZATION_NAME"
+    case cloudOrganizationRemoveMemberUsername = "TUIST_CLOUD_ORGANIZATION_REMOVE_MEMBER_USERNAME"
+    case cloudOrganizationRemoveMemberPath = "TUIST_CLOUD_ORGANIZATION_REMOVE_MEMBER_PATH"
     
     // CLOUD ORGANIZATION REMOVE SSO
     case cloudOrganizationRemoveSSOOrganizationName = "TUIST_CLOUD_ORGANIZATION_REMOVE_SSO_ORGANIZATION_NAME"

@@ -13,19 +13,22 @@ struct CloudOrganizationRemoveInviteCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to cancel the invitation for."
+        help: "The name of the organization to cancel the invitation for.",
+        envKey: .cloudOrganizationRemoveInviteOrganizationName
     )
     var organizationName: String
 
     @Argument(
-        help: "The email of the user to cancel the invitation for."
+        help: "The email of the user to cancel the invitation for.",
+        envKey: .cloudOrganizationRemoveInviteEmail
     )
     var email: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationRemoveInvitePath
     )
     var path: String?
 

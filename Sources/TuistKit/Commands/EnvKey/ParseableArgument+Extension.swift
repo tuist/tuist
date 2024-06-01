@@ -167,13 +167,14 @@ extension Argument {
     
     init(
         help: ArgumentHelp? = nil,
+        completion: CompletionKind? = nil,
         envKey: EnvKey
     ) where Value: ExpressibleByArgument {
         let envValue: Value? = envKey.envValue()
         if let envValue {
-            self.init(wrappedValue: envValue, help: help?.withEnvKey(envKey))
+            self.init(wrappedValue: envValue, help: help?.withEnvKey(envKey), completion: completion)
         } else {
-            self.init(help: help?.withEnvKey(envKey))
+            self.init(help: help?.withEnvKey(envKey), completion: completion)
         }
     }
     

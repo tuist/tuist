@@ -13,14 +13,16 @@ struct CloudOrganizationCreateCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to create."
+        help: "The name of the organization to create.",
+        envKey: .cloudOrganizationCreateOrganizationName
     )
     var organizationName: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationCreatePath
     )
     var path: String?
 

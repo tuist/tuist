@@ -13,19 +13,22 @@ struct CloudOrganizationInviteCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to invite the user to."
+        help: "The name of the organization to invite the user to.",
+        envKey: .cloudOrganizationInviteOrganizationName
     )
     var organizationName: String
 
     @Argument(
-        help: "The email of the user to invite."
+        help: "The email of the user to invite.",
+        envKey: .cloudOrganizationInviteEmail
     )
     var email: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationInvitePath
     )
     var path: String?
 
