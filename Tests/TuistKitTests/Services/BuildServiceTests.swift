@@ -29,7 +29,7 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
             "Workspace not found expected xcworkspace at /path/to/workspace"
         )
     }
-    
+
     func test_type() {
         XCTAssertEqual(BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).type, .abort)
         XCTAssertEqual(BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").type, .abort)
@@ -44,7 +44,7 @@ final class BuildServiceTests: TuistUnitTestCase {
     private var targetBuilder: MockTargetBuilder!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var subject: BuildService!
-    
+
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
@@ -70,7 +70,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             targetBuilder: targetBuilder
         )
     }
-    
+
     override func tearDown() {
         generator = nil
         generatorFactory = nil
@@ -80,7 +80,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run_when_the_project_should_be_generated() async throws {
         // Given
         let path = try temporaryPath()
@@ -91,7 +91,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
-        
+
         generator.generateWithGraphStub = { _path in
             XCTAssertEqual(_path, path)
             return (path, graph)
@@ -121,14 +121,14 @@ final class BuildServiceTests: TuistUnitTestCase {
                 XCTAssertNil(_device)
                 XCTAssertNil(_osVersion)
             }
-        
+
         // Then
         try await subject.testRun(
             schemeName: scheme.name,
             path: path
         )
     }
-    
+
     func test_run_when_the_project_is_already_generated() async throws {
         // Given
         let path = try temporaryPath()
@@ -139,7 +139,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
-        
+
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
@@ -166,14 +166,14 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
         }
-        
+
         // Then
         try await subject.testRun(
             schemeName: scheme.name,
             path: path
         )
     }
-    
+
     func test_run_only_cleans_the_first_time() async throws {
         // Given
         let path = try temporaryPath()
@@ -186,7 +186,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
-        
+
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
@@ -212,7 +212,7 @@ final class BuildServiceTests: TuistUnitTestCase {
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertNil(_device)
                 XCTAssertNil(_osVersion)
-                
+
                 if _scheme.name == "A" {
                     XCTAssertEqual(_scheme, schemeA)
                     XCTAssertTrue(_clean)
@@ -224,13 +224,13 @@ final class BuildServiceTests: TuistUnitTestCase {
                     XCTFail("unexpected scheme \(_scheme.name)")
                 }
             }
-        
+
         // Then
         try await subject.testRun(
             path: path
         )
     }
-    
+
     func test_run_only_builds_the_given_scheme_when_passed() async throws {
         // Given
         let path = try temporaryPath()
@@ -243,7 +243,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
-        
+
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
             return graph
@@ -273,14 +273,14 @@ final class BuildServiceTests: TuistUnitTestCase {
                 XCTFail("unexpected scheme \(_scheme.name)")
             }
         }
-        
+
         // Then
         try await subject.testRun(
             schemeName: "A",
             path: path
         )
     }
-    
+
     func test_run_lists_schemes() async throws {
         // Given
         let path = try temporaryPath()
@@ -302,12 +302,12 @@ final class BuildServiceTests: TuistUnitTestCase {
                 schemeB,
             ]
         }
-        
+
         // When
         try await subject.testRun(
             path: path
         )
-        
+
         // Then
         XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
     }

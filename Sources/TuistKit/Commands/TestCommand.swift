@@ -274,3 +274,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 }
+
+extension TestIdentifier: ExpressibleByArgument {
+    public init?(argument: String) {
+        do {
+            try self.init(string: argument)
+        } catch {
+            return nil
+        }
+    }
+}

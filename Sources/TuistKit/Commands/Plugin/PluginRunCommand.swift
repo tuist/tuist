@@ -20,20 +20,19 @@ public struct PluginRunCommand: ParsableCommand {
         envKey: .pluginRunBuildTests
     )
     var buildTests: Bool = false
-    
+
     @Flag(
         help: "Skip building the plugin.",
         envKey: .pluginRunSkipBuild
-        
     )
     var skipBuild: Bool = false
-    
+
     @Argument(
         help: "The plugin task to run.",
         envKey: .pluginRunTask
     )
     var task: String
-    
+
     @Argument(
         help: "The arguments to pass to the plugin task.",
         envKey: .pluginRunArguments

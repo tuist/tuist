@@ -23,7 +23,7 @@ struct DumpCommand: AsyncParsableCommand {
     var path: String?
 
     @Argument(help: "The manifest to be dumped", envKey: .dumpManifest)
-    var manifest: DumpableManifest = DumpableManifest.project
+    var manifest: DumpableManifest = .project
 
     func run() async throws {
         try await DumpService().run(path: path, manifest: manifest)

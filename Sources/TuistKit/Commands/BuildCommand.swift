@@ -2,9 +2,9 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
+import TuistGraph
 import TuistServer
 import TuistSupport
-import TuistGraph
 
 enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     case alreadyHandled(String)
@@ -33,14 +33,12 @@ public struct BuildOptions: ParsableArguments {
     @Argument(
         help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
         envKey: .buildOptionsScheme
-        
     )
     public var scheme: String?
 
     @Flag(
         help: "Force the generation of the project before building.",
         envKey: .buildOptionsGenerate
-
     )
     public var generate: Bool = false
 
@@ -63,7 +61,7 @@ public struct BuildOptions: ParsableArguments {
         help: "Build on a specific device.",
         envKey: .buildOptionsDevice
     )
-    public var device: String? 
+    public var device: String?
 
     @Option(
         name: .long,
@@ -157,7 +155,6 @@ public struct BuildCommand: AsyncParsableCommand {
             }
         }
 
-
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath = buildOptions.derivedDataPath {
             logger
@@ -194,5 +191,11 @@ public struct BuildCommand: AsyncParsableCommand {
             generateOnly: buildOptions.generateOnly,
             passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
         )
+    }
+}
+
+extension TuistGraph.Platform: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(commandLineValue: argument)
     }
 }

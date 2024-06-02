@@ -11,7 +11,7 @@ enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
-    
+
     var description: String {
         switch self {
         case let .schemeWithoutBuildableTargets(scheme):
@@ -22,13 +22,13 @@ enum BuildServiceError: FatalError {
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .workspaceNotFound:
             return .bug
         case .schemeNotFound,
-                .schemeWithoutBuildableTargets:
+             .schemeWithoutBuildableTargets:
             return .abort
         }
     }
@@ -40,7 +40,7 @@ public final class BuildService {
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let configLoader: ConfigLoading
-    
+
     public init(
         generatorFactory: GeneratorFactorying,
         cacheStorageFactory: CacheStorageFactorying,
@@ -54,7 +54,7 @@ public final class BuildService {
         self.targetBuilder = targetBuilder
         self.configLoader = configLoader
     }
-    
+
     // swiftlint:disable:next function_body_length
     public func run(
         schemeName: String?,
@@ -87,47 +87,47 @@ public final class BuildService {
         } else {
             graph = try await generator.load(path: path)
         }
-        
+
         if generateOnly {
             return
         }
-        
+
         guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
             throw BuildServiceError.workspaceNotFound(path: path.pathString)
         }
-        
+
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
-        
+
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
             )
         }
-        
+
         logger.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
-        
+
         if let schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-            
+
             guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
-            
+
             let buildPlatform: TuistGraph.Platform
-            
+
             if let platform {
                 buildPlatform = platform
             } else {
                 buildPlatform = try graphTarget.target.servicePlatform
             }
-            
+
             try await targetBuilder.buildTarget(
                 graphTarget,
                 platform: buildPlatform,
@@ -151,15 +151,15 @@ public final class BuildService {
                 guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
-                
+
                 let buildPlatform: TuistGraph.Platform
-                
+
                 if let platform {
                     buildPlatform = platform
                 } else {
                     buildPlatform = try graphTarget.target.servicePlatform
                 }
-                
+
                 try await targetBuilder.buildTarget(
                     graphTarget,
                     platform: buildPlatform,
@@ -178,7 +178,7 @@ public final class BuildService {
                 cleaned = true
             }
         }
-        
+
         logger.log(level: .notice, "The project built successfully", metadata: .success)
     }
 }

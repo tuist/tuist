@@ -8,7 +8,7 @@ public struct PluginTestCommand: ParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
-            
+
             abstract: "Tests a plugin."
         )
     }

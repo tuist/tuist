@@ -1,5 +1,5 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 extension Option {
@@ -12,7 +12,7 @@ extension Option {
         envKey: EnvKey
     ) where T: ExpressibleByArgument, Value == [T] {
         let envValue: Value? = envKey.envValue()
-        if let envValue, _value.isEmpty {
+        if let envValue {
             self.init(
                 wrappedValue: envValue,
                 name: name,
@@ -30,14 +30,14 @@ extension Option {
             )
         }
     }
-    
+
     public init<T>(
         name: NameSpecification = .long,
         parsing parsingStrategy: SingleValueParsingStrategy = .next,
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == Optional<T> {
+    ) where T: ExpressibleByArgument, Value == T? {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,
@@ -56,7 +56,7 @@ extension Option {
             )
         }
     }
-    
+
     init(
         wrappedValue _value: Value,
         name: NameSpecification = .long,
@@ -84,7 +84,7 @@ extension Option {
             )
         }
     }
-    
+
     init(
         name: NameSpecification = .long,
         parsing parsingStrategy: SingleValueParsingStrategy = .next,
@@ -112,7 +112,6 @@ extension Option {
     }
 }
 
-// Flag Extensions
 extension Flag where Value == Bool {
     public init(
         wrappedValue: Bool,
@@ -164,7 +163,7 @@ extension Argument {
             )
         }
     }
-    
+
     init(
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
@@ -177,7 +176,7 @@ extension Argument {
             self.init(help: help?.withEnvKey(envKey), completion: completion)
         }
     }
-    
+
     init(
         wrappedValue _value: Value,
         help: ArgumentHelp? = nil,
@@ -190,12 +189,12 @@ extension Argument {
             self.init(wrappedValue: _value, help: help?.withEnvKey(envKey))
         }
     }
-    
+
     public init<T>(
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
-    ) where T: ExpressibleByArgument, Value == Optional<T> {
+    ) where T: ExpressibleByArgument, Value == T? {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,
