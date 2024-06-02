@@ -14,8 +14,6 @@
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
-    "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main",
-    "generate-cli-docs": "./scripts/generate-cli-docs-from-man.mjs",
-    "generate-manifest-docs": "./scripts/generate-manifest-docs.mjs"
+    "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main"
   }
 }

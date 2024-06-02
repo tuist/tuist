@@ -9,13 +9,20 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDirectory = path.join(__dirname, "../..");
 const docsDirectory = path.join(__dirname, "../docs/generated/cli");
-const manDirectory = path.join(rootDirectory, ".build/plugins/GenerateManual/outputs/tuist");
+const manDirectory = path.join(
+  rootDirectory,
+  ".build/plugins/GenerateManual/outputs/tuist"
+);
 
 const generateManPages = async () => {
-  await execa("swift", ["package", "plugin", "generate-manual", "--multi-page"], {
-    cwd: rootDirectory,
-    stdio: "inherit",
-  });
+  await execa(
+    "swift",
+    ["package", "plugin", "generate-manual", "--multi-page"],
+    {
+      cwd: rootDirectory,
+      stdio: "inherit",
+    }
+  );
 };
 
 const runManCommand = async (filePath) => {
@@ -27,18 +34,20 @@ const parseManPage = async (filePath) => {
   const manContent = await runManCommand(filePath);
 
   // Remove the first line containing `TUIST.BUILD(1) General Commands Manual TUIST.BUILD(1)`
-  const lines = manContent.split('\n').slice(1);
+  const lines = manContent.split("\n").slice(1);
 
   // Remove the last line
   lines.pop();
 
   // Convert all caps sections to subheadings
-  const formattedContent = lines.map(line => {
-    if (/^[A-Z ]+$/.test(line.trim())) {
-      return `### ${line.trim()}`;
-    }
-    return line;
-  }).join('\n');
+  const formattedContent = lines
+    .map((line) => {
+      if (/^[A-Z ]+$/.test(line.trim())) {
+        return `### ${line.trim()}`;
+      }
+      return line;
+    })
+    .join("\n");
 
   return `# ${path.basename(filePath, ".1")}
 
@@ -57,7 +66,7 @@ const generateDocs = async () => {
     const docContent = await parseManPage(file);
 
     // Create directory structure based on the path
-    const docPathParts = commandName.split('.').slice(1); // Remove "tuist"
+    const docPathParts = commandName.split(".").slice(1); // Remove "tuist"
     const docDirParts = docPathParts.slice(0, -1); // All but the last part
     const docDir = path.join(docsDirectory, ...docDirParts);
     const docPath = path.join(docDir, `${commandName}.md`);
