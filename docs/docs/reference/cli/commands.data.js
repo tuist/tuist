@@ -17,10 +17,12 @@ export default {
     const validCategories = ["cloud", "plugin", "migration", "tuist"];
 
     return files.map((file) => {
+      const relativePath = path.relative(generatedDirectory, file);
       const fileName = path.basename(file, ".md");
       const content = fs.readFileSync(file, "utf-8");
+      const description = content.split('\n')[1].trim();
 
-      const category = path.relative(generatedDirectory, file).split(path.sep)[0];
+      const category = relativePath.split(path.sep)[0];
       const finalCategory = validCategories.includes(category) ? category : "tuist";
 
       let titleParts = fileName.split(".");
@@ -30,9 +32,10 @@ export default {
 
 
       return {
-        identifier: fileName,
+        command: relativePath.replace(/\.md$/, ""),
         title: title,
         content: content,
+        path: relativePath.replace(/\.md$/, ""),
         category: finalCategory,
       };
     })

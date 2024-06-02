@@ -43,7 +43,7 @@ function generateNestedSidebarItems(items) {
         items: [],
       };
     }
-    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.identifier}` });
+    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
   });
 
   function isLinkItem(item) {
