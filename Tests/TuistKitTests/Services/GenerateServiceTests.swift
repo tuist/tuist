@@ -1,8 +1,10 @@
 import Foundation
+import MockableTest
 import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistServer
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -11,20 +13,38 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GenerateServiceTests: TuistUnitTestCase {
-    var subject: GenerateService!
-    var opener: MockOpener!
-    var generator: MockGenerator!
-    var generatorFactory: MockGeneratorFactory!
-    var clock: StubClock!
+    private var subject: GenerateService!
+    private var opener: MockOpener!
+    private var generator: MockGenerator!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var clock: StubClock!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
         generator = MockGenerator()
-        generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedDefaultResult = generator
+        generatorFactory = .init()
+        given(generatorFactory)
+            .generation(
+                config: .any,
+                sources: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+        cacheStorageFactory = .init()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
         clock = StubClock()
-        subject = GenerateService(clock: clock, opener: opener, generatorFactory: generatorFactory)
+        subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            clock: clock,
+            opener: opener
+        )
     }
 
     override func tearDown() {
@@ -32,6 +52,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         generator = nil
         subject = nil
         generatorFactory = nil
+        cacheStorageFactory = nil
         clock = nil
         super.tearDown()
     }
@@ -46,7 +67,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
             try await subject
                 .run(
                     path: nil,
-                    noOpen: true
+                    sources: [],
+                    noOpen: true,
+                    configuration: nil,
+                    ignoreBinaryCache: false
                 )
             XCTFail("Must throw")
         } catch {
@@ -63,7 +87,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
         try await subject.run(
             path: nil,
-            noOpen: false
+            sources: [],
+            noOpen: false,
+            configuration: nil,
+            ignoreBinaryCache: false
         )
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
@@ -84,7 +111,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: nil,
-            noOpen: false
+            sources: [],
+            noOpen: false,
+            configuration: nil,
+            ignoreBinaryCache: false
         )
 
         // Then

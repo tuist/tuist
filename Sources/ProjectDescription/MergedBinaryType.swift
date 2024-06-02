@@ -1,7 +1,7 @@
 /// Represents the different options to configure a target for mergeable libraries
 ///
 /// https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries
-public enum MergedBinaryType: Equatable, Codable {
+public enum MergedBinaryType: Equatable, Codable, Sendable {
     /// Target is never going to merge available dependencies
     case disabled
 

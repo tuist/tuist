@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 enum TestServiceError: FatalError, Equatable {
@@ -57,51 +58,52 @@ enum TestServiceError: FatalError, Equatable {
     }
 }
 
-public final class TestService { // swiftlint:disable:this type_body_length
+final class TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
+    private let cacheStorageFactory: CacheStorageFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
     private let contentHasher: ContentHashing
 
-    private let testsCacheTemporaryDirectory: TemporaryDirectory
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let configLoader: ConfigLoading
 
     public convenience init(
-        testsCacheTemporaryDirectory: TemporaryDirectory
+        generatorFactory: GeneratorFactorying,
+        cacheStorageFactory: CacheStorageFactorying
     ) {
+        let manifestLoaderFactory = ManifestLoaderFactory()
+        let manifestLoader = manifestLoaderFactory.createManifestLoader()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
-            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            generatorFactory: GeneratorFactory()
-        )
-    }
-
-    convenience init() throws {
-        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        self.init(
-            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory
+            generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
+            configLoader: configLoader
         )
     }
 
     init(
-        testsCacheTemporaryDirectory: TemporaryDirectory,
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        configLoader: ConfigLoading
     ) {
-        self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.configLoader = configLoader
     }
 
-    public func validateParameters(
+    static func validateParameters(
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier]
     ) throws {
@@ -152,7 +154,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
     }
 
     // swiftlint:disable:next function_body_length
-    public func run(
+    func run(
+        runId: String,
         schemeName: String?,
         clean: Bool,
         configuration: String?,
@@ -169,34 +172,35 @@ public final class TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
-        generator: Generating? = nil,
-        generateOnly: Bool
+        ignoreBinaryCache: Bool,
+        ignoreSelectiveTesting: Bool,
+        generateOnly: Bool,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         if validateTestTargetsParameters {
-            try validateParameters(
+            try Self.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             )
         }
         // Load config
-        let manifestLoaderFactory = ManifestLoaderFactory()
-        let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
+        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
 
-        let testGenerator: Generating
-        if let generator {
-            testGenerator = generator
-        } else {
-            testGenerator = generatorFactory.test(
-                config: config,
-                testsCacheDirectory: testsCacheTemporaryDirectory.path,
-                testPlan: testPlanConfiguration?.testPlan,
-                includedTargets: Set(testTargets.map(\.target)),
-                excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
-                skipUITests: skipUITests
-            )
-        }
+        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+
+        let testGenerator = generatorFactory.testing(
+            config: config,
+            testsCacheDirectory: testsCacheTemporaryDirectory.path,
+            testPlan: testPlanConfiguration?.testPlan,
+            includedTargets: Set(testTargets.map(\.target)),
+            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            skipUITests: skipUITests,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            ignoreSelectiveTesting: ignoreSelectiveTesting,
+            cacheStorage: cacheStorage
+        )
 
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await testGenerator.generateWithGraph(
@@ -221,6 +225,23 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
             )
+        }
+
+        let passedResultBundlePath = resultBundlePath
+
+        let resultBundlePath = try self.resultBundlePath(
+            passedResultBundlePath: passedResultBundlePath,
+            runId: runId,
+            config: config
+        )
+
+        defer {
+            if let resultBundlePath, let passedResultBundlePath, config.cloud != nil {
+                if !FileHandler.shared.exists(resultBundlePath.parentDirectory) {
+                    try? FileHandler.shared.createFolder(resultBundlePath.parentDirectory)
+                }
+                try? FileHandler.shared.copy(from: passedResultBundlePath, to: resultBundlePath)
+            }
         }
 
         if let schemeName {
@@ -260,7 +281,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }
         } else {
@@ -289,15 +311,43 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }
         }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
+
+        // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
+        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = try FileHandler.shared
+            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+            .reduce(into: [:]) { acc, hash in
+                guard let name = try FileHandler.shared.contentsOfDirectory(hash).first else { return }
+                acc[CacheStorableItem(name: name.basename, hash: hash.basename)] = [AbsolutePath]()
+            }
+
+        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
     }
 
     // MARK: - Helpers
+
+    /// - Returns: Result bundle path to use. Either passed by the user or a path in the Tuist cache
+    private func resultBundlePath(
+        passedResultBundlePath: AbsolutePath?,
+        runId: String,
+        config: Config
+    ) throws -> AbsolutePath? {
+        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
+            .tuistCacheDirectory(for: .runs)
+            .appending(components: runId, Constants.resultBundleName)
+
+        if config.cloud == nil {
+            return passedResultBundlePath
+        } else {
+            return passedResultBundlePath ?? runResultBundlePath
+        }
+    }
 
     // swiftlint:disable:next function_body_length
     private func testScheme(
@@ -314,7 +364,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
@@ -371,8 +422,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
             retryCount: retryCount,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration
+            testPlanConfiguration: testPlanConfiguration,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
-        .printFormattedOutput()
     }
 }

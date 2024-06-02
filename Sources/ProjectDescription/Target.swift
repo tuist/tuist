@@ -1,7 +1,7 @@
 import Foundation
 
 /// A target of a project.
-public struct Target: Codable, Equatable {
+public struct Target: Codable, Equatable, Sendable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
     public var name: String
 

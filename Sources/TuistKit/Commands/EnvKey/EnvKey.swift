@@ -3,8 +3,12 @@ import ArgumentParser
 import TuistSupport
 
 public enum EnvKey: String, CaseIterable {
+    
+    // BUILD
+    case buildBinaryCache = "TUIST_BUILD_BINARY_CACHE"
+
     // BUILD OPTIONS
-    case buildOptionsSchemes = "TUIST_BUILD_OPTIONS_SCHEMES"
+    case buildOptionsScheme = "TUIST_BUILD_OPTIONS_SCHEME"
     case buildOptionsGenerate = "TUIST_BUILD_OPTIONS_GENERATE"
     case buildOptionsClean = "TUIST_BUILD_OPTIONS_CLEAN"
     case buildOptionsPath = "TUIST_BUILD_OPTIONS_PATH"
@@ -16,7 +20,8 @@ public enum EnvKey: String, CaseIterable {
     case buildOptionsOutputPath = "TUIST_BUILD_OPTIONS_BUILD_OUTPUT_PATH"
     case buildOptionsDerivedDataPath = "TUIST_BUILD_OPTIONS_DERIVED_DATA_PATH"
     case buildOptionsGenerateOnly = "TUIST_BUILD_OPTIONS_GENERATE_ONLY"
-    
+    case buildOptionsPassthroughXcodeBuildArguments = "TUIST_BUILD_OPTIONS_PASSTHROUGH_XCODE_BUILD_ARGUMENTS"
+
     // CLEAN
     case cleanCleanCategories = "TUIST_CLEAN_CLEAN_CATEGORIES"
     case cleanPath = "TUIST_CLEAN_PATH"
@@ -37,7 +42,8 @@ public enum EnvKey: String, CaseIterable {
     // GENERATE
     case generatePath = "TUIST_GENERATE_PATH"
     case generateOpen = "TUIST_GENERATE_OPEN"
-    
+    case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
+
     // GRAPH
     case graphSkipTestTargets = "TUIST_GRAPH_SKIP_TEST_TARGETS"
     case graphSkipExternalDependencies = "TUIST_GRAPH_SKIP_EXTERNAL_DEPENDENCIES"
@@ -120,7 +126,9 @@ public enum EnvKey: String, CaseIterable {
     case testConfigurations = "TUIST_TEST_CONFIGURATIONS"
     case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
-    
+    case testBinaryCache = "TUIST_TEST_BINARY_CACHE"
+    case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
+
     // CLOUD ORGANIZATION BILLING
     case cloudOrganizationBillingOrganizationName = "TUIST_CLOUD_ORGANIZATION_BILLING_ORGANIZATION_NAME"
     case cloudOrganizationBillingPath = "TUIST_CLOUD_ORGANIZATION_BILLING_PATH"

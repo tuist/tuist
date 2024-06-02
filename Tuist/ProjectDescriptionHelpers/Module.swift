@@ -183,6 +183,17 @@ public enum Module: String, CaseIterable {
         return dependencies + sharedDependencies
     }
 
+    public var strictConcurrencySetting: String? {
+        switch self {
+        case .projectAutomation, .projectDescription:
+            return "complete"
+        case .support:
+            return "targeted"
+        default:
+            return nil
+        }
+    }
+
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] = switch self {
         case .acceptanceTesting:
@@ -217,7 +228,6 @@ public enum Module: String, CaseIterable {
                 .external(name: "AnyCodable"),
                 .external(name: "XcodeProj"),
                 .external(name: "KeychainAccess"),
-                .external(name: "CombineExt"),
                 .external(name: "Logging"),
                 .external(name: "ZIPFoundation"),
                 .external(name: "Difference"),
@@ -646,6 +656,12 @@ public enum Module: String, CaseIterable {
             debugSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
             releaseSettings["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         }
+
+        if let strictConcurrencySetting, product == .framework {
+            debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+            releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+        }
+
         let settings = Settings.settings(
             configurations: [
                 .debug(

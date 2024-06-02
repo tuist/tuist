@@ -12,6 +12,12 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The manifests cache
     case manifests
 
+    /// The edit projects cache
+    case editProjects
+
+    /// The Tuist Runs cache
+    case runs
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -22,6 +28,10 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "ProjectDescriptionHelpers"
         case .manifests:
             return "Manifests"
+        case .editProjects:
+            return "EditProjects"
+        case .runs:
+            return "Runs"
         }
     }
 

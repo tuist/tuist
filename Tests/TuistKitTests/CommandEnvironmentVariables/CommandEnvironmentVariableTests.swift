@@ -39,7 +39,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     }
     
     func testBuildCommandUsesEnvVars() throws {
-        setVariable(.buildOptionsSchemes, value: "Scheme1,Scheme2")
+        setVariable(.buildOptionsScheme, value: "Scheme1")
         setVariable(.buildOptionsGenerate, value: "true")
         setVariable(.buildOptionsClean, value: "true")
         setVariable(.buildOptionsPath, value: "/path/to/project")
@@ -51,23 +51,25 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.buildOptionsOutputPath, value: "/path/to/output")
         setVariable(.buildOptionsDerivedDataPath, value: "/path/to/derivedData")
         setVariable(.buildOptionsGenerateOnly, value: "true")
-        
+        setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
+
         let buildCommandWithEnvVars = try BuildCommand.parse([])
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.schemes, ["Scheme1", "Scheme2"])
+        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.scheme, "Scheme1")
         XCTAssertTrue(buildCommandWithEnvVars.buildOptions.generate)
         XCTAssertTrue(buildCommandWithEnvVars.buildOptions.clean)
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.path, "/path/to/project")
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.device, "iPhone")
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.platform, .iOS)
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.os, try Version(versionString: "14.5.0"))
+        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.os, "14.5.0")
         XCTAssertTrue(buildCommandWithEnvVars.buildOptions.rosetta)
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.configuration, "Debug")
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.buildOutputPath, "/path/to/output")
         XCTAssertEqual(buildCommandWithEnvVars.buildOptions.derivedDataPath, "/path/to/derivedData")
         XCTAssertTrue(buildCommandWithEnvVars.buildOptions.generateOnly)
-        
+        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments, ["clean", "-configuration", "Release"])
+
         let buildCommandWithArgs = try BuildCommand.parse([
-            "Scheme3",
+            "Scheme2",
             "--generate",
             "--no-clean",
             "--path", "/new/path",
@@ -77,9 +79,11 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--configuration", "Release",
             "--build-output-path", "/new/output",
             "--derived-data-path", "/new/derivedData",
-            "--no-generate-only"
+            "--no-generate-only",
+            "--",
+            "-configuration", "Debug"
         ])
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.schemes, ["Scheme3"])
+        XCTAssertEqual(buildCommandWithArgs.buildOptions.scheme, "Scheme2")
         XCTAssertTrue(buildCommandWithArgs.buildOptions.generate)
         XCTAssertFalse(buildCommandWithArgs.buildOptions.clean)
         XCTAssertEqual(buildCommandWithArgs.buildOptions.path, "/new/path")
@@ -90,17 +94,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(buildCommandWithArgs.buildOptions.buildOutputPath, "/new/output")
         XCTAssertEqual(buildCommandWithArgs.buildOptions.derivedDataPath, "/new/derivedData")
         XCTAssertFalse(buildCommandWithArgs.buildOptions.generateOnly)
+        XCTAssertEqual(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments, ["-configuration", "Debug"])
     }
     
     func testCleanCommandUsesEnvVars() throws {
         setVariable(.cleanCleanCategories, value: "dependencies")
         setVariable(.cleanPath, value: "/path/to/clean")
 
-        let cleanCommandWithEnvVars = try CleanCommand<TuistCleanCategory>.parse([])
+        let cleanCommandWithEnvVars = try CleanCommand.parse([])
         XCTAssertEqual(cleanCommandWithEnvVars.cleanCategories, [TuistCleanCategory.dependencies])
         XCTAssertEqual(cleanCommandWithEnvVars.path, "/path/to/clean")
 
-        let cleanCommandWithArgs = try CleanCommand<TuistCleanCategory>.parse([
+        let cleanCommandWithArgs = try CleanCommand.parse([
             "manifests",
             "--path", "/new/clean/path"
         ])
@@ -147,17 +152,21 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     func testGenerateCommandUsesEnvVars() throws {
         setVariable(.generatePath, value: "/path/to/generate")
         setVariable(.generateOpen, value: "false")
-        
+        setVariable(.generateBinaryCache, value: "false")
+
         let generateCommandWithEnvVars = try GenerateCommand.parse([])
         XCTAssertEqual(generateCommandWithEnvVars.path, "/path/to/generate")
         XCTAssertFalse(generateCommandWithEnvVars.open)
+        XCTAssertFalse(generateCommandWithEnvVars.binaryCache)
         
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",
-            "--open"
+            "--open",
+            "--binary-cache"
         ])
         XCTAssertEqual(generateCommandWithArgs.path, "/new/generate/path")
         XCTAssertTrue(generateCommandWithArgs.open)
+        XCTAssertTrue(generateCommandWithArgs.binaryCache)
     }
     
     func testGraphCommandUsesEnvVars() throws {
@@ -488,6 +497,8 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.testConfigurations, value: "Config1,Config2")
         setVariable(.testSkipConfigurations, value: "SkipConfig1,SkipConfig2")
         setVariable(.testGenerateOnly, value: "true")
+        setVariable(.testBinaryCache, value: "false")
+        setVariable(.testSelectiveTesting, value: "false")
         
         // Execute TestCommand without command line arguments
         let testCommandWithEnvVars = try TestCommand.parse([])
@@ -512,7 +523,9 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(testCommandWithEnvVars.configurations, ["Config1", "Config2"])
         XCTAssertEqual(testCommandWithEnvVars.skipConfigurations, ["SkipConfig1", "SkipConfig2"])
         XCTAssertTrue(testCommandWithEnvVars.generateOnly)
-        
+        XCTAssertFalse(testCommandWithEnvVars.binaryCache)
+        XCTAssertFalse(testCommandWithEnvVars.selectiveTesting)
+
         // Execute TestCommand with command line arguments
         let testCommandWithArgs = try TestCommand.parse([
             "NewScheme",
@@ -531,7 +544,9 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--skip-test-targets", "NewSkipTarget1", "NewSkipTarget2",
             "--filter-configurations", "NewConfig1", "NewConfig2",
             "--skip-configurations", "NewSkipConfig1", "NewSkipConfig2",
-            "--no-generate-only"
+            "--no-generate-only",
+            "--no-binary-cache",
+            "--no-selective-testing"
         ])
         XCTAssertEqual(testCommandWithArgs.scheme, "NewScheme")
         XCTAssertFalse(testCommandWithArgs.clean)
@@ -554,6 +569,8 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(testCommandWithArgs.configurations, ["NewConfig1", "NewConfig2"])
         XCTAssertEqual(testCommandWithArgs.skipConfigurations, ["NewSkipConfig1", "NewSkipConfig2"])
         XCTAssertFalse(testCommandWithArgs.generateOnly)
+        XCTAssertFalse(testCommandWithArgs.binaryCache)
+        XCTAssertFalse(testCommandWithArgs.selectiveTesting)
     }
     
     func testCloudOrganizationBillingCommandUsesEnvVars() throws {

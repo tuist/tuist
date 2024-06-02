@@ -134,20 +134,15 @@ Once the app is created you'll need to set the following environment variables:
 
  Tuist Cloud needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist Cloud to operate effectively.
 
-#### S3-Compliant storages
+#### S3-compliant storages
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_S3_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID` | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
-| `TUIST_S3_SECRET_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY` | The access key secret | Yes | | `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` |
-| `TUIST_S3_BUCKET_NAME` | Name of the bucket | Yes | | `my-bucket` |
-| `TUIST_S3_REGION`, `AWS_REGION` | The bucket's region | No | `eu-west-1` | `us-east-1` |
-| `TUIST_S3_ENDPOINT` | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
-| `TUIST_AWS_PROFILE`, `AWS_PROFILE` | Set an [AWS profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) for authorization. Doesn't work with other storages | No | | `user1` |
-| `TUIST_AWS_SESSION_TOKEN`, `AWS_SESSION_TOKEN` | [Session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `8ea7c2b4e79bec6f2990afe47f8439a44ed7dc4` |
-| `TUIST_USE_SESSION_TOKEN` | When `1` it uses the [session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `1` |
+The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
 
-For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `TUIST_S3_ACCESS_KEY_ID` and `TUIST_S3_SECRET_ACCESS_KEY` pair. The `TUIST_S3_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+> [!NOTE] RUST SDK
+> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used. 
+
+### Google Cloud Storage
+For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
 ## Deployment
 
@@ -306,11 +301,11 @@ services:
       TUIST_OKTA_EVENT_HOOK_SECRET: # Optional
 
       # Storage
-      TUIST_S3_ACCESS_KEY_ID: # ...
-      TUIST_S3_SECRET_ACCESS_KEY: # ...
+      AWS_ACCESS_KEY_ID: # ...
+      AWS_SECRET_ACCESS_KEY: # ...
+      AWS_S3_REGION: # ...
+      AWS_ENDPOINT: # https://amazonaws.com
       TUIST_S3_BUCKET_NAME: # ...
-      TUIST_S3_REGION: # ...
-      TUIST_S3_ENDPOINT: # https://amazonaws.com
     
       # Other
 

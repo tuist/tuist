@@ -2,7 +2,7 @@ import Foundation
 
 extension Project {
     /// Options to configure a project.
-    public struct Options: Codable, Equatable {
+    public struct Options: Codable, Equatable, Sendable {
         /// Configures automatic target schemes generation.
         public var automaticSchemesOptions: AutomaticSchemesOptions
 
@@ -55,9 +55,9 @@ extension Project {
 
 extension Project.Options {
     /// Automatic schemes options allow customizing the generation of the target schemes.
-    public enum AutomaticSchemesOptions: Codable, Equatable {
+    public enum AutomaticSchemesOptions: Codable, Equatable, Sendable {
         /// Allows you to define what targets will be enabled for code coverage data gathering.
-        public enum TargetSchemesGrouping: Codable, Equatable {
+        public enum TargetSchemesGrouping: Codable, Equatable, Sendable {
             /// Generate a single scheme for each project.
             case singleScheme
 
@@ -89,7 +89,7 @@ extension Project.Options {
     }
 
     /// The text settings options
-    public struct TextSettings: Codable, Equatable {
+    public struct TextSettings: Codable, Equatable, Sendable {
         /// Whether tabs should be used instead of spaces
         public var usesTabs: Bool?
 

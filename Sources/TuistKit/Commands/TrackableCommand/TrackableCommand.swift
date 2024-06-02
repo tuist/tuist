@@ -8,6 +8,7 @@ import TuistSupport
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
+    let runId: String
     let name: String
     let subcommand: String?
     let parameters: [String: AnyCodable]
@@ -40,9 +41,12 @@ public class TrackableCommand: TrackableParametersDelegate {
     }
 
     public func run() async throws {
+        let runId = UUID().uuidString
         let timer = clock.startTimer()
-        if let command = command as? HasTrackableParameters {
+        if var command = command as? HasTrackableParameters & ParsableCommand {
             type(of: command).analyticsDelegate = self
+            command.runId = runId
+            self.command = command
         }
         do {
             if var asyncCommand = command as? AsyncParsableCommand {
@@ -50,19 +54,24 @@ public class TrackableCommand: TrackableParametersDelegate {
             } else {
                 try command.run()
             }
-            try dispatchCommandEvent(timer: timer, status: .success)
+            try dispatchCommandEvent(timer: timer, status: .success, runId: runId)
         } catch {
-            try dispatchCommandEvent(timer: timer, status: .failure("\(error)"))
+            try dispatchCommandEvent(timer: timer, status: .failure("\(error)"), runId: runId)
             throw error
         }
     }
 
-    private func dispatchCommandEvent(timer: any ClockTimer, status: CommandEvent.Status) throws {
+    private func dispatchCommandEvent(
+        timer: any ClockTimer,
+        status: CommandEvent.Status,
+        runId: String
+    ) throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
         let (name, subcommand) = extractCommandName(from: configuration)
         let info = TrackableCommandInfo(
+            runId: runId,
             name: name,
             subcommand: subcommand,
             parameters: trackedParameters,

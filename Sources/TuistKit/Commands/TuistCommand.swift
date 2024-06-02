@@ -14,7 +14,7 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
-                CleanCommand<TuistCleanCategory>.self,
+                CleanCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
                 InstallCommand.self,
@@ -33,8 +33,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
     public static func main(
         _ arguments: [String]? = nil,
-        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot,
-        execute: ((_ command: ParsableCommand, _ commandArguments: [String]) async throws -> Void)? = nil
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
@@ -55,7 +54,6 @@ public struct TuistCommand: AsyncParsableCommand {
         let dispatcher = TuistAnalyticsDispatcher(backend: backend)
         try TuistAnalytics.bootstrap(dispatcher: dispatcher)
 
-        let execute = execute ?? Self.execute
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
@@ -69,10 +67,11 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
-                try await execute(
-                    command,
-                    processedArguments
+                let trackableCommand = TrackableCommand(
+                    command: command,
+                    commandArguments: processedArguments
                 )
+                try await trackableCommand.run()
             }
         } catch {
             parsedError = error
@@ -118,18 +117,6 @@ public struct TuistCommand: AsyncParsableCommand {
             logger.error("\(fullMessage(for: error))")
         }
         _exit(exitCode)
-    }
-
-    private static func execute(
-        command: ParsableCommand,
-        commandArguments _: [String]
-    ) async throws {
-        var command = command
-        if var asyncCommand = command as? AsyncParsableCommand {
-            try await asyncCommand.run()
-        } else {
-            try command.run()
-        }
     }
 
     // MARK: - Helpers

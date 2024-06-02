@@ -13,6 +13,7 @@ public enum TuistAcceptanceFixtures {
     case commandLineToolWithDynamicLibrary
     case commandLineToolWithStaticLibrary
     case frameworkWithEnvironmentVariables
+    case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
     case invalidManifest
@@ -96,6 +97,8 @@ public enum TuistAcceptanceFixtures {
             return "command_line_tool_with_static_library"
         case .frameworkWithEnvironmentVariables:
             return "framework_with_environment_variables"
+        case .frameworkWithMacroAndPluginPackages:
+            return "framework_with_macro_and_plugin_packages"
         case .frameworkWithNativeSwiftMacro:
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:

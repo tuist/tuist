@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistLoader
 import TuistSupport
 import XCTest
 
@@ -16,13 +17,14 @@ import XCTest
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
     private var generator: MockGenerator!
-    private var generatorFactory: MockGeneratorFactory!
+    private var generatorFactory: MockGeneratorFactorying!
     private var xcodebuildController: MockXcodeBuildController!
     private var buildGraphInspector: MockBuildGraphInspector!
     private var simulatorController: MockSimulatorController!
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var configLoader: MockConfigLoading!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -33,7 +35,6 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
-        generatorFactory.stubbedTestResult = generator
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
@@ -41,18 +42,25 @@ final class TestServiceTests: TuistUnitTestCase {
             .cacheDirectories()
             .willReturn(mockCacheDirectoriesProvider)
 
+        let runsCacheDirectory = try temporaryPath()
+        given(mockCacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .value(.runs))
+            .willReturn(runsCacheDirectory)
+
+        configLoader = .init()
+
         contentHasher.hashStub = { _ in
             "hash"
         }
 
         subject = TestService(
-            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
             generatorFactory: generatorFactory,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory
+            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            configLoader: configLoader
         )
     }
 
@@ -69,25 +77,25 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_validateParameters_noParameters() throws {
-        try subject.validateParameters(testTargets: [], skipTestTargets: [])
+        try TestService.validateParameters(testTargets: [], skipTestTargets: [])
     }
 
     func test_validateParameters_nonConflictingParameters_target() throws {
-        try subject.validateParameters(
+        try TestService.validateParameters(
             testTargets: [TestIdentifier(string: "test1")],
             skipTestTargets: [TestIdentifier(string: "test1/class1")]
         )
     }
 
     func test_validateParameters_with_testTargets_and_no_skipTestTargets() throws {
-        try subject.validateParameters(
+        try TestService.validateParameters(
             testTargets: [TestIdentifier(target: "TestTarget", class: "TestClass")],
             skipTestTargets: []
         )
     }
 
     func test_validateParameters_nonConflictingParameters_targetClass() throws {
-        try subject.validateParameters(
+        try TestService.validateParameters(
             testTargets: [TestIdentifier(string: "test1/class1")],
             skipTestTargets: [TestIdentifier(string: "test1/class1/method1")]
         )
@@ -98,7 +106,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test2")]
         let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -111,7 +119,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test1/class2")]
         let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -124,7 +132,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test1/class2/method2")]
         let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -137,7 +145,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -150,7 +158,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test1/class1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -163,7 +171,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let skipTestTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
         XCTAssertThrowsSpecific(
-            try subject.validateParameters(
+            try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             ),
@@ -173,12 +181,16 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_generates_project() async throws {
         // Given
+        givenGenerator()
         let path = try temporaryPath()
         var generatedPath: AbsolutePath?
         generator.generateWithGraphStub = {
             generatedPath = $0
             return ($0, Graph.test())
         }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
 
         // When
         try? await subject.testRun(
@@ -191,6 +203,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_wtih_specified_arch() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "App-Workspace"),
@@ -208,9 +224,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedRosetta: Bool?
-        xcodebuildController.testStub = { _, _, _, _, rosetta, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, _, _, _, rosetta, _, _, _, _, _, _, _, _ in
             testedRosetta = rosetta
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -226,6 +241,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "App-Workspace"),
@@ -243,9 +262,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -260,6 +278,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_all_project_schemes() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -275,9 +297,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -303,6 +324,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_individual_scheme() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -318,9 +343,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -341,6 +365,23 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_with_skipped_targets() async throws {
         // Given
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testsCacheDirectory: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .value([]),
+                skipUITests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOneTests"),
@@ -350,9 +391,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -364,11 +404,14 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
-        XCTAssertEqual(generatorFactory.invokedTestParameters?.excludedTargets, [])
     }
 
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
@@ -379,9 +422,8 @@ final class TestServiceTests: TuistUnitTestCase {
         }
         var testedSchemes: [String] = []
         xcodebuildController.testErrorStub = NSError.test()
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return []
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -407,6 +449,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.workspaceSchemesStub = { _ in
             []
         }
@@ -414,9 +460,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -431,12 +476,15 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_uses_resource_bundle_path() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resourceBundlePath = gotResourceBundlePath
-            return []
         }
         generator.generateWithGraphStub = { path in
             (path, Graph.test())
@@ -460,14 +508,61 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_saves_resource_bundle_when_cloud_is_configured() async throws {
+        // Given
+        givenGenerator()
+        var resultBundlePath: AbsolutePath?
+        let expectedResultBundlePath = try cacheDirectoriesProvider
+            .tuistCacheDirectory(for: .runs)
+            .appending(components: "run-id", Constants.resultBundleName)
+
+        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
+            resultBundlePath = gotResourceBundlePath
+        }
+        generator.generateWithGraphStub = { path in
+            (path, Graph.test())
+        }
+        buildGraphInspector.workspaceSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectScheme"),
+            ]
+        }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    cloud: .test()
+                )
+            )
+
+        let runsCacheDirectory = try temporaryPath()
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .value(.runs))
+            .willReturn(runsCacheDirectory)
+
+        try fileHandler.createFolder(runsCacheDirectory)
+
+        // When
+        try await subject.testRun(
+            runId: "run-id",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(resultBundlePath, expectedResultBundlePath)
+    }
+
     func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resourceBundlePath = gotResourceBundlePath
-            return []
         }
         generator.generateWithGraphStub = { path in
             (path, Graph.test())
@@ -495,6 +590,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_passes_retry_count_as_argument() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -510,9 +609,8 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         var passedRetryCount = 0
-        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
             passedRetryCount = retryCount
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -528,6 +626,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_defaults_retry_count_to_zero() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         buildGraphInspector.testableSchemesStub = { _ in
             [
                 Scheme.test(name: "TestScheme"),
@@ -543,9 +645,8 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         var passedRetryCount = -1
-        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
             passedRetryCount = retryCount
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -560,6 +661,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_test_plan_success() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
         buildGraphInspector.testableSchemesStub = { _ in
@@ -586,9 +691,8 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -605,6 +709,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_test_plan_failure() async throws {
         // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
         buildGraphInspector.testableSchemesStub = { _ in
@@ -626,9 +734,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
-        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, _, _, _, _ in
-            [.standardOutput(.init(raw: "success"))]
-        }
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, _, _, _, _, _, _ in }
 
         let notDefinedTestPlan = "NotDefined"
         do {
@@ -646,12 +752,28 @@ final class TestServiceTests: TuistUnitTestCase {
             throw error
         }
     }
-}
 
-// MARK: - Helpers
+    private func givenGenerator() {
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testsCacheDirectory: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+    }
+}
 
 extension TestService {
     fileprivate func testRun(
+        runId: String = "run-id",
         schemeName: String? = nil,
         clean: Bool = false,
         configuration: String? = nil,
@@ -667,9 +789,11 @@ extension TestService {
         testTargets: [TestIdentifier] = [],
         skipTestTargets: [TestIdentifier] = [],
         testPlanConfiguration: TestPlanConfiguration? = nil,
-        generateOnly: Bool = false
+        generateOnly: Bool = false,
+        passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         try await run(
+            runId: runId,
             schemeName: schemeName,
             clean: clean,
             configuration: configuration,
@@ -685,7 +809,10 @@ extension TestService {
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             testPlanConfiguration: testPlanConfiguration,
-            generateOnly: generateOnly
+            ignoreBinaryCache: false,
+            ignoreSelectiveTesting: false,
+            generateOnly: generateOnly,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

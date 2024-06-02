@@ -1,5 +1,6 @@
+import MockableTest
 import TSCBasic
-import TuistLoaderTesting
+import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
@@ -11,12 +12,12 @@ import XCTest
 final class TuistServiceTests: TuistUnitTestCase {
     private var subject: TuistService!
     private var pluginService: MockPluginService!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
 
     override func setUp() {
         super.setUp()
         pluginService = MockPluginService()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         subject = TuistService(
             pluginService: pluginService,
             configLoader: configLoader
@@ -31,6 +32,12 @@ final class TuistServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_command_not_found() throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
+
+        // When / Then
         XCTAssertThrowsSpecific(
             try subject.run(arguments: ["my-command"], tuistBinaryPath: ""),
             TuistServiceError.taskUnavailable
@@ -49,11 +56,9 @@ final class TuistServiceTests: TuistUnitTestCase {
             "--path",
             projectPath.pathString,
         ])
-        var loadConfigPath: AbsolutePath?
-        configLoader.loadConfigStub = { configPath in
-            loadConfigPath = configPath
-            return .default
-        }
+        given(configLoader)
+            .loadConfig(path: .value(projectPath))
+            .willReturn(.default)
         pluginService.remotePluginPathsStub = { _ in
             [
                 RemotePluginPaths(
@@ -68,7 +73,6 @@ final class TuistServiceTests: TuistUnitTestCase {
         XCTAssertNoThrow(
             try subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "")
         )
-        XCTAssertEqual(loadConfigPath, projectPath)
     }
 
     func test_run_when_command_is_global() throws {
@@ -79,6 +83,9 @@ final class TuistServiceTests: TuistUnitTestCase {
             return ""
         }
         system.succeedCommand(["tuist-my-command", "argument-one"])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
 
         // When/Then
         XCTAssertNoThrow(

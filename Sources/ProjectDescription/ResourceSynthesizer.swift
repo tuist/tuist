@@ -7,7 +7,7 @@ import Foundation
 /// - `.strings(parserOptions: ["separator": "/"])` to use strings template with SwiftGen Parser Options
 /// - `.strings(plugin: "MyPlugin")` to use strings template from a plugin
 /// - `.strings(templatePath: "Templates/Strings.stencil")` to use strings template at a given path
-public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:this type_body_length
+public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:disable:this type_body_length
     /// Templates can be of multiple types
     public var templateType: TemplateType
     public var parser: Parser
@@ -15,7 +15,7 @@ public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:thi
     public var extensions: Set<String>
 
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
-    public enum TemplateType: Codable, Equatable {
+    public enum TemplateType: Codable, Equatable, Sendable {
         /// Plugin template file
         /// `name` is a name of a plugin
         /// `resourceName` is a name of the resource - that is used for finding a template as well as naming the resulting
@@ -30,7 +30,7 @@ public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:thi
     /// Each parser will give you different metadata from a file
     /// You can read more about available parsers and how to use their metadata here:
     /// https://github.com/SwiftGen/SwiftGen#available-parsers
-    public enum Parser: String, Codable {
+    public enum Parser: String, Codable, Sendable {
         case strings
         case assets
         case plists
@@ -41,7 +41,7 @@ public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:thi
         case yaml
         case files
 
-        public enum Option: Equatable, Codable {
+        public enum Option: Equatable, Codable, Sendable {
             /// It represents a string value.
             case string(String)
             /// It represents an integer value.

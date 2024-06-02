@@ -4,8 +4,8 @@ import TuistAutomation
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
-import TSCUtility
 
 enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
@@ -36,17 +36,20 @@ enum BuildServiceError: FatalError {
 
 public final class BuildService {
     private let generatorFactory: GeneratorFactorying
+    private let cacheStorageFactory: CacheStorageFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let configLoader: ConfigLoading
     
     public init(
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        generatorFactory: GeneratorFactorying,
+        cacheStorageFactory: CacheStorageFactorying,
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
         self.configLoader = configLoader
@@ -54,23 +57,31 @@ public final class BuildService {
     
     // swiftlint:disable:next function_body_length
     public func run(
-        schemeNames: [String],
+        schemeName: String?,
         generate: Bool,
         clean: Bool,
         configuration: String?,
+        ignoreBinaryCache: Bool,
         buildOutputPath: AbsolutePath?,
         derivedDataPath: String?,
         path: AbsolutePath,
         device: String?,
-        platform: TuistGraph.Platform?,
-        osVersion: Version?,
+        platform: Platform?,
+        osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator: ((Config) throws -> Generating)? = nil
+        generator _: ((Config) throws -> Generating)? = nil,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph
         let config = try configLoader.loadConfig(path: path)
-        let generator = try generator?(config) ?? generatorFactory.default(config: config)
+        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let generator = generatorFactory.building(
+            config: config,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            cacheStorage: cacheStorage
+        )
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try await generator.generateWithGraph(path: path).1
         } else {
@@ -100,22 +111,11 @@ public final class BuildService {
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
         
-        let schemesToBuild: [Scheme]
-        if schemeNames.isEmpty {
-            // Build only buildable entry schemes when no specific schemes are passed
-            schemesToBuild = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
-        } else {
-            schemesToBuild = try schemeNames.compactMap { schemeName in
-                guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
-                    throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
-                }
-                return scheme
+        if let schemeName {
+            guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
+                throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-        }
-        
-        var cleaned = false
-        
-        for scheme in schemesToBuild {
+            
             guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
@@ -124,7 +124,6 @@ public final class BuildService {
             
             if let platform {
                 buildPlatform = platform
-                //try TuistGraph.Platform.from(commandLineValue: platform)
             } else {
                 buildPlatform = try graphTarget.target.servicePlatform
             }
@@ -134,16 +133,50 @@ public final class BuildService {
                 platform: buildPlatform,
                 workspacePath: workspacePath,
                 scheme: scheme,
-                clean: !cleaned && clean,
+                clean: clean,
                 configuration: configuration,
                 buildOutputPath: buildOutputPath,
                 derivedDataPath: derivedDataPath,
                 device: device,
-                osVersion: osVersion,
+                osVersion: osVersion?.version(),
                 rosetta: rosetta,
-                graphTraverser: graphTraverser
+                graphTraverser: graphTraverser,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
-            cleaned = true
+        } else {
+            var cleaned = false
+            // Build only buildable entry schemes when specific schemes has not been passed
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
+            for scheme in buildableEntrySchemes {
+                guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+                    throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
+                }
+                
+                let buildPlatform: TuistGraph.Platform
+                
+                if let platform {
+                    buildPlatform = platform
+                } else {
+                    buildPlatform = try graphTarget.target.servicePlatform
+                }
+                
+                try await targetBuilder.buildTarget(
+                    graphTarget,
+                    platform: buildPlatform,
+                    workspacePath: workspacePath,
+                    scheme: scheme,
+                    clean: !cleaned && clean,
+                    configuration: configuration,
+                    buildOutputPath: buildOutputPath,
+                    derivedDataPath: derivedDataPath,
+                    device: device,
+                    osVersion: osVersion?.version(),
+                    rosetta: rosetta,
+                    graphTraverser: graphTraverser,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
+                cleaned = true
+            }
         }
         
         logger.log(level: .notice, "The project built successfully", metadata: .success)

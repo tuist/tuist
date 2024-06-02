@@ -3,6 +3,8 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
+import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
@@ -10,6 +12,9 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
+    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
+    public var runId = ""
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -90,7 +95,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var resultBundlePath: String?
 
     @Option(
-        help: "Overrides the folder that should be used for derived data when testing a project.",
+        help: "[Deprecated] Overrides the folder that should be used for derived data when testing a project.",
         completion: .directory,
         envKey: .testDerivedDataPath
     )
@@ -98,7 +103,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .long,
-        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times.",
+        help: "[Deprecated] Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times.",
         envKey: .testRetryCount
     )
     var retryCount: Int = 0
@@ -143,30 +148,98 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var skipConfigurations: [String] = []
 
     @Flag(
+        help: "Ignore binary cache and use sources only.",
+        envKey: .testBinaryCache
+    )
+    var binaryCache: Bool = true
+
+    @Flag(
+        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
+        envKey: .testSelectiveTesting
+    )
+    var selectiveTesting: Bool = true
+
+    @Flag(
         name: .long,
         help: "When passed, it generates the project and skips testing. This is useful for debugging purposes.",
         envKey: .testGenerateOnly
     )
     var generateOnly: Bool = false
 
+    @Argument(
+        parsing: .postTerminator,
+        help: "xcodebuild arguments that will be passthrough"
+    )
+    var passthroughXcodeBuildArguments: [String] = []
+
     public func validate() throws {
-        try TestService().validateParameters(
+        try TestService.validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
         )
     }
 
-    public func run() async throws {
-    
-        let absolutePath: AbsolutePath
+    private var notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
 
-        if let path {
-            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            absolutePath = FileHandler.shared.currentPath
+    public func run() async throws {
+        // Check if passthrough arguments are already handled by tuist
+        try notAllowedPassthroughXcodeBuildArguments.forEach {
+            if passthroughXcodeBuildArguments.contains($0) {
+                throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
+            }
         }
 
-        try await TestService().run(
+        // Suggest the user to use passthrough arguments if already supported by xcodebuild
+        if let derivedDataPath {
+            logger
+                .warning(
+                    "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
+        }
+        if retryCount > 0 {
+            logger
+                .warning(
+                    "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
+                )
+        }
+
+        let absolutePath = if let path {
+            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            FileHandler.shared.currentPath
+        }
+
+        defer {
+            var parameters: [String: AnyCodable] = [
+                "no_binary_cache": AnyCodable(!binaryCache),
+                "no_selective_testing": AnyCodable(!selectiveTesting),
+            ]
+            parameters["cacheable_targets"] = AnyCodable(CacheAnalyticsStore.shared.cacheableTargets)
+            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits)
+            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits)
+            parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
+            parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
+            parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
+
+            TestCommand.analyticsDelegate?.addParameters(
+                parameters
+            )
+        }
+
+        try await TestService(
+            generatorFactory: Self.generatorFactory,
+            cacheStorageFactory: Self.cacheStorageFactory
+        ).run(
+            runId: runId,
             schemeName: scheme,
             clean: clean,
             configuration: configuration,
@@ -194,7 +267,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
-            generateOnly: generateOnly
+            ignoreBinaryCache: !binaryCache,
+            ignoreSelectiveTesting: !selectiveTesting,
+            generateOnly: generateOnly,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

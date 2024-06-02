@@ -1,6 +1,5 @@
 import AnyCodable
 import ArgumentParser
-import Combine
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueueTesting
@@ -107,6 +106,7 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     var shouldFail: Bool = false
 
     static var analyticsDelegate: TrackableParametersDelegate?
+    var runId = ""
 
     func run() throws {
         if shouldFail {

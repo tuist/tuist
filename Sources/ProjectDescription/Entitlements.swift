@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Entitlements
 
-public enum Entitlements: Codable, Equatable {
+public enum Entitlements: Codable, Equatable, Sendable {
     /// The path to an existing .entitlements file.
     case file(path: Path)
 

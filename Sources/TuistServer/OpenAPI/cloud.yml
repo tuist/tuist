@@ -16,6 +16,91 @@ components:
           type: array
       title: AbsentCacheArtifact
       type: object
+    ArtifactMultipartUploadPart:
+      description: Represents an multipart upload's part identified by the upload id and the part number
+      properties:
+        part_number:
+          description: The part number of the multipart upload.
+          type: integer
+        upload_id:
+          description: The upload ID.
+          type: string
+      required:
+        - part_number
+        - upload_id
+      title: ArtifactMultipartUploadPart
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactMultipartUploadPart
+    ArtifactMultipartUploadParts:
+      description: It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
+      properties:
+        parts:
+          items:
+            properties:
+              etag:
+                description: The ETag of the part
+                type: string
+              part_number:
+                description: The part number
+                type: integer
+            required:
+              - part_number
+              - etag
+            type: object
+          type: array
+        upload_id:
+          description: The upload ID
+          type: string
+      required:
+        - upload_id
+        - parts
+      title: ArtifactMultipartUploadParts
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactMultipartUploadParts
+    ArtifactMultipartUploadURL:
+      description: The URL to upload a multipart part
+      properties:
+        data:
+          properties:
+            url:
+              description: The URL to upload the part
+              type: string
+          required:
+            - url
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      required:
+        - status
+        - data
+      title: ArtifactMultipartUploadURL
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactMultipartUploadUrl
+    ArtifactUploadID:
+      description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
+      properties:
+        data:
+          description: Data that contains ID that's associated with the multipart upload to use when uploading parts
+          properties:
+            upload_id:
+              description: The upload ID
+              type: string
+          required:
+            - upload_id
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      required:
+        - status
+        - data
+      title: ArtifactUploadID
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactUploadId
     AuthenticationToken:
       description: Token to authenticate the user with.
       properties:
@@ -41,6 +126,8 @@ components:
           type: object
         status:
           default: success
+          enum:
+            - success
           type: string
       required:
         - status
@@ -56,6 +143,8 @@ components:
           type: object
         status:
           default: success
+          enum:
+            - success
           type: string
       title: CacheArtifactExistence
       type: object
@@ -67,46 +156,10 @@ components:
           type: object
         status:
           default: success
+          enum:
+            - success
           type: string
       title: CacheArtifactMultipartUploadCompletion
-      type: object
-    CacheArtifactMultipartUploadURL:
-      description: The URL to upload a part has been generated.
-      properties:
-        data:
-          properties:
-            url:
-              description: The URL to upload the part
-              type: string
-          required:
-            - url
-          type: object
-        status:
-          default: success
-          type: string
-      required:
-        - status
-        - data
-      title: CacheArtifactMultipartUploadURL
-      type: object
-    CacheArtifactUploadID:
-      description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
-      properties:
-        data:
-          properties:
-            upload_id:
-              description: The upload ID
-              type: string
-          required:
-            - upload_id
-          type: object
-        status:
-          default: success
-          type: string
-      required:
-        - status
-        - data
-      title: CacheArtifactUploadID
       type: object
     CacheCategory:
       default: builds
@@ -136,6 +189,18 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.CommandEvent
+    CommandEventArtifact:
+      description: It represents an artifact that's associated with a command event (e.g. result bundles)
+      properties:
+        type:
+          description: The command event artifact type.
+          enum:
+            - result_bundle
+          type: string
+      required:
+        - type
+      title: CommandEventArtifact
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.CommandEventArtifact
     Error:
       properties:
         message:
@@ -548,6 +613,8 @@ paths:
                     type: object
                   status:
                     default: success
+                    enum:
+                      - success
                     type: string
                 title: CacheArtifactExistence
                 type: object
@@ -651,6 +718,8 @@ paths:
                     type: object
                   status:
                     default: success
+                    enum:
+                      - success
                     type: string
                 title: CacheArtifactMultipartUploadCompletion
                 type: object
@@ -722,24 +791,7 @@ paths:
           content:
             application/json:
               schema:
-                description: The URL to upload a part has been generated.
-                properties:
-                  data:
-                    properties:
-                      url:
-                        description: The URL to upload the part
-                        type: string
-                    required:
-                      - url
-                    type: object
-                  status:
-                    default: success
-                    type: string
-                required:
-                  - status
-                  - data
-                title: CacheArtifactMultipartUploadURL
-                type: object
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
         402:
           content:
@@ -796,24 +848,7 @@ paths:
           content:
             application/json:
               schema:
-                description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
-                properties:
-                  data:
-                    properties:
-                      upload_id:
-                        description: The upload ID
-                        type: string
-                    required:
-                      - upload_id
-                    type: object
-                  status:
-                    default: success
-                    type: string
-                required:
-                  - status
-                  - data
-                title: CacheArtifactUploadID
-                type: object
+                $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
         402:
           content:
@@ -1432,6 +1467,138 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
       summary: Deletes a project with a given id.
+      tags: []
+  /api/runs/{run_id}/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+      operationId: completeAnalyticsArtifactMultipartUpload
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command_event_artifact:
+                  $ref: '#/components/schemas/CommandEventArtifact'
+                multipart_upload_parts:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+              required:
+                - command_event_artifact
+                - multipart_upload_parts
+              type: object
+        description: Command event artifact multipart upload completion
+        required: false
+      responses:
+        204:
+          description: The upload has been completed
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It completes a multi-part upload.
+      tags: []
+  /api/runs/{run_id}/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generateAnalyticsArtifactMultipartUploadURL
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command_event_artifact:
+                  $ref: '#/components/schemas/CommandEventArtifact'
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+              required:
+                - command_event_artifact
+                - multipart_upload_part
+              type: object
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part.
+      tags: []
+  /api/runs/{run_id}/start:
+    post:
+      callbacks: {}
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startAnalyticsArtifactMultipartUpload
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandEventArtifact'
+        description: Artifact to upload
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The upload has been started
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The command event doesn't exist
+      summary: It initiates a multipart upload for a command event artifact.
       tags: []
 security:
   - authorization: []

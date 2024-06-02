@@ -16,6 +16,7 @@ public protocol XcodeBuildControlling {
     ///   to determine the destination.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -23,8 +24,9 @@ public protocol XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
+    ) async throws
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -38,6 +40,7 @@ public protocol XcodeBuildControlling {
     ///   - testTargets: A list of test identifiers indicating which tests to run
     ///   - skipTestTargets: A list of test identifiers indicating which tests to skip
     ///   - testPlanConfiguration: A configuration object indicating which test plan to use and its configurations
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -50,8 +53,9 @@ public protocol XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:
@@ -68,7 +72,7 @@ public protocol XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
@@ -77,8 +81,7 @@ public protocol XcodeBuildControlling {
     func createXCFramework(
         arguments: [String],
         output: AbsolutePath
-    )
-        throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:

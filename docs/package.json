@@ -6,7 +6,9 @@
   "devDependencies": {
     "execa": "^8.0.1",
     "fast-glob": "^3.3.2",
-    "vitepress": "^1.0.1"
+    "vitepress": "^1.0.1",
+    "vue": "^3.4.27",
+    "wrangler": "^3.37.0"
   },
   "scripts": {
     "dev": "vitepress dev",
@@ -15,8 +17,5 @@
     "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main",
     "generate-cli-docs": "./scripts/generate-cli-docs-from-man.mjs",
     "generate-manifest-docs": "./scripts/generate-manifest-docs.mjs"
-  },
-  "dependencies": {
-    "wrangler": "^3.37.0"
   }
 }

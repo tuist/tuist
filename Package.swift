@@ -6,7 +6,6 @@ let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsS
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
-let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 var targets: [Target] = [
     .executableTarget(
@@ -114,7 +113,6 @@ var targets: [Target] = [
     .target(
         name: "TuistSupport",
         dependencies: [
-            combineExtDependency,
             swiftToolsSupportDependency,
             loggingDependency,
             "KeychainAccess",
@@ -430,7 +428,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.3"),
         .package(url: "https://github.com/apple/swift-log", from: "1.5.3"),
         .package(url: "https://github.com/apple/swift-tools-support-core", from: "0.6.1"),
-        .package(url: "https://github.com/CombineCommunity/CombineExt", from: "1.8.1"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer", from: "2.1.1"),
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.7"),
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.17"),

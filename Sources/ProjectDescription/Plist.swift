@@ -5,7 +5,7 @@ import Foundation
 public enum Plist {
     /// It represents the values of the .plist or .entitlements file dictionary.
     /// It ensures that the values used to define the content of the dynamically generated .plist or .entitlements files are valid
-    public indirect enum Value: Codable, Equatable {
+    public indirect enum Value: Codable, Equatable, Sendable {
         /// It represents a string value.
         case string(String)
         /// It represents an integer value.

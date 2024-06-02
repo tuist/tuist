@@ -19,6 +19,16 @@ public final class MockSimulatorController: SimulatorControlling {
         findAvailableDevicesStub?(platform, version, minVersion, deviceName) ?? [SimulatorDeviceAndRuntime.test()]
     }
 
+    public var askForAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> SimulatorDeviceAndRuntime)?
+    public func askForAvailableDevice(
+        platform: TuistGraph.Platform,
+        version: TSCUtility.Version?,
+        minVersion: TSCUtility.Version?,
+        deviceName: String?
+    ) async throws -> TuistCore.SimulatorDeviceAndRuntime {
+        askForAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? SimulatorDeviceAndRuntime.test()
+    }
+
     public var findAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> SimulatorDeviceAndRuntime)?
     public func findAvailableDevice(
         platform: Platform,

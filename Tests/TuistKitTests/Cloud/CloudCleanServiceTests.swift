@@ -1,7 +1,7 @@
 import MockableTest
 import TuistGraph
 import TuistGraphTesting
-import TuistLoaderTesting
+import TuistLoader
 import TuistServer
 import TuistSupport
 import XCTest
@@ -12,14 +12,14 @@ import XCTest
 final class CloudCleanServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionControlling!
     private var cleanCacheService: MockCleanCacheServicing!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var subject: CloudCleanService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = .init()
         cleanCacheService = .init()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         subject = CloudCleanService(
             cloudSessionController: cloudSessionController,
             cleanCacheService: cleanCacheService,
@@ -39,14 +39,16 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
         // Given
         let url = URL(string: "https://cloud.com")!
 
-        configLoader.loadConfigStub = { _ in
-            Config.test(
-                cloud: Cloud.test(
-                    url: url,
-                    projectId: "project/slug"
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(
+                    cloud: Cloud.test(
+                        url: url,
+                        projectId: "project/slug"
+                    )
                 )
             )
-        }
 
         given(cleanCacheService)
             .cleanCache(

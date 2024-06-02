@@ -648,7 +648,7 @@ public class GraphTraverser: GraphTraversing {
         }
         return directDependencies.contains(where: { dependency in
             switch dependency {
-            case .sdk(name: "XCTest", path: _, status: _, source: _):
+            case .sdk(name: "XCTest.framework", path: _, status: _, source: _):
                 return true
             default:
                 return false

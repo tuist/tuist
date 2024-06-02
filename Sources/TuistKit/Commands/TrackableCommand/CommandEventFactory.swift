@@ -18,6 +18,7 @@ public final class CommandEventFactory {
 
     public func make(from info: TrackableCommandInfo) -> CommandEvent {
         let commandEvent = CommandEvent(
+            runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
             params: info.parameters,

@@ -175,6 +175,33 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     func deleteProject(_ input: Operations.deleteProject.Input) async throws
         -> Operations.deleteProject.Output
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    func completeAnalyticsArtifactMultipartUpload(
+        _ input: Operations.completeAnalyticsArtifactMultipartUpload.Input
+    ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    func generateAnalyticsArtifactMultipartUploadURL(
+        _ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input
+    ) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output
+    /// It initiates a multipart upload for a command event artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    func startAnalyticsArtifactMultipartUpload(
+        _ input: Operations.startAnalyticsArtifactMultipartUpload.Input
+    ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -222,6 +249,210 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey { case error }
         }
+        /// Represents an multipart upload's part identified by the upload id and the part number
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
+        public struct ArtifactMultipartUploadPart: Codable, Equatable, Hashable, Sendable {
+            /// The part number of the multipart upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/part_number`.
+            public var part_number: Swift.Int
+            /// The upload ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/upload_id`.
+            public var upload_id: Swift.String
+            /// Creates a new `ArtifactMultipartUploadPart`.
+            ///
+            /// - Parameters:
+            ///   - part_number: The part number of the multipart upload.
+            ///   - upload_id: The upload ID.
+            public init(part_number: Swift.Int, upload_id: Swift.String) {
+                self.part_number = part_number
+                self.upload_id = upload_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case part_number
+                case upload_id
+            }
+        }
+        /// It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts`.
+        public struct ArtifactMultipartUploadParts: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/partsPayload`.
+            public struct partsPayloadPayload: Codable, Equatable, Hashable, Sendable {
+                /// The ETag of the part
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/partsPayload/etag`.
+                public var etag: Swift.String
+                /// The part number
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/partsPayload/part_number`.
+                public var part_number: Swift.Int
+                /// Creates a new `partsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - etag: The ETag of the part
+                ///   - part_number: The part number
+                public init(etag: Swift.String, part_number: Swift.Int) {
+                    self.etag = etag
+                    self.part_number = part_number
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case etag
+                    case part_number
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/parts`.
+            public typealias partsPayload = [Components.Schemas.ArtifactMultipartUploadParts
+                .partsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/parts`.
+            public var parts: Components.Schemas.ArtifactMultipartUploadParts.partsPayload
+            /// The upload ID
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadParts/upload_id`.
+            public var upload_id: Swift.String
+            /// Creates a new `ArtifactMultipartUploadParts`.
+            ///
+            /// - Parameters:
+            ///   - parts:
+            ///   - upload_id: The upload ID
+            public init(
+                parts: Components.Schemas.ArtifactMultipartUploadParts.partsPayload,
+                upload_id: Swift.String
+            ) {
+                self.parts = parts
+                self.upload_id = upload_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case parts
+                case upload_id
+            }
+        }
+        /// The URL to upload a multipart part
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL`.
+        public struct ArtifactMultipartUploadURL: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// The URL to upload the part
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data/url`.
+                public var url: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - url: The URL to upload the part
+                public init(url: Swift.String) { self.url = url }
+                public enum CodingKeys: String, CodingKey { case url }
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
+            public var data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
+            public var status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
+            /// Creates a new `ArtifactMultipartUploadURL`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            public init(
+                data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload,
+                status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
+        public struct ArtifactUploadID: Codable, Equatable, Hashable, Sendable {
+            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// The upload ID
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data/upload_id`.
+                public var upload_id: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - upload_id: The upload ID
+                public init(upload_id: Swift.String) { self.upload_id = upload_id }
+                public enum CodingKeys: String, CodingKey { case upload_id }
+            }
+            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
+            public var data: Components.Schemas.ArtifactUploadID.dataPayload
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
+            public var status: Components.Schemas.ArtifactUploadID.statusPayload
+            /// Creates a new `ArtifactUploadID`.
+            ///
+            /// - Parameters:
+            ///   - data: Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///   - status:
+            public init(
+                data: Components.Schemas.ArtifactUploadID.dataPayload,
+                status: Components.Schemas.ArtifactUploadID.statusPayload
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
         /// Token to authenticate the user with.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationToken`.
@@ -268,7 +499,29 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data`.
             public var data: Components.Schemas.CacheArtifactDownloadURL.dataPayload
             /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
-            public var status: Swift.String
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
+            public var status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
             /// Creates a new `CacheArtifactDownloadURL`.
             ///
             /// - Parameters:
@@ -276,7 +529,7 @@ public enum Components {
             ///   - status:
             public init(
                 data: Components.Schemas.CacheArtifactDownloadURL.dataPayload,
-                status: Swift.String
+                status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
             ) {
                 self.data = data
                 self.status = status
@@ -293,7 +546,29 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/data`.
             public var data: OpenAPIRuntime.OpenAPIObjectContainer?
             /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
-            public var status: Swift.String?
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
+            public var status: Components.Schemas.CacheArtifactExistence.statusPayload?
             /// Creates a new `CacheArtifactExistence`.
             ///
             /// - Parameters:
@@ -301,7 +576,7 @@ public enum Components {
             ///   - status:
             public init(
                 data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                status: Swift.String? = nil
+                status: Components.Schemas.CacheArtifactExistence.statusPayload? = nil
             ) {
                 self.data = data
                 self.status = status
@@ -319,7 +594,30 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/data`.
             public var data: OpenAPIRuntime.OpenAPIObjectContainer?
             /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
-            public var status: Swift.String?
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
+            public var status:
+                Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload?
             /// Creates a new `CacheArtifactMultipartUploadCompletion`.
             ///
             /// - Parameters:
@@ -327,83 +625,8 @@ public enum Components {
             ///   - status:
             public init(
                 data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                status: Swift.String? = nil
-            ) {
-                self.data = data
-                self.status = status
-            }
-            public enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// The URL to upload a part has been generated.
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadURL`.
-        public struct CacheArtifactMultipartUploadURL: Codable, Equatable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadURL/data`.
-            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
-                /// The URL to upload the part
-                ///
-                /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadURL/data/url`.
-                public var url: Swift.String
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - url: The URL to upload the part
-                public init(url: Swift.String) { self.url = url }
-                public enum CodingKeys: String, CodingKey { case url }
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadURL/data`.
-            public var data: Components.Schemas.CacheArtifactMultipartUploadURL.dataPayload
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadURL/status`.
-            public var status: Swift.String
-            /// Creates a new `CacheArtifactMultipartUploadURL`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            public init(
-                data: Components.Schemas.CacheArtifactMultipartUploadURL.dataPayload,
-                status: Swift.String
-            ) {
-                self.data = data
-                self.status = status
-            }
-            public enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadID`.
-        public struct CacheArtifactUploadID: Codable, Equatable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadID/data`.
-            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
-                /// The upload ID
-                ///
-                /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadID/data/upload_id`.
-                public var upload_id: Swift.String
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - upload_id: The upload ID
-                public init(upload_id: Swift.String) { self.upload_id = upload_id }
-                public enum CodingKeys: String, CodingKey { case upload_id }
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadID/data`.
-            public var data: Components.Schemas.CacheArtifactUploadID.dataPayload
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadID/status`.
-            public var status: Swift.String
-            /// Creates a new `CacheArtifactUploadID`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            public init(
-                data: Components.Schemas.CacheArtifactUploadID.dataPayload,
-                status: Swift.String
+                status: Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload? =
+                    nil
             ) {
                 self.data = data
                 self.status = status
@@ -472,6 +695,47 @@ public enum Components {
                 case name
                 case url
             }
+        }
+        /// It represents an artifact that's associated with a command event (e.g. result bundles)
+        ///
+        /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
+        public struct CommandEventArtifact: Codable, Equatable, Hashable, Sendable {
+            /// The command event artifact type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
+            @frozen
+            public enum _typePayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case result_bundle
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "result_bundle": self = .result_bundle
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .result_bundle: return "result_bundle"
+                    }
+                }
+                public static var allCases: [_typePayload] { [.result_bundle] }
+            }
+            /// The command event artifact type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
+            public var _type: Components.Schemas.CommandEventArtifact._typePayload
+            /// Creates a new `CommandEventArtifact`.
+            ///
+            /// - Parameters:
+            ///   - _type: The command event artifact type.
+            public init(_type: Components.Schemas.CommandEventArtifact._typePayload) {
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey { case _type = "type" }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
         public struct _Error: Codable, Equatable, Hashable, Sendable {
@@ -1608,7 +1872,30 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/cache/exists/GET/json/data`.
                         public var data: OpenAPIRuntime.OpenAPIObjectContainer?
                         /// - Remark: Generated from `#/paths/api/cache/exists/GET/json/status`.
-                        public var status: Swift.String?
+                        @frozen
+                        public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable,
+                            Sendable, _AutoLosslessStringConvertible, CaseIterable
+                        {
+                            case success
+                            /// Parsed a raw value that was not defined in the OpenAPI document.
+                            case undocumented(String)
+                            public init?(rawValue: String) {
+                                switch rawValue {
+                                case "success": self = .success
+                                default: self = .undocumented(rawValue)
+                                }
+                            }
+                            public var rawValue: String {
+                                switch self {
+                                case let .undocumented(string): return string
+                                case .success: return "success"
+                                }
+                            }
+                            public static var allCases: [statusPayload] { [.success] }
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/json/status`.
+                        public var status:
+                            Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload.statusPayload?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -1616,7 +1903,8 @@ public enum Operations {
                         ///   - status:
                         public init(
                             data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                            status: Swift.String? = nil
+                            status: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload
+                                .statusPayload? = nil
                         ) {
                             self.data = data
                             self.status = status
@@ -1929,7 +2217,31 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/json/data`.
                         public var data: OpenAPIRuntime.OpenAPIObjectContainer?
                         /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/json/status`.
-                        public var status: Swift.String?
+                        @frozen
+                        public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable,
+                            Sendable, _AutoLosslessStringConvertible, CaseIterable
+                        {
+                            case success
+                            /// Parsed a raw value that was not defined in the OpenAPI document.
+                            case undocumented(String)
+                            public init?(rawValue: String) {
+                                switch rawValue {
+                                case "success": self = .success
+                                default: self = .undocumented(rawValue)
+                                }
+                            }
+                            public var rawValue: String {
+                                switch self {
+                                case let .undocumented(string): return string
+                                case .success: return "success"
+                                }
+                            }
+                            public static var allCases: [statusPayload] { [.success] }
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/json/status`.
+                        public var status:
+                            Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body
+                                .jsonPayload.statusPayload?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -1937,7 +2249,8 @@ public enum Operations {
                         ///   - status:
                         public init(
                             data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                            status: Swift.String? = nil
+                            status: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body
+                                .jsonPayload.statusPayload? = nil
                         ) {
                             self.data = data
                             self.status = status
@@ -2175,51 +2488,7 @@ public enum Operations {
                 public var headers:
                     Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Headers
                 @frozen public enum Body: Sendable, Equatable, Hashable {
-                    /// The URL to upload a part has been generated.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/generate-url/POST/json`.
-                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/generate-url/POST/json/data`.
-                        public struct dataPayload: Codable, Equatable, Hashable, Sendable {
-                            /// The URL to upload the part
-                            ///
-                            /// - Remark: Generated from `#/paths/api/cache/multipart/generate-url/POST/json/data/url`.
-                            public var url: Swift.String
-                            /// Creates a new `dataPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - url: The URL to upload the part
-                            public init(url: Swift.String) { self.url = url }
-                            public enum CodingKeys: String, CodingKey { case url }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/generate-url/POST/json/data`.
-                        public var data:
-                            Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body
-                                .jsonPayload.dataPayload
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/generate-url/POST/json/status`.
-                        public var status: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - data:
-                        ///   - status:
-                        public init(
-                            data: Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body
-                                .jsonPayload.dataPayload,
-                            status: Swift.String
-                        ) {
-                            self.data = data
-                            self.status = status
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
-                        }
-                    }
-                    case json(
-                        Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body
-                            .jsonPayload
-                    )
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
                 }
                 /// Received HTTP response body
                 public var body: Operations.generateCacheArtifactMultipartUploadURL.Output.Ok.Body
@@ -2437,50 +2706,7 @@ public enum Operations {
                 /// Received HTTP response headers
                 public var headers: Operations.startCacheArtifactMultipartUpload.Output.Ok.Headers
                 @frozen public enum Body: Sendable, Equatable, Hashable {
-                    /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/json`.
-                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/json/data`.
-                        public struct dataPayload: Codable, Equatable, Hashable, Sendable {
-                            /// The upload ID
-                            ///
-                            /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/json/data/upload_id`.
-                            public var upload_id: Swift.String
-                            /// Creates a new `dataPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - upload_id: The upload ID
-                            public init(upload_id: Swift.String) { self.upload_id = upload_id }
-                            public enum CodingKeys: String, CodingKey { case upload_id }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/json/data`.
-                        public var data:
-                            Operations.startCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload
-                                .dataPayload
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/json/status`.
-                        public var status: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - data:
-                        ///   - status:
-                        public init(
-                            data: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body
-                                .jsonPayload.dataPayload,
-                            status: Swift.String
-                        ) {
-                            self.data = data
-                            self.status = status
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
-                        }
-                    }
-                    case json(
-                        Operations.startCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload
-                    )
+                    case json(Components.Schemas.ArtifactUploadID)
                 }
                 /// Received HTTP response body
                 public var body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body
@@ -5271,6 +5497,569 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.deleteProject.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    public enum completeAnalyticsArtifactMultipartUpload {
+        public static let id: String = "completeAnalyticsArtifactMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id:
+                public init(run_id: Swift.Int) { self.run_id = run_id }
+            }
+            public var path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.completeAnalyticsArtifactMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.completeAnalyticsArtifactMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Command event artifact multipart upload completion
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/json/command_event_artifact`.
+                    public var command_event_artifact: Components.Schemas.CommandEventArtifact
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/json/multipart_upload_parts`.
+                    public var multipart_upload_parts:
+                        Components.Schemas.ArtifactMultipartUploadParts
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - command_event_artifact:
+                    ///   - multipart_upload_parts:
+                    public init(
+                        command_event_artifact: Components.Schemas.CommandEventArtifact,
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    ) {
+                        self.command_event_artifact = command_event_artifact
+                        self.multipart_upload_parts = multipart_upload_parts
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case command_event_artifact
+                        case multipart_upload_parts
+                    }
+                }
+                case json(
+                    Operations.completeAnalyticsArtifactMultipartUpload.Input.Body.jsonPayload
+                )
+            }
+            public var body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path,
+                query: Operations.completeAnalyticsArtifactMultipartUpload.Input.Query = .init(),
+                headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers =
+                    .init(),
+                cookies: Operations.completeAnalyticsArtifactMultipartUpload.Input.Cookies =
+                    .init(),
+                body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent
+                        .Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    public enum generateAnalyticsArtifactMultipartUploadURL {
+        public static let id: String = "generateAnalyticsArtifactMultipartUploadURL"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id:
+                public init(run_id: Swift.Int) { self.run_id = run_id }
+            }
+            public var path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Artifact to generate a signed URL for
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/json/command_event_artifact`.
+                    public var command_event_artifact: Components.Schemas.CommandEventArtifact
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/json/multipart_upload_part`.
+                    public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - command_event_artifact:
+                    ///   - multipart_upload_part:
+                    public init(
+                        command_event_artifact: Components.Schemas.CommandEventArtifact,
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    ) {
+                        self.command_event_artifact = command_event_artifact
+                        self.multipart_upload_part = multipart_upload_part
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case command_event_artifact
+                        case multipart_upload_part
+                    }
+                }
+                case json(
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body.jsonPayload
+                )
+            }
+            public var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path,
+                query: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Query = .init(),
+                headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers =
+                    .init(),
+                cookies: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Cookies =
+                    .init(),
+                body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok
+                        .Headers = .init(),
+                    body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden
+                        .Headers = .init(),
+                    body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound
+                        .Headers = .init(),
+                    body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It initiates a multipart upload for a command event artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    public enum startAnalyticsArtifactMultipartUpload {
+        public static let id: String = "startAnalyticsArtifactMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id:
+                public init(run_id: Swift.Int) { self.run_id = run_id }
+            }
+            public var path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.startAnalyticsArtifactMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.startAnalyticsArtifactMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                case json(Components.Schemas.CommandEventArtifact)
+            }
+            public var body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path,
+                query: Operations.startAnalyticsArtifactMultipartUpload.Input.Query = .init(),
+                headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.startAnalyticsArtifactMultipartUpload.Input.Cookies = .init(),
+                body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactUploadID)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Headers =
+                        .init(),
+                    body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startAnalyticsArtifactMultipartUpload.Output.Ok)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden
+                        .Headers = .init(),
+                    body: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound
+                        .Headers = .init(),
+                    body: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The command event doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

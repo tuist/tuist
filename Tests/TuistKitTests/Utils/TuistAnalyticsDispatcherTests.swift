@@ -14,15 +14,24 @@ import XCTest
 final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
+    private var ciChecker: MockCIChecker!
+    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
+    private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
     override func setUp() {
         super.setUp()
         createCommandEventService = .init()
+        ciChecker = .init()
+        cacheDirectoriesProviderFactory = .init()
+        analyticsArtifactUploadService = .init()
     }
 
     override func tearDown() {
         subject = nil
         createCommandEventService = nil
+        ciChecker = nil
+        cacheDirectoriesProviderFactory = nil
+        analyticsArtifactUploadService = nil
         super.tearDown()
     }
 
@@ -33,7 +42,11 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         let cloud = Cloud(url: cloudURL, projectId: projectID, options: [])
         let backend = TuistAnalyticsCloudBackend(
             config: cloud,
-            createCommandEventService: createCommandEventService
+            createCommandEventService: createCommandEventService,
+            fileHandler: fileHandler,
+            ciChecker: ciChecker,
+            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
+            analyticsArtifactUploadService: analyticsArtifactUploadService
         )
         subject = TuistAnalyticsDispatcher(
             backend: backend
@@ -47,7 +60,25 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
                 projectId: .value(projectID),
                 serverURL: .value(cloudURL)
             )
-            .willReturn(.test())
+            .willReturn(.test(id: 10))
+
+        given(analyticsArtifactUploadService)
+            .uploadAnalyticsArtifact(
+                artifactPath: .any,
+                commandEventId: .value(10),
+                serverURL: .value(cloudURL)
+            )
+            .willReturn(())
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+
+        given(cacheDirectoriesProviderFactory)
+            .cacheDirectories()
+            .willReturn(cacheDirectoriesProvider)
+
+        given(cacheDirectoriesProvider)
+            .tuistCacheDirectory(for: .value(.runs))
+            .willReturn(try temporaryPath())
 
         // When
         let expectation = XCTestExpectation(description: "completion is called")
@@ -59,6 +90,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
     static var commandEvent: CommandEvent {
         CommandEvent(
+            runId: "run-id",
             name: "event",
             subcommand: nil,
             params: [:],

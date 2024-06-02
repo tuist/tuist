@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import TuistCore
 
-public struct CleanCommand<T: CleanCategory>: ParsableCommand {
+public struct CleanCommand: ParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -16,7 +16,7 @@ public struct CleanCommand<T: CleanCategory>: ParsableCommand {
         help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.",
         envKey: .cleanCleanCategories
     )
-    var cleanCategories: [T] = T.allCases.map { $0 }
+    var cleanCategories: [TuistCleanCategory] = TuistCleanCategory.allCases.map { $0 }
 
     @Option(
         name: .shortAndLong,
