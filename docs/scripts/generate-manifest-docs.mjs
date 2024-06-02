@@ -4,9 +4,13 @@ import { execa } from "execa";
 import path from "node:path";
 import fs from "node:fs";
 import fg from "fast-glob";
+import { fileURLToPath } from "url";
 
-const rootDirectory = path.join(import.meta.dirname, "../..");
-const docsDirectory = path.join(import.meta.dirname, "..");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const rootDirectory = path.join(__dirname, "../..");
+const docsDirectory = path.join(__dirname, "../docs");
 
 await execa("tuist", ["install"], {
   cwd: rootDirectory,
@@ -23,7 +27,7 @@ await execa(
   [
     "generate",
     "-o",
-    path.join(docsDirectory, "docs/generated/"),
+    path.join(docsDirectory, "generated/manifest"),
     "--clean",
     "--table-of-contents",
     "--module-name",
@@ -37,9 +41,9 @@ await execa(
   { cwd: rootDirectory, stdio: "inherit" }
 );
 
-fs.rmSync(path.join(docsDirectory, "docs/generated/README.md"));
+fs.rmSync(path.join(docsDirectory, "generated/manifest/README.md"));
 
-fg.sync(path.join(docsDirectory, "docs/generated/**/*.md")).forEach((file) => {
+fg.sync(path.join(docsDirectory, "generated/manifest/**/*.md")).forEach((file) => {
   const renamedPath = file.replace(/\[(.*?)\]/g, "Array<$1>");
   fs.renameSync(file, renamedPath);
 });
