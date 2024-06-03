@@ -24,7 +24,7 @@ final class TargetProjectMapperTests: XCTestCase {
         let (updatedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(updatedProject.targets.values.map(\.name).sorted(), [
+        XCTAssertEqual(updatedProject.targets.map(\.name), [
             "Updated_A",
             "Updated_B",
         ])
@@ -47,7 +47,7 @@ final class TargetProjectMapperTests: XCTestCase {
         let (_, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(sideEffects.sorted(by: { $0.description < $1.description }), [
+        XCTAssertEqual(sideEffects, [
             .file(.init(path: try AbsolutePath(validating: "/Targets/A.swift"))),
             .file(.init(path: try AbsolutePath(validating: "/Targets/B.swift"))),
         ])

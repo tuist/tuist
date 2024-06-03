@@ -60,7 +60,7 @@ class ProjectFileElements {
     ) throws {
         var files = Set<GroupFileElement>()
 
-        for target in project.targets.values {
+        for target in project.targets {
             try files.formUnion(targetFiles(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -79,7 +79,7 @@ class ProjectFileElements {
         )
 
         // Products
-        let directProducts = project.targets.values.map {
+        let directProducts = project.targets.map {
             GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, condition: nil)
         }
 

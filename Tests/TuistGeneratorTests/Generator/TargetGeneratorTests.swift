@@ -116,12 +116,18 @@ final class TargetGeneratorTests: XCTestCase {
             destinations: [.mac, .iPhone]
         )
         let targetC = Target.test(name: "TargetC")
-        let project: Project = .test(path: path, targets: [targetA, targetB, targetC])
         let nativeTargetA = createNativeTarget(for: targetA)
         let nativeTargetB = createNativeTarget(for: targetB)
         let nativeTargetC = createNativeTarget(for: targetC)
         let graph = Graph.test(
-            projects: [path: project],
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    targetA.name: targetA,
+                    targetB.name: targetB,
+                    targetC.name: targetC,
+                ],
+            ],
             dependencies: [
                 .target(name: targetA.name, path: path): [
                     .target(name: targetB.name, path: path),

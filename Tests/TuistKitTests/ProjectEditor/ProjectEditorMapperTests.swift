@@ -75,7 +75,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         let project = try XCTUnwrap(graph.projects.values.first(where: { $0.name == projectName }))
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
 
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
@@ -83,10 +86,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(targets.count, 9)
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(
-            project.targets.values.sorted()
-                .first(where: { $0.name == sourceRootPath.basename + projectName })
-        )
+        let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
         XCTAssertEqual(targets.last, manifestsTarget)
 
         XCTAssertEqual(manifestsTarget.destinations, .macOS)
@@ -104,7 +104,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]))
 
         // Generated Helpers target
-        let helpersTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "ProjectDescriptionHelpers" }))
+        let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
         XCTAssertTrue(targets.contains(helpersTarget))
 
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
@@ -123,7 +123,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]))
 
         // Generated Templates target
-        let templatesTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Templates" }))
+        let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
         XCTAssertTrue(targets.contains(templatesTarget))
 
         XCTAssertEqual(templatesTarget.name, "Templates")
@@ -141,10 +141,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]))
 
         // Generated ResourceSynthesizers target
-        let resourceSynthesizersTarget = try XCTUnwrap(
-            project.targets.values.sorted()
-                .last(where: { $0.name == "ResourceSynthesizers" })
-        )
+        let resourceSynthesizersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ResourceSynthesizers" }))
         XCTAssertTrue(targets.contains(resourceSynthesizersTarget))
 
         XCTAssertEqual(resourceSynthesizersTarget.name, "ResourceSynthesizers")
@@ -161,7 +158,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]))
 
         // Generated Stencils target
-        let stencilsTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Stencils" }))
+        let stencilsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Stencils" }))
         XCTAssertTrue(targets.contains(stencilsTarget))
 
         XCTAssertEqual(stencilsTarget.name, "Stencils")
@@ -178,7 +175,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]))
 
         // Generated Config target
-        let configTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Config" }))
+        let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))
         XCTAssertTrue(targets.contains(configTarget))
 
         XCTAssertEqual(configTarget.name, "Config")
@@ -193,7 +190,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(configTarget.dependencies)
 
         // Generated Packages target
-        let packagesTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Packages" }))
+        let packagesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Packages" }))
         XCTAssertTrue(targets.contains(packagesTarget))
 
         XCTAssertEqual(packagesTarget.name, "Packages")
@@ -249,7 +246,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, projectName)
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), project.targets.values.map(\.name).sorted())
+        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), project.targets.map(\.name).sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -290,17 +287,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
 
         // Then
         XCTAssertEqual(targets.count, 1)
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(
-            project.targets.values.sorted()
-                .last(where: { $0.name == sourceRootPath.basename + projectName })
-        )
+        let manifestsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename + projectName }))
 
         XCTAssertEqual(manifestsTarget.destinations, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
@@ -373,7 +370,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
 
         // Then
 
@@ -381,7 +381,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
-        let manifestOneTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "ModuleManifests" }))
+        let manifestOneTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ModuleManifests" }))
 
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
         XCTAssertEqual(manifestOneTarget.destinations, .macOS)
@@ -395,10 +395,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(manifestOneTarget.dependencies)
 
         // Generated Manifests target
-        let manifestTwoTarget = try XCTUnwrap(
-            project.targets.values.sorted()
-                .last(where: { $0.name == "\(sourceRootPath.basename)Manifests" })
-        )
+        let manifestTwoTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "\(sourceRootPath.basename)Manifests" }))
 
         XCTAssertEqual(manifestTwoTarget.destinations, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
@@ -411,7 +408,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(manifestTwoTarget.dependencies)
 
         // Generated Config target
-        let configTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Config" }))
+        let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))
 
         XCTAssertEqual(configTarget.name, "Config")
         XCTAssertEqual(configTarget.destinations, .macOS)
@@ -483,14 +480,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
 
         // Then
         XCTAssertEqual(targets.count, 1)
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Plugin target
-        let pluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == sourceRootPath.basename }))
+        let pluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename }))
 
         XCTAssertEqual(pluginTarget.destinations, .macOS)
         XCTAssertEqual(pluginTarget.product, .staticFramework)
@@ -562,14 +562,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
 
         // Then
         XCTAssertEqual(targets.count, 2)
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated first plugin target
-        let firstPluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "A" }))
+        let firstPluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "A" }))
 
         XCTAssertEqual(firstPluginTarget.destinations, .macOS)
         XCTAssertEqual(firstPluginTarget.product, .staticFramework)
@@ -582,7 +585,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(firstPluginTarget.dependencies)
 
         // Generated second plugin target
-        let secondPluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "B" }))
+        let secondPluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "B" }))
 
         XCTAssertEqual(secondPluginTarget.destinations, .macOS)
         XCTAssertEqual(secondPluginTarget.product, .staticFramework)
@@ -676,7 +679,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         // Then
         let project = try XCTUnwrap(graph.projects.values.first)
-        let pluginTarget = try XCTUnwrap(project.targets.values.first)
+        let pluginTarget = try XCTUnwrap(project.targets.first)
 
         XCTAssertEqual(
             pluginTarget.sources,
@@ -722,7 +725,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         let pluginsProject = try XCTUnwrap(graph.projects.values.first(where: { $0.name == pluginsProjectName }))
         let manifestsProject = try XCTUnwrap(graph.projects.values.first(where: { $0.name == manifestsProjectName }))
-        let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
+
+        let targets = graph.targets.values.lazy
+            .flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
         let localPluginTarget = try XCTUnwrap(targets.first(where: { $0.name == "ALocalPlugin" }))
         let helpersTarget = try XCTUnwrap(targets.first(where: { $0.name == "ProjectDescriptionHelpers" }))
         let manifestsTarget = try XCTUnwrap(targets.first(where: { $0 != localPluginTarget && $0 != helpersTarget }))

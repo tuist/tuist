@@ -37,16 +37,14 @@ extension ProjectAutomation.Project {
         let packages = project.packages
             .reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
         let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
-        let targets = project.targets.mapValues { target in
-            ProjectAutomation.Target.from(target)
-        }
+        let targets = project.targets.reduce(into: [ProjectAutomation.Target]()) { $0.append(ProjectAutomation.Target.from($1)) }
 
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
             isExternal: project.isExternal,
             packages: packages,
-            targets: Array(targets.values),
+            targets: targets,
             schemes: schemes
         )
     }

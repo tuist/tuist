@@ -9,6 +9,7 @@ extension Graph {
         workspace: Workspace = .test(),
         projects: [AbsolutePath: Project] = [:],
         packages: [AbsolutePath: [String: Package]] = [:],
+        targets: [AbsolutePath: [String: Target]] = [:],
         dependencies: [GraphDependency: Set<GraphDependency>] = [:],
         dependencyConditions: [GraphEdge: PlatformCondition] = [:]
     ) -> Graph {
@@ -18,6 +19,7 @@ extension Graph {
             workspace: workspace,
             projects: projects,
             packages: packages,
+            targets: targets,
             dependencies: dependencies,
             dependencyConditions: dependencyConditions
         )

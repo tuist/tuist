@@ -27,12 +27,14 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
         let graph = Graph.test(
             path: project.path,
-            projects: [project.path: project]
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]]
         )
 
         let expectedGraph = Graph.test(
             path: project.path,
-            projects: [:]
+            projects: [:],
+            targets: [:]
         )
 
         // When
@@ -55,6 +57,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
+            targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
             dependencies: [:]
         )
 
@@ -64,9 +67,9 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotValueSideEffects)
         XCTAssertEqual(gotGraph.projects.count, 1)
-        let valueTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+        let valueTargets = gotGraph.targets.flatMap(\.value)
         XCTAssertEqual(valueTargets.count, 1)
-        XCTAssertEqual(valueTargets.first, firstTarget)
+        XCTAssertEqual(valueTargets.first?.value, firstTarget)
     }
 
     func test_map_removes_project_schemes_with_whose_all_targets_have_been_removed() throws {
@@ -82,6 +85,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
+            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
             dependencies: [:]
         )
 
@@ -109,6 +113,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
+            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
             dependencies: [:]
         )
 
@@ -148,6 +153,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
 
@@ -177,6 +183,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
 
@@ -207,7 +214,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let project = Project.test(path: path, targets: targets, schemes: [scheme])
         let graph = Graph.test(
             path: project.path,
-            projects: [project.path: project]
+            projects: [project.path: project],
+            targets: [project.path: Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })]
         )
 
         let unprunedTargets = targets.filter { !$0.prune }
@@ -223,7 +231,8 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let expectedProject = Project.test(path: path, targets: unprunedTargets, schemes: [schemeWithUnprunedTargets])
         let expectedGraph = Graph.test(
             path: expectedProject.path,
-            projects: [expectedProject.path: expectedProject]
+            projects: [expectedProject.path: expectedProject],
+            targets: [expectedProject.path: Dictionary(uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) })]
         )
 
         // When
@@ -244,6 +253,12 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
+            targets: [project.path: [
+                firstTarget.name: firstTarget,
+                secondTarget.name: secondTarget,
+                thirdTarget.name: thirdTarget,
+                prunedTarget.name: prunedTarget,
+            ]],
             dependencies: [:]
         )
 

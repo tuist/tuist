@@ -17,17 +17,16 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
 
         // When
         let (updatedProject, _) = try subject.map(project: project)
-        let updatedTargets = updatedProject.targets.values.sorted()
 
         // Then
-        XCTAssertFalse(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[0].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[0].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[1].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[1].scripts[1].showEnvVarsInLog)
+        XCTAssertFalse(updatedProject.targets[0].scripts[0].showEnvVarsInLog)
+        XCTAssertFalse(updatedProject.targets[0].scripts[1].showEnvVarsInLog)
+        XCTAssertFalse(updatedProject.targets[1].scripts[0].showEnvVarsInLog)
+        XCTAssertFalse(updatedProject.targets[1].scripts[1].showEnvVarsInLog)
     }
 
     func test_map_environmentLoggingEnables() throws {
@@ -41,16 +40,15 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
 
         // When
         let (updatedProject, _) = try subject.map(project: project)
-        let updatedTargets = updatedProject.targets.values.sorted()
 
         // Then
-        XCTAssertTrue(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[0].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[0].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[1].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(project.targets[1].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(updatedProject.targets[0].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(updatedProject.targets[0].scripts[1].showEnvVarsInLog)
+        XCTAssertTrue(updatedProject.targets[1].scripts[0].showEnvVarsInLog)
+        XCTAssertTrue(updatedProject.targets[1].scripts[1].showEnvVarsInLog)
     }
 }

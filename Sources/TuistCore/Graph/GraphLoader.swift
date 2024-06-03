@@ -55,6 +55,7 @@ public final class GraphLoader: GraphLoading {
             workspace: updatedWorkspace,
             projects: cache.loadedProjects,
             packages: cache.packages,
+            targets: cache.loadedTargets,
             dependencies: cache.dependencies,
             dependencyConditions: cache.dependencyConditions
         )
@@ -75,7 +76,7 @@ public final class GraphLoader: GraphLoading {
         }
         cache.add(project: project)
 
-        for target in project.targets.values {
+        for target in project.targets {
             try loadTarget(
                 path: path,
                 name: target.name,
@@ -321,7 +322,9 @@ public final class GraphLoader: GraphLoading {
 
         init(projects: [Project]) {
             let allProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
-            let allTargets = allProjects.mapValues { $0.targets }
+            let allTargets = allProjects.mapValues {
+                Dictionary(uniqueKeysWithValues: $0.targets.map { ($0.name, $0) })
+            }
             self.allProjects = allProjects
             self.allTargets = allTargets
         }

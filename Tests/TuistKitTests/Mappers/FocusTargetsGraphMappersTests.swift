@@ -16,9 +16,16 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: Set())
         let path = try temporaryPath()
-        let project = Project.test(path: path, targets: [aTarget, bTarget, cTarget])
+        let project = Project.test(path: path)
         let graph = Graph.test(
             projects: [project.path: project],
+            targets: [
+                path: [
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
                     .target(name: aTarget.name, path: path),
@@ -31,8 +38,8 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
 
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEmpty(pruningTargets.map(\.name))
@@ -49,12 +56,23 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let subject = FocusTargetsGraphMappers(includedTargets: Set())
         let projectPath = try temporaryPath().appending(component: "Project")
         let externalProjectPath = try temporaryPath().appending(component: "ExternalProject")
-        let project = Project.test(path: projectPath, targets: [aTarget, bTarget, cTarget])
-        let externalProject = Project.test(path: externalProjectPath, targets: [dTarget, eTarget], isExternal: true)
+        let project = Project.test(path: projectPath)
+        let externalProject = Project.test(path: externalProjectPath, isExternal: true)
         let graph = Graph.test(
             projects: [
                 project.path: project,
                 externalProject.path: externalProject,
+            ],
+            targets: [
+                projectPath: [
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+                externalProjectPath: [
+                    dTarget.name: dTarget,
+                    eTarget.name: eTarget,
+                ],
             ],
             dependencies: [
                 .target(name: bTarget.name, path: projectPath): [
@@ -68,9 +86,10 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
-        let expectingTargets = [dTarget, eTarget]
 
+        let expectingTargets = [dTarget, eTarget]
+        let pruningTargets = (gotGraph.targets[projectPath]?.values.filter(\.prune) ?? []) +
+            (gotGraph.targets[externalProjectPath]?.values.filter(\.prune) ?? [])
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
@@ -87,9 +106,16 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
         let path = try temporaryPath()
-        let project = Project.test(path: path, targets: [aTarget, bTarget, cTarget])
+        let project = Project.test(path: path)
         let graph = Graph.test(
             projects: [project.path: project],
+            targets: [
+                path: [
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
                     .target(name: aTarget.name, path: path),
@@ -104,8 +130,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
-
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
@@ -122,9 +147,16 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: [bTarget.name])
         let path = try temporaryPath()
-        let project = Project.test(path: path, targets: [aTarget, bTarget, cTarget])
+        let project = Project.test(path: path)
         let graph = Graph.test(
             projects: [project.path: project],
+            targets: [
+                path: [
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
                     .target(name: aTarget.name, path: path),
@@ -139,8 +171,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
-
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
@@ -158,9 +189,17 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
         let path = try temporaryPath()
-        let project = Project.test(path: path, targets: [aTestTarget, aTarget, bTarget, cTarget])
+        let project = Project.test(path: path)
         let graph = Graph.test(
             projects: [project.path: project],
+            targets: [
+                path: [
+                    aTestTarget.name: aTestTarget,
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
             dependencies: [
                 .target(name: aTestTarget.name, path: path): [
                     .target(name: aTarget.name, path: path),
@@ -178,8 +217,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget, aTestTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
-
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
@@ -196,9 +234,16 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name, "bar"])
         let path = try temporaryPath()
-        let project = Project.test(path: path, targets: [aTestTarget, aTarget, cTarget])
+        let project = Project.test(path: path)
         let graph = Graph.test(
             projects: [project.path: project],
+            targets: [
+                path: [
+                    aTestTarget.name: aTestTarget,
+                    aTarget.name: aTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
             dependencies: [
                 .target(name: aTestTarget.name, path: path): [
                     .target(name: aTarget.name, path: path),

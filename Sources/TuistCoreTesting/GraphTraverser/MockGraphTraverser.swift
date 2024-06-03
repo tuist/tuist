@@ -65,12 +65,13 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedProjects
     }
 
-    var invokedTargets = false
-    var invokedTargetsCount = 0
+    var invokedTargetsGetter = false
+    var invokedTargetsGetterCount = 0
     var stubbedTargets: [AbsolutePath: [String: Target]]! = [:]
-    func targets() -> [TSCBasic.AbsolutePath: [String: TuistGraph.Target]] {
-        invokedTargets = true
-        invokedTargetsCount += 1
+
+    var targets: [AbsolutePath: [String: Target]] {
+        invokedTargetsGetter = true
+        invokedTargetsGetterCount += 1
         return stubbedTargets
     }
 

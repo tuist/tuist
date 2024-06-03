@@ -40,7 +40,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         }
         cache.add(project: project)
 
-        for target in project.targets.values.sorted() {
+        for target in project.targets {
             try lintTarget(
                 path: path,
                 name: target.name,

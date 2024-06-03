@@ -18,18 +18,15 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
-        var targets: [String: Target] = [:]
+        var targets: [Target] = []
 
-        for target in project.targets.values {
+        for target in project.targets {
             let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
-            mappedTargets.forEach { targets[$0.name] = $0 }
+            targets.append(contentsOf: mappedTargets)
             sideEffects.append(contentsOf: targetSideEffects)
         }
 
-        var project = project
-        project.targets = targets
-
-        return (project, sideEffects)
+        return (project.with(targets: targets), sideEffects)
     }
 
     // swiftlint:disable:next function_body_length
