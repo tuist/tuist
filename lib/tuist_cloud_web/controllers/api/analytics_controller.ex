@@ -242,7 +242,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
         _params
       ) do
     upload_id =
-      Storage.multipart_start(object_key(conn, %{type: type, run_id: run_id}))
+      Storage.multipart_start(object_key(%{type: type, run_id: run_id}))
 
     conn |> json(%{status: "success", data: %{upload_id: upload_id}})
   end
@@ -300,7 +300,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
 
     url =
       Storage.multipart_generate_url(
-        object_key(conn, %{type: type, run_id: run_id}),
+        object_key(%{type: type, run_id: run_id}),
         upload_id,
         part_number,
         expires_in: expires_in
@@ -360,7 +360,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
       ) do
     :ok =
       Storage.multipart_complete_upload(
-        object_key(conn, %{type: type, run_id: run_id}),
+        object_key(%{type: type, run_id: run_id}),
         upload_id,
         parts
         |> Enum.map(fn %{part_number: part_number, etag: etag} ->
@@ -373,14 +373,12 @@ defmodule TuistCloudWeb.API.AnalyticsController do
     |> json(%{})
   end
 
-  defp object_key(conn, %{type: type, run_id: run_id}) do
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
-      |> Repo.preload(:account)
+  defp object_key(%{type: type, run_id: run_id}) do
+    command_event = CommandEvents.get_command_event_by_id(run_id)
 
     case type do
       "result_bundle" ->
-        "#{project.account.name}/#{project.name}/runs/#{run_id}/result_bundle.zip"
+        CommandEvents.get_result_bundle_object_key(command_event)
     end
   end
 end

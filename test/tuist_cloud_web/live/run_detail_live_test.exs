@@ -1,7 +1,9 @@
 defmodule TuistCloudWeb.RunDetailLiveTest do
   use TuistCloudWeb.ConnCase, async: true
+  use Mimic
 
   import Phoenix.LiveViewTest
+  alias TuistCloud.Storage
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Accounts
   alias TuistCloud.ProjectsFixtures
@@ -12,6 +14,9 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
     account = Accounts.get_account_from_organization(organization)
     selected_project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
+
+    Storage
+    |> stub(:exists, fn _ -> true end)
 
     conn =
       conn
@@ -37,6 +42,37 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
 
     assert html =~ "failure"
     refute html =~ "success"
+  end
+
+  test "renders download button if a command event has a result bundle", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ "Result"
+  end
+
+  test "does not render a download button if a command event does not have a result bundle", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    Storage
+    |> stub(:exists, fn _ -> false end)
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    refute html =~ "Result"
   end
 
   test "renders run detail with a success status", %{conn: conn, project: project} do

@@ -34,6 +34,7 @@ defmodule TuistCloudWeb.RunDetailLive do
       |> assign(:cacheable_targets, cacheable_targets)
       |> assign(:test_misses, test_misses)
       |> assign(:test_targets, test_targets)
+      |> assign(:has_result_bundle, CommandEvents.has_result_bundle?(command_event))
     }
   end
 

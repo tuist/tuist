@@ -200,6 +200,7 @@ defmodule TuistCloudWeb.Router do
       live "/get-started", GetStartedLive
       live "/:owner/:project", HomeLive
       live "/:owner/:project/runs", RunsLive
+      get "/:owner/:project/runs/:id/download", RunsController, :download
       live "/:owner/:project/runs/:id", RunDetailLive
       # Used in tuist cloud analytics command
       live "/:owner/:project/analytics", HomeLive

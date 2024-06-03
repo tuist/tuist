@@ -1,4 +1,5 @@
 defmodule TuistCloud.CommandEventsTest do
+  alias TuistCloud.Storage
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Accounts
   alias TuistCloud.CommandEvents
@@ -52,6 +53,73 @@ defmodule TuistCloud.CommandEventsTest do
 
       # Then
       assert got == command_event
+    end
+  end
+
+  describe "has_result_bundle?/1" do
+    test "returns true if the result bundle exists" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      Storage
+      |> stub(:exists, fn ^object_key -> true end)
+
+      # When
+      got = CommandEvents.has_result_bundle?(command_event)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false if the result bundle does not exist" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      Storage
+      |> stub(:exists, fn ^object_key -> false end)
+
+      # When
+      got = CommandEvents.has_result_bundle?(command_event)
+
+      # Then
+      assert got == false
+    end
+  end
+
+  describe "get_result_bundle_url/1" do
+    test "returns the result bundle URL" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      Storage
+      |> stub(:generate_download_url, fn ^object_key -> "https://tuist.io" end)
+
+      # When
+      got = CommandEvents.generate_result_bundle_url(command_event)
+
+      # Then
+      assert got == "https://tuist.io"
     end
   end
 
@@ -677,6 +745,25 @@ defmodule TuistCloud.CommandEventsTest do
       assert Accounts.get_account_by_id(account_one.id).cache_upload_event_count == 2
       assert Accounts.get_account_by_id(account_two.id).cache_download_event_count == 1
       assert Accounts.get_account_by_id(account_two.id).cache_upload_event_count == 0
+    end
+  end
+
+  describe "get_result_bundle_object_key/1" do
+    test "returns the result bundle object key" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      got = CommandEvents.get_result_bundle_object_key(command_event)
+
+      # Then
+      assert got ==
+               "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
     end
   end
 end

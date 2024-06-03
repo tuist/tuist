@@ -2,11 +2,23 @@
 
 <div class="run-detail page">
   <.stack gap="4xl">
-    <.stack gap="lg" direction="horizontal">
-      <h5>
-        <%= "tuist " <> (@command_event.command_arguments || @command_event.name) %>
-      </h5>
-      <.command_event_status_badge command_event={@command_event} />
+    <.stack direction="horizontal" class="run-detail__header">
+      <.stack gap="lg" direction="horizontal">
+        <h5>
+          <%= "tuist " <> (@command_event.command_arguments || @command_event.name) %>
+        </h5>
+        <.command_event_status_badge command_event={@command_event} />
+      </.stack>
+      <%= if @has_result_bundle do %>
+        <.link href={"/#{@selected_owner}/#{@selected_project.name}/runs/#{@command_event.id}/download"}>
+          <.button variant="secondary" size="medium" type="button">
+            <:icon_start>
+              <.download />
+            </:icon_start>
+            <%= gettext("Result") %>
+          </.button>
+        </.link>
+      <% end %>
     </.stack>
     <%= if @command_event.name == "test" do %>
       <.cache_hits_card
