@@ -60,7 +60,7 @@ class ProjectFileElements {
     ) throws {
         var files = Set<GroupFileElement>()
 
-        for target in project.targets.values {
+        for target in project.targets.values.sorted() {
             try files.formUnion(targetFiles(target: target))
         }
         let projectFileElements = projectFiles(project: project)
