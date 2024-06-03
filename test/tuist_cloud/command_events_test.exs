@@ -8,6 +8,33 @@ defmodule TuistCloud.CommandEventsTest do
   use TuistCloud.DataCase
   use Mimic
 
+  describe "create_command_event/1" do
+    test "truncates an error message if it's over 255 chars" do
+      # Given
+      error_message = String.duplicate("a", 300)
+
+      # When
+      command_event =
+        CommandEventsFixtures.command_event_fixture(error_message: error_message)
+
+      # Then
+      assert String.length(command_event.error_message) == 255
+    end
+
+    test "does not truncate an error message if it's under 255 chars" do
+      # Given
+      error_message = String.duplicate("a", 200)
+
+      # When
+      command_event =
+        CommandEventsFixtures.command_event_fixture(error_message: error_message)
+
+      # Then
+      assert String.length(command_event.error_message) == 200
+      assert command_event.error_message == error_message
+    end
+  end
+
   describe "get_command_event_by_id/1" do
     test "returns a command event" do
       # Given

@@ -524,10 +524,18 @@ defmodule TuistCloud.CommandEvents do
       user_id: user_id,
       client_id: client_id,
       status: status,
-      error_message: error_message,
+      error_message: error_message |> truncate_error_message(),
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     })
     |> Repo.insert!()
+  end
+
+  defp truncate_error_message(error_message) do
+    if not is_nil(error_message) and String.length(error_message) > 255 do
+      String.slice(error_message, 0, 240) <> "... (truncated)"
+    else
+      error_message
+    end
   end
 
   defp date_period(opts) do
