@@ -322,9 +322,9 @@ public final class GraphLoader: GraphLoading {
         init(projects: [Project]) {
             let allProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
             self.allProjects = allProjects
-            self.allTargets = allProjects.mapValues({ project in
-                Dictionary(uniqueKeysWithValues: project.targets.map({ ($0.name, $0) }))
-            })
+            allTargets = allProjects.mapValues { project in
+                Dictionary(uniqueKeysWithValues: project.targets.map { ($0.name, $0) })
+            }
         }
 
         func add(project: Project) {

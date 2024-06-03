@@ -15,7 +15,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Returns: A dictionary where the key is the path to the project, and the value are a dictionary where
     ///            the keys are the name of the targets, and the value the target representation.
     public func targets() -> [AbsolutePath: [String: Target]] {
-        return projects.mapValues { Dictionary(uniqueKeysWithValues: $0.targets.map({ ($0.name, $0) })) }
+        return projects.mapValues { Dictionary(uniqueKeysWithValues: $0.targets.map { ($0.name, $0) }) }
     }
 
     public var dependencies: [GraphDependency: Set<GraphDependency>] { graph.dependencies }

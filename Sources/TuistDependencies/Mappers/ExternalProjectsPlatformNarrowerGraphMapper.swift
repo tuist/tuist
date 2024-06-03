@@ -25,13 +25,13 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = project.targets.map({ target in
+            project.targets = project.targets.map { target in
                 return mapTarget(
                     target: target,
                     project: project,
                     externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
                 )
-            })
+            }
             return (projectPath, project)
         })
 

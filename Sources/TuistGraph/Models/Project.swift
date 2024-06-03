@@ -149,11 +149,11 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         let buildConfiguration = debugConfiguration ?? settings.configurations.keys.first
         return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
-    
+
     /// Given a name, it returns a project target with that name.
     /// - Parameter name: Name of the target.
     /// - Returns: Target if found.
     public func target(named name: String) -> Target? {
-        return self.targets.first(where: { $0.name == name})
+        return targets.first(where: { $0.name == name })
     }
 }

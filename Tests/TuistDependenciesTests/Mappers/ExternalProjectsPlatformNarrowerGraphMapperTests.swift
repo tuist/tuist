@@ -168,7 +168,10 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.target(named: directExternalPackage.name)?.supportedPlatforms),
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.target(named: directExternalPackage.name)?
+                    .supportedPlatforms
+            ),
             Set([.iOS])
         )
         XCTAssertEqual(
@@ -230,11 +233,17 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.target(named: externalMacroFramework.name)?.supportedPlatforms),
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.target(named: externalMacroFramework.name)?
+                    .supportedPlatforms
+            ),
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.target(named: externalMacroExecutable.name)?.supportedPlatforms),
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.target(named: externalMacroExecutable.name)?
+                    .supportedPlatforms
+            ),
             Set([.macOS])
         )
     }
