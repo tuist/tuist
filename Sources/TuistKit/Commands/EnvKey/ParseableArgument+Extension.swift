@@ -4,7 +4,7 @@ import TuistSupport
 
 extension Option {
     public init<T>(
-        wrappedValue _value: [T] = [],
+        wrappedValue value: [T] = [],
         name: NameSpecification = .long,
         parsing parsingStrategy: ArrayParsingStrategy = .singleValue,
         help: ArgumentHelp? = nil,
@@ -22,7 +22,7 @@ extension Option {
             )
         } else {
             self.init(
-                wrappedValue: _value,
+                wrappedValue: value,
                 name: name,
                 parsing: parsingStrategy,
                 help: help?.withEnvKey(envKey),
@@ -58,7 +58,7 @@ extension Option {
     }
 
     init(
-        wrappedValue _value: Value,
+        wrappedValue value: Value,
         name: NameSpecification = .long,
         parsing parsingStrategy: SingleValueParsingStrategy = .next,
         help: ArgumentHelp? = nil,
@@ -76,7 +76,7 @@ extension Option {
             )
         } else {
             self.init(
-                wrappedValue: _value,
+                wrappedValue: value,
                 name: name,
                 parsing: parsingStrategy,
                 help: help?.withEnvKey(envKey),
@@ -140,7 +140,7 @@ extension Flag where Value == Bool {
 // Argument Extensions
 extension Argument {
     init<T>(
-        wrappedValue _value: [T] = [],
+        wrappedValue value: [T] = [],
         parsing parsingStrategy: ArgumentArrayParsingStrategy = .remaining,
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
@@ -156,7 +156,7 @@ extension Argument {
             )
         } else {
             self.init(
-                wrappedValue: _value,
+                wrappedValue: value,
                 parsing: parsingStrategy,
                 help: help?.withEnvKey(envKey),
                 completion: completion
@@ -178,7 +178,7 @@ extension Argument {
     }
 
     init(
-        wrappedValue _value: Value,
+        wrappedValue value: Value,
         help: ArgumentHelp? = nil,
         envKey: EnvKey
     ) where Value: ExpressibleByArgument {
@@ -186,7 +186,7 @@ extension Argument {
         if let envValue {
             self.init(wrappedValue: envValue, help: help?.withEnvKey(envKey))
         } else {
-            self.init(wrappedValue: _value, help: help?.withEnvKey(envKey))
+            self.init(wrappedValue: value, help: help?.withEnvKey(envKey))
         }
     }
 
