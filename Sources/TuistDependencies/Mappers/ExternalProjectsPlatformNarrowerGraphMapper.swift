@@ -23,27 +23,16 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         var graph = graph
         let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
-        graph.targets = Dictionary(uniqueKeysWithValues: graph.targets.map { projectPath, projectTargets in
-            let project = graph.projects[projectPath]!
-            let projectTargets = Dictionary(uniqueKeysWithValues: projectTargets.map { targetName, target in
-                (
-                    targetName,
-                    mapTarget(
-                        target: target,
-                        project: project,
-                        externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
-                    )
-                )
-            })
-            return (projectPath, projectTargets)
-        })
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = project.targets.map { mapTarget(
-                target: $0,
-                project: project,
-                externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
-            ) }
+            project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { _, target in
+                let mappedTarget = mapTarget(
+                    target: target,
+                    project: project,
+                    externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
+                )
+                return (mappedTarget.name, mappedTarget)
+            })
             return (projectPath, project)
         })
 

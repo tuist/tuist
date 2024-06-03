@@ -37,14 +37,16 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         logger.debug("Transforming project \(project.name): Synthesizing Info.plist")
 
-        let results = try project.targets
-            .reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
+        let results = try project.targets.values
+            .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
                 let (updatedTarget, sideEffects) = try map(target: target, project: project)
-                results.targets.append(updatedTarget)
+                results.targets[updatedTarget.name] = updatedTarget
                 results.sideEffects.append(contentsOf: sideEffects)
             }
+        var project = project
+        project.targets = results.targets
 
-        return (project.with(targets: results.targets), results.sideEffects)
+        return (project, results.sideEffects)
     }
 
     // MARK: - Private

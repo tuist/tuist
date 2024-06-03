@@ -20,13 +20,13 @@ protocol KnownAssetTagsFetching: AnyObject {
 
 final class KnownAssetTagsFetcher: KnownAssetTagsFetching {
     func fetch(project: Project) throws -> [String] {
-        var tags = project.targets.map { $0.resources.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
+        var tags = project.targets.values.map { $0.resources.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
 
-        let initialInstallTags = project.targets.compactMap {
+        let initialInstallTags = project.targets.values.compactMap {
             $0.onDemandResourcesTags?.initialInstall?.compactMap { $0 }
         }.flatMap { $0 }
 
-        let prefetchOrderTags = project.targets.compactMap {
+        let prefetchOrderTags = project.targets.values.compactMap {
             $0.onDemandResourcesTags?.prefetchOrder?.compactMap { $0 }
         }.flatMap { $0 }
 
@@ -35,7 +35,7 @@ final class KnownAssetTagsFetcher: KnownAssetTagsFetching {
 
         var assetContentsPaths: Set<Path> = []
         let decoder = JSONDecoder()
-        for target in project.targets {
+        for target in project.targets.values {
             let assetCatalogs = target.resources.resources.filter { $0.path.extension == "xcassets" }
             for assetCatalog in assetCatalogs {
                 guard let children = try? assetCatalog.path.path.recursiveChildren() else { continue }

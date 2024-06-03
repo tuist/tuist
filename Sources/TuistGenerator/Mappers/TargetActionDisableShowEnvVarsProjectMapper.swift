@@ -13,7 +13,7 @@ public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping {
             )
 
         var project = project
-        project.targets = project.targets.map { target in
+        project.targets = project.targets.mapValues { target in
             var mappedTarget = target
             mappedTarget.scripts = mappedTarget.scripts.map {
                 var script = $0

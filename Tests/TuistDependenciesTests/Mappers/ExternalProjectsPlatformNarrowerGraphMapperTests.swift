@@ -42,14 +42,6 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
                 directory: project,
                 packagesDirectory: externalProject,
             ],
-            targets: [
-                project.path: [
-                    appTarget.name: appTarget,
-                ],
-                externalProject.path: [
-                    externalPackage.name: externalPackage,
-                ],
-            ],
             dependencies: [
                 appTargetDependency: Set([externalPackageDependency]),
             ]
@@ -59,9 +51,13 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
+
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name])?.supportedPlatforms,
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms),
             Set([.iOS])
         )
     }
@@ -93,14 +89,6 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
                 directory: project,
                 packagesDirectory: externalProject,
             ],
-            targets: [
-                project.path: [
-                    appTarget.name: appTarget,
-                ],
-                externalProject.path: [
-                    externalPackage.name: externalPackage,
-                ],
-            ],
             dependencies: [
                 appTargetDependency: Set([externalPackageDependency]),
             ],
@@ -113,16 +101,17 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
+
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
             Set([.iOS, .macOS, .tvOS, .watchOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms),
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.deploymentTargets),
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.deploymentTargets),
             .iOS("16.0")
         )
     }
@@ -163,15 +152,6 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
                 directory: project,
                 packagesDirectory: externalProject,
             ],
-            targets: [
-                project.path: [
-                    appTarget.name: appTarget,
-                ],
-                externalProject.path: [
-                    directExternalPackage.name: directExternalPackage,
-                    transitiveExternalPackage.name: transitiveExternalPackage,
-                ],
-            ],
             dependencies: [
                 appTargetDependency: Set([directExternalPackageDependency]),
                 directExternalPackageDependency: Set([transitiveExternalPackageDependency]),
@@ -182,13 +162,20 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
+
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[directExternalPackage.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[transitiveExternalPackage.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[directExternalPackage.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.targets[transitiveExternalPackage.name]?
+                    .supportedPlatforms
+            ),
             Set([.iOS])
         )
     }
@@ -228,15 +215,6 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
                 directory: project,
                 packagesDirectory: externalProject,
             ],
-            targets: [
-                project.path: [
-                    appTarget.name: appTarget,
-                ],
-                externalProject.path: [
-                    externalMacroFramework.name: externalMacroFramework,
-                    externalMacroExecutable.name: externalMacroExecutable,
-                ],
-            ],
             dependencies: [
                 appTargetDependency: Set([externalMacroFrameworkDependency]),
                 externalMacroFrameworkDependency: Set([externalMacroExecutableDependency]),
@@ -247,13 +225,16 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[externalMacroFramework.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
             Set([.iOS])
         )
         XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[externalMacroExecutable.name]?.supportedPlatforms),
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalMacroFramework.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalMacroExecutable.name]?.supportedPlatforms),
             Set([.macOS])
         )
     }

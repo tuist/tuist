@@ -57,14 +57,6 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project, packageProject.path: packageProject],
-            targets: [project.path: [
-                app.name: app,
-            ], packageProject.path: [
-                directPackageProduct.name: directPackageProduct,
-                transitivePackageProduct.name: transitivePackageProduct,
-                transitivePackageProductWithNoDestinations.name: transitivePackageProductWithNoDestinations,
-                packageDevProduct.name: packageDevProduct,
-            ]],
             dependencies: [
                 appDependency: Set([directPackageProductDependency]),
                 directPackageProductDependency: Set([
@@ -78,10 +70,14 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         let (gotGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(gotGraph.targets[project.path]?[app.name]?.prune, false)
-        XCTAssertEqual(gotGraph.targets[packageProject.path]?[directPackageProduct.name]?.prune, false)
-        XCTAssertEqual(gotGraph.targets[packageProject.path]?[transitivePackageProduct.name]?.prune, false)
-        XCTAssertEqual(gotGraph.targets[packageProject.path]?[packageDevProduct.name]?.prune, true)
-        XCTAssertEqual(gotGraph.targets[packageProject.path]?[transitivePackageProductWithNoDestinations.name]?.prune, true)
+
+        XCTAssertEqual(gotGraph.projects[project.path]?.targets[app.name]?.prune, false)
+        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.prune, false)
+        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[transitivePackageProduct.name]?.prune, false)
+        XCTAssertEqual(gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.prune, true)
+        XCTAssertEqual(
+            gotGraph.projects[packageProject.path]?.targets[transitivePackageProductWithNoDestinations.name]?.prune,
+            true
+        )
     }
 }

@@ -33,8 +33,8 @@ final class ProjectGroupsTests: XCTestCase {
             settings: .default,
             filesGroup: .group(name: "Project"),
             targets: [
-                .test(filesGroup: .group(name: "Target")),
-                .test(),
+                .test(name: "A", filesGroup: .group(name: "Target")),
+                .test(name: "B"),
             ],
             packages: [],
             schemes: [],
@@ -92,10 +92,10 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_generate_groupsOrder() throws {
         // Given
-        let target1 = Target.test(filesGroup: .group(name: "B"))
-        let target2 = Target.test(filesGroup: .group(name: "C"))
-        let target3 = Target.test(filesGroup: .group(name: "A"))
-        let target4 = Target.test(filesGroup: .group(name: "C"))
+        let target1 = Target.test(name: "Target1", filesGroup: .group(name: "B"))
+        let target2 = Target.test(name: "Target2", filesGroup: .group(name: "C"))
+        let target3 = Target.test(name: "Target3", filesGroup: .group(name: "A"))
+        let target4 = Target.test(name: "Target4", filesGroup: .group(name: "C"))
         let project = Project.test(
             filesGroup: .group(name: "P"),
             targets: [target1, target2, target3, target4]
@@ -108,15 +108,15 @@ final class ProjectGroupsTests: XCTestCase {
         )
 
         // Then
-        let paths = subject.sortedMain.children.map(\.nameOrPath)
+        let paths = subject.sortedMain.children.map(\.nameOrPath).sorted()
         XCTAssertEqual(paths, [
-            "P",
+            "A",
             "B",
             "C",
-            "A",
-            "Products",
-            "Frameworks",
             "Cache",
+            "Frameworks",
+            "P",
+            "Products",
         ])
     }
 
@@ -191,9 +191,9 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_projectGroup_knownProjectGroups() throws {
         // Given
-        let target1 = Target.test(filesGroup: .group(name: "A"))
-        let target2 = Target.test(filesGroup: .group(name: "B"))
-        let target3 = Target.test(filesGroup: .group(name: "B"))
+        let target1 = Target.test(name: "1", filesGroup: .group(name: "A"))
+        let target2 = Target.test(name: "2", filesGroup: .group(name: "B"))
+        let target3 = Target.test(name: "3", filesGroup: .group(name: "B"))
         let project = Project.test(
             path: .root,
             sourceRootPath: .root,
