@@ -18,19 +18,19 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var name: String
 
     /// Organization name.
-    public var organizationName: String?
+    public let organizationName: String?
 
     /// Default known regions
-    public var defaultKnownRegions: [String]?
+    public let defaultKnownRegions: [String]?
 
     /// Development region code e.g. `en`.
-    public var developmentRegion: String?
+    public let developmentRegion: String?
 
     /// Additional project options.
     public var options: Options
 
     /// Project targets.
-    public var targets: [String: Target]
+    public var targets: [Target]
 
     /// Project swift packages.
     public var packages: [Package]
@@ -51,13 +51,13 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var ideTemplateMacros: IDETemplateMacros?
 
     /// `ResourceSynthesizers` that will be applied on individual target's resources
-    public var resourceSynthesizers: [ResourceSynthesizer]
+    public let resourceSynthesizers: [ResourceSynthesizer]
 
     /// The version in which a check happened related to recommended settings after updating Xcode.
     public var lastUpgradeCheck: Version?
 
     /// Indicates whether the project is imported through `Package.swift`.
-    public var isExternal: Bool
+    public let isExternal: Bool
 
     // MARK: - Init
 
@@ -111,7 +111,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.defaultKnownRegions = defaultKnownRegions
         self.developmentRegion = developmentRegion
         self.options = options
-        self.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+        self.targets = targets
         self.packages = packages
         self.schemes = schemes
         self.settings = settings
@@ -142,6 +142,56 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     }
 
     // MARK: - Public
+
+    /// Returns a copy of the project with the given targets set.
+    /// - Parameter targets: Targets to be set to the copy.
+    public func with(targets: [Target]) -> Project {
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            defaultKnownRegions: defaultKnownRegions,
+            developmentRegion: developmentRegion,
+            options: options,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
+        )
+    }
+
+    /// Returns a copy of the project with the given schemes set.
+    /// - Parameter schemes: Schemes to be set to the copy.
+    public func with(schemes: [Scheme]) -> Project {
+        Project(
+            path: path,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: xcodeProjPath,
+            name: name,
+            organizationName: organizationName,
+            defaultKnownRegions: defaultKnownRegions,
+            developmentRegion: developmentRegion,
+            options: options,
+            settings: settings,
+            filesGroup: filesGroup,
+            targets: targets,
+            packages: packages,
+            schemes: schemes,
+            ideTemplateMacros: ideTemplateMacros,
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
+        )
+    }
 
     /// Returns the name of the default configuration.
     public var defaultDebugBuildConfigurationName: String {

@@ -754,7 +754,13 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
         let project = Project.test(targets: [app, macroFramework, macroExecutable])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+                macroExecutable.name: macroExecutable,
+            ],
+        ], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([.target(
                 name: macroExecutable.name,
@@ -800,7 +806,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
         let project = Project.test(targets: [app, macroFramework])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+            ],
+        ], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([]),
         ])
@@ -839,7 +850,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let project = Project.test(targets: [appClip])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                appClip.name: appClip,
+            ],
+        ])
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -876,7 +891,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let project = Project.test(targets: [appClip])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                appClip.name: appClip,
+            ],
+        ])
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1009,12 +1028,13 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         let target = Target.test(name: "Test", destinations: destinations, product: uiTest ? .uiTests : .unitTests)
-        let project = Project.test(path: dir, name: "Project", targets: [target, appTarget])
+        let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let graph = Graph.test(
             name: project.name,
             path: project.path,
             projects: [project.path: project],
+            targets: [project.path: [appTarget.name: appTarget, target.name: target]],
             dependencies: [
                 GraphDependency
                     .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),

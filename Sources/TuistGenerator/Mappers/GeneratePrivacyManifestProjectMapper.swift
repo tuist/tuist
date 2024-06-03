@@ -14,16 +14,14 @@ public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         logger.debug("Transforming project \(project.name): Synthesizing privacy manifest files'")
 
-        let results = try project.targets.values
-            .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
+        let results = try project.targets
+            .reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
                 let (updatedTarget, sideEffects) = try map(target: target, project: project)
-                results.targets[updatedTarget.name] = updatedTarget
+                results.targets.append(updatedTarget)
                 results.sideEffects.append(contentsOf: sideEffects)
             }
-        var project = project
-        project.targets = results.targets
 
-        return (project, results.sideEffects)
+        return (project.with(targets: results.targets), results.sideEffects)
     }
 
     // MARK: - Private

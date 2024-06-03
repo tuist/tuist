@@ -104,7 +104,12 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(
             workspace: workspace,
-            projects: [project.path: project]
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                ],
+            ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

@@ -830,9 +830,14 @@ final class LinkGeneratorTests: XCTestCase {
             path: path.appending(components: "XCFrameworks", "StaticLibraryB.xcframework"),
             linking: .static
         )
-        let project = Project.test(path: path, targets: [target])
+
         let graph = Graph.test(
-            projects: [path: project],
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                ],
+            ],
             dependencies: [
                 .target(name: target.name, path: path): [
                     xcframeworkA,
@@ -884,9 +889,14 @@ final class LinkGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
-        let project = Project.test(path: path, targets: [target, staticDependency])
         let graph = Graph.test(
-            projects: [path: project],
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                    staticDependency.name: staticDependency,
+                ],
+            ],
             dependencies: [
                 .target(name: target.name, path: path): [
                     .target(name: staticDependency.name, path: path),
@@ -921,9 +931,14 @@ final class LinkGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
-        let project = Project.test(path: path, targets: [target, resourceBundle])
         let graph = Graph.test(
-            projects: [path: project],
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                    resourceBundle.name: resourceBundle,
+                ],
+            ],
             dependencies: [
                 .target(name: target.name, path: path): [
                     .target(name: resourceBundle.name, path: path),

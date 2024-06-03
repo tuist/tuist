@@ -22,7 +22,7 @@ public protocol GraphTraversing {
     var projects: [AbsolutePath: Project] { get }
 
     /// Returns all the targets of the graph.
-    func targets() -> [AbsolutePath: [String: Target]]
+    var targets: [AbsolutePath: [String: Target]] { get }
 
     /// Dependencies.
     var dependencies: [GraphDependency: Set<GraphDependency>] { get }

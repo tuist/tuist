@@ -61,19 +61,11 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
 
-        graph.projects = graph.projects.mapValues { project in
-            var project = project
-            project.targets = project.targets.mapValues { target in
-                var target = target
-                if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
-                    target.prune = true
-                }
-                return target
-            }
-
-            return project
+        for graphTarget in graphTraverser.allTargets() where !filteredTargets.contains(graphTarget) {
+            var target = graphTarget.target
+            target.prune = true
+            graph.targets[graphTarget.path]?[target.name] = target
         }
-
         return (graph, [])
     }
 }
