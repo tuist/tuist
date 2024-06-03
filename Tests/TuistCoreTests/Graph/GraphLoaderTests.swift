@@ -45,7 +45,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
         ])
-        XCTAssertTrue(graph.targets.isEmpty)
+        XCTAssertTrue(graph.projects.values.flatMap(\.targets).isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
@@ -71,7 +71,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             "/A": projectA,
             "/B": projectB,
         ])
-        XCTAssertTrue(graph.targets.isEmpty)
+        XCTAssertTrue(graph.projects.values.flatMap(\.targets).isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
@@ -98,10 +98,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
             "/B": projectB,
-        ])
-        XCTAssertEqual(graph.targets, [
-            "/A": ["A": targetA],
-            "/B": ["B": targetB],
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
@@ -132,7 +128,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
         ])
-        XCTAssertTrue(graph.targets.isEmpty)
+        XCTAssertTrue(graph.projects.values.flatMap(\.targets).isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
@@ -158,10 +154,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
             "/B": projectB,
-        ])
-        XCTAssertEqual(graph.targets, [
-            "/A": ["A": targetA],
-            "/B": ["B": targetB],
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([

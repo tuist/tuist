@@ -77,15 +77,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     projectAPath: projectA,
                     projectBPath: projectB,
                 ],
-                targets: [
-                    projectAPath: [
-                        targetA.name: targetA,
-                    ],
-                    projectBPath: [
-                        targetB1.name: targetB1,
-                        targetB2.name: targetB2,
-                    ],
-                ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
                         .target(name: targetB1.name, path: projectBPath),
@@ -162,15 +153,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
                 ],
-                targets: [
-                    projectAPath: [
-                        mappedTargetA.name: mappedTargetA,
-                    ],
-                    projectBPath: [
-                        mappedTargetB1.name: mappedTargetB1,
-                        mappedTargetB2.name: mappedTargetB2,
-                    ],
-                ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
                         .target(name: targetB1.name, path: projectBPath),
@@ -228,14 +210,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 projects: [
                     projectAPath: projectA,
                     projectBPath: projectB,
-                ],
-                targets: [
-                    projectAPath: [
-                        targetA.name: targetA,
-                    ],
-                    projectBPath: [
-                        targetB.name: targetB,
-                    ],
                 ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
@@ -298,14 +272,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 projects: [
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
-                ],
-                targets: [
-                    projectAPath: [
-                        mappedTargetA.name: mappedTargetA,
-                    ],
-                    projectBPath: [
-                        mappedTargetB.name: mappedTargetB,
-                    ],
                 ],
                 dependencies: [
                     .target(name: projectA.name, path: projectAPath): [

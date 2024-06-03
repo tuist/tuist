@@ -95,7 +95,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) {
-        XCTAssertNotNil(project.targets.first(where: { (target: Target) in
+        XCTAssertNotNil(project.targets.values.first(where: { (target: Target) in
             target.infoPlist?.path == project.path
                 .appending(component: Constants.DerivedDirectory.name)
                 .appending(component: Constants.DerivedDirectory.infoPlists)

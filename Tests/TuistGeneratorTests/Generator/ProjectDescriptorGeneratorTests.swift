@@ -54,12 +54,6 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    testGraphTarget.target.name: testGraphTarget.target,
-                    appGraphTarget.target.name: appGraphTarget.target,
-                ],
-            ],
             dependencies: [
                 .target(name: testGraphTarget.target.name, path: testGraphTarget.path): [
                     .target(name: appGraphTarget.target.name, path: appGraphTarget.path),
@@ -93,25 +87,20 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Given
         let temporaryPath = try temporaryPath()
+        let target = Target.test(name: "A")
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
-            targets: [.test(dependencies: [.package(product: "A", type: .runtime)])],
+            targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
             packages: [.remote(url: "A", requirement: .exact("0.1"))]
         )
 
-        let target = Target.test()
         let graphTarget = GraphTarget.test(path: project.path, target: target, project: project)
         let graph = Graph.test(
             projects: [project.path: project],
             packages: [
                 project.path: [
                     "A": .remote(url: "A", requirement: .exact("0.1")),
-                ],
-            ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
                 ],
             ],
             dependencies: [
@@ -364,26 +353,20 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
+        let target = Target.test(name: "A")
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
             name: "Project",
-            targets: [.test(dependencies: [.package(product: "A", type: .runtime)])],
+            targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
             packages: [.local(path: localPackagePath)]
         )
-
-        let target = Target.test()
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         let graph = Graph.test(
             projects: [project.path: project],
             packages: [
                 project.path: [
                     "A": .local(path: localPackagePath),
-                ],
-            ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
                 ],
             ],
             dependencies: [

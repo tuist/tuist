@@ -20,10 +20,6 @@ public struct Graph: Equatable, Codable {
     /// and the values are dictionaries where the key is the reference to the package, and the values are the packages.
     public var packages: [AbsolutePath: [String: Package]]
 
-    /// A dictionary where the keys are paths to the directories where the projects that contain targets are defined,
-    /// and the values are dictionaries where the key is the name of the target, and the values are the targets.
-    public var targets: [AbsolutePath: [String: Target]]
-
     /// A dictionary that contains the one-to-many dependencies that represent the graph.
     public var dependencies: [GraphDependency: Set<GraphDependency>]
 
@@ -36,7 +32,6 @@ public struct Graph: Equatable, Codable {
         workspace: Workspace,
         projects: [AbsolutePath: Project],
         packages: [AbsolutePath: [String: Package]],
-        targets: [AbsolutePath: [String: Target]],
         dependencies: [GraphDependency: Set<GraphDependency>],
         dependencyConditions: [GraphEdge: PlatformCondition]
     ) {
@@ -45,7 +40,6 @@ public struct Graph: Equatable, Codable {
         self.workspace = workspace
         self.projects = projects
         self.packages = packages
-        self.targets = targets
         self.dependencies = dependencies
         self.dependencyConditions = dependencyConditions
     }
