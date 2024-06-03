@@ -556,6 +556,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/barredewe"><img src="https://avatars.githubusercontent.com/u/19188911?v=4" width="100px;" alt=""/><br /><sub><b>BarredEwe</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/chris-livefront"><img src="https://avatars.githubusercontent.com/u/126101032?v=4" width="100px;" alt=""/><br /><sub><b>Chris Sessions</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ajkolean"><img src="https://avatars.githubusercontent.com/u/5394701?v=4" width="100px;" alt=""/><br /><sub><b>Andy Kolean</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 
