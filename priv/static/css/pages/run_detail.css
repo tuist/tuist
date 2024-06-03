@@ -3,6 +3,10 @@
   margin-right: var(--spacing-4xl);
 }
 
+.run-detail__header {
+  justify-content: space-between;
+}
+
 .target-breakdown-chart {
   flex-grow: 1;
 }

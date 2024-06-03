@@ -2,6 +2,7 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.Storage
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts.Account
   alias TuistCloud.Repo
@@ -79,6 +80,20 @@ defmodule TuistCloud.CommandEvents do
   def get_command_event_by_id(id) do
     Repo.get(Event, id)
     |> Repo.preload(user: :account)
+  end
+
+  def has_result_bundle?(%Event{} = command_event) do
+    Storage.exists(get_result_bundle_object_key(command_event))
+  end
+
+  def generate_result_bundle_url(%Event{} = command_event) do
+    Storage.generate_download_url(get_result_bundle_object_key(command_event))
+  end
+
+  def get_result_bundle_object_key(%Event{} = command_event) do
+    command_event = command_event |> Repo.preload(project: :account)
+
+    "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}/result_bundle.zip"
   end
 
   def get_command_duration_analytics(
