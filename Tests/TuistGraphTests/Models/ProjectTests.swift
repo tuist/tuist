@@ -33,14 +33,6 @@ final class ProjectTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    framework.name: framework,
-                    frameworkTests.name: frameworkTests,
-                    app.name: app,
-                    appTests.name: appTests,
-                ],
-            ],
             dependencies: [
                 .target(name: frameworkTests.name, path: project.path): [
                     .target(name: framework.name, path: project.path),

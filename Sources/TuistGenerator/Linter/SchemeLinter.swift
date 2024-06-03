@@ -11,8 +11,8 @@ class SchemeLinter: SchemeLinting {
     func lint(project: Project) -> [LintingIssue] {
         var issues = [LintingIssue]()
         issues.append(contentsOf: lintReferencedBuildConfigurations(schemes: project.schemes, settings: project.settings))
-        issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: project.targets))
-        issues.append(contentsOf: lintExpandVariableTarget(schemes: project.schemes, targets: project.targets))
+        issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: Array(project.targets.values)))
+        issues.append(contentsOf: lintExpandVariableTarget(schemes: project.schemes, targets: Array(project.targets.values)))
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }

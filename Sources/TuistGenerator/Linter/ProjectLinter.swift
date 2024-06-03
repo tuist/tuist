@@ -49,24 +49,7 @@ class ProjectLinter: ProjectLinting {
 
     private func lintTargets(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: project.targets.flatMap(targetLinter.lint))
-        issues.append(contentsOf: lintNotDuplicatedTargets(project: project))
-        return issues
-    }
-
-    private func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        let duplicatedTargets = project.targets.map(\.name)
-            .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
-            .filter { $0.value > 1 }
-            .keys
-        if !duplicatedTargets.isEmpty {
-            let issue = LintingIssue(
-                reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
-                severity: .error
-            )
-            issues.append(issue)
-        }
+        issues.append(contentsOf: project.targets.values.flatMap(targetLinter.lint))
         return issues
     }
 }
