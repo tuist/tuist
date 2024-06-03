@@ -17,7 +17,7 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
 
         // When
         let (updatedProject, _) = try subject.map(project: project)
-        let updatedTargets = updatedProject.targets.values.sorted()
+        let updatedTargets = updatedProject.targets.sorted()
 
         // Then
         XCTAssertFalse(updatedTargets[1].scripts[0].showEnvVarsInLog)
@@ -41,7 +41,7 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
 
         // When
         let (updatedProject, _) = try subject.map(project: project)
-        let updatedTargets = updatedProject.targets.values.sorted()
+        let updatedTargets = updatedProject.targets.sorted()
 
         // Then
         XCTAssertTrue(updatedTargets[0].scripts[0].showEnvVarsInLog)

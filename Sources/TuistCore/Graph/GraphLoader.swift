@@ -75,7 +75,7 @@ public final class GraphLoader: GraphLoading {
         }
         cache.add(project: project)
 
-        for target in project.targets.values {
+        for target in project.targets {
             try loadTarget(
                 path: path,
                 name: target.name,
@@ -321,9 +321,10 @@ public final class GraphLoader: GraphLoading {
 
         init(projects: [Project]) {
             let allProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
-            let allTargets = allProjects.mapValues { $0.targets }
             self.allProjects = allProjects
-            self.allTargets = allTargets
+            self.allTargets = allProjects.mapValues({ project in
+                Dictionary(uniqueKeysWithValues: project.targets.map({ ($0.name, $0) }))
+            })
         }
 
         func add(project: Project) {

@@ -15,7 +15,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Returns: A dictionary where the key is the path to the project, and the value are a dictionary where
     ///            the keys are the name of the targets, and the value the target representation.
     public func targets() -> [AbsolutePath: [String: Target]] {
-        return projects.mapValues { $0.targets }
+        return projects.mapValues { Dictionary(uniqueKeysWithValues: $0.targets.map({ ($0.name, $0) })) }
     }
 
     public var dependencies: [GraphDependency: Set<GraphDependency>] { graph.dependencies }
@@ -99,13 +99,13 @@ public class GraphTraverser: GraphTraversing {
 
     public func target(path: AbsolutePath, name: String) -> GraphTarget? {
         guard let project = graph.projects[path],
-              let target = project.targets[name] else { return nil }
+              let target = project.target(named: name) else { return nil }
         return GraphTarget(path: path, target: target, project: project)
     }
 
     public func targets(at path: AbsolutePath) -> Set<GraphTarget> {
         guard let project = graph.projects[path] else { return Set() }
-        return Set(project.targets.values.map { GraphTarget(path: path, target: $0, project: project) })
+        return Set(project.targets.map { GraphTarget(path: path, target: $0, project: project) })
     }
 
     public func testPlan(name: String) -> TestPlan? {
@@ -153,8 +153,8 @@ public class GraphTraverser: GraphTraversing {
         for target: GraphDependency
     ) -> [GraphTargetReference] {
         dependencies.compactMap { dependencyName, dependencyPath -> GraphTargetReference? in
-            guard let projectDependencies = graph.projects[dependencyPath]?.targets,
-                  let dependencyTarget = projectDependencies[dependencyName],
+            guard let project = graph.projects[dependencyPath],
+                  let dependencyTarget = project.target(named: dependencyName),
                   let dependencyProject = graph.projects[dependencyPath]
             else {
                 return nil
@@ -166,7 +166,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        guard let target = graph.projects[path]?.targets[name] else { return [] }
+        guard let target = graph.projects[path]?.target(named: name) else { return [] }
         guard target.supportsResources else { return [] }
 
         let canHostResources: (GraphDependency) -> Bool = {
@@ -186,7 +186,7 @@ public class GraphTraverser: GraphTraversing {
         guard case let GraphDependency.target(name, path) = dependency else {
             return nil
         }
-        guard let target = graph.projects[path]?.targets[name] else { return nil }
+        guard let target = graph.projects[path]?.target(named: name) else { return nil }
         guard let project = graph.projects[path] else { return nil }
         return GraphTarget(path: path, target: target, project: project)
     }
@@ -237,7 +237,7 @@ public class GraphTraverser: GraphTraversing {
             graph.dependencies[.target(name: name, path: path)]?
                 .compactMap { (dependency: GraphDependency) -> GraphDependencyReference? in
                     guard case let GraphDependency.target(dependencyName, dependencyPath) = dependency,
-                          let target = graph.projects[dependencyPath]?.targets[dependencyName],
+                          let target = graph.projects[dependencyPath]?.target(named: dependencyName),
                           target.product.isStatic
                     else {
                         return nil
@@ -558,7 +558,7 @@ public class GraphTraverser: GraphTraversing {
         guard let project = graph.projects[path] else { return nil }
         let targets = project.targets
 
-        return targets.values.compactMap { target -> GraphTarget? in
+        return targets.compactMap { target -> GraphTarget? in
             let dependencies = self.graph.dependencies[.target(name: target.name, path: path), default: Set()]
             let dependsOnTarget = dependencies.contains(where: { dependency in
                 // swiftlint:disable:next identifier_name
@@ -681,7 +681,7 @@ public class GraphTraverser: GraphTraversing {
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(graph.projects.flatMap { path, project -> [GraphTarget] in
             guard project.isExternal else { return [] }
-            return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+            return project.targets.map { GraphTarget(path: path, target: $0, project: project) }
         })
     }
 
@@ -695,7 +695,7 @@ public class GraphTraverser: GraphTraversing {
             .compactMap { graphDependency -> GraphTarget? in
                 if case let GraphDependency.target(name, path) = graphDependency {
                     guard let project = graph.projects[path],
-                          let target = project.targets[name]
+                          let target = project.target(named: name)
                     else {
                         return nil
                     }
@@ -1183,7 +1183,7 @@ public class GraphTraverser: GraphTraversing {
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(projects.flatMap { projectPath, project -> [GraphTarget] in
             if excludingExternalTargets, project.isExternal { return [] }
-            return project.targets.values.map { target in
+            return project.targets.map { target in
                 GraphTarget(path: projectPath, target: target, project: project)
             }
         })

@@ -63,7 +63,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
 
         graph.projects = graph.projects.mapValues { project in
             var project = project
-            project.targets = project.targets.mapValues { target in
+            project.targets = project.targets.map { target in
                 var target = target
                 if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
                     target.prune = true

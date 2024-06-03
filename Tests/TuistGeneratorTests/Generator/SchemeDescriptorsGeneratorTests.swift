@@ -274,7 +274,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             )
         )
         let project = Project.test(schemes: [schemeA, schemeB])
-        let generatedProject = generatedProject(targets: Array(project.targets.values))
+        let generatedProject = generatedProject(targets: Array(project.targets))
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1781,7 +1781,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: Array(project.targets.values)),
+            generatedProject: generatedProject(targets: Array(project.targets)),
             graphTraverser: graphTraverser
         )
 
@@ -1823,7 +1823,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: Array(project.targets.values)),
+            generatedProject: generatedProject(targets: Array(project.targets)),
             graphTraverser: graphTraverser
         )
 
@@ -1856,7 +1856,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             dependencies: [:]
         )
         let graphTraverser = GraphTraverser(graph: graph)
-        let generatedProject = generatedProject(targets: Array(project.targets.values))
+        let generatedProject = generatedProject(targets: Array(project.targets))
 
         // When
         let result = try subject.generateWorkspaceSchemes(
@@ -1890,7 +1890,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: Array(project.targets.values)),
+            generatedProject: generatedProject(targets: Array(project.targets)),
             graphTraverser: graphTraverser
         )
 
@@ -1907,7 +1907,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             (
                 $0.xcodeProjPath,
                 generatedProject(
-                    targets: Array($0.targets.values),
+                    targets: $0.targets,
                     projectPath: $0.xcodeProjPath.pathString
                 )
             )

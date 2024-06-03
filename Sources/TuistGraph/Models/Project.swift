@@ -30,7 +30,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var options: Options
 
     /// Project targets.
-    public var targets: [String: Target]
+    public var targets: [Target]
 
     /// Project swift packages.
     public var packages: [Package]
@@ -111,7 +111,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.defaultKnownRegions = defaultKnownRegions
         self.developmentRegion = developmentRegion
         self.options = options
-        self.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+        self.targets = targets
         self.packages = packages
         self.schemes = schemes
         self.settings = settings
@@ -148,5 +148,12 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         let debugConfiguration = settings.defaultDebugBuildConfiguration()
         let buildConfiguration = debugConfiguration ?? settings.configurations.keys.first
         return buildConfiguration?.name ?? BuildConfiguration.debug.name
+    }
+    
+    /// Given a name, it returns a project target with that name.
+    /// - Parameter name: Name of the target.
+    /// - Returns: Target if found.
+    public func target(named name: String) -> Target? {
+        return self.targets.first(where: { $0.name == name})
     }
 }

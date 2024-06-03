@@ -64,7 +64,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotValueSideEffects)
         XCTAssertEqual(gotGraph.projects.count, 1)
-        let valueTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+        let valueTargets = gotGraph.projects.values.flatMap(\.targets).sorted()
         XCTAssertEqual(valueTargets.count, 1)
         XCTAssertEqual(valueTargets.first, firstTarget)
     }

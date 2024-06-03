@@ -46,13 +46,13 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
+            project.targets = project.targets.map { target in
                 var target = target
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
                 var mappedSettingsDictionary = target.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
                 guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true)
-                else { return (targetName, target) }
+                else { return target }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
@@ -89,8 +89,8 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                 )
                 target.settings = targetSettings.with(base: mappedSettingsDictionary)
 
-                return (target.name, target)
-            })
+                return target
+            }
 
             return (projectPath, project)
         })
@@ -104,7 +104,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         var targetsByName = [String: Target]()
         for project in workspace.projects {
             projectsByPath[project.path] = project
-            for target in project.targets.values {
+            for target in project.targets {
                 targetsByName[target.name] = target
             }
         }

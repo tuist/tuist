@@ -18,19 +18,19 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
 
         var graph = graph
 
-        graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
+        graph.projects = graph.projects.mapValues { project in
             var project = project
-            project.targets = Dictionary(uniqueKeysWithValues: project.targets.compactMap { _, target -> (String, Target)? in
-                let project = graph.projects[projectPath]!
-                let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
+            project.targets = project.targets.map { target -> Target in
+                let project = graph.projects[project.path]!
+                let graphTarget = GraphTarget(path: project.path, target: target, project: project)
                 var target = target
                 if orphanExternalTargets.contains(graphTarget) || target.destinations.isEmpty {
                     target.prune = true
                 }
-                return (target.name, target)
-            })
-            return (projectPath, project)
-        })
+                return target
+            }
+            return project
+        }
 
         return (graph, [])
     }

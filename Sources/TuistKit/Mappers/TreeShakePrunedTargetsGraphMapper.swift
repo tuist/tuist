@@ -9,18 +9,18 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking nodes")
         let sourceTargets: Set<TargetReference> = Set(graph.projects.flatMap { projectPath, project -> [TargetReference] in
-            return project.targets.compactMap { _, target -> TargetReference? in
+            return project.targets.compactMap { target -> TargetReference? in
                 if target.prune { return nil }
                 return TargetReference(projectPath: projectPath, name: target.name)
             }
         })
 
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, []) }
+        if sourceTargets.count == graph.projects.values.flatMap(\.targets).count { return (graph, []) }
 
         let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
             let targets = self.treeShake(
-                targets: Array(next.value.targets.values),
+                targets: next.value.targets,
                 path: next.key,
                 graph: graph,
                 sourceTargets: sourceTargets
@@ -34,7 +34,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 )
                 var project = next.value
                 project.schemes = schemes
-                project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+                project.targets = targets
                 acc[next.key] = project
             }
         }
@@ -67,7 +67,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         sourceTargets: Set<TargetReference>
     ) -> [Target] {
         targets.compactMap { target -> Target? in
-            guard let target = graph.projects[path]?.targets[target.name] else { return nil }
+            guard let target = graph.projects[path]?.target(named: target.name) else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { return nil }
             return target

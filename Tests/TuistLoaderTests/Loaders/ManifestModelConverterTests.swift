@@ -86,13 +86,13 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.targets.count, 2)
         try XCTAssertTargetMatchesManifest(
-            target: try XCTUnwrap(model.targets["A"]),
+            target: try XCTUnwrap(model.target(named: "A")),
             matches: targetA,
             at: temporaryPath,
             generatorPaths: generatorPaths
         )
         try XCTAssertTargetMatchesManifest(
-            target: try XCTUnwrap(model.targets["B"]),
+            target: try XCTUnwrap(model.target(named: "B")),
             matches: targetB,
             at: temporaryPath,
             generatorPaths: generatorPaths

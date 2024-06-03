@@ -90,7 +90,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
-        let gotATargets = Array(gotAProject.targets.values).sorted()
+        let gotATargets = Array(gotAProject.targets).sorted()
         XCTAssertEqual(
             gotATargets[0],
             .test(
@@ -201,7 +201,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             )
         )
         let gotExternalBProject = try XCTUnwrap(got.0.projects[externalProjectBPath])
-        let gotExternalBTargets = Array(gotExternalBProject.targets.values)
+        let gotExternalBTargets = Array(gotExternalBProject.targets)
         XCTAssertEqual(
             gotExternalBTargets,
             [
@@ -289,7 +289,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
-        let gotATargets = Array(gotAProject.targets.values).sorted()
+        let gotATargets = Array(gotAProject.targets).sorted()
         let gotFrameworkA = try XCTUnwrap(gotATargets[0])
         XCTAssertEqual(
             gotFrameworkA.name,

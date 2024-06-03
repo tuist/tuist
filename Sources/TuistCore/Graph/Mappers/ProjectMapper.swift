@@ -31,10 +31,10 @@ public class TargetProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        var results = (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())
-        results = try project.targets.values.reduce(into: results) { results, target in
+        var results = (targets: [Target](), sideEffects: [SideEffectDescriptor]())
+        results = try project.targets.reduce(into: results) { results, target in
             let (updatedTarget, sideEffects) = try mapper.map(target: target)
-            results.targets[updatedTarget.name] = updatedTarget
+            results.targets.append(updatedTarget)
             results.sideEffects.append(contentsOf: sideEffects)
         }
         var project = project

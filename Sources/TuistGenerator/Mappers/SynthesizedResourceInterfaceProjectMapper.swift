@@ -52,13 +52,13 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
         logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
-        let mappings = try project.targets.values
+        let mappings = try project.targets
             .map { try mapTarget($0, project: project) }
 
         let targets: [Target] = mappings.map(\.0)
         let sideEffects: [SideEffectDescriptor] = mappings.map(\.1).flatMap { $0 }
         var project = project
-        project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+        project.targets = targets
         return (project, sideEffects)
     }
 

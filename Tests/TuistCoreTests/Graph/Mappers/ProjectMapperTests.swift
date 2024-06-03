@@ -24,7 +24,7 @@ final class TargetProjectMapperTests: XCTestCase {
         let (updatedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(updatedProject.targets.values.map(\.name).sorted(), [
+        XCTAssertEqual(updatedProject.targets.map(\.name).sorted(), [
             "Updated_A",
             "Updated_B",
         ])

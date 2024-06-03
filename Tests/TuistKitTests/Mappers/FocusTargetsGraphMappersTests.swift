@@ -31,7 +31,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets).sorted().filter(\.prune)
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -68,7 +68,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets).sorted().filter(\.prune)
         let expectingTargets = [dTarget, eTarget]
 
         // Then
@@ -104,7 +104,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets).sorted().filter(\.prune)
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -139,7 +139,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [cTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets).sorted().filter(\.prune)
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -178,7 +178,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget, aTestTarget]
-        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets).sorted().filter(\.prune)
 
         // Then
         XCTAssertEmpty(gotSideEffects)

@@ -107,7 +107,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let graphDependencies = projects
             .lazy
             .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in
-                let graphDependencies = project.targets.values.map(\.dependencies).lazy.map { dependencies in
+                let graphDependencies = project.targets.map(\.dependencies).lazy.map { dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
                         case let .target(name, _):
@@ -122,7 +122,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     }
                 }
 
-                return zip(project.targets.values, graphDependencies).map { target, dependencies in
+                return zip(project.targets, graphDependencies).map { target, dependencies in
                     (GraphDependency.target(name: target.name, path: project.path), Set(dependencies))
                 }
             }
