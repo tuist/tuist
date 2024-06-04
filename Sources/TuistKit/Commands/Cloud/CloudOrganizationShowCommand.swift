@@ -13,19 +13,22 @@ struct CloudOrganizationShowCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to show."
+        help: "The name of the organization to show.",
+        envKey: .cloudOrganizationShowOrganizationName
     )
     var organizationName: String
 
     @Flag(
-        help: "The output in JSON format."
+        help: "The output in JSON format.",
+        envKey: .cloudOrganizationShowJson
     )
     var json: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationShowPath
     )
     var path: String?
 

@@ -25,26 +25,30 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"])
+        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"]),
+        envKey: .initPlatform
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the project will be generated. (Default: Current directory)",
-        completion: .directory
+        completion: .directory,
+        envKey: .initPath
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. (Default: Name of the current directory)"
+        help: "The name of the project. (Default: Name of the current directory)",
+        envKey: .initName
     )
     var name: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the template to use (you can list available templates with tuist scaffold list)"
+        help: "The name of the template to use (you can list available templates with tuist scaffold list)",
+        envKey: .initTemplate
     )
     var template: String?
 

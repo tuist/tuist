@@ -14,7 +14,8 @@ struct CloudLogoutCommand: ParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudLogoutPath
     )
     var path: String?
 

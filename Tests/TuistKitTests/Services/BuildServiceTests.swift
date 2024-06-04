@@ -326,7 +326,7 @@ extension BuildService {
         derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
-        platform: String? = nil,
+        platform: TuistGraph.Platform? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
         generateOnly: Bool = false,

@@ -15,7 +15,8 @@ struct CloudCleanCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the Tuist Cloud project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudCleanPath
     )
     var path: String?
 

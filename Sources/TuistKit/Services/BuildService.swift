@@ -66,7 +66,7 @@ public final class BuildService {
         derivedDataPath: String?,
         path: AbsolutePath,
         device: String?,
-        platform: String?,
+        platform: Platform?,
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
@@ -123,7 +123,7 @@ public final class BuildService {
             let buildPlatform: TuistGraph.Platform
 
             if let platform {
-                buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
+                buildPlatform = platform
             } else {
                 buildPlatform = try graphTarget.target.servicePlatform
             }
@@ -155,7 +155,7 @@ public final class BuildService {
                 let buildPlatform: TuistGraph.Platform
 
                 if let platform {
-                    buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
+                    buildPlatform = platform
                 } else {
                     buildPlatform = try graphTarget.target.servicePlatform
                 }

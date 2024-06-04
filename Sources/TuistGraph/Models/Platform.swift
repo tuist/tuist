@@ -27,7 +27,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
         }
     }
 
-    init?(commandLineValue: String) {
+    public init?(commandLineValue: String) {
         self.init(rawValue: commandLineValue.lowercased())
     }
 

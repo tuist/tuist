@@ -24,7 +24,8 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .generatePath
     )
     var path: String?
 
@@ -37,15 +38,16 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: .shortAndLong,
-        help: "Don't open the project after generating it."
+        help: "Don't open the project after generating it.",
+        envKey: .generateOpen
     )
-    var noOpen: Bool = false
+    var open: Bool = true
 
     @Flag(
-        name: [.customLong("no-binary-cache")],
-        help: "Ignore binary cache and use sources only."
+        help: "Ignore binary cache and use sources only.",
+        envKey: .generateBinaryCache
     )
-    var ignoreBinaryCache: Bool = false
+    var binaryCache: Bool = true
 
     @Option(
         name: .shortAndLong,
@@ -57,8 +59,8 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         defer {
             GenerateCommand.analyticsDelegate?.addParameters(
                 [
-                    "no_open": AnyCodable(noOpen),
-                    "no_binary_cache": AnyCodable(ignoreBinaryCache),
+                    "no_open": AnyCodable(!open),
+                    "no_binary_cache": AnyCodable(!binaryCache),
                     "n_targets": AnyCodable(sources.count),
                     "cacheable_targets": AnyCodable(CacheAnalyticsStore.shared.cacheableTargets),
                     "local_cache_target_hits": AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits),
@@ -75,9 +77,9 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         ).run(
             path: path,
             sources: Set(sources),
-            noOpen: noOpen,
+            noOpen: !open,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache
+            ignoreBinaryCache: !binaryCache
         )
     }
 }

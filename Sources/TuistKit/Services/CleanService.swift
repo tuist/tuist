@@ -12,7 +12,7 @@ protocol CleanCategory: ExpressibleByArgument & CaseIterable {
     ) throws -> AbsolutePath?
 }
 
-enum TuistCleanCategory: CleanCategory {
+enum TuistCleanCategory: CleanCategory, Equatable {
     static let allCases = CacheCategory.App.allCases.map { .cloud($0) } + CacheCategory.allCases
         .map { .global($0) } + [Self.dependencies]
 

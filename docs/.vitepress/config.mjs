@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
 import examplesDataLoader from "../docs/reference/examples/examples.data";
+import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -29,6 +30,51 @@ function capitalize(text) {
     });
   }
 });
+
+function generateNestedSidebarItems(items) {
+  const nestedItems = {};
+
+  items.forEach((item) => {
+    const category = item.category
+    if (!nestedItems[category]) {
+      nestedItems[category] = {
+        text: capitalize(category),
+        collapsed: true,
+        items: [],
+      };
+    }
+    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
+  });
+
+  function isLinkItem(item) {
+    return typeof item.link === "string";
+  }
+
+  function convertToArray(obj) {
+    return Object.values(obj).reduce((acc, item) => {
+      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
+        acc.push(item);
+      } else {
+        acc.push({
+          text: item.text,
+          collapsed: true,
+          items: convertToArray(item.items),
+        });
+      }
+      return acc;
+    }, []);
+  }
+
+  return convertToArray(nestedItems);
+}
+
+  
+const cliData = cliDataLoader.load();
+
+const cliSidebar = {
+  text: "CLI",
+  items: generateNestedSidebarItems(cliData),
+};
 
 const guideSidebar = [
   {
@@ -278,16 +324,7 @@ export default defineConfig({
         {
           text: "Reference",
           items: [
-            // TODO
-            // {
-            //   text: "CLI",
-            //   items: cliDataLoader.load().map((item) => {
-            //     return {
-            //       text: item.title,
-            //       link: `/reference/cli/${item.command}`,
-            //     };
-            //   }),
-            // },
+            cliSidebar,
             projectDescriptionSidebar,
             {
               text: "Examples",

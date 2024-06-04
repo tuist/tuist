@@ -24,10 +24,16 @@ public struct RunCommand: AsyncParsableCommand {
         )
     }
 
-    @Flag(help: "Force the generation of the project before running.")
+    @Flag(
+        help: "Force the generation of the project before running.",
+        envKey: .runGenerate
+    )
     var generate: Bool = false
 
-    @Flag(help: "When passed, it cleans the project before running.")
+    @Flag(
+        help: "When passed, it cleans the project before running.",
+        envKey: .runClean
+    )
     var clean: Bool = false
 
     @Option(
@@ -48,7 +54,8 @@ public struct RunCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The OS version of the simulator."
+        help: "The OS version of the simulator.",
+        envKey: .runOS
     )
     var os: String?
 
@@ -58,12 +65,16 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var rosetta: Bool = false
 
-    @Argument(help: "The scheme to be run.")
+    @Argument(
+        help: "The scheme to be run.",
+        envKey: .runScheme
+    )
     var scheme: String
 
     @Argument(
         parsing: .captureForPassthrough,
-        help: "The arguments to pass to the runnable target during execution."
+        help: "The arguments to pass to the runnable target during execution.",
+        envKey: .runArguments
     )
     var arguments: [String] = []
 

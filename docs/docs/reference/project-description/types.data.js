@@ -6,7 +6,7 @@ export default {
   load() {
     const generatedDirectory = path.join(
       import.meta.dirname,
-      "../../../docs/generated"
+      "../../../docs/generated/manifest"
     );
     const files = fg
       .sync("**/*.md", {

@@ -3,12 +3,8 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-enum SSOProvider: String, ExpressibleByArgument {
+enum SSOProvider: String, ExpressibleByArgument, CaseIterable {
     case google
-
-    static var allValueStrings: [String] {
-        ["google"]
-    }
 }
 
 struct CloudOrganizationUpdateSSOCommand: AsyncParsableCommand {
@@ -21,25 +17,29 @@ struct CloudOrganizationUpdateSSOCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization for which you want to update the SSO provider for."
+        help: "The name of the organization for which you want to update the SSO provider for.",
+        envKey: .cloudOrganizationUpdateSSOOrganizationName
     )
     var organizationName: String
 
     @Option(
-        help: "The SSO provider to use."
+        help: "The SSO provider to use.",
+        envKey: .cloudOrganizationUpdateSSOProvider
     )
     var provider: SSOProvider
 
     @Option(
         name: .shortAndLong,
-        help: "Organization ID for your SSO provider. For Google, this is your Google domain (for example, if your email is tuist@tuist.io, the domain would be tuist.io)"
+        help: "Organization ID for your SSO provider. For Google, this is your Google domain (for example, if your email is tuist@tuist.io, the domain would be tuist.io)",
+        envKey: .cloudOrganizationUpdateSSOOrganizationId
     )
     var organizationId: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudOrganizationUpdateSSOPath
     )
     var path: String?
 

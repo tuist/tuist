@@ -14,20 +14,23 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
 
     @Argument(
         help: "The name of the project to create.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectCreateName
     )
     var name: String
 
     @Option(
         name: .shortAndLong,
-        help: "Organization to create the project with. If not specified, the project is created with your personal cloud account."
+        help: "Organization to create the project with. If not specified, the project is created with your personal cloud account.",
+        envKey: .cloudProjectCreateOrganization
     )
     var organization: String?
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectCreatePath
     )
     var path: String?
 

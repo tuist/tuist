@@ -13,20 +13,23 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
 
     @Argument(
         help: "The project to delete.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectDeleteProject
     )
     var project: String
 
     @Option(
         name: .shortAndLong,
-        help: "The organization that the project belongs to. By default, this is your personal Tuist Cloud account."
+        help: "The organization that the project belongs to. By default, this is your personal Tuist Cloud account.",
+        envKey: .cloudProjectDeleteOrganization
     )
     var organization: String
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
+        completion: .directory,
+        envKey: .cloudProjectDeletePath
     )
     var path: String?
 

@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginArchiveCommannd: ParsableCommand {
+struct PluginArchiveCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",
@@ -13,7 +13,8 @@ struct PluginArchiveCommannd: ParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the definition of the plugin.",
-        completion: .directory
+        completion: .directory,
+        envKey: .pluginArchivePath
     )
     var path: String?
 

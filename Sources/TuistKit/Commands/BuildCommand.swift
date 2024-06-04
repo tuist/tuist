@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
+import TuistGraph
 import TuistServer
 import TuistSupport
 
@@ -25,81 +26,95 @@ enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
 
 public struct BuildOptions: ParsableArguments {
     public init() {}
+
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
 
     @Argument(
-        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
+        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
+        envKey: .buildOptionsScheme
     )
     public var scheme: String?
 
     @Flag(
-        help: "Force the generation of the project before building."
+        help: "Force the generation of the project before building.",
+        envKey: .buildOptionsGenerate
     )
     public var generate: Bool = false
 
     @Flag(
-        help: "When passed, it cleans the project before building it"
+        help: "When passed, it cleans the project before building it",
+        envKey: .buildOptionsClean
     )
     public var clean: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built.",
-        completion: .directory
+        completion: .directory,
+        envKey: .buildOptionsPath
     )
     public var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "Build on a specific device."
+        help: "Build on a specific device.",
+        envKey: .buildOptionsDevice
     )
     public var device: String?
 
     @Option(
         name: .long,
-        help: "Build for a specific platform."
+        help: "Build for a specific platform.",
+        envKey: .buildOptionsPlatform
     )
-    public var platform: String?
+    public var platform: TuistGraph.Platform?
 
     @Option(
         name: .shortAndLong,
-        help: "Build with a specific version of the OS."
+        help: "Build with a specific version of the OS.",
+        envKey: .buildOptionsOS
     )
     public var os: String?
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
+        envKey: .buildOptionsRosetta
     )
     public var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
-        help: "The configuration to be used when building the scheme."
+        help: "The configuration to be used when building the scheme.",
+        envKey: .buildOptionsConfiguration
     )
     public var configuration: String?
 
     @Option(
         help: "The directory where build products will be copied to when the project is built.",
-        completion: .directory
+        completion: .directory,
+        envKey: .buildOptionsOutputPath
     )
     public var buildOutputPath: String?
 
     @Option(
-        help: "[Deprecated] Overrides the folder that should be used for derived data when building the project."
+        help: "[Deprecated] Overrides the folder that should be used for derived data when building the project.",
+        envKey: .buildOptionsDerivedDataPath
     )
     public var derivedDataPath: String?
 
     @Flag(
         name: .long,
-        help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
+        help: "When passed, it generates the project and skips building. This is useful for debugging purposes.",
+        envKey: .buildOptionsGenerateOnly
     )
     public var generateOnly: Bool = false
 
     @Argument(
         parsing: .postTerminator,
-        help: "Arguments that will be passed through to xcodebuild"
+        help: "Arguments that will be passed through to xcodebuild",
+        envKey: .buildOptionsPassthroughXcodeBuildArguments
     )
     var passthroughXcodeBuildArguments: [String] = []
 }
@@ -121,10 +136,10 @@ public struct BuildCommand: AsyncParsableCommand {
     var buildOptions: BuildOptions
 
     @Flag(
-        name: [.customLong("no-binary-cache")],
-        help: "Ignore binary cache and use sources only."
+        help: "Ignore binary cache and use sources only.",
+        envKey: .buildBinaryCache
     )
-    var ignoreBinaryCache: Bool = false
+    var binaryCache: Bool = true
 
     private var notAllowedPassthroughXcodeBuildArguments = [
         "-scheme",
@@ -162,7 +177,7 @@ public struct BuildCommand: AsyncParsableCommand {
             generate: buildOptions.generate,
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
+            ignoreBinaryCache: !binaryCache,
             buildOutputPath: buildOptions.buildOutputPath.map { try AbsolutePath(
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
@@ -176,5 +191,11 @@ public struct BuildCommand: AsyncParsableCommand {
             generateOnly: buildOptions.generateOnly,
             passthroughXcodeBuildArguments: buildOptions.passthroughXcodeBuildArguments
         )
+    }
+}
+
+extension TuistGraph.Platform: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(commandLineValue: argument)
     }
 }
