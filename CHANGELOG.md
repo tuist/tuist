@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.16.0 - 2024-06-04
+
+### Tuist
+
+#### Added
+
+- Support xcodebuild arguments in build and test commands [#6300](https://github.com/tuist/tuist/pull/6300) by [@nandodelauni](https://github.com/nandodelauni)
+- Upload test result bundle [#6345](https://github.com/tuist/tuist/pull/6345) by [@fortmarek](https://github.com/fortmarek)
+- Making `tuist run` interactive by selecting simulators [#6307](https://github.com/tuist/tuist/pull/6307) by [@nandodelauni](https://github.com/nandodelauni)
+- Support environment variable configuration for commands [#6359](https://github.com/tuist/tuist/pull/6359) by [@ajkolean](https://github.com/ajkolean)
+
+#### Fixed
+
+- Fixes #6321: Handle formatting multiline text [#6322](https://github.com/tuist/tuist/pull/6322) by [@sabade-omkar](https://github.com/sabade-omkar)
+- Fix detection of XCTest dependency [#6337](https://github.com/tuist/tuist/pull/6337) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.15.0 - 2024-05-23
 
 ### Tuist
