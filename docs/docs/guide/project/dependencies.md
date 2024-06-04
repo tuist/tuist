@@ -340,3 +340,11 @@ let packageSettings = PackageSettings(
 let package = Package(
 ...
 ```
+
+### Transitive static dependencies leaking through `.swiftmodule`
+
+When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included referenced in the `.swiftmodule` of the dynamic framework or library, potentially [causing the compilation to fail](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1). To prevent that, you'll have to import the static dependency using:
+
+```swift
+@_implementationOnly import StaticModule
+```
