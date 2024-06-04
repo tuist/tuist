@@ -952,11 +952,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                     "A": .remote(url: "url", requirement: .branch("master")),
                 ],
             ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
-                ],
-            ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
                     .packageProduct(path: project.path, product: "A", type: .runtime),

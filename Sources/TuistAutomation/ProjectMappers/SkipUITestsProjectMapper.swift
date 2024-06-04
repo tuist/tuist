@@ -10,7 +10,7 @@ public final class SkipUITestsProjectMapper: ProjectMapping {
         logger.debug("Transforming project \(project.name): Pruning UI tests targets")
 
         var project = project
-        project.targets = project.targets.map { target in
+        project.targets = project.targets.mapValues { target in
             var copy = target
             if copy.product == .uiTests {
                 copy.prune = true

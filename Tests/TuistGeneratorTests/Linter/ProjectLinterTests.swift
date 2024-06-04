@@ -39,19 +39,6 @@ final class ProjectLinterTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_validate_when_there_are_duplicated_targets() throws {
-        let target = Target.test(name: "A")
-        let project = Project.test(targets: [target, target])
-        let got = subject.lint(project)
-        XCTAssertTrue(
-            got
-                .contains(LintingIssue(
-                    reason: "Targets A from project at \(project.path.pathString) have duplicates.",
-                    severity: .error
-                ))
-        )
-    }
-
     func test_lint_valid_watchTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
