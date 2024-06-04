@@ -1084,9 +1084,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
-        return target.target.canLinkStaticProducts()
+        switch dependency {
+        case let .target(name, path):
+            guard let target = target(path: path, name: name) else { return false }
+            return target.target.canLinkStaticProducts()
+        case let .xcframework(xcframework): return xcframework.linking == .dynamic
+        case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
+        case let .library(_, _, linking, _, _): return linking == .dynamic
+        default:
+            return false
+        }
     }
 
     func unitTestHost(path: AbsolutePath, name: String) -> GraphTarget? {
