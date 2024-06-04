@@ -1,6 +1,6 @@
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
@@ -131,7 +131,7 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
+    ) throws -> [String: XcodeProjectGenerator.Template.Attribute.Value] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):

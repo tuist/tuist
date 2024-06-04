@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeProjectGenerator
 
 extension Scheme {
     public func targetDependencies() -> [TargetReference] {

@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 public final class MockXCFrameworkLoader: XCFrameworkLoading {
     public init() {}

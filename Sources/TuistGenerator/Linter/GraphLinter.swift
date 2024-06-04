@@ -1,7 +1,7 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 public protocol GraphLinting: AnyObject {
@@ -370,7 +370,7 @@ public class GraphLinter: GraphLinting {
     }
 
     struct LintableTarget: Equatable, Hashable {
-        let platform: TuistGraph.Platform
+        let platform: XcodeProjectGenerator.Platform
         let product: Product
     }
 

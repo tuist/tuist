@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 /// A target mapper that enforces explicit dependencies by adding custom build directories

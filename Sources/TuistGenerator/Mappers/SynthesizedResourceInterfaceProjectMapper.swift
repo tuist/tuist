@@ -2,7 +2,7 @@ import Foundation
 import SwiftGenKit
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 // swiftlint:disable:next type_name

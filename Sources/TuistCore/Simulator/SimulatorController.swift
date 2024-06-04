@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import struct TSCUtility.Version
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 public protocol SimulatorControlling {

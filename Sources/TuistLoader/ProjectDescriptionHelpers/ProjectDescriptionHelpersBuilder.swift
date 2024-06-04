@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the

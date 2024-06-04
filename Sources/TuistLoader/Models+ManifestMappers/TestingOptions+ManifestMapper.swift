@@ -1,8 +1,8 @@
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.TestingOptions {
-    /// Maps a ProjectDescription.TestingOptions instance into a TuistGraph.TestingOptions instance.
+extension XcodeProjectGenerator.TestingOptions {
+    /// Maps a ProjectDescription.TestingOptions instance into a XcodeProjectGenerator.TestingOptions instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of testing options.
     static func from(

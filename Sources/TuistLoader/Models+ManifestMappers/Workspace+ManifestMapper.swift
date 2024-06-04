@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
-extension TuistGraph.Workspace {
-    /// Maps a ProjectDescription.Workspace instance into a TuistGraph.Workspace model.
+extension XcodeProjectGenerator.Workspace {
+    /// Maps a ProjectDescription.Workspace instance into a XcodeProjectGenerator.Workspace model.
     /// - Parameters:
     ///   - manifest: Manifest representation of workspace.
     ///   - generatorPaths: Generator paths.
@@ -15,7 +15,7 @@ extension TuistGraph.Workspace {
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
         manifestLoader: ManifestLoading
-    ) throws -> TuistGraph.Workspace {
+    ) throws -> XcodeProjectGenerator.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
@@ -37,17 +37,17 @@ extension TuistGraph.Workspace {
         }
 
         let additionalFiles = try manifest.additionalFiles.flatMap {
-            try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+            try XcodeProjectGenerator.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map { try XcodeProjectGenerator.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
 
         let generationOptions: GenerationOptions = try .from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
 
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return TuistGraph.Workspace(
+        return XcodeProjectGenerator.Workspace(
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,

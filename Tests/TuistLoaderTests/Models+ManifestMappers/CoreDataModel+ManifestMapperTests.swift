@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 
@@ -21,7 +21,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
@@ -41,7 +41,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // When
-        let model = try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
 
         let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel(
             "model.xcdatamodeld",
@@ -76,7 +76,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsError(
-            try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+            try XcodeProjectGenerator.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
         )
     }
 
@@ -89,11 +89,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         XCTAssertEqual(
-            try TuistGraph.CoreDataModel.from(
+            try XcodeProjectGenerator.CoreDataModel.from(
                 manifest: manifestWithoutCurrentVersion,
                 generatorPaths: generatorPaths
             ),
-            TuistGraph.CoreDataModel(
+            XcodeProjectGenerator.CoreDataModel(
                 path: temporaryPath.appending(component: "model.xcdatamodeld"),
                 versions: [],
                 currentVersion: "model"

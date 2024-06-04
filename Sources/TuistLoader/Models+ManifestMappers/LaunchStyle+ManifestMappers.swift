@@ -1,11 +1,11 @@
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.LaunchStyle {
-    /// Maps a ProjectDescription.LaunchStyle instance into a TuistGraph.LaunchStyle model.
+extension XcodeProjectGenerator.LaunchStyle {
+    /// Maps a ProjectDescription.LaunchStyle instance into a XcodeProjectGenerator.LaunchStyle model.
     /// - Parameters:
     ///   - manifest: Manifest representation of LaunchStyle.
-    static func from(manifest: ProjectDescription.LaunchStyle) -> TuistGraph.LaunchStyle {
+    static func from(manifest: ProjectDescription.LaunchStyle) -> XcodeProjectGenerator.LaunchStyle {
         switch manifest {
         case .automatically:
             return .automatically

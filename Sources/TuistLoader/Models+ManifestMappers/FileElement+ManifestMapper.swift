@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
-extension TuistGraph.FileElement {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
+extension XcodeProjectGenerator.FileElement {
+    /// Maps a ProjectDescription.FileElement instance into a [XcodeProjectGenerator.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of the file element.
@@ -15,7 +15,7 @@ extension TuistGraph.FileElement {
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [TuistGraph.FileElement] {
+    ) throws -> [XcodeProjectGenerator.FileElement] {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 

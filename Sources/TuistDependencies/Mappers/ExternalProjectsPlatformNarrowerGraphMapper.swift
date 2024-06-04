@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 /**
  When Swift Packages don't declare the platforms that they support, the Swift Package Manager defaults the value

@@ -1,4 +1,4 @@
-import TuistGraph
+import XcodeProjectGenerator
 import TuistPlugin
 
 public final class MockPluginService: PluginServicing {

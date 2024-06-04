@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 @Mockable

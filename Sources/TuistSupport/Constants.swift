@@ -30,7 +30,7 @@ public enum Constants {
     public static let tuistGeneratedFileName = ".tuist-generated"
 
     /// The cache version.
-    /// This should change only when it changes the logic to map a `TuistGraph.Target` to a cached build artifact.
+    /// This should change only when it changes the logic to map a `XcodeProjectGenerator.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
     public static let cacheVersion = "1.0.0"
 

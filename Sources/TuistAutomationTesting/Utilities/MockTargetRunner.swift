@@ -1,7 +1,7 @@
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
-import TuistGraph
+import XcodeProjectGenerator
 
 public final class MockTargetRunner: TargetRunning {
     public init() {}
@@ -12,7 +12,7 @@ public final class MockTargetRunner: TargetRunning {
     )?
     public func runTarget(
         _ target: GraphTarget,
-        platform _: TuistGraph.Platform,
+        platform _: XcodeProjectGenerator.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,

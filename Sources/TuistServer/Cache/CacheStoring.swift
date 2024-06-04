@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 public struct CacheStorableTarget: Hashable, Equatable {
     public let target: GraphTarget

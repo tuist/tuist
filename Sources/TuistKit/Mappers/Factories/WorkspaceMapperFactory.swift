@@ -5,7 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 
 protocol WorkspaceMapperFactorying {
     /// Returns the default workspace mapper.

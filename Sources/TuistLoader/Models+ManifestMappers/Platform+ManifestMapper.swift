@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.Platform {
-    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
+extension XcodeProjectGenerator.Platform {
+    /// Maps a ProjectDescription.Platform instance into a XcodeProjectGenerator.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistGraph.Platform {
+    static func from(manifest: ProjectDescription.Platform) throws -> XcodeProjectGenerator.Platform {
         switch manifest {
         case .macOS:
             return .macOS
@@ -23,12 +23,12 @@ extension TuistGraph.Platform {
     }
 }
 
-extension TuistGraph.PackagePlatform {
-    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
+extension XcodeProjectGenerator.PackagePlatform {
+    /// Maps a ProjectDescription.Platform instance into a XcodeProjectGenerator.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.PackagePlatform) throws -> TuistGraph.PackagePlatform {
+    static func from(manifest: ProjectDescription.PackagePlatform) throws -> XcodeProjectGenerator.PackagePlatform {
         switch manifest {
         case .macOS:
             return .macOS

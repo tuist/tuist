@@ -1,32 +1,32 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.ProfileAction {
+extension XcodeProjectGenerator.ProfileAction {
     static func from(
         manifest: ProjectDescription.ProfileAction,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistGraph.ProfileAction {
+    ) throws -> XcodeProjectGenerator.ProfileAction {
         let configurationName = manifest.configuration.rawValue
 
         let preActions = try manifest.preActions.map {
-            try TuistGraph.ExecutionAction.from(
+            try XcodeProjectGenerator.ExecutionAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths
             )
         }
 
         let postActions = try manifest.postActions.map {
-            try TuistGraph.ExecutionAction.from(
+            try XcodeProjectGenerator.ExecutionAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths
             )
         }
 
-        let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
+        let arguments = manifest.arguments.map { XcodeProjectGenerator.Arguments.from(manifest: $0) }
 
-        var executableResolved: TuistGraph.TargetReference?
+        var executableResolved: XcodeProjectGenerator.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),

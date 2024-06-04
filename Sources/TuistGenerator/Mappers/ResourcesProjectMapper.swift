@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 /// A project mapper that adds support for defining resources in targets that don't support it

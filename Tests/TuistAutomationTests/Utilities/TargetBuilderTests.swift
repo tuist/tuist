@@ -1,6 +1,6 @@
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 

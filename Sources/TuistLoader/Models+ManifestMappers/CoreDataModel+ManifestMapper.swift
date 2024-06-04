@@ -2,15 +2,15 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
-extension TuistGraph.CoreDataModel {
-    /// Maps a ProjectDescription.CoreDataModel instance into a TuistGraph.CoreDataModel instance.
+extension XcodeProjectGenerator.CoreDataModel {
+    /// Maps a ProjectDescription.CoreDataModel instance into a XcodeProjectGenerator.CoreDataModel instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of Core Data model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CoreDataModel, generatorPaths: GeneratorPaths) throws -> TuistGraph
+    static func from(manifest: ProjectDescription.CoreDataModel, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator
         .CoreDataModel
     {
         let modelPath = try generatorPaths.resolve(path: manifest.path)
@@ -30,11 +30,11 @@ extension TuistGraph.CoreDataModel {
     }
 }
 
-extension TuistGraph.CoreDataModel {
-    /// Maps a `.xcdatamodeld` package into a TuistGraph.CoreDataModel instance.
+extension XcodeProjectGenerator.CoreDataModel {
+    /// Maps a `.xcdatamodeld` package into a XcodeProjectGenerator.CoreDataModel instance.
     /// - Parameters:
     ///   - path: The path for a `.xcdatamodeld` package.
-    static func from(path modelPath: AbsolutePath) throws -> TuistGraph.CoreDataModel {
+    static func from(path modelPath: AbsolutePath) throws -> XcodeProjectGenerator.CoreDataModel {
         let versions = FileHandler.shared.glob(modelPath, glob: "*.xcdatamodel")
         let currentVersion: String = try {
             if CoreDataVersionExtractor.isVersioned(at: modelPath) {

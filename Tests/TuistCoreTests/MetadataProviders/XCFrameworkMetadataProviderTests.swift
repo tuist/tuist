@@ -1,7 +1,7 @@
 import TSCBasic
 import XCTest
 @testable import TuistCore
-@testable import TuistGraph
+@testable import XcodeProjectGenerator
 @testable import TuistSupportTesting
 
 final class XCFrameworkMetadataProviderTests: TuistTestCase {

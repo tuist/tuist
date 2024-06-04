@@ -1,7 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import struct TuistGraph.Plugins
+import struct XcodeProjectGenerator.Plugins
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting

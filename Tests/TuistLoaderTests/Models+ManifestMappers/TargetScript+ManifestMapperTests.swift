@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 
@@ -21,7 +21,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             arguments: ["arg1", "arg2"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -57,7 +57,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }
@@ -123,7 +123,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }

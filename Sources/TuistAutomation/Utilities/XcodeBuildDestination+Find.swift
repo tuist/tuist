@@ -1,7 +1,7 @@
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 extension XcodeBuildDestination {
@@ -16,7 +16,7 @@ extension XcodeBuildDestination {
     /// - Returns: The `XcodeBuildDestination` that is compatible with the given arguments.
     public static func find(
         for target: Target,
-        on platform: TuistGraph.Platform,
+        on platform: XcodeProjectGenerator.Platform,
         scheme: Scheme,
         version: Version?,
         deviceName: String?,

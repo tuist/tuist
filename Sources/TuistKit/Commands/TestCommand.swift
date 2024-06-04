@@ -3,7 +3,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistServer
 import TuistSupport
 

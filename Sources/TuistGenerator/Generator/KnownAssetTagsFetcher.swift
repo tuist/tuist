@@ -1,6 +1,6 @@
 import Foundation
 import PathKit
-import TuistGraph
+import XcodeProjectGenerator
 
 private struct ContentJson: Decodable {
     struct ContentProperties: Decodable {

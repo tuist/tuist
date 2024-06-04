@@ -3,7 +3,7 @@ import Stencil
 import StencilSwiftKit
 import SwiftGenKit
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 protocol SynthesizedResourceInterfacesGenerating {

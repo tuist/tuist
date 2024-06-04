@@ -4,7 +4,7 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistSupport
 

@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 // MARK: - TargetDependency Mapper Error
@@ -20,8 +20,8 @@ public enum TargetDependencyMapperError: FatalError {
     }
 }
 
-extension TuistGraph.TargetDependency {
-    /// Maps a ProjectDescription.TargetDependency instance into a TuistGraph.TargetDependency instance.
+extension XcodeProjectGenerator.TargetDependency {
+    /// Maps a ProjectDescription.TargetDependency instance into a XcodeProjectGenerator.TargetDependency instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
@@ -29,8 +29,8 @@ extension TuistGraph.TargetDependency {
     static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
-    ) throws -> [TuistGraph.TargetDependency] {
+        externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]]
+    ) throws -> [XcodeProjectGenerator.TargetDependency] {
         switch manifest {
         case let .target(name, condition):
             return [.target(name: name, condition: condition?.asGraphCondition)]
@@ -95,19 +95,19 @@ extension TuistGraph.TargetDependency {
 }
 
 extension ProjectDescription.PlatformFilters {
-    var asGraphFilters: TuistGraph.PlatformFilters {
-        Set<TuistGraph.PlatformFilter>(map(\.graphPlatformFilter))
+    var asGraphFilters: XcodeProjectGenerator.PlatformFilters {
+        Set<XcodeProjectGenerator.PlatformFilter>(map(\.graphPlatformFilter))
     }
 }
 
 extension ProjectDescription.PlatformCondition {
-    var asGraphCondition: TuistGraph.PlatformCondition? {
+    var asGraphCondition: XcodeProjectGenerator.PlatformCondition? {
         .when(Set(platformFilters.asGraphFilters))
     }
 }
 
 extension ProjectDescription.PlatformFilter {
-    fileprivate var graphPlatformFilter: TuistGraph.PlatformFilter {
+    fileprivate var graphPlatformFilter: XcodeProjectGenerator.PlatformFilter {
         switch self {
         case .ios:
             .ios

@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 // MARK: - Provider Errors

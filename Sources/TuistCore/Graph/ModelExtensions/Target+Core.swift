@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 public enum TargetError: FatalError, Equatable {
@@ -75,8 +75,8 @@ extension Target {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
-        var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [XcodeProjectGenerator.SourceFile] {
+        var sourceFiles: [AbsolutePath: XcodeProjectGenerator.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
         for source in sources {

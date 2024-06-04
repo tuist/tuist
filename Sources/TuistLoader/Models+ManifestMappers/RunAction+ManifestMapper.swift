@@ -2,17 +2,17 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.RunAction {
-    /// Maps a ProjectDescription.RunAction instance into a TuistGraph.RunAction instance.
+extension XcodeProjectGenerator.RunAction {
+    /// Maps a ProjectDescription.RunAction instance into a XcodeProjectGenerator.RunAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.RunAction,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistGraph.RunAction {
+    ) throws -> XcodeProjectGenerator.RunAction {
         let configurationName = manifest.configuration.rawValue
 
         let customLLDBInitFile = try manifest.customLLDBInitFile.map {
@@ -20,22 +20,22 @@ extension TuistGraph.RunAction {
         }
 
         let preActions = try manifest.preActions.map {
-            try TuistGraph.ExecutionAction.from(
+            try XcodeProjectGenerator.ExecutionAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths
             )
         }
 
         let postActions = try manifest.postActions.map {
-            try TuistGraph.ExecutionAction.from(
+            try XcodeProjectGenerator.ExecutionAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths
             )
         }
 
-        let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
+        let arguments = manifest.arguments.map { XcodeProjectGenerator.Arguments.from(manifest: $0) }
 
-        var executableResolved: TuistGraph.TargetReference?
+        var executableResolved: XcodeProjectGenerator.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
@@ -43,21 +43,21 @@ extension TuistGraph.RunAction {
             )
         }
 
-        let options = try TuistGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
+        let options = try XcodeProjectGenerator.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
 
-        let diagnosticsOptions = TuistGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
+        let diagnosticsOptions = XcodeProjectGenerator.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
 
-        let expandVariablesFromTarget: TuistGraph.TargetReference?
+        let expandVariablesFromTarget: XcodeProjectGenerator.TargetReference?
         expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
-            TuistGraph.TargetReference(
+            XcodeProjectGenerator.TargetReference(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                 name: $0.targetName
             )
         }
 
-        let launchStyle = TuistGraph.LaunchStyle.from(manifest: manifest.launchStyle)
+        let launchStyle = XcodeProjectGenerator.LaunchStyle.from(manifest: manifest.launchStyle)
 
-        return TuistGraph.RunAction(
+        return XcodeProjectGenerator.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
             customLLDBInitFile: customLLDBInitFile,

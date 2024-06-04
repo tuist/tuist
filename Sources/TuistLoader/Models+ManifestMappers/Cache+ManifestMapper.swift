@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import struct TSCUtility.Version
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 enum CacheProfileError: FatalError, Equatable {

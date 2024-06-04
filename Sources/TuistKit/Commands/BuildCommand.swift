@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
-import TuistGraph
+import XcodeProjectGenerator
 import TuistServer
 import TuistSupport
 
@@ -68,7 +68,7 @@ public struct BuildOptions: ParsableArguments {
         help: "Build for a specific platform.",
         envKey: .buildOptionsPlatform
     )
-    public var platform: TuistGraph.Platform?
+    public var platform: XcodeProjectGenerator.Platform?
 
     @Option(
         name: .shortAndLong,
@@ -194,7 +194,7 @@ public struct BuildCommand: AsyncParsableCommand {
     }
 }
 
-extension TuistGraph.Platform: ExpressibleByArgument {
+extension XcodeProjectGenerator.Platform: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(commandLineValue: argument)
     }

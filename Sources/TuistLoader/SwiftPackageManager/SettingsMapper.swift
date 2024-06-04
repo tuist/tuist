@@ -1,7 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 struct SettingsMapper {
@@ -19,7 +19,7 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
+    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> XcodeProjectGenerator.SettingsDictionary {
         var resolvedSettings = try settingsDictionary()
 
         for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
@@ -32,7 +32,7 @@ struct SettingsMapper {
 
     func settingsForBuildConfiguration(
         _ buildConfiguration: String
-    ) throws -> TuistGraph.SettingsDictionary {
+    ) throws -> XcodeProjectGenerator.SettingsDictionary {
         try map(
             settings: settings.filter { setting in
                 return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
@@ -41,7 +41,7 @@ struct SettingsMapper {
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> TuistGraph.SettingsDictionary {
+    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> XcodeProjectGenerator.SettingsDictionary {
         let platformSettings = try settings(for: platform?.platformName)
 
         return try map(
@@ -57,7 +57,7 @@ struct SettingsMapper {
         headerSearchPaths: [String] = [],
         defines: [String: String] = [:],
         swiftDefines: String = ""
-    ) throws -> TuistGraph.SettingsDictionary {
+    ) throws -> XcodeProjectGenerator.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = defines
         var swiftDefines = swiftDefines
@@ -66,7 +66,7 @@ struct SettingsMapper {
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
-        var settingsDictionary = TuistGraph.SettingsDictionary()
+        var settingsDictionary = XcodeProjectGenerator.SettingsDictionary()
         for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):

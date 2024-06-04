@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -10,7 +10,7 @@ import XCTest
 
 extension TuistTestCase {
     func XCTAssertSettingsMatchesManifest(
-        settings: TuistGraph.Settings,
+        settings: XcodeProjectGenerator.Settings,
         matches manifest: ProjectDescription.Settings,
         at path: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -34,7 +34,7 @@ extension TuistTestCase {
     }
 
     func XCTAssertTargetMatchesManifest(
-        target: TuistGraph.Target,
+        target: XcodeProjectGenerator.Target,
         matches manifest: ProjectDescription.Target,
         at path: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -85,7 +85,7 @@ extension TuistTestCase {
     }
 
     func XCTAssertBuildConfigurationMatchesManifest(
-        configuration: (TuistGraph.BuildConfiguration, TuistGraph.Configuration?),
+        configuration: (XcodeProjectGenerator.BuildConfiguration, XcodeProjectGenerator.Configuration?),
         matches manifest: ProjectDescription.Configuration,
         at _: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -108,7 +108,7 @@ extension TuistTestCase {
     }
 
     func assert(
-        coreDataModels: [TuistGraph.CoreDataModel],
+        coreDataModels: [XcodeProjectGenerator.CoreDataModel],
         matches manifests: [ProjectDescription.CoreDataModel],
         at path: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -127,7 +127,7 @@ extension TuistTestCase {
     }
 
     func coreDataModel(
-        _ coreDataModel: TuistGraph.CoreDataModel,
+        _ coreDataModel: XcodeProjectGenerator.CoreDataModel,
         matches manifest: ProjectDescription.CoreDataModel,
         at _: AbsolutePath,
         generatorPaths: GeneratorPaths
@@ -137,7 +137,7 @@ extension TuistTestCase {
     }
 
     func assert(
-        scheme: TuistGraph.Scheme,
+        scheme: XcodeProjectGenerator.Scheme,
         matches manifest: ProjectDescription.Scheme,
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -160,14 +160,14 @@ extension TuistTestCase {
     }
 
     func assert(
-        buildAction: TuistGraph.BuildAction,
+        buildAction: XcodeProjectGenerator.BuildAction,
         matches manifest: ProjectDescription.BuildAction,
         path _: AbsolutePath,
         generatorPaths: GeneratorPaths,
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        let convertedTargets: [TuistGraph.TargetReference] = try manifest.targets.map {
+        let convertedTargets: [XcodeProjectGenerator.TargetReference] = try manifest.targets.map {
             let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath($0.projectPath)
             return .init(projectPath: resolvedPath, name: $0.targetName)
         }
@@ -175,7 +175,7 @@ extension TuistTestCase {
     }
 
     func assert(
-        testAction: TuistGraph.TestAction,
+        testAction: XcodeProjectGenerator.TestAction,
         matches manifest: ProjectDescription.TestAction,
         path _: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -192,7 +192,7 @@ extension TuistTestCase {
     }
 
     func assert(
-        runAction: TuistGraph.RunAction,
+        runAction: XcodeProjectGenerator.RunAction,
         matches manifest: ProjectDescription.RunAction,
         path _: AbsolutePath,
         generatorPaths: GeneratorPaths,
@@ -213,7 +213,7 @@ extension TuistTestCase {
     }
 
     func assert(
-        arguments: TuistGraph.Arguments,
+        arguments: XcodeProjectGenerator.Arguments,
         matches manifest: ProjectDescription.Arguments,
         file: StaticString = #file,
         line: UInt = #line
@@ -250,10 +250,10 @@ extension TuistTestCase {
 }
 
 private func == (
-    _ lhs: TuistGraph.Platform,
+    _ lhs: XcodeProjectGenerator.Platform,
     _ rhs: ProjectDescription.Platform
 ) -> Bool {
-    let map: [TuistGraph.Platform: ProjectDescription.Platform] = [
+    let map: [XcodeProjectGenerator.Platform: ProjectDescription.Platform] = [
         .iOS: .iOS,
         .macOS: .macOS,
         .tvOS: .tvOS,
@@ -262,17 +262,17 @@ private func == (
 }
 
 private func == (
-    _ lhs: TuistGraph.Destinations,
+    _ lhs: XcodeProjectGenerator.Destinations,
     _ rhs: ProjectDescription.Destinations
 ) -> Bool {
     lhs.map(\.rawValue).sorted() == rhs.map(\.rawValue).sorted()
 }
 
 private func == (
-    _ lhs: TuistGraph.Product,
+    _ lhs: XcodeProjectGenerator.Product,
     _ rhs: ProjectDescription.Product
 ) -> Bool {
-    let map: [TuistGraph.Product: ProjectDescription.Product] = [
+    let map: [XcodeProjectGenerator.Product: ProjectDescription.Product] = [
         .app: .app,
         .framework: .framework,
         .staticFramework: .staticFramework,

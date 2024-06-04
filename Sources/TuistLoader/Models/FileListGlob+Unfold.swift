@@ -1,7 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 extension FileListGlob {

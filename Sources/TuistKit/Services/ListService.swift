@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistScaffold

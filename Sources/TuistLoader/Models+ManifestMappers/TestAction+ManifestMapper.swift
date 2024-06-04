@@ -2,27 +2,27 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
-extension TuistGraph.TestAction {
+extension XcodeProjectGenerator.TestAction {
     // swiftlint:disable function_body_length
-    /// Maps a ProjectDescription.TestAction instance into a TuistGraph.TestAction instance.
+    /// Maps a ProjectDescription.TestAction instance into a XcodeProjectGenerator.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TestAction {
+    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator.TestAction {
         // swiftlint:enable function_body_length
-        let testPlans: [TuistGraph.TestPlan]?
-        let targets: [TuistGraph.TestableTarget]
-        let arguments: TuistGraph.Arguments?
+        let testPlans: [XcodeProjectGenerator.TestPlan]?
+        let targets: [XcodeProjectGenerator.TestableTarget]
+        let arguments: XcodeProjectGenerator.Arguments?
         let coverage: Bool
-        let codeCoverageTargets: [TuistGraph.TargetReference]
-        let expandVariablesFromTarget: TuistGraph.TargetReference?
-        let diagnosticsOptions: TuistGraph.SchemeDiagnosticsOptions
+        let codeCoverageTargets: [XcodeProjectGenerator.TargetReference]
+        let expandVariablesFromTarget: XcodeProjectGenerator.TargetReference?
+        let diagnosticsOptions: XcodeProjectGenerator.SchemeDiagnosticsOptions
         let language: SchemeLanguage?
         let region: String?
-        let preferredScreenCaptureFormat: TuistGraph.ScreenCaptureFormat?
+        let preferredScreenCaptureFormat: XcodeProjectGenerator.ScreenCaptureFormat?
         let skippedTests: [String]?
 
         if let plans = manifest.testPlans {
@@ -45,22 +45,22 @@ extension TuistGraph.TestAction {
             skippedTests = nil
         } else {
             targets = try manifest.targets
-                .map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
-            arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
+                .map { try XcodeProjectGenerator.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            arguments = manifest.arguments.map { XcodeProjectGenerator.Arguments.from(manifest: $0) }
             coverage = manifest.options.coverage
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
-                TuistGraph.TargetReference(
+                XcodeProjectGenerator.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
                 )
             }
             expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
-                TuistGraph.TargetReference(
+                XcodeProjectGenerator.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
                 )
             }
-            diagnosticsOptions = TuistGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
+            diagnosticsOptions = XcodeProjectGenerator.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
             language = manifest.options.language
             region = manifest.options.region
             preferredScreenCaptureFormat = manifest.options.preferredScreenCaptureFormat
@@ -72,11 +72,11 @@ extension TuistGraph.TestAction {
         }
 
         let configurationName = manifest.configuration.rawValue
-        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
+        let preActions = try manifest.preActions.map { try XcodeProjectGenerator.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(
+        let postActions = try manifest.postActions.map { try XcodeProjectGenerator.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
         ) }

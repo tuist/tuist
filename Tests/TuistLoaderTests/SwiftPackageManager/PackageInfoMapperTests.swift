@@ -2,7 +2,7 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 
@@ -2241,7 +2241,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let customSettings: TuistGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
+        let customSettings: XcodeProjectGenerator.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
 
         let targetSettings = ["Target1": customSettings]
 
@@ -3309,7 +3309,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageType: PackageType? = nil,
         packageInfos: [String: PackageInfo] = [:],
-        packageSettings: TuistGraph.PackageSettings = .test(
+        packageSettings: XcodeProjectGenerator.PackageSettings = .test(
             baseSettings: .default
         )
     ) throws -> ProjectDescription.Project? {

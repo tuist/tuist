@@ -3,7 +3,7 @@ import Mockable
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport

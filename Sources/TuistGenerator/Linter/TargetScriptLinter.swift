@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 /// Protocol that defines the interface of a linter for target scripts.

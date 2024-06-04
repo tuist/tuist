@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 /// Static Products Graph Linter
 ///

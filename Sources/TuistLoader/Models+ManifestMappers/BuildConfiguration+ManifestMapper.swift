@@ -1,21 +1,21 @@
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.BuildConfiguration {
-    /// Maps a ProjectDescription.Configuration instance into a TuistGraph.BuildConfiguration instance.
+extension XcodeProjectGenerator.BuildConfiguration {
+    /// Maps a ProjectDescription.Configuration instance into a XcodeProjectGenerator.BuildConfiguration instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of build configuration model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Configuration) -> TuistGraph.BuildConfiguration {
-        let variant: TuistGraph.BuildConfiguration.Variant
+    static func from(manifest: ProjectDescription.Configuration) -> XcodeProjectGenerator.BuildConfiguration {
+        let variant: XcodeProjectGenerator.BuildConfiguration.Variant
         switch manifest.variant {
         case .debug:
             variant = .debug
         case .release:
             variant = .release
         }
-        return TuistGraph.BuildConfiguration(name: manifest.name.rawValue, variant: variant)
+        return XcodeProjectGenerator.BuildConfiguration(name: manifest.name.rawValue, variant: variant)
     }
 }

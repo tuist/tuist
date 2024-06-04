@@ -2,24 +2,24 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.Settings {
-    /// Maps a ProjectDescription.Settings instance into a TuistGraph.Settings instance.
+extension XcodeProjectGenerator.Settings {
+    /// Maps a ProjectDescription.Settings instance into a XcodeProjectGenerator.Settings instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> TuistGraph.Settings {
-        let base = manifest.base.mapValues(TuistGraph.SettingValue.from)
+    static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator.Settings {
+        let base = manifest.base.mapValues(XcodeProjectGenerator.SettingValue.from)
         let configurations = try manifest.configurations
-            .reduce([TuistGraph.BuildConfiguration: TuistGraph.Configuration?]()) { acc, val in
+            .reduce([XcodeProjectGenerator.BuildConfiguration: XcodeProjectGenerator.Configuration?]()) { acc, val in
                 var result = acc
-                let variant = TuistGraph.BuildConfiguration.from(manifest: val)
-                result[variant] = try TuistGraph.Configuration.from(manifest: val, generatorPaths: generatorPaths)
+                let variant = XcodeProjectGenerator.BuildConfiguration.from(manifest: val)
+                result[variant] = try XcodeProjectGenerator.Configuration.from(manifest: val, generatorPaths: generatorPaths)
                 return result
             }
-        let defaultSettings = TuistGraph.DefaultSettings.from(manifest: manifest.defaultSettings)
-        return TuistGraph.Settings(
+        let defaultSettings = XcodeProjectGenerator.DefaultSettings.from(manifest: manifest.defaultSettings)
+        return XcodeProjectGenerator.Settings(
             base: base,
             configurations: configurations,
             defaultSettings: defaultSettings

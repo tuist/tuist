@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistAsyncQueue
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 
 public enum TuistAnalytics {

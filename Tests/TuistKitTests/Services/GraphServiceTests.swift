@@ -3,7 +3,7 @@ import Foundation
 import GraphViz
 import ProjectAutomation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistPlugin
 import TuistSupport
 import XcodeProj

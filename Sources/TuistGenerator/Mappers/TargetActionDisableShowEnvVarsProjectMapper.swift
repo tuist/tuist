@@ -1,5 +1,5 @@
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 /// This mapper takes the `Project` `disableShowEnvironmentVarsInScriptPhases` option and pushes it down into all of the `Target`s
 /// shell script `TargetAction`s

@@ -1,7 +1,7 @@
 import Foundation
 import MachO
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 enum PrecompiledMetadataProviderError: FatalError, Equatable {

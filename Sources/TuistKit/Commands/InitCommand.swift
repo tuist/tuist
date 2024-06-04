@@ -4,13 +4,13 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistScaffold
 import TuistSupport
 
-private typealias Platform = TuistGraph.Platform
-private typealias Product = TuistGraph.Product
+private typealias Platform = XcodeProjectGenerator.Platform
+private typealias Product = XcodeProjectGenerator.Product
 
 public struct InitCommand: ParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {

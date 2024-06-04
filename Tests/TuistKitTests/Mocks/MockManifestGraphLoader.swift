@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 @testable import TuistKit
 
 final class MockManifestGraphLoader: ManifestGraphLoading {

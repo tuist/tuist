@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistAutomation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -120,7 +120,7 @@ public final class BuildService {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
-            let buildPlatform: TuistGraph.Platform
+            let buildPlatform: XcodeProjectGenerator.Platform
 
             if let platform {
                 buildPlatform = platform
@@ -152,7 +152,7 @@ public final class BuildService {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
-                let buildPlatform: TuistGraph.Platform
+                let buildPlatform: XcodeProjectGenerator.Platform
 
                 if let platform {
                     buildPlatform = platform

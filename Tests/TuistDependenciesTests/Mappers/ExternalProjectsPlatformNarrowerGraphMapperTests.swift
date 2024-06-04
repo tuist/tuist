@@ -1,6 +1,6 @@
 import Foundation
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import XCTest
 
 @testable import TuistDependencies

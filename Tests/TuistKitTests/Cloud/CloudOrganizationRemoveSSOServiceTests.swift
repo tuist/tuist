@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import MockableTest
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupportTesting

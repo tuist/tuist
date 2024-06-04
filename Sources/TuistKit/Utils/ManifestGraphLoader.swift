@@ -3,7 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistDependencies
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
@@ -106,8 +106,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load DependenciesGraph
 
-        let dependenciesGraph: TuistGraph.DependenciesGraph
-        let packageSettings: TuistGraph.PackageSettings?
+        let dependenciesGraph: XcodeProjectGenerator.DependenciesGraph
+        let packageSettings: XcodeProjectGenerator.PackageSettings?
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
@@ -182,9 +182,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]],
         context: ExecutionContext = .concurrent
-    ) throws -> [TuistGraph.Project] {
+    ) throws -> [XcodeProjectGenerator.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
             try converter.convert(

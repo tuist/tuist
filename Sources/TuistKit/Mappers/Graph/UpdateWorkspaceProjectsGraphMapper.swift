@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 /// A mapper that ensures that the list of projects of the workspace is in sync
 /// with the projects available in the graph.

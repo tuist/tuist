@@ -1,10 +1,10 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 extension PackageInfo.Platform {
-    func graphPlatform() throws -> TuistGraph.Platform {
+    func graphPlatform() throws -> XcodeProjectGenerator.Platform {
         switch platformName.lowercased() {
         case "ios", "maccatalyst":
             return .iOS

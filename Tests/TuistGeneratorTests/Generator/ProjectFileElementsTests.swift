@@ -3,8 +3,8 @@ import MockableTest
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

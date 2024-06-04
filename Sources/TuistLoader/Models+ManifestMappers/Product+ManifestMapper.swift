@@ -1,9 +1,9 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.Product {
-    static func from(manifest: ProjectDescription.Product) -> TuistGraph.Product {
+extension XcodeProjectGenerator.Product {
+    static func from(manifest: ProjectDescription.Product) -> XcodeProjectGenerator.Product {
         switch manifest {
         case .app:
             return .app

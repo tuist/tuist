@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 
@@ -33,7 +33,7 @@ final class SettingsManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Settings.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeProjectGenerator.Settings.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertSettingsMatchesManifest(settings: model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths)

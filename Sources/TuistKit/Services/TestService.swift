@@ -3,7 +3,7 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -387,10 +387,10 @@ final class TestService { // swiftlint:disable:this type_body_length
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan)
         }
 
-        let buildPlatform: TuistGraph.Platform
+        let buildPlatform: XcodeProjectGenerator.Platform
 
         if let platform {
-            buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
+            buildPlatform = try XcodeProjectGenerator.Platform.from(commandLineValue: platform)
         } else {
             buildPlatform = try buildableTarget.target.servicePlatform
         }

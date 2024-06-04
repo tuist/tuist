@@ -3,8 +3,8 @@ import MockableTest
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import TuistSupport
 import XCTest
 

@@ -1,5 +1,5 @@
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 @testable import TuistCore

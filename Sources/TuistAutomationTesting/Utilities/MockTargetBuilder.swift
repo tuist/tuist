@@ -2,7 +2,7 @@ import TSCBasic
 import TSCUtility
 import TuistAutomation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 public final class MockTargetBuilder: TargetBuilding {
     public init() {}
@@ -24,7 +24,7 @@ public final class MockTargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
-        platform _: TuistGraph.Platform,
+        platform _: XcodeProjectGenerator.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,

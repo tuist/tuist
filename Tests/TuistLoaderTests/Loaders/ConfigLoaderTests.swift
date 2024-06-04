@@ -1,8 +1,8 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -71,7 +71,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try subject.loadConfig(path: path)
 
         // Then
-        XCTAssertEqual(result, TuistGraph.Config(
+        XCTAssertEqual(result, XcodeProjectGenerator.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
             swiftVersion: nil,
@@ -111,7 +111,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try subject.loadConfig(path: "/project/Module/A/")
 
         // Then
-        XCTAssertEqual(result, TuistGraph.Config(
+        XCTAssertEqual(result, XcodeProjectGenerator.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
             swiftVersion: nil,

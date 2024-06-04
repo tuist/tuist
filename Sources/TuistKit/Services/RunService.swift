@@ -3,7 +3,7 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistSupport
 

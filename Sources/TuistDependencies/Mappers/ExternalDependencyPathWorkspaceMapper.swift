@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 public final class ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {

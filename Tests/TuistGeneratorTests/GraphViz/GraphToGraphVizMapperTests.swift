@@ -2,8 +2,8 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import XCTest
 
 @testable import TuistGenerator
@@ -195,7 +195,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         return graph
     }
 
-    private func makeGivenGraph() throws -> TuistGraph.Graph {
+    private func makeGivenGraph() throws -> XcodeProjectGenerator.Graph {
         let framework = GraphDependency.testFramework(path: try AbsolutePath(validating: "/XcodeProj.framework"))
         let library = GraphDependency.testLibrary(path: try AbsolutePath(validating: "/RxSwift.a"))
         let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
@@ -232,7 +232,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let externalProject = Project.test(path: "/Tuist/Dependencies", targets: [externalTargetTarget], isExternal: true)
         let externalDependency = GraphDependency.target(name: externalTarget.target.name, path: externalTarget.path)
 
-        let graph = TuistGraph.Graph.test(
+        let graph = XcodeProjectGenerator.Graph.test(
             projects: [
                 project.path: project,
                 coreProject.path: coreProject,

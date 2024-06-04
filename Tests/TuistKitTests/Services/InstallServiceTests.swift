@@ -4,8 +4,8 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeProjectGenerator
+import XcodeProjectGeneratorTesting
 import TuistLoader
 import TuistPluginTesting
 import TuistSupport

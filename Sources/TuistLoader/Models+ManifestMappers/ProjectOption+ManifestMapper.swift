@@ -1,8 +1,8 @@
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.Project.Options {
-    /// Maps a ProjectDescription.ProjectOption instance into a TuistGraph.ProjectOption instance.
+extension XcodeProjectGenerator.Project.Options {
+    /// Maps a ProjectDescription.ProjectOption instance into a XcodeProjectGenerator.ProjectOption instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of project options.
     static func from(manifest: ProjectDescription.Project.Options) -> Self {
@@ -21,7 +21,7 @@ extension TuistGraph.Project.Options {
     }
 }
 
-extension TuistGraph.Project.Options.AutomaticSchemesOptions {
+extension XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions {
     static func from(
         manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions
     ) -> Self {
@@ -52,7 +52,7 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions {
     }
 }
 
-extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
+extension XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
     static func from(
         manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
     ) -> Self {

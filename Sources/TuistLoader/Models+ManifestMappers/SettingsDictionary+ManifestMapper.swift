@@ -1,18 +1,18 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.SettingsDictionary {
-    /// Maps a ProjectDescription.SettingsDictionary instance into a TuistGraph.SettingsDictionary instance.
+extension XcodeProjectGenerator.SettingsDictionary {
+    /// Maps a ProjectDescription.SettingsDictionary instance into a XcodeProjectGenerator.SettingsDictionary instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: ProjectDescription.SettingsDictionary) -> TuistGraph.SettingsDictionary {
+    static func from(manifest: ProjectDescription.SettingsDictionary) -> XcodeProjectGenerator.SettingsDictionary {
         manifest.mapValues { value in
             switch value {
             case let .string(stringValue):
-                return TuistGraph.SettingValue.string(stringValue)
+                return XcodeProjectGenerator.SettingValue.string(stringValue)
             case let .array(arrayValue):
-                return TuistGraph.SettingValue.array(arrayValue)
+                return XcodeProjectGenerator.SettingValue.array(arrayValue)
             }
         }
     }

@@ -1,12 +1,12 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.BuildRule.FileType {
+extension XcodeProjectGenerator.BuildRule.FileType {
     // swiftlint:disable function_body_length
     static func from(
         manifest: ProjectDescription.BuildRule.FileType
-    ) -> TuistGraph.BuildRule.FileType {
+    ) -> XcodeProjectGenerator.BuildRule.FileType {
         switch manifest {
         case .instrumentsPackageDefinition:
             return .instrumentsPackageDefinition

@@ -1,7 +1,7 @@
 import Mockable
 import MockableTest
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistServer
 import TuistSupport
 

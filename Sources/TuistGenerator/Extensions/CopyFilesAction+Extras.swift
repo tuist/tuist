@@ -1,5 +1,5 @@
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import XcodeProj
 
 extension CopyFilesAction.Destination {

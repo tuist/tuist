@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import TuistSupportTesting
 import XCTest

@@ -3,7 +3,7 @@ import Mockable
 import struct ProjectDescription.Config
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 @Mockable
@@ -14,7 +14,7 @@ public protocol ConfigLoading {
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config
+    func loadConfig(path: AbsolutePath) throws -> XcodeProjectGenerator.Config
 
     /// Locates the Config.swift manifest from the given directory.
     func locateConfig(at: AbsolutePath) -> AbsolutePath?
@@ -24,7 +24,7 @@ public final class ConfigLoader: ConfigLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileHandler: FileHandling
-    private var cachedConfigs: [AbsolutePath: TuistGraph.Config] = [:]
+    private var cachedConfigs: [AbsolutePath: XcodeProjectGenerator.Config] = [:]
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
@@ -36,19 +36,19 @@ public final class ConfigLoader: ConfigLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config {
+    public func loadConfig(path: AbsolutePath) throws -> XcodeProjectGenerator.Config {
         if let cached = cachedConfigs[path] {
             return cached
         }
 
         guard let configPath = locateConfig(at: path) else {
-            let config = TuistGraph.Config.default
+            let config = XcodeProjectGenerator.Config.default
             cachedConfigs[path] = config
             return config
         }
 
         let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-        let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
+        let config = try XcodeProjectGenerator.Config.from(manifest: manifest, at: configPath)
         cachedConfigs[path] = config
         return config
     }

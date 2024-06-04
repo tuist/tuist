@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.

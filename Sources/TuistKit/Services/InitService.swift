@@ -1,6 +1,6 @@
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistScaffold
 import TuistSupport
@@ -187,8 +187,8 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
-        let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+    ) throws -> [String: XcodeProjectGenerator.Template.Attribute.Value] {
+        let defaultAttributes: [String: XcodeProjectGenerator.Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),

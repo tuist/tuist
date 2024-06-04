@@ -6,7 +6,7 @@ import Tools
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport

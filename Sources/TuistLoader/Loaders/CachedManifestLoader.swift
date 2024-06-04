@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import struct TuistGraph.Config
-import struct TuistGraph.Plugins
+import struct XcodeProjectGenerator.Config
+import struct XcodeProjectGenerator.Plugins
 import TuistSupport
 
 /// Cached Manifest Loader

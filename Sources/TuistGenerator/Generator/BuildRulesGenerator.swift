@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeProjectGenerator
 import XcodeProj
 
 protocol BuildRulesGenerating: AnyObject {

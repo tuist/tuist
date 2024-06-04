@@ -1,7 +1,7 @@
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 

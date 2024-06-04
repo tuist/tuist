@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
 /**
  External dependencies might contain targets that are only relevant in development, but that
@@ -10,7 +10,7 @@ import TuistGraph
 public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: TuistGraph.Graph) async throws -> (TuistGraph.Graph, [TuistCore.SideEffectDescriptor]) {
+    public func map(graph: XcodeProjectGenerator.Graph) async throws -> (XcodeProjectGenerator.Graph, [TuistCore.SideEffectDescriptor]) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)

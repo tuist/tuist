@@ -1,11 +1,11 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
-@testable import TuistGraphTesting
+@testable import XcodeProjectGeneratorTesting
 @testable import TuistSupportTesting
 
 final class GraphTraverserTests: TuistUnitTestCase {

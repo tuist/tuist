@@ -1,17 +1,17 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.ExecutionAction {
-    /// Maps a ProjectDescription.ExecutionAction instance into a TuistGraph.ExecutionAction instance.
+extension XcodeProjectGenerator.ExecutionAction {
+    /// Maps a ProjectDescription.ExecutionAction instance into a XcodeProjectGenerator.ExecutionAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of execution action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.ExecutionAction, generatorPaths: GeneratorPaths) throws -> TuistGraph
+    static func from(manifest: ProjectDescription.ExecutionAction, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator
         .ExecutionAction
     {
-        let targetReference: TuistGraph.TargetReference? = try manifest.target.map {
+        let targetReference: XcodeProjectGenerator.TargetReference? = try manifest.target.map {
             .init(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                 name: $0.targetName

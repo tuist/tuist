@@ -2,7 +2,7 @@ import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistServer
 import TuistSupport
 

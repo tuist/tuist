@@ -2,13 +2,13 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.AnalyzeAction {
+extension XcodeProjectGenerator.AnalyzeAction {
     static func from(
         manifest: ProjectDescription.AnalyzeAction,
         generatorPaths _: GeneratorPaths
-    ) throws -> TuistGraph.AnalyzeAction {
+    ) throws -> XcodeProjectGenerator.AnalyzeAction {
         let configurationName = manifest.configuration.rawValue
 
         return AnalyzeAction(configurationName: configurationName)

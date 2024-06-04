@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import TuistGraph
+@testable import XcodeProjectGenerator
 @testable import TuistSupportTesting
 
 final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {

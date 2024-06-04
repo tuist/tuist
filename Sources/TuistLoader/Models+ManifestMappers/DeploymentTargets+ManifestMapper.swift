@@ -1,14 +1,14 @@
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.DeploymentTargets {
-    /// Maps a ProjectDescription.DeploymentTargets instance into a TuistGraph.DeploymentTarget instance.
+extension XcodeProjectGenerator.DeploymentTargets {
+    /// Maps a ProjectDescription.DeploymentTargets instance into a XcodeProjectGenerator.DeploymentTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: ProjectDescription.DeploymentTargets) -> TuistGraph.DeploymentTargets {
-        TuistGraph.DeploymentTargets(
+    static func from(manifest: ProjectDescription.DeploymentTargets) -> XcodeProjectGenerator.DeploymentTargets {
+        XcodeProjectGenerator.DeploymentTargets(
             iOS: manifest.iOS,
             macOS: manifest.macOS,
             watchOS: manifest.watchOS,

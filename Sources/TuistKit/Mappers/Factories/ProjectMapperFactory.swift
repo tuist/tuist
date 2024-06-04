@@ -3,7 +3,7 @@ import TuistAutomation
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
+import XcodeProjectGenerator
 import TuistLoader
 import TuistSupport
 

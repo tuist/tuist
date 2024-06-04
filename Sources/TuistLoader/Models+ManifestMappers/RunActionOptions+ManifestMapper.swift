@@ -1,20 +1,20 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeProjectGenerator
 
-extension TuistGraph.RunActionOptions {
-    /// Maps a ProjectDescription.RunActionOptions instance into a TuistGraph.RunActionOptions instance.
+extension XcodeProjectGenerator.RunActionOptions {
+    /// Maps a ProjectDescription.RunActionOptions instance into a XcodeProjectGenerator.RunActionOptions instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the options.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.RunActionOptions,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistGraph.RunActionOptions {
+    ) throws -> XcodeProjectGenerator.RunActionOptions {
         var language: String?
         var storeKitConfigurationPath: AbsolutePath?
-        var simulatedLocation: TuistGraph.SimulatedLocation?
+        var simulatedLocation: XcodeProjectGenerator.SimulatedLocation?
         var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier
@@ -45,7 +45,7 @@ extension TuistGraph.RunActionOptions {
             }
         }
 
-        return TuistGraph.RunActionOptions(
+        return XcodeProjectGenerator.RunActionOptions(
             language: language,
             region: manifest.region,
             storeKitConfigurationPath: storeKitConfigurationPath,

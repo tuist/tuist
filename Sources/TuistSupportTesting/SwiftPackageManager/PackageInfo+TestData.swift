@@ -1,6 +1,6 @@
 import TSCBasic
 import TSCUtility
-import TuistGraph
+import XcodeProjectGenerator
 @testable import TuistSupport
 
 // MARK: - Test package

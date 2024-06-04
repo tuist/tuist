@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeProjectGenerator
 import TuistSupport
 
 enum CloudManifestMapperError: FatalError {
@@ -25,21 +25,21 @@ enum CloudManifestMapperError: FatalError {
     }
 }
 
-extension TuistGraph.Cloud {
-    static func from(manifest: ProjectDescription.Cloud) throws -> TuistGraph.Cloud {
+extension XcodeProjectGenerator.Cloud {
+    static func from(manifest: ProjectDescription.Cloud) throws -> XcodeProjectGenerator.Cloud {
         var cloudURL: URL!
         if let manifestCloudURL = URL(string: manifest.url.dropSuffix("/")) {
             cloudURL = manifestCloudURL
         } else {
             throw CloudManifestMapperError.invalidCloudURL(manifest.url)
         }
-        let options = manifest.options.compactMap(TuistGraph.Cloud.Option.from)
-        return TuistGraph.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
+        let options = manifest.options.compactMap(XcodeProjectGenerator.Cloud.Option.from)
+        return XcodeProjectGenerator.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
     }
 }
 
-extension TuistGraph.Cloud.Option {
-    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option? {
+extension XcodeProjectGenerator.Cloud.Option {
+    static func from(manifest: ProjectDescription.Cloud.Option) -> XcodeProjectGenerator.Cloud.Option? {
         switch manifest {
         case .optional:
             return .optional
