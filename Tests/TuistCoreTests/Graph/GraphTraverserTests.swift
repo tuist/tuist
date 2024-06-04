@@ -1700,13 +1700,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.first, GraphDependencyReference(macroXCFramework))
     }
 
-    func test_linkableDependencies_whenPrecompiled() throws {
+    func test_linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
+    ) throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
-        let precompiledDependency = GraphDependency.testFramework(
+        let precompiledDynamicFramework = GraphDependency.testFramework(
             path: "/test/test.framework",
             binaryPath: "/test/test.framework/test",
             dsymPath: nil,
@@ -1714,8 +1715,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             architectures: [.arm64]
         )
+        let precompiledTransitiveXCFramework = GraphDependency.testXCFramework(
+            path: "/test/b.xcframework",
+            linking: .static
+        )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDependency),
+            .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDynamicFramework),
+            precompiledDynamicFramework: [precompiledTransitiveXCFramework],
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -1727,7 +1733,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, GraphDependencyReference(precompiledDependency))
+        XCTAssertEqual(got, [GraphDependencyReference(precompiledDynamicFramework)])
     }
 
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
