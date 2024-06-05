@@ -134,8 +134,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,
-                    packageSettings: packageSettings,
-                    packageToProject: [:]
+                    packageSettings: packageSettings
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

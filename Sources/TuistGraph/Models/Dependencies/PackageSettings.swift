@@ -21,6 +21,9 @@ public struct PackageSettings: Equatable, Codable {
     /// Swift tools version of the parsed `Package.swift`
     public let swiftToolsVersion: Version
 
+    /// When true, it tries to mimic SPM's linking style
+    public let spmLinkingStyle: Bool
+
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -33,7 +36,8 @@ public struct PackageSettings: Equatable, Codable {
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
-        swiftToolsVersion: Version
+        swiftToolsVersion: Version,
+        spmLinkingStyle: Bool
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
@@ -41,5 +45,6 @@ public struct PackageSettings: Equatable, Codable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         self.swiftToolsVersion = swiftToolsVersion
+        self.spmLinkingStyle = spmLinkingStyle
     }
 }

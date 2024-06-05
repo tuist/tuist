@@ -3284,6 +3284,39 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenSPMLinkingStyle() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try XCTUnwrap(subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(spmLinkingStyle: true)
+        ))
+
+        XCTAssertEqual(project.targets.count, 1)
+        let target = try XCTUnwrap(project.targets.first)
+        XCTAssertEqual(target.settings?.base["GENERATE_MASTER_OBJECT_FILE"], "YES")
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -3337,10 +3370,7 @@ extension PackageInfoMapping {
             packageInfo: packageInfos[package]!,
             path: basePath.appending(component: package),
             packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
-            packageSettings: packageSettings,
-            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
-                ($0, basePath.appending(component: $0))
-            })
+            packageSettings: packageSettings
         )
     }
 }
