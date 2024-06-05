@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeGraph
 
 // MARK: - GraphLoading
 

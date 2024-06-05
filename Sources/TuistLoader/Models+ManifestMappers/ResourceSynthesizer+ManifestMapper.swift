@@ -1,15 +1,15 @@
 import ProjectDescription
 import TSCBasic
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.ResourceSynthesizer {
+extension XcodeGraph.ResourceSynthesizer {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) throws -> Self {
-        let template: TuistGraph.ResourceSynthesizer.Template
+        let template: XcodeGraph.ResourceSynthesizer.Template
         switch manifest.templateType {
         case let .defaultTemplate(resourceName: resourceName):
             if let templatePath = resourceSynthesizerPathLocator.templatePath(
@@ -30,11 +30,11 @@ extension TuistGraph.ResourceSynthesizer {
         }
 
         let parserOptions = manifest.parserOptions
-            .compactMapValues { TuistGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
+            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
             }
 
         return .init(
-            parser: TuistGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
+            parser: XcodeGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
             parserOptions: parserOptions,
             extensions: manifest.extensions,
             template: template
@@ -42,7 +42,7 @@ extension TuistGraph.ResourceSynthesizer {
     }
 }
 
-extension TuistGraph.ResourceSynthesizer.Parser {
+extension XcodeGraph.ResourceSynthesizer.Parser {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer.Parser
     ) -> Self {
@@ -69,7 +69,7 @@ extension TuistGraph.ResourceSynthesizer.Parser {
     }
 }
 
-extension TuistGraph.ResourceSynthesizer.Parser.Option {
+extension XcodeGraph.ResourceSynthesizer.Parser.Option {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer.Parser.Option
     ) -> Self {

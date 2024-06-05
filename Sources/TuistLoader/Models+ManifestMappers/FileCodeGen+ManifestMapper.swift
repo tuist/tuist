@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.FileCodeGen {
-    static func from(manifest: ProjectDescription.FileCodeGen) -> TuistGraph.FileCodeGen {
+extension XcodeGraph.FileCodeGen {
+    static func from(manifest: ProjectDescription.FileCodeGen) -> XcodeGraph.FileCodeGen {
         switch manifest {
         case .public:
             return .public

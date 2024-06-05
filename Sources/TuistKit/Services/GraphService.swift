@@ -6,10 +6,10 @@ import Tools
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping

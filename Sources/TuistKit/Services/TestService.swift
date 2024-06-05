@@ -3,10 +3,10 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 enum TestServiceError: FatalError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
@@ -387,10 +387,10 @@ final class TestService { // swiftlint:disable:this type_body_length
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan)
         }
 
-        let buildPlatform: TuistGraph.Platform
+        let buildPlatform: XcodeGraph.Platform
 
         if let platform {
-            buildPlatform = try TuistGraph.Platform.from(commandLineValue: platform)
+            buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
         } else {
             buildPlatform = try buildableTarget.target.servicePlatform
         }

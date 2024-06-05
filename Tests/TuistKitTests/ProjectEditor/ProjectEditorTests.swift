@@ -2,12 +2,12 @@ import Foundation
 import MockableTest
 import TSCBasic
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistCoreTesting

@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -22,7 +22,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.glob(pattern: "Documentation")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(
+        let model = try XcodeGraph.CopyFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             includeFiles: { !FileHandler.shared.isFolder($0) }
@@ -47,7 +47,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -61,7 +61,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -80,6 +80,6 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        XCTAssertThrowsSpecific(try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
     }
 }

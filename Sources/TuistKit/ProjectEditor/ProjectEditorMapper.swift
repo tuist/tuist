@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 protocol ProjectEditorMapping: AnyObject {
     func map(

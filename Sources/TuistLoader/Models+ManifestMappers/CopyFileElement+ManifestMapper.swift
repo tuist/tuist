@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.CopyFileElement {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
+extension XcodeGraph.CopyFileElement {
+    /// Maps a ProjectDescription.FileElement instance into a [XcodeGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of the file element.
@@ -15,7 +15,7 @@ extension TuistGraph.CopyFileElement {
         manifest: ProjectDescription.CopyFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [TuistGraph.CopyFileElement] {
+    ) throws -> [XcodeGraph.CopyFileElement] {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 

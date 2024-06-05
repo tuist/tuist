@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported

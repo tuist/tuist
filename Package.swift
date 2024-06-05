@@ -23,7 +23,7 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistGraph",
+        name: "XcodeGraph",
         dependencies: [
             swiftToolsSupportDependency,
             "AnyCodable",
@@ -35,9 +35,9 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistGraphTesting",
+        name: "XcodeGraphTesting",
         dependencies: [
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupportTesting",
             swiftToolsSupportDependency,
             "AnyCodable",
@@ -50,7 +50,7 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "ProjectDescription",
             "TuistSupport",
-            "TuistGraph",
+            "XcodeGraph",
             "XcodeProj",
             "Mockable",
         ],
@@ -63,7 +63,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
-            "TuistGraphTesting",
+            "XcodeGraphTesting",
             swiftToolsSupportDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -87,7 +87,7 @@ var targets: [Target] = [
             "TuistAsyncQueue",
             "TuistAnalytics",
             "TuistPlugin",
-            "TuistGraph",
+            "XcodeGraph",
             "Mockable",
             "TuistServer",
         ],
@@ -128,7 +128,7 @@ var targets: [Target] = [
         name: "TuistSupportTesting",
         dependencies: [
             "TuistSupport",
-            "TuistGraph",
+            "XcodeGraph",
             swiftToolsSupportDependency,
             "Difference",
         ],
@@ -152,7 +152,7 @@ var targets: [Target] = [
             "XcodeProj",
             swiftToolsSupportDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "GraphViz",
             swiftGenKitDependency,
@@ -176,7 +176,7 @@ var targets: [Target] = [
         dependencies: [
             swiftToolsSupportDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "StencilSwiftKit",
             "Stencil",
@@ -193,7 +193,7 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             .product(name: "XcbeautifyLib", package: "xcbeautify"),
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "Mockable",
         ],
@@ -206,7 +206,7 @@ var targets: [Target] = [
         dependencies: [
             "ProjectDescription",
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "TuistPlugin",
             "Mockable",
@@ -220,7 +220,7 @@ var targets: [Target] = [
         name: "TuistMigration",
         dependencies: [
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "XcodeProj",
             "Mockable",
@@ -234,7 +234,7 @@ var targets: [Target] = [
         name: "TuistAsyncQueue",
         dependencies: [
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "XcodeProj",
             "Mockable",
@@ -251,7 +251,7 @@ var targets: [Target] = [
             "XcodeProj",
             swiftToolsSupportDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "Mockable",
             "ProjectDescription",
@@ -266,7 +266,7 @@ var targets: [Target] = [
             "TuistLoader",
             swiftToolsSupportDependency,
             "TuistCore",
-            "TuistGraphTesting",
+            "XcodeGraphTesting",
             "ProjectDescription",
             "TuistSupportTesting",
         ],
@@ -278,7 +278,7 @@ var targets: [Target] = [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistLoader",
             "Mockable",
             swiftToolsSupportDependency,
@@ -290,7 +290,7 @@ var targets: [Target] = [
     .target(
         name: "TuistPlugin",
         dependencies: [
-            "TuistGraph",
+            "XcodeGraph",
             "TuistLoader",
             "TuistSupport",
             "TuistScaffold",
@@ -353,12 +353,12 @@ let package = Package(
             targets: ["ProjectAutomation"]
         ),
         .library(
-            name: "TuistGraph",
-            targets: ["TuistGraph"]
+            name: "XcodeGraph",
+            targets: ["XcodeGraph"]
         ),
         .library(
-            name: "TuistGraphTesting",
-            targets: ["TuistGraphTesting"]
+            name: "XcodeGraphTesting",
+            targets: ["XcodeGraphTesting"]
         ),
         .library(
             name: "TuistKit",

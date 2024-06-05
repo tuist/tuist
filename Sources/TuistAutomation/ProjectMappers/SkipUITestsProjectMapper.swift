@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 public final class SkipUITestsProjectMapper: ProjectMapping {
     public init() {}

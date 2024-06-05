@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
 extension IDETemplateMacros {
     static func from(

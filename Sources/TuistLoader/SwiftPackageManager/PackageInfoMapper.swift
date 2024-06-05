@@ -4,8 +4,8 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 // MARK: - PackageInfo Mapper Errors
 
@@ -111,7 +111,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
+        packageSettings: XcodeGraph.PackageSettings,
         packageToProject: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project?
 }
@@ -257,7 +257,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
+        packageSettings: XcodeGraph.PackageSettings,
         packageToProject _: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
@@ -396,10 +396,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         path: AbsolutePath,
         packageFolder: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        productDestinations: [String: TuistGraph.Destinations],
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        productTypes: [String: XcodeGraph.Product],
+        productDestinations: [String: XcodeGraph.Destinations],
+        baseSettings: XcodeGraph.Settings,
+        targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> ProjectDescription.Target? {
         switch target.type {
         case .regular, .system, .macro:
@@ -467,7 +467,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 let productDestinations: Set<ProjectDescription.Destination> = Set(
                     products.flatMap { product in
                         if product.type == .executable {
-                            return Set([TuistGraph.Destination.mac])
+                            return Set([XcodeGraph.Destination.mac])
                         }
                         return productDestinations[product.name] ?? Set(Destination.allCases)
                     }
@@ -691,7 +691,7 @@ extension ProjectDescription.Product {
         name: String,
         type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
-        productTypes: [String: TuistGraph.Product]
+        productTypes: [String: XcodeGraph.Product]
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         switch type {
@@ -945,8 +945,8 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platforms: [PackageInfo.Platform],
         moduleMap: ModuleMap?,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        baseSettings: XcodeGraph.Settings,
+        targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> Self? {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -960,7 +960,7 @@ extension ProjectDescription.Settings {
             }
         }
 
-        var settingsDictionary: TuistGraph.SettingsDictionary = [
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
             // Xcode settings configured by SPM by default
             "ALWAYS_SEARCH_USER_PATHS": "YES",
             "CLANG_ENABLE_OBJC_WEAK": "NO",
@@ -1072,7 +1072,7 @@ extension ProjectDescription.PackagePlatform {
 }
 
 extension ProjectDescription.Product {
-    fileprivate static func from(product: TuistGraph.Product) -> Self {
+    fileprivate static func from(product: XcodeGraph.Product) -> Self {
         switch product {
         case .app:
             return .app
@@ -1119,7 +1119,7 @@ extension ProjectDescription.Product {
 }
 
 extension ProjectDescription.SettingsDictionary {
-    public static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+    public static func from(settingsDictionary: XcodeGraph.SettingsDictionary) -> Self {
         settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
@@ -1134,7 +1134,7 @@ extension ProjectDescription.SettingsDictionary {
 extension ProjectDescription.Configuration {
     public static func from(
         buildConfiguration: BuildConfiguration,
-        configuration: TuistGraph.Configuration?,
+        configuration: XcodeGraph.Configuration?,
         packageFolder: AbsolutePath
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
@@ -1150,7 +1150,7 @@ extension ProjectDescription.Configuration {
 }
 
 extension ProjectDescription.DefaultSettings {
-    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+    fileprivate static func from(defaultSettings: XcodeGraph.DefaultSettings) -> Self {
         switch defaultSettings {
         case let .recommended(excluding):
             return .recommended(excluding: excluding)

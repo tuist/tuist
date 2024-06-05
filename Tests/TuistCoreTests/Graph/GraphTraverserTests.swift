@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
-@testable import TuistGraphTesting
 @testable import TuistSupportTesting
+@testable import XcodeGraphTesting
 
 final class GraphTraverserTests: TuistUnitTestCase {
     func test_dependsOnXCTest_when_is_framework() {

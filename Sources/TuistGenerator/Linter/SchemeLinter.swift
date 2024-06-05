@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol SchemeLinting {
     func lint(project: Project) -> [LintingIssue]

@@ -2,9 +2,9 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -352,7 +352,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             XCTDoesNotContainLintingIssue(
                 got,
                 LintingIssue(
-                    reason: "Found an inconsistency between target destinations `[TuistGraph.Destination.appleVisionWithiPadDesign, TuistGraph.Destination.iPad, TuistGraph.Destination.iPhone]` and deployment target `visionOS`",
+                    reason: "Found an inconsistency between target destinations `[XcodeGraph.Destination.appleVisionWithiPadDesign, XcodeGraph.Destination.iPad, XcodeGraph.Destination.iPhone]` and deployment target `visionOS`",
                     severity: .error
                 )
             )

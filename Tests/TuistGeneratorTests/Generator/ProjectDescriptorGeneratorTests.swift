@@ -3,9 +3,9 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

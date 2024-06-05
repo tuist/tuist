@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 @testable import TuistKit
 

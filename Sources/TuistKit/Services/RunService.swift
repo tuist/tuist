@@ -3,9 +3,9 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 enum RunServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])

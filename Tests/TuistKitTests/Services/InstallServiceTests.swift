@@ -4,12 +4,12 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistLoader
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistKit

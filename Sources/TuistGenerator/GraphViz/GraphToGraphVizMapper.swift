@@ -1,8 +1,8 @@
 import Foundation
 import GraphViz
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
@@ -13,7 +13,7 @@ public protocol GraphToGraphVizMapping {
     ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
     func map(
-        graph: TuistGraph.Graph,
+        graph: XcodeGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph
 }
@@ -28,7 +28,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation
     public func map(
-        graph: TuistGraph.Graph,
+        graph: XcodeGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []

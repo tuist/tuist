@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeGraph
 
 public struct WorkspaceWithProjects: Equatable {
     public var workspace: Workspace

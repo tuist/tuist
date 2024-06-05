@@ -1,9 +1,9 @@
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
 import TuistLoaderTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 

@@ -3,10 +3,10 @@ import MockableTest
 import TSCBasic
 import TuistAutomation
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistLoader
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting

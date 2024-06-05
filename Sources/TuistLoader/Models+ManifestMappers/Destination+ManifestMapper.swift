@@ -1,16 +1,16 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.Destination {
-    /// Maps a ProjectDescription.Package instance into a TuistGraph.Package model.
+extension XcodeGraph.Destination {
+    /// Maps a ProjectDescription.Package instance into a XcodeGraph.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
     static func from(
         destinations: ProjectDescription.Destinations
-    ) throws -> TuistGraph.Destinations {
-        let mappedDestinations: [TuistGraph.Destination] = destinations.map { destination in
+    ) throws -> XcodeGraph.Destinations {
+        let mappedDestinations: [XcodeGraph.Destination] = destinations.map { destination in
             switch destination {
             case .iPhone:
                 return .iPhone

@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 /// A project mapper that auto-generates schemes for each of the targets of the `Project`
 /// if the user hasn't already defined schemes for those.

@@ -1,5 +1,5 @@
 import TSCBasic
-import TuistGraph
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting

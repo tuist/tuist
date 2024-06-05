@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeGraph
 
 extension GraphTraversing {
     /// Returns the included based on the parameters.

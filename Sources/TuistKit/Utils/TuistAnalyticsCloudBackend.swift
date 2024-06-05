@@ -2,9 +2,9 @@ import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistGraph
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 public class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
     private let config: Cloud

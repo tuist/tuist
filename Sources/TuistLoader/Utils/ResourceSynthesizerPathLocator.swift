@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol ResourceSynthesizerPathLocating {
     func locate(at: AbsolutePath) -> AbsolutePath?

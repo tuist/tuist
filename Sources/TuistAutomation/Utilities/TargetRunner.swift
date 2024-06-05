@@ -1,8 +1,8 @@
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol TargetRunning {
     /// Runs a provided target.
@@ -18,7 +18,7 @@ public protocol TargetRunning {
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -76,7 +76,7 @@ public final class TargetRunner: TargetRunning {
 
     public func runTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,

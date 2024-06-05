@@ -4,10 +4,10 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 public protocol Generating {
     @discardableResult

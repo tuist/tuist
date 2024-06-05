@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     var condition: PlatformCondition? {

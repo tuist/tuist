@@ -1,8 +1,8 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
@@ -20,7 +20,7 @@ public protocol RecursiveManifestLoading {
     /// - Returns: Loaded manifest
     func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
-        packageSettings: TuistGraph.PackageSettings
+        packageSettings: XcodeGraph.PackageSettings
     ) throws -> LoadedWorkspace
 }
 
@@ -85,7 +85,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         )
     }
 
-    public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistGraph.PackageSettings)
+    public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: XcodeGraph.PackageSettings)
         throws -> LoadedWorkspace
     {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
@@ -120,7 +120,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     private func loadPackageProjects(
         paths: [AbsolutePath],
-        packageSettings: TuistGraph.PackageSettings?
+        packageSettings: XcodeGraph.PackageSettings?
     ) throws -> LoadedProjects {
         guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()

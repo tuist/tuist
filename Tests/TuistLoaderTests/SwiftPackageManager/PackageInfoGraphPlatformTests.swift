@@ -1,7 +1,7 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 import XCTest
 

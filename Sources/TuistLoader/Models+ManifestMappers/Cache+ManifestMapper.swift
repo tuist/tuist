@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import struct TSCUtility.Version
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 enum CacheProfileError: FatalError, Equatable {
     case invalidVersion(string: String)

@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.

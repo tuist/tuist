@@ -2,15 +2,15 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.CompatibleXcodeVersions {
-    /// Maps a ProjectDescription.CompatibleXcodeVersions instance into a TuistGraph.CompatibleXcodeVersions model.
+extension XcodeGraph.CompatibleXcodeVersions {
+    /// Maps a ProjectDescription.CompatibleXcodeVersions instance into a XcodeGraph.CompatibleXcodeVersions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of compatible Xcode versions.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CompatibleXcodeVersions) -> TuistGraph.CompatibleXcodeVersions {
+    static func from(manifest: ProjectDescription.CompatibleXcodeVersions) -> XcodeGraph.CompatibleXcodeVersions {
         switch manifest {
         case .all:
             return .all

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
-@testable import TuistGraph
 @testable import TuistSupportTesting
+@testable import XcodeGraph
 
 final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
     func test_manifestValue_singleDependency() throws {

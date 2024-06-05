@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public enum TargetManifestMapperError: FatalError {
     case invalidResourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
@@ -19,8 +19,8 @@ public enum TargetManifestMapperError: FatalError {
 }
 
 // swiftlint:disable function_body_length
-extension TuistGraph.Target {
-    /// Maps a ProjectDescription.Target instance into a TuistGraph.Target instance.
+extension XcodeGraph.Target {
+    /// Maps a ProjectDescription.Target instance into a XcodeGraph.Target instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
@@ -28,31 +28,31 @@ extension TuistGraph.Target {
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
-    ) throws -> TuistGraph.Target {
+        externalDependencies: [String: [XcodeGraph.TargetDependency]]
+    ) throws -> XcodeGraph.Target {
         let name = manifest.name
-        let destinations = try TuistGraph.Destination.from(destinations: manifest.destinations)
+        let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
 
-        let product = TuistGraph.Product.from(manifest: manifest.product)
+        let product = XcodeGraph.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
-        let deploymentTargets = manifest.deploymentTargets.map { TuistGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
+        let deploymentTargets = manifest.deploymentTargets.map { XcodeGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
         let dependencies = try manifest.dependencies.flatMap {
-            try TuistGraph.TargetDependency.from(
+            try XcodeGraph.TargetDependency.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
         }
 
-        let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
+        let infoPlist = try XcodeGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
 
-        let entitlements = try TuistGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
+        let entitlements = try XcodeGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
 
-        let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
-        let mergedBinaryType = try TuistGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
+        let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let mergedBinaryType = try XcodeGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
 
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
             manifest: manifest,
@@ -70,21 +70,21 @@ extension TuistGraph.Target {
         }
 
         let copyFiles = try (manifest.copyFiles ?? []).map {
-            try TuistGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
+            try XcodeGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let headers = try manifest.headers.map { try TuistGraph.Headers.from(
+        let headers = try manifest.headers.map { try XcodeGraph.Headers.from(
             manifest: $0,
             generatorPaths: generatorPaths,
             productName: manifest.productName
         ) }
 
         let coreDataModels = try manifest.coreDataModels.map {
-            try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
-        } + resourcesCoreDatas.map { try TuistGraph.CoreDataModel.from(path: $0) }
+            try XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
+        } + resourcesCoreDatas.map { try XcodeGraph.CoreDataModel.from(path: $0) }
 
         let scripts = try manifest.scripts.map {
-            try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
+            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
@@ -93,17 +93,17 @@ extension TuistGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         let additionalFiles = try manifest.additionalFiles
-            .flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .flatMap { try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
 
         let buildRules = manifest.buildRules.map {
-            TuistGraph.BuildRule.from(manifest: $0)
+            XcodeGraph.BuildRule.from(manifest: $0)
         }
 
         let onDemandResourcesTags = manifest.onDemandResourcesTags.map {
-            TuistGraph.OnDemandResourcesTags(initialInstall: $0.initialInstall, prefetchOrder: $0.prefetchOrder)
+            XcodeGraph.OnDemandResourcesTags(initialInstall: $0.initialInstall, prefetchOrder: $0.prefetchOrder)
         }
 
-        return TuistGraph.Target(
+        return XcodeGraph.Target(
             name: name,
             destinations: destinations,
             product: product,
@@ -139,32 +139,32 @@ extension TuistGraph.Target {
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
     ) throws -> (
-        resources: TuistGraph.ResourceFileElements,
+        resources: XcodeGraph.ResourceFileElements,
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath],
         invalidResourceGlobs: [InvalidGlob]
     ) {
         let resourceFilter = { (path: AbsolutePath) -> Bool in
-            TuistGraph.Target.isResource(path: path)
+            XcodeGraph.Target.isResource(path: path)
         }
 
-        let privacyManifest: TuistGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {
-            return TuistGraph.PrivacyManifest(
+        let privacyManifest: XcodeGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {
+            return XcodeGraph.PrivacyManifest(
                 tracking: $0.tracking,
                 trackingDomains: $0.trackingDomains,
-                collectedDataTypes: $0.collectedDataTypes.map { $0.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }},
-                accessedApiTypes: $0.accessedApiTypes.map { $0.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }}
+                collectedDataTypes: $0.collectedDataTypes.map { $0.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }},
+                accessedApiTypes: $0.accessedApiTypes.map { $0.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }}
             )
         }
 
         var invalidResourceGlobs: [InvalidGlob] = []
-        var filteredResources: TuistGraph.ResourceFileElements = .init([], privacyManifest: privacyManifest)
+        var filteredResources: XcodeGraph.ResourceFileElements = .init([], privacyManifest: privacyManifest)
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
-        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
+        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [XcodeGraph.ResourceFileElement] in
             do {
-                return try TuistGraph.ResourceFileElement.from(
+                return try XcodeGraph.ResourceFileElement.from(
                     manifest: manifest,
                     generatorPaths: generatorPaths,
                     includeFiles: resourceFilter
@@ -201,16 +201,16 @@ extension TuistGraph.Target {
         manifest: ProjectDescription.Target,
         targetName: String,
         generatorPaths: GeneratorPaths
-    ) throws -> (sources: [TuistGraph.SourceFile], playgrounds: [AbsolutePath]) {
-        var sourcesWithoutPlaygrounds: [TuistGraph.SourceFile] = []
+    ) throws -> (sources: [XcodeGraph.SourceFile], playgrounds: [AbsolutePath]) {
+        var sourcesWithoutPlaygrounds: [XcodeGraph.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
+        let allSources = try XcodeGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
-            return TuistGraph.SourceFileGlob(
+            let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
+            return XcodeGraph.SourceFileGlob(
                 glob: globPath,
                 excluding: excluding,
                 compilerFlags: glob.compilerFlags,

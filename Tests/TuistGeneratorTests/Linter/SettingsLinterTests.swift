@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistGraphTesting
 @testable import TuistSupportTesting
+@testable import XcodeGraphTesting
 
 final class SettingsLinterTests: TuistUnitTestCase {
     var subject: SettingsLinter!

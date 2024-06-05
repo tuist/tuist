@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 enum EditServiceError: FatalError {
     case xcodeNotSelected

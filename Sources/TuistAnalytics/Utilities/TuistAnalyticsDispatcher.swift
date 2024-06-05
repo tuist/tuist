@@ -1,8 +1,8 @@
 import Foundation
 import TuistAsyncQueue
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported to the cloud backend (if defined)
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {

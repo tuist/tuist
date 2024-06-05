@@ -1,12 +1,12 @@
 import Foundation
 import ProjectAutomation
 import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 extension ProjectAutomation.Graph {
     static func from(
-        graph: TuistGraph.Graph,
+        graph: XcodeGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> ProjectAutomation.Graph {
         // generate targets projects only
@@ -33,7 +33,7 @@ extension ProjectAutomation.Graph {
 }
 
 extension ProjectAutomation.Project {
-    static func from(_ project: TuistGraph.Project) -> ProjectAutomation.Project {
+    static func from(_ project: XcodeGraph.Project) -> ProjectAutomation.Project {
         let packages = project.packages
             .reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
         let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
@@ -53,7 +53,7 @@ extension ProjectAutomation.Project {
 }
 
 extension ProjectAutomation.Package {
-    static func from(_ package: TuistGraph.Package) -> ProjectAutomation.Package {
+    static func from(_ package: XcodeGraph.Package) -> ProjectAutomation.Package {
         switch package {
         case let .remote(url, _):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.remote, path: url)
@@ -64,7 +64,7 @@ extension ProjectAutomation.Package {
 }
 
 extension ProjectAutomation.Target {
-    static func from(_ target: TuistGraph.Target) -> ProjectAutomation.Target {
+    static func from(_ target: XcodeGraph.Target) -> ProjectAutomation.Target {
         let dependencies = target.dependencies.map { Self.from($0) }
         return ProjectAutomation.Target(
             name: target.name,
@@ -77,7 +77,7 @@ extension ProjectAutomation.Target {
         )
     }
 
-    static func from(_ dependency: TuistGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
+    static func from(_ dependency: XcodeGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
         switch dependency {
         case let .target(name, _):
             return .target(name: name)
@@ -132,7 +132,7 @@ extension ProjectAutomation.Target {
 }
 
 extension ProjectAutomation.Scheme {
-    static func from(_ scheme: TuistGraph.Scheme) -> ProjectAutomation.Scheme {
+    static func from(_ scheme: XcodeGraph.Scheme) -> ProjectAutomation.Scheme {
         var testTargets = [String]()
         if let testAction = scheme.testAction {
             for testTarget in testAction.targets {
@@ -145,7 +145,7 @@ extension ProjectAutomation.Scheme {
 }
 
 extension ProjectAutomation.Settings {
-    public static func from(_ settings: TuistGraph.Settings?) -> ProjectAutomation.Settings {
+    public static func from(_ settings: XcodeGraph.Settings?) -> ProjectAutomation.Settings {
         ProjectAutomation.Settings(
             configurations: [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?].from(
                 settings?.configurations
@@ -156,7 +156,7 @@ extension ProjectAutomation.Settings {
 
 extension [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
     public static func from(
-        _ buildConfigurationDictionary: [TuistGraph.BuildConfiguration: TuistGraph.Configuration?]?
+        _ buildConfigurationDictionary: [XcodeGraph.BuildConfiguration: XcodeGraph.Configuration?]?
     ) -> [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration?] {
         guard let buildConfigurationDictionary else {
             return [:]
@@ -179,7 +179,7 @@ extension [ProjectAutomation.BuildConfiguration: ProjectAutomation.Configuration
 
 extension ProjectAutomation.Configuration {
     static func from(
-        _ configuration: TuistGraph.Configuration?
+        _ configuration: XcodeGraph.Configuration?
     ) -> ProjectAutomation.Configuration? {
         guard let configuration else {
             return nil
@@ -195,7 +195,7 @@ extension ProjectAutomation.Configuration {
 
 extension ProjectAutomation.SettingValue {
     static func from(
-        _ value: TuistGraph.SettingValue
+        _ value: XcodeGraph.SettingValue
     ) -> ProjectAutomation.SettingValue {
         switch value {
         case let .string(string):
@@ -208,7 +208,7 @@ extension ProjectAutomation.SettingValue {
 
 extension ProjectAutomation.SettingsDictionary {
     static func from(
-        _ settings: TuistGraph.SettingsDictionary
+        _ settings: XcodeGraph.SettingsDictionary
     ) -> ProjectAutomation.SettingsDictionary {
         var dict = ProjectAutomation.SettingsDictionary()
         for (key, value) in settings {
@@ -222,7 +222,7 @@ extension ProjectAutomation.SettingsDictionary {
 
 extension ProjectAutomation.BuildConfiguration {
     static func from(
-        _ buildConfiguration: TuistGraph.BuildConfiguration
+        _ buildConfiguration: XcodeGraph.BuildConfiguration
     ) -> ProjectAutomation.BuildConfiguration {
         BuildConfiguration(
             name: buildConfiguration.name,
@@ -235,7 +235,7 @@ extension ProjectAutomation.BuildConfiguration {
 
 extension ProjectAutomation.BuildConfiguration.Variant {
     static func from(
-        _ variant: TuistGraph.BuildConfiguration.Variant
+        _ variant: XcodeGraph.BuildConfiguration.Variant
     ) -> ProjectAutomation.BuildConfiguration.Variant {
         ProjectAutomation.BuildConfiguration.Variant(
             variant: variant
@@ -244,7 +244,7 @@ extension ProjectAutomation.BuildConfiguration.Variant {
 }
 
 extension ProjectAutomation.BuildConfiguration.Variant {
-    private init(variant: TuistGraph.BuildConfiguration.Variant) {
+    private init(variant: XcodeGraph.BuildConfiguration.Variant) {
         switch variant {
         case .debug:
             self = .debug

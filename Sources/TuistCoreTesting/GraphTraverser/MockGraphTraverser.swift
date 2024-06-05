@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistGraph
+import XcodeGraph
 @testable import TuistCore
 
 // swiftlint:disable:next type_body_length
@@ -68,7 +68,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedTargets = false
     var invokedTargetsCount = 0
     var stubbedTargets: [AbsolutePath: [String: Target]]! = [:]
-    func targets() -> [TSCBasic.AbsolutePath: [String: TuistGraph.Target]] {
+    func targets() -> [TSCBasic.AbsolutePath: [String: XcodeGraph.Target]] {
         invokedTargets = true
         invokedTargetsCount += 1
         return stubbedTargets
@@ -240,8 +240,8 @@ final class MockGraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     )?
-    var invokedAllTargetDependenciesResult: Set<TuistGraph.GraphTarget> = []
-    func allTargetDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+    var invokedAllTargetDependenciesResult: Set<XcodeGraph.GraphTarget> = []
+    func allTargetDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
         invokedAllTargetDependencies = true
         invokedAllTargetDependenciesCount += 1
         invokedAllTargetDependenciesParameters = (path, name)
@@ -583,8 +583,8 @@ final class MockGraphTraverser: GraphTraversing {
     var stubbedExtensionKitExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
 
     func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
-        TuistGraph.GraphTarget,
-        TuistGraph.PlatformCondition?
+        XcodeGraph.GraphTarget,
+        XcodeGraph.PlatformCondition?
     )] {
         invokedExtensionKitExtensionDependenciesWithConditions = true
         invokedExtensionKitExtensionDependenciesWithConditionsCount += 1
@@ -628,7 +628,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAllSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedAllSwiftMacroTargetsResult: Set<GraphTarget>! = []
-    func allSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+    func allSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
         invokedAllSwiftMacroTargets = true
         invokedAllSwiftMacroTargetsCount += 1
         invokedAllSwiftMacroTargetsParameters = (path, name)

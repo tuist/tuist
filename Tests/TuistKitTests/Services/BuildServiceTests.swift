@@ -3,10 +3,10 @@ import MockableTest
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistServer
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting
@@ -326,7 +326,7 @@ extension BuildService {
         derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
-        platform: TuistGraph.Platform? = nil,
+        platform: XcodeGraph.Platform? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
         generateOnly: Bool = false,
