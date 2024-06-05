@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 import XcodeProj
 
 final class SettingsHelper {

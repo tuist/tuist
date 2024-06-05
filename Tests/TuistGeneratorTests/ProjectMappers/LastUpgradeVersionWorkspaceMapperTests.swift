@@ -1,6 +1,6 @@
 import TuistCore
 import TuistGenerator
-import XcodeProjectGenerator
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupportTesting

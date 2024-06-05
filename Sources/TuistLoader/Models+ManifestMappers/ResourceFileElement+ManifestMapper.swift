@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
-extension XcodeProjectGenerator.ResourceFileElement {
-    /// Maps a ProjectDescription.ResourceFileElement instance into a [XcodeProjectGenerator.ResourceFileElement] instance.
+extension XcodeGraph.ResourceFileElement {
+    /// Maps a ProjectDescription.ResourceFileElement instance into a [XcodeGraph.ResourceFileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
@@ -15,7 +15,7 @@ extension XcodeProjectGenerator.ResourceFileElement {
         manifest: ProjectDescription.ResourceFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [XcodeProjectGenerator.ResourceFileElement] {
+    ) throws -> [XcodeGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {

@@ -4,9 +4,9 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistGenerator
-import XcodeProjectGenerator
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {

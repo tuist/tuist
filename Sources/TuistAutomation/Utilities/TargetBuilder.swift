@@ -1,8 +1,8 @@
 import TSCBasic
 import TSCUtility
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 public protocol TargetBuilding {
     /// Builds a provided target.
@@ -21,7 +21,7 @@ public protocol TargetBuilding {
     ///   - passthroughXcodeBuildArguments: The passthrough xcodebuild arguments to pass to xcodebuild
     func buildTarget(
         _ target: GraphTarget,
-        platform: XcodeProjectGenerator.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -79,7 +79,7 @@ public final class TargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
-        platform: XcodeProjectGenerator.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -140,7 +140,7 @@ public final class TargetBuilder: TargetBuilding {
         to outputPath: AbsolutePath,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
-        platform: XcodeProjectGenerator.Platform,
+        platform: XcodeGraph.Platform,
         configuration: String
     ) throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(

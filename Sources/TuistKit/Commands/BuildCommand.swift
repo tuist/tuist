@@ -2,9 +2,9 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
-import XcodeProjectGenerator
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     case alreadyHandled(String)
@@ -68,7 +68,7 @@ public struct BuildOptions: ParsableArguments {
         help: "Build for a specific platform.",
         envKey: .buildOptionsPlatform
     )
-    public var platform: XcodeProjectGenerator.Platform?
+    public var platform: XcodeGraph.Platform?
 
     @Option(
         name: .shortAndLong,
@@ -194,7 +194,7 @@ public struct BuildCommand: AsyncParsableCommand {
     }
 }
 
-extension XcodeProjectGenerator.Platform: ExpressibleByArgument {
+extension XcodeGraph.Platform: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(commandLineValue: argument)
     }

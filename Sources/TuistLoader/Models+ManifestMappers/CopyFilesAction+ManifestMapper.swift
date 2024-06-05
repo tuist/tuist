@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 public enum CopyFilesManifestMapperError: FatalError {
     case invalidResourcesGlob(actionName: String, invalidGlobs: [InvalidGlob])
@@ -19,21 +19,21 @@ public enum CopyFilesManifestMapperError: FatalError {
     }
 }
 
-extension XcodeProjectGenerator.CopyFilesAction {
-    /// Maps a ProjectDescription.CopyFilesAction instance into a XcodeProjectGenerator.CopyFilesAction instance.
+extension XcodeGraph.CopyFilesAction {
+    /// Maps a ProjectDescription.CopyFilesAction instance into a XcodeGraph.CopyFilesAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator
+    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> XcodeGraph
         .CopyFilesAction
     {
         var invalidResourceGlobs: [InvalidGlob] = []
-        let files: [XcodeProjectGenerator.CopyFileElement] = try manifest.files.flatMap { manifest -> [XcodeProjectGenerator.CopyFileElement] in
+        let files: [XcodeGraph.CopyFileElement] = try manifest.files.flatMap { manifest -> [XcodeGraph.CopyFileElement] in
             do {
-                let files = try XcodeProjectGenerator.CopyFileElement.from(
+                let files = try XcodeGraph.CopyFileElement.from(
                     manifest: manifest,
                     generatorPaths: generatorPaths,
-                    includeFiles: { XcodeProjectGenerator.Target.isResource(path: $0) }
+                    includeFiles: { XcodeGraph.Target.isResource(path: $0) }
                 )
                 return files.cleanPackages()
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
@@ -46,20 +46,20 @@ extension XcodeProjectGenerator.CopyFilesAction {
             throw CopyFilesManifestMapperError.invalidResourcesGlob(actionName: manifest.name, invalidGlobs: invalidResourceGlobs)
         }
 
-        return XcodeProjectGenerator.CopyFilesAction(
+        return XcodeGraph.CopyFilesAction(
             name: manifest.name,
-            destination: XcodeProjectGenerator.CopyFilesAction.Destination.from(manifest: manifest.destination),
+            destination: XcodeGraph.CopyFilesAction.Destination.from(manifest: manifest.destination),
             subpath: manifest.subpath,
             files: files
         )
     }
 }
 
-extension XcodeProjectGenerator.CopyFilesAction.Destination {
-    /// Maps a ProjectDescription.TargetAction.Destination instance into a XcodeProjectGenerator.TargetAction.Destination model.
+extension XcodeGraph.CopyFilesAction.Destination {
+    /// Maps a ProjectDescription.TargetAction.Destination instance into a XcodeGraph.TargetAction.Destination model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action destination.
-    static func from(manifest: ProjectDescription.CopyFilesAction.Destination) -> XcodeProjectGenerator.CopyFilesAction.Destination {
+    static func from(manifest: ProjectDescription.CopyFilesAction.Destination) -> XcodeGraph.CopyFilesAction.Destination {
         switch manifest {
         case .absolutePath:
             return .absolutePath
@@ -89,7 +89,7 @@ extension XcodeProjectGenerator.CopyFilesAction.Destination {
 
 // MARK: - Array Extension FileElement
 
-extension [XcodeProjectGenerator.CopyFileElement] {
+extension [XcodeGraph.CopyFileElement] {
     /// Packages should be added as a whole folder not individually.
     /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
     ///

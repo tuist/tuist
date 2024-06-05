@@ -3,20 +3,20 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 /// A component responsible for converting Manifests (`ProjectDescription`) to Models (`TuistCore`)
 public protocol ManifestModelConverting {
-    func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> XcodeProjectGenerator.Workspace
+    func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> XcodeGraph.Workspace
     func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]],
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
         isExternal: Bool
-    ) throws -> XcodeProjectGenerator.Project
-    func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> XcodeProjectGenerator.DependenciesGraph
+    ) throws -> XcodeGraph.Project
+    func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> XcodeGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -50,11 +50,11 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]],
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
         isExternal: Bool
-    ) throws -> XcodeProjectGenerator.Project {
+    ) throws -> XcodeGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try XcodeProjectGenerator.Project.from(
+        return try XcodeGraph.Project.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             plugins: plugins,
@@ -67,9 +67,9 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
-    ) throws -> XcodeProjectGenerator.Workspace {
+    ) throws -> XcodeGraph.Workspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try XcodeProjectGenerator.Workspace.from(
+        let workspace = try XcodeGraph.Workspace.from(
             manifest: manifest,
             path: path,
             generatorPaths: generatorPaths,
@@ -81,12 +81,12 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: TuistCore.DependenciesGraph,
         path: AbsolutePath
-    ) throws -> XcodeProjectGenerator.DependenciesGraph {
-        var externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]] = .init()
+    ) throws -> XcodeGraph.DependenciesGraph {
+        var externalDependencies: [String: [XcodeGraph.TargetDependency]] = .init()
 
         externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
             try targetDependencies.flatMap { targetDependencyManifest in
-                try XcodeProjectGenerator.TargetDependency.from(
+                try XcodeGraph.TargetDependency.from(
                     manifest: targetDependencyManifest,
                     generatorPaths: GeneratorPaths(manifestDirectory: path),
                     externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies,
@@ -94,7 +94,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             }
         }
 
-        let externalProjects = try [AbsolutePath: XcodeProjectGenerator.Project](
+        let externalProjects = try [AbsolutePath: XcodeGraph.Project](
             uniqueKeysWithValues: manifest.externalProjects
                 .map { project in
                     let projectPath = try AbsolutePath(validating: project.key.pathString)

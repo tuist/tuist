@@ -1,7 +1,7 @@
 import Foundation
 import GraphViz
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 
 extension GraphViz.Node {
     mutating func applyAttributes(attributes: NodeStyleAttributes?) {

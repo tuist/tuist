@@ -2,19 +2,19 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
-extension XcodeProjectGenerator.TargetScript {
-    /// Maps a ProjectDescription.TargetAction instance into a XcodeProjectGenerator.TargetAction model.
+extension XcodeGraph.TargetScript {
+    /// Maps a ProjectDescription.TargetAction instance into a XcodeGraph.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator
+    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> XcodeGraph
         .TargetScript
     {
         let name = manifest.name
-        let order = XcodeProjectGenerator.TargetScript.Order.from(manifest: manifest.order)
+        let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
         let inputPaths = try manifest.inputPaths
             .compactMap { try $0.unfold(generatorPaths: generatorPaths) }
             .flatMap { $0 }
@@ -35,7 +35,7 @@ extension XcodeProjectGenerator.TargetScript {
             dependencyFile = nil
         }
 
-        let script: XcodeProjectGenerator.TargetScript.Script
+        let script: XcodeGraph.TargetScript.Script
         switch manifest.script {
         case let .embedded(text):
             script = .embedded(text)
@@ -76,12 +76,12 @@ extension XcodeProjectGenerator.TargetScript {
     }
 }
 
-extension XcodeProjectGenerator.TargetScript.Order {
-    /// Maps a ProjectDescription.TargetAction.Order instance into a XcodeProjectGenerator.TargetAction.Order model.
+extension XcodeGraph.TargetScript.Order {
+    /// Maps a ProjectDescription.TargetAction.Order instance into a XcodeGraph.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript.Order) -> XcodeProjectGenerator.TargetScript.Order {
+    static func from(manifest: ProjectDescription.TargetScript.Order) -> XcodeGraph.TargetScript.Order {
         switch manifest {
         case .pre:
             return .pre

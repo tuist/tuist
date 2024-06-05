@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import struct TSCUtility.Version
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 public protocol SimulatorControlling {
     /// Finds first available device defined by given parameters

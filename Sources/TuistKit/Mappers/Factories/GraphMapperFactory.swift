@@ -3,7 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import XcodeProjectGenerator
+import XcodeGraph
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.

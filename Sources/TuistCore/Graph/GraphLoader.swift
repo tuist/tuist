@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
 // MARK: - GraphLoading
 

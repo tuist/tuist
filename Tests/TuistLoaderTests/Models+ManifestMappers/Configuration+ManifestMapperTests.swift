@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -16,7 +16,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         // When
-        let got = try XcodeProjectGenerator.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
+        let got = try XcodeGraph.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertNil(got)
@@ -35,7 +35,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try XcodeProjectGenerator.Configuration.from(
+        let got = try XcodeGraph.Configuration.from(
             manifest: manifest,
             generatorPaths: generatorPaths
         )
@@ -46,7 +46,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
             return
         }
 
-        guard case let XcodeProjectGenerator.SettingValue.string(aString) = aSetting else {
+        guard case let XcodeGraph.SettingValue.string(aString) = aSetting else {
             XCTFail("Expected A to be a string")
             return
         }

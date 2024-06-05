@@ -1,12 +1,12 @@
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
 extension ProjectDescription.TestingOptions {
-    /// Maps a XcodeProjectGenerator.TestingOptions instance into a ProjectDescription.TestingOptions instance.
+    /// Maps a XcodeGraph.TestingOptions instance into a ProjectDescription.TestingOptions instance.
     /// - Parameters:
     /// - manifest: Manifest representation of testing options.
     static func from(
-        manifest: XcodeProjectGenerator.TestingOptions
+        manifest: XcodeGraph.TestingOptions
     ) -> Self {
         var options: Self = []
 

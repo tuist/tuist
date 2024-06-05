@@ -2,11 +2,11 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
-extension XcodeProjectGenerator.Workspace {
-    /// Maps a ProjectDescription.Workspace instance into a XcodeProjectGenerator.Workspace model.
+extension XcodeGraph.Workspace {
+    /// Maps a ProjectDescription.Workspace instance into a XcodeGraph.Workspace model.
     /// - Parameters:
     ///   - manifest: Manifest representation of workspace.
     ///   - generatorPaths: Generator paths.
@@ -15,7 +15,7 @@ extension XcodeProjectGenerator.Workspace {
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
         manifestLoader: ManifestLoading
-    ) throws -> XcodeProjectGenerator.Workspace {
+    ) throws -> XcodeGraph.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
@@ -37,17 +37,17 @@ extension XcodeProjectGenerator.Workspace {
         }
 
         let additionalFiles = try manifest.additionalFiles.flatMap {
-            try XcodeProjectGenerator.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+            try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let schemes = try manifest.schemes.map { try XcodeProjectGenerator.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map { try XcodeGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
 
         let generationOptions: GenerationOptions = try .from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
 
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        return XcodeProjectGenerator.Workspace(
+        return XcodeGraph.Workspace(
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,

@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import XcodeProjectGeneratorTesting
 @testable import TuistSupportTesting
+@testable import XcodeGraphTesting
 
 class StaticProductsGraphLinterTests: XCTestCase {
     var subject: StaticProductsGraphLinter!

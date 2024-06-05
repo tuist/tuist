@@ -1,11 +1,11 @@
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
 extension ProjectDescription.Project.Options {
-    /// Maps a XcodeProjectGenerator.ProjectOption instance into a ProjectDescription.ProjectOption instance.
+    /// Maps a XcodeGraph.ProjectOption instance into a ProjectDescription.ProjectOption instance.
     /// - Parameters:
     /// - manifest: Manifest representation of project options.
-    static func from(manifest: XcodeProjectGenerator.Project.Options) -> Self {
+    static func from(manifest: XcodeGraph.Project.Options) -> Self {
         options(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
             disableBundleAccessors: manifest.disableBundleAccessors,
@@ -23,7 +23,7 @@ extension ProjectDescription.Project.Options {
 
 extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
     static func from(
-        manifest: XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions
+        manifest: XcodeGraph.Project.Options.AutomaticSchemesOptions
     ) -> Self {
         switch manifest {
         case let .enabled(
@@ -54,7 +54,7 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
 
 extension ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
     static func from(
-        manifest: XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
+        manifest: XcodeGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
     ) -> Self {
         switch manifest {
         case .singleScheme:
@@ -69,7 +69,7 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchem
 
 extension ProjectDescription.ScreenCaptureFormat {
     static func from(
-        manifest: XcodeProjectGenerator.ScreenCaptureFormat
+        manifest: XcodeGraph.ScreenCaptureFormat
     ) -> Self {
         switch manifest {
         case .screenshots:

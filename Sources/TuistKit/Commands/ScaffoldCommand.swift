@@ -2,10 +2,10 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 enum ScaffoldCommandError: FatalError, Equatable {
     var type: ErrorType {

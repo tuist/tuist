@@ -1,7 +1,7 @@
 import Foundation
-import XcodeProjectGenerator
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 

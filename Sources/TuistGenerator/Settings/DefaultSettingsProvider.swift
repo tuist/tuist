@@ -1,8 +1,8 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 public protocol DefaultSettingsProviding {

@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
-@testable import XcodeProjectGeneratorTesting
+import XcodeGraph
+@testable import XcodeGraphTesting
 
 public final class MockGraphLoader: GraphLoading {
     public init() {}

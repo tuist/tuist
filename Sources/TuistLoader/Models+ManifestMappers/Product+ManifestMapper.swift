@@ -1,9 +1,9 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.Product {
-    static func from(manifest: ProjectDescription.Product) -> XcodeProjectGenerator.Product {
+extension XcodeGraph.Product {
+    static func from(manifest: ProjectDescription.Product) -> XcodeGraph.Product {
         switch manifest {
         case .app:
             return .app

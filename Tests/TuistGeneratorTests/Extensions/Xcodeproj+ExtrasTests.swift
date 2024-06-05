@@ -1,8 +1,8 @@
-import XcodeProjectGenerator
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
-@testable import XcodeProjectGeneratorTesting
+@testable import XcodeGraphTesting
 
 class XcodeprojExtrasTests: XCTestCase {
     func test_pbxFileElement_sort() {

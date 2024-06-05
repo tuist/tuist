@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 public enum FocusTargetsGraphMappersError: FatalError, Equatable {
     case targetsNotFound([String])

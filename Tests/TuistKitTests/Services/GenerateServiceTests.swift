@@ -2,9 +2,9 @@ import Foundation
 import MockableTest
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

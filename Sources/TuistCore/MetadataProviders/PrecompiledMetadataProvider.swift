@@ -1,8 +1,8 @@
 import Foundation
 import MachO
 import TSCBasic
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 enum PrecompiledMetadataProviderError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)

@@ -2,13 +2,13 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistGenerator
-import XcodeProjectGenerator
 import TuistKit
+import XcodeGraph
 
 final class MockGraphToGraphVizMapper: GraphToGraphVizMapping {
     var stubMap: GraphViz.Graph?
     func map(
-        graph _: XcodeProjectGenerator.Graph,
+        graph _: XcodeGraph.Graph,
         targetsAndDependencies _: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph {
         stubMap ?? GraphViz.Graph()

@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistDependencies
-import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 final class InstallService {
     private let pluginService: PluginServicing

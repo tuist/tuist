@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -38,7 +38,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -89,7 +89,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -132,7 +132,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -177,7 +177,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -221,7 +221,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -264,7 +264,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -320,7 +320,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -373,7 +373,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -436,7 +436,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"
@@ -503,7 +503,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"
@@ -570,7 +570,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"

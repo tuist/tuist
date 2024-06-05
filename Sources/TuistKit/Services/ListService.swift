@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 class ListService {
     // MARK: - OutputFormat

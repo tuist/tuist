@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 public struct GroupFileElement: Hashable {

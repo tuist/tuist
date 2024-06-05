@@ -1,9 +1,9 @@
 import Foundation
 import TuistCore
 import TuistCoreTesting
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 @testable import TuistGenerator
 
 class MockProjectLinter: ProjectLinting {

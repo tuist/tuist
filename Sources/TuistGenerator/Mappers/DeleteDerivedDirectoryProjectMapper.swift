@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 /// A project mapper that returns side effects to delete the derived directory.
 public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {

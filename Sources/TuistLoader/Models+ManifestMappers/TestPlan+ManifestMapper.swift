@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
 extension TestPlan {
     init(path: AbsolutePath, isDefault: Bool, generatorPaths: GeneratorPaths) throws {

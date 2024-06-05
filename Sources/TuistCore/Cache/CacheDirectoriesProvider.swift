@@ -1,8 +1,8 @@
 import Foundation
 import Mockable
 import TSCBasic
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 @Mockable
 public protocol CacheDirectoriesProviding {

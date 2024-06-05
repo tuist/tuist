@@ -1,8 +1,8 @@
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.Project.Options {
-    /// Maps a ProjectDescription.ProjectOption instance into a XcodeProjectGenerator.ProjectOption instance.
+extension XcodeGraph.Project.Options {
+    /// Maps a ProjectDescription.ProjectOption instance into a XcodeGraph.ProjectOption instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of project options.
     static func from(manifest: ProjectDescription.Project.Options) -> Self {
@@ -21,7 +21,7 @@ extension XcodeProjectGenerator.Project.Options {
     }
 }
 
-extension XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions {
+extension XcodeGraph.Project.Options.AutomaticSchemesOptions {
     static func from(
         manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions
     ) -> Self {
@@ -52,7 +52,7 @@ extension XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions {
     }
 }
 
-extension XcodeProjectGenerator.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
+extension XcodeGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
     static func from(
         manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
     ) -> Self {

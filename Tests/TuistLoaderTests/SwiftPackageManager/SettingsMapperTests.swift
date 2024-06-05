@@ -2,8 +2,8 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -249,7 +249,7 @@ final class SettingsMapperTests: XCTestCase {
 
 // OTHER_LDFLAGS
 
-extension XcodeProjectGenerator.SettingsDictionary {
+extension XcodeGraph.SettingsDictionary {
     func stringValueFor(_ key: String) throws -> String {
         try XCTUnwrap(self[key]?.stringValue)
     }
@@ -259,7 +259,7 @@ extension XcodeProjectGenerator.SettingsDictionary {
     }
 }
 
-extension XcodeProjectGenerator.SettingValue {
+extension XcodeGraph.SettingValue {
     var stringValue: String? {
         if case let .string(string) = self {
             return string

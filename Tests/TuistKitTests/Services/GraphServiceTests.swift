@@ -3,9 +3,9 @@ import Foundation
 import GraphViz
 import ProjectAutomation
 import TSCBasic
-import XcodeProjectGenerator
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 

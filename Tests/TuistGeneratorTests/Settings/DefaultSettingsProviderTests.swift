@@ -1,8 +1,8 @@
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting

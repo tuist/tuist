@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 import TuistAutomation
 import TuistCore
-import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
@@ -120,7 +120,7 @@ public final class BuildService {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
-            let buildPlatform: XcodeProjectGenerator.Platform
+            let buildPlatform: XcodeGraph.Platform
 
             if let platform {
                 buildPlatform = platform
@@ -152,7 +152,7 @@ public final class BuildService {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
-                let buildPlatform: XcodeProjectGenerator.Platform
+                let buildPlatform: XcodeGraph.Platform
 
                 if let platform {
                     buildPlatform = platform

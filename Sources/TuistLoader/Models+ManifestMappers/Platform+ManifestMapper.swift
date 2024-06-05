@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.Platform {
-    /// Maps a ProjectDescription.Platform instance into a XcodeProjectGenerator.Platform instance.
+extension XcodeGraph.Platform {
+    /// Maps a ProjectDescription.Platform instance into a XcodeGraph.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Platform) throws -> XcodeProjectGenerator.Platform {
+    static func from(manifest: ProjectDescription.Platform) throws -> XcodeGraph.Platform {
         switch manifest {
         case .macOS:
             return .macOS
@@ -23,12 +23,12 @@ extension XcodeProjectGenerator.Platform {
     }
 }
 
-extension XcodeProjectGenerator.PackagePlatform {
-    /// Maps a ProjectDescription.Platform instance into a XcodeProjectGenerator.Platform instance.
+extension XcodeGraph.PackagePlatform {
+    /// Maps a ProjectDescription.Platform instance into a XcodeGraph.Platform instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.PackagePlatform) throws -> XcodeProjectGenerator.PackagePlatform {
+    static func from(manifest: ProjectDescription.PackagePlatform) throws -> XcodeGraph.PackagePlatform {
         switch manifest {
         case .macOS:
             return .macOS

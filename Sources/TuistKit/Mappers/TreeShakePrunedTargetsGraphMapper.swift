@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}

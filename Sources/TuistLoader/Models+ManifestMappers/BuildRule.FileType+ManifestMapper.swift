@@ -1,12 +1,12 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.BuildRule.FileType {
+extension XcodeGraph.BuildRule.FileType {
     // swiftlint:disable function_body_length
     static func from(
         manifest: ProjectDescription.BuildRule.FileType
-    ) -> XcodeProjectGenerator.BuildRule.FileType {
+    ) -> XcodeGraph.BuildRule.FileType {
         switch manifest {
         case .instrumentsPackageDefinition:
             return .instrumentsPackageDefinition

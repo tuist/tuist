@@ -3,8 +3,8 @@ import Stencil
 import StencilSwiftKit
 import SwiftGenKit
 import TSCBasic
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 protocol SynthesizedResourceInterfacesGenerating {
     func render(

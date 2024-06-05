@@ -3,9 +3,9 @@ import MockableTest
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting

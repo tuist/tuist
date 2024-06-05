@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
 extension IDETemplateMacros {
     static func from(

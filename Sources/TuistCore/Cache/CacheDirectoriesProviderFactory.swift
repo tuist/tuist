@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 @Mockable
 public protocol CacheDirectoriesProviderFactoring {

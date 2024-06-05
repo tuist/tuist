@@ -1,18 +1,18 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.SettingsDictionary {
-    /// Maps a ProjectDescription.SettingsDictionary instance into a XcodeProjectGenerator.SettingsDictionary instance.
+extension XcodeGraph.SettingsDictionary {
+    /// Maps a ProjectDescription.SettingsDictionary instance into a XcodeGraph.SettingsDictionary instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: ProjectDescription.SettingsDictionary) -> XcodeProjectGenerator.SettingsDictionary {
+    static func from(manifest: ProjectDescription.SettingsDictionary) -> XcodeGraph.SettingsDictionary {
         manifest.mapValues { value in
             switch value {
             case let .string(stringValue):
-                return XcodeProjectGenerator.SettingValue.string(stringValue)
+                return XcodeGraph.SettingValue.string(stringValue)
             case let .array(arrayValue):
-                return XcodeProjectGenerator.SettingValue.array(arrayValue)
+                return XcodeGraph.SettingValue.array(arrayValue)
             }
         }
     }

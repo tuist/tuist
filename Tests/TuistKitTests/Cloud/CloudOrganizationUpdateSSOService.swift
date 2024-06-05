@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
 import MockableTest
-import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 @testable import TuistKit
 

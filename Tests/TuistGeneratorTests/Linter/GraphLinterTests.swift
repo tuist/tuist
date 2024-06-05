@@ -2,14 +2,14 @@ import Foundation
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import XcodeProjectGeneratorTesting
 @testable import TuistSupportTesting
+@testable import XcodeGraphTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!

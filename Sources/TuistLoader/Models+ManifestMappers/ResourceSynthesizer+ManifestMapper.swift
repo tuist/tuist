@@ -1,15 +1,15 @@
 import ProjectDescription
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.ResourceSynthesizer {
+extension XcodeGraph.ResourceSynthesizer {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) throws -> Self {
-        let template: XcodeProjectGenerator.ResourceSynthesizer.Template
+        let template: XcodeGraph.ResourceSynthesizer.Template
         switch manifest.templateType {
         case let .defaultTemplate(resourceName: resourceName):
             if let templatePath = resourceSynthesizerPathLocator.templatePath(
@@ -30,11 +30,11 @@ extension XcodeProjectGenerator.ResourceSynthesizer {
         }
 
         let parserOptions = manifest.parserOptions
-            .compactMapValues { XcodeProjectGenerator.ResourceSynthesizer.Parser.Option.from(manifest: $0)
+            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
             }
 
         return .init(
-            parser: XcodeProjectGenerator.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
+            parser: XcodeGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
             parserOptions: parserOptions,
             extensions: manifest.extensions,
             template: template
@@ -42,7 +42,7 @@ extension XcodeProjectGenerator.ResourceSynthesizer {
     }
 }
 
-extension XcodeProjectGenerator.ResourceSynthesizer.Parser {
+extension XcodeGraph.ResourceSynthesizer.Parser {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer.Parser
     ) -> Self {
@@ -69,7 +69,7 @@ extension XcodeProjectGenerator.ResourceSynthesizer.Parser {
     }
 }
 
-extension XcodeProjectGenerator.ResourceSynthesizer.Parser.Option {
+extension XcodeGraph.ResourceSynthesizer.Parser.Option {
     static func from(
         manifest: ProjectDescription.ResourceSynthesizer.Parser.Option
     ) -> Self {

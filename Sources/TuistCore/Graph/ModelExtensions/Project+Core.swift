@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 extension Project {
     /// It returns the project targets sorted based on the target type and the dependencies between them.

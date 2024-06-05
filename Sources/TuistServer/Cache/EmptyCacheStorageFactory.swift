@@ -1,5 +1,5 @@
 import Foundation
-import XcodeProjectGenerator
+import XcodeGraph
 
 public final class EmptyCacheStorageFactory: CacheStorageFactorying {
     public init() {}

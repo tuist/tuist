@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
+import XcodeGraph
+import XcodeGraphTesting
 @testable import TuistGenerator
 
 final class MockSchemeDescriptorsGenerator: SchemeDescriptorsGenerating {

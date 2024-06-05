@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.PluginLocation {
-    /// Convert from `ProjectDescription.PluginLocation` to `XcodeProjectGenerator.PluginLocation`
+extension XcodeGraph.PluginLocation {
+    /// Convert from `ProjectDescription.PluginLocation` to `XcodeGraph.PluginLocation`
     static func from(
         manifest: ProjectDescription.PluginLocation,
         generatorPaths: GeneratorPaths
-    ) throws -> XcodeProjectGenerator.PluginLocation {
+    ) throws -> XcodeGraph.PluginLocation {
         switch manifest.type {
         case let .local(path):
             return .local(path: try generatorPaths.resolve(path: path).pathString)

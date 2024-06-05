@@ -2,27 +2,27 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
-extension XcodeProjectGenerator.TestAction {
+extension XcodeGraph.TestAction {
     // swiftlint:disable function_body_length
-    /// Maps a ProjectDescription.TestAction instance into a XcodeProjectGenerator.TestAction instance.
+    /// Maps a ProjectDescription.TestAction instance into a XcodeGraph.TestAction instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator.TestAction {
+    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> XcodeGraph.TestAction {
         // swiftlint:enable function_body_length
-        let testPlans: [XcodeProjectGenerator.TestPlan]?
-        let targets: [XcodeProjectGenerator.TestableTarget]
-        let arguments: XcodeProjectGenerator.Arguments?
+        let testPlans: [XcodeGraph.TestPlan]?
+        let targets: [XcodeGraph.TestableTarget]
+        let arguments: XcodeGraph.Arguments?
         let coverage: Bool
-        let codeCoverageTargets: [XcodeProjectGenerator.TargetReference]
-        let expandVariablesFromTarget: XcodeProjectGenerator.TargetReference?
-        let diagnosticsOptions: XcodeProjectGenerator.SchemeDiagnosticsOptions
+        let codeCoverageTargets: [XcodeGraph.TargetReference]
+        let expandVariablesFromTarget: XcodeGraph.TargetReference?
+        let diagnosticsOptions: XcodeGraph.SchemeDiagnosticsOptions
         let language: SchemeLanguage?
         let region: String?
-        let preferredScreenCaptureFormat: XcodeProjectGenerator.ScreenCaptureFormat?
+        let preferredScreenCaptureFormat: XcodeGraph.ScreenCaptureFormat?
         let skippedTests: [String]?
 
         if let plans = manifest.testPlans {
@@ -45,22 +45,22 @@ extension XcodeProjectGenerator.TestAction {
             skippedTests = nil
         } else {
             targets = try manifest.targets
-                .map { try XcodeProjectGenerator.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
-            arguments = manifest.arguments.map { XcodeProjectGenerator.Arguments.from(manifest: $0) }
+                .map { try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
             coverage = manifest.options.coverage
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
-                XcodeProjectGenerator.TargetReference(
+                XcodeGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
                 )
             }
             expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
-                XcodeProjectGenerator.TargetReference(
+                XcodeGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
                 )
             }
-            diagnosticsOptions = XcodeProjectGenerator.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
+            diagnosticsOptions = XcodeGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
             language = manifest.options.language
             region = manifest.options.region
             preferredScreenCaptureFormat = manifest.options.preferredScreenCaptureFormat
@@ -72,11 +72,11 @@ extension XcodeProjectGenerator.TestAction {
         }
 
         let configurationName = manifest.configuration.rawValue
-        let preActions = try manifest.preActions.map { try XcodeProjectGenerator.ExecutionAction.from(
+        let preActions = try manifest.preActions.map { try XcodeGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-        let postActions = try manifest.postActions.map { try XcodeProjectGenerator.ExecutionAction.from(
+        let postActions = try manifest.postActions.map { try XcodeGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
         ) }

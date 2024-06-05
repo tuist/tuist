@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -16,7 +16,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
@@ -38,7 +38,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: ["library": [.project(target: "Target", path: "/Project")]]
@@ -60,7 +60,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
@@ -94,7 +94,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -116,7 +116,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -138,7 +138,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -160,7 +160,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -182,7 +182,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
-        let got = try XcodeProjectGenerator.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]

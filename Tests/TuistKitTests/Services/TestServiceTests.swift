@@ -3,10 +3,10 @@ import MockableTest
 import TSCBasic
 import TuistAutomation
 import TuistCore
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
 import TuistLoader
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting

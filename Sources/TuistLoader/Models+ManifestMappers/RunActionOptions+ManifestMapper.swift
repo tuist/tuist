@@ -1,20 +1,20 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.RunActionOptions {
-    /// Maps a ProjectDescription.RunActionOptions instance into a XcodeProjectGenerator.RunActionOptions instance.
+extension XcodeGraph.RunActionOptions {
+    /// Maps a ProjectDescription.RunActionOptions instance into a XcodeGraph.RunActionOptions instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the options.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.RunActionOptions,
         generatorPaths: GeneratorPaths
-    ) throws -> XcodeProjectGenerator.RunActionOptions {
+    ) throws -> XcodeGraph.RunActionOptions {
         var language: String?
         var storeKitConfigurationPath: AbsolutePath?
-        var simulatedLocation: XcodeProjectGenerator.SimulatedLocation?
+        var simulatedLocation: XcodeGraph.SimulatedLocation?
         var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier
@@ -45,7 +45,7 @@ extension XcodeProjectGenerator.RunActionOptions {
             }
         }
 
-        return XcodeProjectGenerator.RunActionOptions(
+        return XcodeGraph.RunActionOptions(
             language: language,
             region: manifest.region,
             storeKitConfigurationPath: storeKitConfigurationPath,

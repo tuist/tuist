@@ -1,6 +1,6 @@
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 
 public final class MockXcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
     public init() {}

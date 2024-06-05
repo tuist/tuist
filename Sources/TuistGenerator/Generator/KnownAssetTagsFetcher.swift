@@ -1,6 +1,6 @@
 import Foundation
 import PathKit
-import XcodeProjectGenerator
+import XcodeGraph
 
 private struct ContentJson: Decodable {
     struct ContentProperties: Decodable {

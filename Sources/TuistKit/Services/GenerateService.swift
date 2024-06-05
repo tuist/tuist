@@ -2,11 +2,11 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import XcodeProjectGenerator
 import TuistLoader
 import TuistPlugin
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 final class GenerateService {
     private let opener: Opening

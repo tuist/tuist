@@ -3,8 +3,8 @@ import PathKit
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
+import XcodeGraph
+import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

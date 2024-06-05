@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
 import TuistLoader
+import XcodeGraph
 
 public final class MockTemplateGitLoader: TemplateGitLoading {
     public var loadTemplateStub: ((String) throws -> Template)?

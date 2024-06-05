@@ -1,13 +1,13 @@
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 public protocol TemplateGitLoading {
-    /// Load `XcodeProjectGenerator.Template` from the given Git repository
+    /// Load `XcodeGraph.Template` from the given Git repository
     /// to a temporary directory and performs `closure` on that template.
     /// - Parameters:
     ///     - templateURL: Git repository url
     ///     - closure: Closure to perform work on loaded template
-    func loadTemplate(from templateURL: String, closure: (XcodeProjectGenerator.Template) throws -> Void) throws
+    func loadTemplate(from templateURL: String, closure: (XcodeGraph.Template) throws -> Void) throws
 }
 
 public final class TemplateGitLoader: TemplateGitLoading {
@@ -38,7 +38,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.templateLocationParser = templateLocationParser
     }
 
-    public func loadTemplate(from templateURL: String, closure: (XcodeProjectGenerator.Template) throws -> Void) throws {
+    public func loadTemplate(from templateURL: String, closure: (XcodeGraph.Template) throws -> Void) throws {
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
         let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
         try fileHandler.inTemporaryDirectory { temporaryPath in

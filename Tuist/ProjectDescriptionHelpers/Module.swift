@@ -10,7 +10,7 @@ public enum Module: String, CaseIterable {
     case acceptanceTesting = "TuistAcceptanceTesting"
     case support = "TuistSupport"
     case kit = "TuistKit"
-    case xcodeProjectGenerator = "XcodeProjectGenerator"
+    case xcodeProjectGenerator = "XcodeGraph"
     case core = "TuistCore"
     case generator = "TuistGenerator"
     case scaffold = "TuistScaffold"
@@ -147,7 +147,8 @@ public enum Module: String, CaseIterable {
 
     public var integrationTestsTargetName: String? {
         switch self {
-        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription, .xcodeProjectGenerator, .asyncQueue,
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription, .xcodeProjectGenerator,
+             .asyncQueue,
              .plugin, .analytics, .dependencies, .acceptanceTesting, .app:
             return nil
         default:

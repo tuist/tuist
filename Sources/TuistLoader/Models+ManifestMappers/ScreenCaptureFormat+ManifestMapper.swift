@@ -1,9 +1,9 @@
 import Foundation
 import ProjectDescription
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.ScreenCaptureFormat {
-    static func from(manifest: ProjectDescription.ScreenCaptureFormat) -> XcodeProjectGenerator.ScreenCaptureFormat {
+extension XcodeGraph.ScreenCaptureFormat {
+    static func from(manifest: ProjectDescription.ScreenCaptureFormat) -> XcodeGraph.ScreenCaptureFormat {
         switch manifest {
         case .screenshots:
             return .screenshots

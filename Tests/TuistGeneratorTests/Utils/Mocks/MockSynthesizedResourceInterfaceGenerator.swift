@@ -1,5 +1,5 @@
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 @testable import TuistGenerator
 
 final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterfacesGenerating {

@@ -2,15 +2,15 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
-extension XcodeProjectGenerator.Package {
-    /// Maps a ProjectDescription.Package instance into a XcodeProjectGenerator.Package model.
+extension XcodeGraph.Package {
+    /// Maps a ProjectDescription.Package instance into a XcodeGraph.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> XcodeProjectGenerator.Package {
+    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Package {
         switch manifest {
         case let .local(path: local):
             return .local(path: try generatorPaths.resolve(path: local))
@@ -20,12 +20,12 @@ extension XcodeProjectGenerator.Package {
     }
 }
 
-extension XcodeProjectGenerator.Requirement {
-    /// Maps a ProjectDescription.Package.Requirement instance into a XcodeProjectGenerator.Package.Requirement model.
+extension XcodeGraph.Requirement {
+    /// Maps a ProjectDescription.Package.Requirement instance into a XcodeGraph.Package.Requirement model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package.Requirement) -> XcodeProjectGenerator.Requirement {
+    static func from(manifest: ProjectDescription.Package.Requirement) -> XcodeGraph.Requirement {
         switch manifest {
         case let .branch(branch):
             return .branch(branch)

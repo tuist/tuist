@@ -1,5 +1,5 @@
 import Foundation
-import XcodeProjectGenerator
+import XcodeGraph
 import XcodeProj
 
 protocol BuildRulesGenerating: AnyObject {

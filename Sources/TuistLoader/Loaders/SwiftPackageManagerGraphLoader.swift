@@ -3,8 +3,8 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -48,7 +48,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: XcodeProjectGenerator.PackageSettings
+        packageSettings: XcodeGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -73,7 +73,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: XcodeProjectGenerator.PackageSettings
+        packageSettings: XcodeGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -165,10 +165,10 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 }
 
 extension ProjectDescription.Platform {
-    /// Maps a XcodeProjectGenerator.Platform instance into a  ProjectDescription.Platform instance.
+    /// Maps a XcodeGraph.Platform instance into a  ProjectDescription.Platform instance.
     /// - Parameters:
     ///   - graph: Graph representation of platform model.
-    static func from(graph: XcodeProjectGenerator.Platform) -> ProjectDescription.Platform {
+    static func from(graph: XcodeGraph.Platform) -> ProjectDescription.Platform {
         switch graph {
         case .macOS:
             return .macOS

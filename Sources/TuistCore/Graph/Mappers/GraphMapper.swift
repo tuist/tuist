@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
 /// A protocol that defines an interface to map dependency graphs.
 public protocol GraphMapping {

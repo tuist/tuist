@@ -1,8 +1,8 @@
 // swiftlint:disable force_try
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 @_exported import TuistKit
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupport

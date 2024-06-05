@@ -1,10 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.Project {
-    /// Maps a `ProjectDescription.Project` instance into a `XcodeProjectGenerator.Project` instance.
+extension XcodeGraph.Project {
+    /// Maps a `ProjectDescription.Project` instance into a `XcodeGraph.Project` instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
@@ -17,34 +17,34 @@ extension XcodeProjectGenerator.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        externalDependencies: [String: [XcodeProjectGenerator.TargetDependency]],
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         isExternal: Bool
-    ) throws -> XcodeProjectGenerator.Project {
+    ) throws -> XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
         let defaultKnownRegions = manifest.options.defaultKnownRegions
         let developmentRegion = manifest.options.developmentRegion
-        let options = XcodeProjectGenerator.Project.Options.from(manifest: manifest.options)
-        let settings = try manifest.settings.map { try XcodeProjectGenerator.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
+        let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 
         let targets = try manifest.targets.map {
-            try XcodeProjectGenerator.Target.from(
+            try XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
         }
 
-        let schemes = try manifest.schemes.map { try XcodeProjectGenerator.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map { try XcodeGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
         let additionalFiles = try manifest.additionalFiles
-            .flatMap { try XcodeProjectGenerator.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packages = try manifest.packages.map { try XcodeProjectGenerator.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+            .flatMap { try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
         let resourceSynthesizers = try manifest.resourceSynthesizers.map {
-            try XcodeProjectGenerator.ResourceSynthesizer.from(
+            try XcodeGraph.ResourceSynthesizer.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 plugins: plugins,

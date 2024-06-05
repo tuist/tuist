@@ -4,9 +4,9 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import XcodeProjectGenerator
-import XcodeProjectGeneratorTesting
 import TuistSupport
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import ProjectDescription
@@ -58,15 +58,15 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
-        let expected: XcodeProjectGenerator.PackageSettings = .init(
+        let expected: XcodeGraph.PackageSettings = .init(
             productTypes: [:],
             productDestinations: [:],
-            baseSettings: XcodeProjectGenerator.Settings(
+            baseSettings: XcodeGraph.Settings(
                 base: [:],
                 baseDebug: [:],
                 configurations: [
-                    .release: XcodeProjectGenerator.Configuration(settings: [:], xcconfig: nil),
-                    .debug: XcodeProjectGenerator.Configuration(settings: [:], xcconfig: nil),
+                    .release: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
+                    .debug: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
                 ],
                 defaultSettings: .recommended
             ),

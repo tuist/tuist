@@ -2,8 +2,8 @@ import Foundation
 import PathKit
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum LinkGeneratorError: FatalError, Equatable {

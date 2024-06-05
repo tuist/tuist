@@ -2,14 +2,14 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 
-extension XcodeProjectGenerator.Plist.Value {
-    /// Maps a ProjectDescription.Plist.Value instance into a XcodeProjectGenerator.Plist.Value instance.
+extension XcodeGraph.Plist.Value {
+    /// Maps a ProjectDescription.Plist.Value instance into a XcodeGraph.Plist.Value instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist value model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Plist.Value) -> XcodeProjectGenerator.Plist.Value {
+    static func from(manifest: ProjectDescription.Plist.Value) -> XcodeGraph.Plist.Value {
         switch manifest {
         case let .string(value):
             return .string(value)
@@ -20,9 +20,9 @@ extension XcodeProjectGenerator.Plist.Value {
         case let .real(value):
             return .real(value)
         case let .array(value):
-            return .array(value.map { XcodeProjectGenerator.Plist.Value.from(manifest: $0) })
+            return .array(value.map { XcodeGraph.Plist.Value.from(manifest: $0) })
         case let .dictionary(value):
-            return .dictionary(value.mapValues { XcodeProjectGenerator.Plist.Value.from(manifest: $0) })
+            return .dictionary(value.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) })
         }
     }
 }

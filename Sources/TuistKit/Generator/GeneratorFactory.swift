@@ -3,10 +3,10 @@ import Mockable
 import TSCBasic
 import TuistCore
 import TuistGenerator
-import XcodeProjectGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands

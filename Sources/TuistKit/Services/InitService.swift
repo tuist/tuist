@@ -1,9 +1,9 @@
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -187,8 +187,8 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: XcodeProjectGenerator.Template.Attribute.Value] {
-        let defaultAttributes: [String: XcodeProjectGenerator.Template.Attribute.Value] = [
+    ) throws -> [String: XcodeGraph.Template.Attribute.Value] {
+        let defaultAttributes: [String: XcodeGraph.Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),

@@ -2,7 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import XcodeProjectGenerator
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -28,7 +28,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Fonts")
@@ -61,7 +61,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeProjectGenerator.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Templates")

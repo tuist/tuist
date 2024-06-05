@@ -6,9 +6,9 @@ import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
-@testable import XcodeProjectGenerator
 @testable import TuistLoader
 @testable import TuistSupportTesting
+@testable import XcodeGraph
 
 final class ProjectManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
@@ -43,7 +43,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in true }
 
         // When
-        let got = try XcodeProjectGenerator.Project.from(
+        let got = try XcodeGraph.Project.from(
             manifest: project,
             generatorPaths: .init(manifestDirectory: "/"),
             plugins: .none,
@@ -55,7 +55,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            XcodeProjectGenerator.Project(
+            XcodeGraph.Project(
                 path: "/",
                 sourceRootPath: "/",
                 xcodeProjPath: "/XcodeName.xcodeproj",
