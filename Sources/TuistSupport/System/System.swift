@@ -129,7 +129,7 @@ public final class System: Systeming {
     public func runAndPrint(_ arguments: [String]) throws {
         try run(arguments, verbose: false, environment: env, redirection: streamToStandardOutputs)
     }
-    
+
     public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
         try run(arguments, verbose: false, environment: environment, redirection: streamToStandardOutputs)
     }
