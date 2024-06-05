@@ -427,7 +427,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
-
+        
         let targetPath = try target.basePath(packageFolder: packageFolder)
 
         let moduleMap: ModuleMap?
@@ -588,7 +588,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let settings = try Settings.from(
+        var settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
             packageName: packageInfo.name,
@@ -598,6 +598,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             baseSettings: baseSettings,
             targetSettings: targetSettings
         )
+        
+        if product == .staticLibrary || product == .staticFramework, settings?.base["GENERATE_MASTER_OBJECT_FILE"] == nil {
+            settings?.base["GENERATE_MASTER_OBJECT_FILE"] = ["YES"]
+        }
 
         return .target(
             name: PackageInfoMapper.sanitize(targetName: target.name),
