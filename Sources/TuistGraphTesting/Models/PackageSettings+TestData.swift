@@ -10,7 +10,8 @@ extension PackageSettings {
         baseSettings: Settings = .test(),
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
-        swiftToolsVersion: Version = Version("5.4.9")
+        swiftToolsVersion: Version = Version("5.4.9"),
+        enableMasterObjectFileGenerationInStaticTargets: Bool = false
     ) -> PackageSettings {
         PackageSettings(
             productTypes: productTypes,
@@ -18,7 +19,8 @@ extension PackageSettings {
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
-            swiftToolsVersion: swiftToolsVersion
+            swiftToolsVersion: swiftToolsVersion,
+            enableMasterObjectFileGenerationInStaticTargets: enableMasterObjectFileGenerationInStaticTargets
         )
     }
 }

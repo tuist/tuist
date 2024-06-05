@@ -71,7 +71,8 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
-            swiftToolsVersion: TSCUtility.Version("5.4.9")
+            swiftToolsVersion: TSCUtility.Version("5.4.9"),
+            enableMasterObjectFileGenerationInStaticTargets: true
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)

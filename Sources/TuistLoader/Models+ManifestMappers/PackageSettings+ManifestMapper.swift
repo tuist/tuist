@@ -28,7 +28,8 @@ extension TuistGraph.PackageSettings {
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
-            swiftToolsVersion: swiftToolsVersion
+            swiftToolsVersion: swiftToolsVersion,
+            enableMasterObjectFileGenerationInStaticTargets: manifest.enableMasterObjectFileGenerationInStaticTargets
         )
     }
 }

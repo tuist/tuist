@@ -21,6 +21,10 @@ public struct PackageSettings: Equatable, Codable {
     /// Swift tools version of the parsed `Package.swift`
     public let swiftToolsVersion: Version
 
+    /// When true, it sets the GENERATE_MASTER_OBJECT_FILE build setting in the static targets.
+    /// Context: https://github.com/apple/swift/issues/48561#issuecomment-1108262925
+    public let enableMasterObjectFileGenerationInStaticTargets: Bool
+
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -33,7 +37,8 @@ public struct PackageSettings: Equatable, Codable {
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
-        swiftToolsVersion: Version
+        swiftToolsVersion: Version,
+        enableMasterObjectFileGenerationInStaticTargets: Bool
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
@@ -41,5 +46,6 @@ public struct PackageSettings: Equatable, Codable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         self.swiftToolsVersion = swiftToolsVersion
+        self.enableMasterObjectFileGenerationInStaticTargets = enableMasterObjectFileGenerationInStaticTargets
     }
 }
