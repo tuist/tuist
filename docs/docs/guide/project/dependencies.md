@@ -268,7 +268,7 @@ func productType() -> Product {
 Note that Tuist [does not default to convenience through implicit configuration due to its costs](/guide/introduction/cost-of-convenience). What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
 > [!TIP] OPTING INTO SPM's LINKING BEHAVIOUR
-> From version `4.16.1`, Tuist supports opting into Swift Package Manager's linking behaviour trough `PackageSettings(spmLinkingStype: true)`. When set, we'll try to mimic SPM's default behaviour (convenience over explicitness and control) applying some build settings automatically. **Note** that this might have undesired side effects, like increasing the binary size, and should be used with caution.
+> From version `4.16.2`, Tuist supports opting into Swift Package Manager's linking behaviour trough `PackageSettings(spmLinkingStype: true)`. When set, we'll try to mimic SPM's default behaviour (convenience over explicitness and control) applying some build settings automatically. **Note** that this might have undesired side effects, like increasing the binary size, and should be used with caution.
 
 ### Scenarios
 
