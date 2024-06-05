@@ -72,7 +72,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             ),
             targetSettings: [:],
             swiftToolsVersion: TSCUtility.Version("5.4.9"),
-            enableMasterObjectFileGenerationInStaticTargets: true
+            spmLinkingStyle: false
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)

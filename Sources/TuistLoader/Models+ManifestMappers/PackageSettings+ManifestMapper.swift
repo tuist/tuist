@@ -29,7 +29,7 @@ extension TuistGraph.PackageSettings {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             swiftToolsVersion: swiftToolsVersion,
-            enableMasterObjectFileGenerationInStaticTargets: manifest.enableMasterObjectFileGenerationInStaticTargets
+            spmLinkingStyle: manifest.spmLinkingStyle
         )
     }
 }

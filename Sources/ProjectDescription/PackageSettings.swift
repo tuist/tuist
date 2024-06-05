@@ -27,15 +27,19 @@ import Foundation
 /// ```
 public struct PackageSettings: Codable, Equatable {
     /**
-     When packages are linked statically, which is the default of Tuist's integration using XcodeProj primitives,
-     issues might arise due to missing extensions. This is a [known issue](https://github.com/apple/swift/issues/48561)
-     that the SPM circumvents using the `-r` flag with the linker, or the `GENERATE_MASTER_OBJECT_FILE` build setting with the
-     packages' targets.
+     SPM tries to make linking work by making build-time decisions like how to link packages on behalf of users.
+     While this is desirable at a small scale (it's convenient), we believe it's not a good idea at a large scale because it might
+     cause issues like duplicated symbols or increased binary size.
 
-     Opting-into that behaviour can have a negative impact on the final binary size, and therefore we keep it as disable but giving
-     developers an option to opt into it easily. When this value is set to true, it applies it to all the packages of the project that are static.
+     We believe that how things are linked is something that Xcode project maintainers should think about, with Tuist helping
+     with any complexities associated with it, but we acknowledge the interest of some of our users to align with SPM's convenient
+     behaviour, and therefore we include this flag for users to opt-into that behaviour.
+
+     Here are some things that we do as part of that.
+
+     - We set the `GENERATE_MASTER_OBJECT_FILE` build setting in static targets by default (https://github.com/apple/swift/issues/48561)
      */
-    public var enableMasterObjectFileGenerationInStaticTargets: Bool
+    public var spmLinkingStyle: Bool
 
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
@@ -65,7 +69,7 @@ public struct PackageSettings: Codable, Equatable {
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
-    ///     - enableMasterObjectFileGenerationInStaticTargets: Sets the `GENERATE_MASTER_OBJECT_FILE` build setting in static
+    ///     - spmLinkingStyle: When `true`, it mimics SPM's linking style.
     /// targets.
     public init(
         productTypes: [String: Product] = [:],
@@ -73,14 +77,14 @@ public struct PackageSettings: Codable, Equatable {
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: Project.Options] = [:],
-        enableMasterObjectFileGenerationInStaticTargets: Bool = false
+        spmLinkingStyle: Bool = false
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-        self.enableMasterObjectFileGenerationInStaticTargets = enableMasterObjectFileGenerationInStaticTargets
+        self.spmLinkingStyle = spmLinkingStyle
         dumpIfNeeded(self)
     }
 }
