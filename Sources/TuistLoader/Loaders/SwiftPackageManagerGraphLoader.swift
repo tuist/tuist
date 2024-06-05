@@ -151,8 +151,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageInfo: packageInfo.info,
                 path: packageInfo.folder,
                 packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
-                packageSettings: packageSettings,
-                packageToProject: packageToProject
+                packageSettings: packageSettings
             )
             result[.path(packageInfo.folder.pathString)] = manifest
         }

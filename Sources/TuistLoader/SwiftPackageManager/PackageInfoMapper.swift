@@ -111,8 +111,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
-        packageToProject: [String: AbsolutePath]
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> ProjectDescription.Project?
 }
 
@@ -257,8 +256,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
-        packageToProject _: [String: AbsolutePath]
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -346,7 +344,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     baseSettings: baseSettings,
-                    targetSettings: targetSettings
+                    targetSettings: targetSettings,
+                    spmLinkingStyle: packageSettings.spmLinkingStyle
                 )
             }
 
@@ -399,7 +398,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         productDestinations: [String: TuistGraph.Destinations],
         baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        targetSettings: [String: TuistGraph.SettingsDictionary],
+        spmLinkingStyle: Bool
     ) throws -> ProjectDescription.Target? {
         switch target.type {
         case .regular, .system, .macro:
@@ -427,7 +427,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
-        
+
         let targetPath = try target.basePath(packageFolder: packageFolder)
 
         let moduleMap: ModuleMap?
@@ -596,12 +596,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             platforms: packageInfo.platforms,
             moduleMap: moduleMap,
             baseSettings: baseSettings,
-            targetSettings: targetSettings
+            targetSettings: targetSettings,
+            product: product,
+            spmLinkingStyle: spmLinkingStyle
         )
-        
-        if product == .staticLibrary || product == .staticFramework, settings?.base["GENERATE_MASTER_OBJECT_FILE"] == nil {
-            settings?.base["GENERATE_MASTER_OBJECT_FILE"] = ["YES"]
-        }
 
         return .target(
             name: PackageInfoMapper.sanitize(targetName: target.name),
@@ -950,7 +948,9 @@ extension ProjectDescription.Settings {
         platforms: [PackageInfo.Platform],
         moduleMap: ModuleMap?,
         baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        targetSettings: [String: TuistGraph.SettingsDictionary],
+        product: ProjectDescription.Product,
+        spmLinkingStyle: Bool
     ) throws -> Self? {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -977,6 +977,10 @@ extension ProjectDescription.Settings {
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
             "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
+
+        if product == .staticLibrary || product == .staticFramework, spmLinkingStyle {
+            settingsDictionary["GENERATE_MASTER_OBJECT_FILE"] = "YES"
+        }
 
         let mapper = SettingsMapper(
             headerSearchPaths: dependencyHeaderSearchPaths,
