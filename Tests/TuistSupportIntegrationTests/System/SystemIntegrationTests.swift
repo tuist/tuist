@@ -30,7 +30,7 @@ final class SystemIntegrationTests: TuistTestCase {
 
     func test_run_output_is_redirected() throws {
         var output = ""
-        try subject.runAndPrint(
+        try subject.run(
             ["echo", "hola"],
             verbose: false,
             environment: System.shared.env,

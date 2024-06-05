@@ -127,11 +127,19 @@ public final class System: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env, redirection: .none)
+        try run(arguments, verbose: false, environment: env, redirection: streamToStandardOutputs)
+    }
+    
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
+        try run(arguments, verbose: false, environment: environment, redirection: streamToStandardOutputs)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: environment, redirection: .none)
+    private var streamToStandardOutputs: TSCBasic.Process.OutputRedirection {
+        return .stream { bytes in
+            FileHandle.standardOutput.write(Data(bytes))
+        } stderr: { bytes in
+            FileHandle.standardError.write(Data(bytes))
+        }
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
@@ -211,7 +219,7 @@ public final class System: Systeming {
         try localFileSystem.chmod(mode, path: path, options: options)
     }
 
-    public func runAndPrint(
+    public func run(
         _ arguments: [String],
         verbose: Bool = false,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -225,11 +233,9 @@ public final class System: Systeming {
             arguments: arguments,
             environment: environment,
             outputRedirection: .stream(stdout: { bytes in
-                FileHandle.standardOutput.write(Data(bytes))
                 redirection.outputClosures?.stdoutClosure(bytes)
             }, stderr: { bytes in
                 stdErrData.append(contentsOf: bytes)
-                FileHandle.standardError.write(Data(bytes))
                 redirection.outputClosures?.stderrClosure(bytes)
             }),
             startNewProcessGroup: false,

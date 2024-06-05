@@ -310,7 +310,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
-        try System.shared.runAndPrint(command,
+        try System.shared.run(command,
                                       verbose: false,
                                       environment: System.shared.env,
                                       redirection: .stream(stdout: { bytes in
