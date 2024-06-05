@@ -6,6 +6,7 @@ use s3::Bucket;
 use s3::Region;
 use serde::{Deserialize, Serialize};
 use std::str;
+use std::time::Duration;
 use std::collections::HashMap;
 #[derive(NifStruct, Debug, Serialize, Deserialize)]
 #[module = "TuistCloud.Native.S3AccessKeyPair"]
@@ -298,7 +299,7 @@ fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<
             Err(err) => return Err(err.to_string()),
         }
     };
-    let bucket = match Bucket::new(&name, s3_region, credentials) {
+    let bucket = match Bucket::new(&name, s3_region, credentials).and_then(|bucket| bucket.with_request_timeout(Duration::from_secs(90))) {
         Ok(bucket) => bucket,
         Err(err) => return Err(err.to_string()),
     };
