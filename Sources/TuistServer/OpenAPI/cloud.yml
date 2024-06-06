@@ -192,10 +192,15 @@ components:
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
+        name:
+          description: The name of the file. It's used only for certain types such as result_bundle_object
+          type: string
         type:
           description: The command event artifact type.
           enum:
             - result_bundle
+            - invocation_record
+            - result_bundle_object
           type: string
       required:
         - type

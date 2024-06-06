@@ -63,8 +63,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             .willReturn(.test(id: 10))
 
         given(analyticsArtifactUploadService)
-            .uploadAnalyticsArtifact(
-                artifactPath: .any,
+            .uploadResultBundle(
+                .any,
                 commandEventId: .value(10),
                 serverURL: .value(cloudURL)
             )

@@ -5,6 +5,7 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadGenerateURLAnalyticsServicing {
     func uploadAnalytics(
+        _ artifact: CloudCommandEvent.Artifact,
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
@@ -40,6 +41,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
     public init() {}
 
     public func uploadAnalytics(
+        _ artifact: CloudCommandEvent.Artifact,
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
@@ -51,9 +53,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
                 path: .init(run_id: commandEventId),
                 body: .json(
                     .init(
-                        command_event_artifact: .init(
-                            _type: .result_bundle
-                        ),
+                        command_event_artifact: .init(artifact),
                         multipart_upload_part: .init(
                             part_number: partNumber,
                             upload_id: uploadId

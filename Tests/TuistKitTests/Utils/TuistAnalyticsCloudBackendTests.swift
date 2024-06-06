@@ -133,8 +133,8 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         try fileHandler.createFolder(resultBundle)
 
         given(analyticsArtifactUploadService)
-            .uploadAnalyticsArtifact(
-                artifactPath: .value(resultBundle),
+            .uploadResultBundle(
+                .value(resultBundle),
                 commandEventId: .value(10),
                 serverURL: .value(config.url)
             )

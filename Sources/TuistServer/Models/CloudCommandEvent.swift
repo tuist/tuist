@@ -15,6 +15,23 @@ public struct CloudCommandEvent: Codable {
         self.name = name
         self.url = url
     }
+
+    public struct Artifact: Equatable {
+        let type: ArtifactType
+        let name: String?
+
+        init(
+            type: ArtifactType,
+            name: String? = nil
+        ) {
+            self.type = type
+            self.name = name
+        }
+
+        enum ArtifactType {
+            case resultBundle, invocationRecord, resultBundleObject
+        }
+    }
 }
 
 extension CloudCommandEvent {
@@ -22,6 +39,25 @@ extension CloudCommandEvent {
         id = Int(commandEvent.id)
         name = commandEvent.name
         url = URL(string: commandEvent.url)!
+    }
+}
+
+extension Components.Schemas.CommandEventArtifact {
+    init(_ artifact: CloudCommandEvent.Artifact) {
+        self = .init(name: artifact.name, _type: .init(artifact.type))
+    }
+}
+
+extension Components.Schemas.CommandEventArtifact._typePayload {
+    init(_ type: CloudCommandEvent.Artifact.ArtifactType) {
+        switch type {
+        case .resultBundle:
+            self = .result_bundle
+        case .invocationRecord:
+            self = .invocation_record
+        case .resultBundleObject:
+            self = .result_bundle_object
+        }
     }
 }
 
