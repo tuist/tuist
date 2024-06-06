@@ -24,7 +24,11 @@
         </.dropdown_picker>
         <ul class="sidebar__navigation-list">
           <li>
-            <a href={~p"/#{@selected_owner}/#{@selected_project.name}"}>
+            <% dashboard_href =
+              if show_dashboard?(),
+                do: ~p"/#{@selected_owner}/#{@selected_project.name}",
+                else: ~p"/get-started" %>
+            <a href={dashboard_href}>
               <.bar_chart />
               <p class="text-md semibold"><%= gettext("Dashboard") %></p>
             </a>

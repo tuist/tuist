@@ -2,10 +2,12 @@ defmodule TuistCloud.Repo.Migrations.AddCommandEventsHypertable do
   use Ecto.Migration
 
   def up do
-    execute("ALTER TABLE command_events DROP CONSTRAINT command_events_pkey;")
-    execute("ALTER TABLE command_events ADD PRIMARY KEY (id, created_at);")
-    execute("SELECT create_hypertable('command_events', 'created_at', migrate_data => true);")
-    create index(:command_events, [:name, :project_id, :created_at])
+    if TuistCloud.Repo.timescale_available?() do
+      execute("ALTER TABLE command_events DROP CONSTRAINT command_events_pkey;")
+      execute("ALTER TABLE command_events ADD PRIMARY KEY (id, created_at);")
+      execute("SELECT create_hypertable('command_events', 'created_at', migrate_data => true);")
+      create index(:command_events, [:name, :project_id, :created_at])
+    end
   end
 
   def down do
