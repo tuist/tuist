@@ -1,4 +1,4 @@
-defmodule TuistCloudWeb.CacheControllerTest do
+defmodule TuistCloudWeb.API.CacheControllerTest do
   alias TuistCloud.Repo
   alias TuistCloud.CommandEvents
   alias TuistCloud.AccountsFixtures

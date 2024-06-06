@@ -1,4 +1,4 @@
-defmodule TuistCloudWeb.InvitationsControllerTest do
+defmodule TuistCloudWeb.API.InvitationsControllerTest do
   alias TuistCloudWeb.Authentication
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Accounts
