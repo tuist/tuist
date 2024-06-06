@@ -235,14 +235,17 @@ defmodule TuistCloudWeb.API.AnalyticsController do
           path_params: %{
             "run_id" => run_id
           },
-          body_params: %{
-            "type" => type
-          }
+          body_params:
+            %{
+              "type" => type
+            } = command_event_artifact
         } = conn,
         _params
       ) do
     upload_id =
-      Storage.multipart_start(object_key(%{type: type, run_id: run_id}))
+      Storage.multipart_start(
+        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
+      )
 
     conn |> json(%{status: "success", data: %{upload_id: upload_id}})
   end
@@ -285,9 +288,10 @@ defmodule TuistCloudWeb.API.AnalyticsController do
             "run_id" => run_id
           },
           body_params: %{
-            command_event_artifact: %{
-              "type" => type
-            },
+            command_event_artifact:
+              %{
+                "type" => type
+              } = command_event_artifact,
             multipart_upload_part: %{
               "part_number" => part_number,
               "upload_id" => upload_id
@@ -300,7 +304,7 @@ defmodule TuistCloudWeb.API.AnalyticsController do
 
     url =
       Storage.multipart_generate_url(
-        object_key(%{type: type, run_id: run_id}),
+        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]}),
         upload_id,
         part_number,
         expires_in: expires_in
@@ -347,9 +351,10 @@ defmodule TuistCloudWeb.API.AnalyticsController do
             "run_id" => run_id
           },
           body_params: %{
-            command_event_artifact: %{
-              "type" => type
-            },
+            command_event_artifact:
+              %{
+                "type" => type
+              } = command_event_artifact,
             multipart_upload_parts: %ArtifactMultipartUploadParts{
               parts: parts,
               upload_id: upload_id
@@ -358,9 +363,12 @@ defmodule TuistCloudWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
+    object_key =
+      get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
+
     :ok =
       Storage.multipart_complete_upload(
-        object_key(%{type: type, run_id: run_id}),
+        object_key,
         upload_id,
         parts
         |> Enum.map(fn %{part_number: part_number, etag: etag} ->
@@ -373,12 +381,18 @@ defmodule TuistCloudWeb.API.AnalyticsController do
     |> json(%{})
   end
 
-  defp object_key(%{type: type, run_id: run_id}) do
+  defp get_object_key(%{type: type, run_id: run_id, name: name}) do
     command_event = CommandEvents.get_command_event_by_id(run_id)
 
     case type do
       "result_bundle" ->
-        CommandEvents.get_result_bundle_object_key(command_event)
+        CommandEvents.get_result_bundle_key(command_event)
+
+      "invocation_record" ->
+        CommandEvents.get_result_bundle_invocation_record_key(command_event)
+
+      "result_bundle_object" ->
+        CommandEvents.get_result_bundle_object_key(command_event, name)
     end
   end
 end

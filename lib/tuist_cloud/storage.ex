@@ -4,14 +4,18 @@ defmodule TuistCloud.Storage do
   """
   alias TuistCloud.Environment
   alias TuistCloud.Native
-  alias TuistCloud.Native.S3DownloadPresignedURLOptions
-  alias TuistCloud.Native.S3ExistsOptions
-  alias TuistCloud.Native.S3MultipartStartOptions
-  alias TuistCloud.Native.S3MultipartGenerateURLOptions
-  alias TuistCloud.Native.S3MultipartCompleteUploadOptions
-  alias TuistCloud.Native.S3SizeOptions
-  alias TuistCloud.Native.S3DeleteAllObjectsOptions
-  alias TuistCloud.Native.S3AccessKeyPair
+
+  alias TuistCloud.Native.{
+    S3DownloadPresignedURLOptions,
+    S3ExistsOptions,
+    S3MultipartStartOptions,
+    S3MultipartGenerateURLOptions,
+    S3MultipartCompleteUploadOptions,
+    S3SizeOptions,
+    S3DeleteAllObjectsOptions,
+    S3AccessKeyPair,
+    S3GetObjectOptions
+  }
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     {:ok, url} =
@@ -20,7 +24,7 @@ defmodule TuistCloud.Storage do
         region: native_region(),
         object_key: object_key,
         expires_in: opts |> Keyword.get(:expires_in, 3600),
-        part_number: String.to_integer(part_number),
+        part_number: part_number,
         upload_id: upload_id,
         credentials: native_credentials()
       })
@@ -65,6 +69,18 @@ defmodule TuistCloud.Storage do
       })
 
     exists
+  end
+
+  def get_object(object_key) do
+    {:ok, object} =
+      Native.s3_get_object_as_string(%S3GetObjectOptions{
+        bucket_name: Environment.s3_bucket_name(),
+        region: native_region(),
+        object_key: object_key,
+        credentials: native_credentials()
+      })
+
+    object
   end
 
   def multipart_start(object_key) do

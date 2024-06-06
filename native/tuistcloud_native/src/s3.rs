@@ -92,6 +92,39 @@ pub fn s3_exists(options: S3ExistsOptions) -> S3ExistsResult {
 }
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
+enum S3GetObjectResult {
+    Error(String),
+    Ok(String),
+}
+
+#[derive(NifStruct, Debug, Serialize, Deserialize)]
+#[module = "TuistCloud.Native.S3GetObjectOptions"]
+struct S3GetObjectOptions {
+    credentials: S3Credentials,
+    object_key: String,
+    region: S3Region,
+    bucket_name: String,
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+pub fn s3_get_object_as_string(options: S3GetObjectOptions) -> S3GetObjectResult {
+    let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
+        Ok(bucket) => bucket,
+        Err(err) => return S3GetObjectResult::Error(err),
+    };
+
+    let object = match bucket.get_object_blocking(options.object_key) {
+        Ok(object) => object,
+        Err(err) => return S3GetObjectResult::Error(err.to_string()),
+    };
+
+    match object.to_string() {
+        Ok(object_string) => return S3GetObjectResult::Ok(object_string),
+        Err(err) => return S3GetObjectResult::Error(err.to_string()),
+    };
+}
+
+#[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3MultipartStartResult {
     Error(String),
     Ok(String),

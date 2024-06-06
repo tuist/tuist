@@ -960,6 +960,19 @@ input[type="checkbox"] {
   }
 }
 
+.badge--success {
+  background-color: var(--utility-success-50);
+  border: 1px solid var(--utility-success-200);
+
+  & svg {
+    stroke: var(--utility-success-500);
+  }
+
+  & .badge__text {
+    color: var(--utility-success-700);
+  }
+}
+
 .badge--error {
   background-color: var(--utility-error-50);
   border: 1px solid var(--utility-error-200);

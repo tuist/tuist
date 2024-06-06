@@ -3,9 +3,9 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
-  alias TuistCloud.Storage
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Accounts
+  alias TuistCloud.CommandEvents
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.AccountsFixtures
 
@@ -15,8 +15,21 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     account = Accounts.get_account_from_organization(organization)
     selected_project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
 
-    Storage
-    |> stub(:exists, fn _ -> true end)
+    CommandEvents
+    |> stub(:get_test_summary, fn _ ->
+      %CommandEvents.TestSummary{
+        target_tests: %{
+          "A" => %CommandEvents.TargetTestSummary{tests: [], status: :success},
+          "B" => %CommandEvents.TargetTestSummary{tests: [], status: :failure}
+        },
+        failed_tests_count: 1,
+        successful_tests_count: 3,
+        total_tests_count: 4
+      }
+    end)
+
+    CommandEvents
+    |> stub(:has_result_bundle?, fn _ -> true end)
 
     conn =
       conn
@@ -36,12 +49,12 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
         status: :failure
       )
 
-    {:ok, _lv, html} =
+    {:ok, lv, _html} =
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
 
-    assert html =~ "failure"
-    refute html =~ "success"
+    assert has_element?(lv, ":first-of-type(.run-detail__header)", "failure")
+    refute has_element?(lv, ":first-of-type(.run-detail__header)", "success")
   end
 
   test "renders download button if a command event has a result bundle", %{
@@ -65,8 +78,8 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     command_event =
       CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
-    Storage
-    |> stub(:exists, fn _ -> false end)
+    CommandEvents
+    |> stub(:has_result_bundle?, fn _ -> false end)
 
     {:ok, _lv, html} =
       conn
@@ -83,12 +96,12 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
         status: :success
       )
 
-    {:ok, _lv, html} =
+    {:ok, lv, _html} =
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
 
-    assert html =~ "success"
-    refute html =~ "failure"
+    assert has_element?(lv, ":first-of-type(.run-detail__header)", "success")
+    refute has_element?(lv, ":first-of-type(.run-detail__header)", "failure")
   end
 
   test "renders ran by with a user name", %{conn: conn, user: user, project: project} do
@@ -136,7 +149,50 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     assert has_element?(lv, "table tbody tr:nth-child(3)", "Miss")
   end
 
-  test "renders test targets table if the command name is not test", %{
+  test "renders test breakdown card if it has a test summary", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        status: :success
+      )
+
+    {:ok, lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ "Tests"
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "Success")
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "B")
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "Failure")
+  end
+
+  test "does not render test breakdown card if it does not have a test summary", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        status: :success
+      )
+
+    CommandEvents
+    |> stub(:get_test_summary, fn _ -> nil end)
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    refute html =~ "Tests"
+  end
+
+  test "renders test targets table if the command name is test", %{
     conn: conn,
     project: project
   } do

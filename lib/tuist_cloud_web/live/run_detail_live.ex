@@ -4,7 +4,10 @@ defmodule TuistCloudWeb.RunDetailLive do
   alias TuistCloud.CommandEvents
 
   def mount(params, _session, socket) do
-    command_event = CommandEvents.get_command_event_by_id(params["id"])
+    command_event =
+      CommandEvents.get_command_event_by_id(params["id"],
+        preloads: [user: :account, project: :account]
+      )
 
     cache_misses =
       command_event.cacheable_targets --
@@ -26,6 +29,22 @@ defmodule TuistCloudWeb.RunDetailLive do
          Enum.map(test_misses, &%{name: &1, cache_hit: :miss}))
       |> Enum.sort_by(& &1.name)
 
+    test_summary = CommandEvents.get_test_summary(command_event)
+
+    test_target_results =
+      if is_nil(test_summary) do
+        []
+      else
+        test_summary.target_tests
+        |> Enum.map(fn {target, target_test_summary} ->
+          %{
+            name: target,
+            status: target_test_summary.status
+          }
+        end)
+        |> Enum.sort_by(& &1.name)
+      end
+
     {
       :ok,
       socket
@@ -35,6 +54,8 @@ defmodule TuistCloudWeb.RunDetailLive do
       |> assign(:test_misses, test_misses)
       |> assign(:test_targets, test_targets)
       |> assign(:has_result_bundle, CommandEvents.has_result_bundle?(command_event))
+      |> assign(:test_target_results, test_target_results)
+      |> assign(:test_summary, test_summary)
     }
   end
 
@@ -58,8 +79,10 @@ defmodule TuistCloudWeb.RunDetailLive do
   attr(:title, :string, required: true)
   attr(:id, :string, required: true)
   attr(:targets, :list, required: true)
+  attr(:badge_column_label, :string, required: true)
+  slot(:badge, required: true, doc: "the badge to present a custom value component")
 
-  def cache_hits_card(assigns) do
+  def target_breakdown_card(assigns) do
     ~H"""
     <.card class="run-detail__target-breakdown">
       <.stack gap="2xl">
@@ -71,24 +94,32 @@ defmodule TuistCloudWeb.RunDetailLive do
             <:col :let={target} label={gettext("Name")}>
               <%= target.name %>
             </:col>
-            <:col :let={target} label={gettext("Cache hit")}>
+            <:col :let={target} label={@badge_column_label}>
               <div class="run-detail__target-breakdown__table__badge-container">
-                <.badge
-                  title={Atom.to_string(target.cache_hit) |> String.capitalize()}
-                  kind={
-                    case target.cache_hit do
-                      :local -> :brand_subtle
-                      :remote -> :brand
-                      :miss -> :warning
-                    end
-                  }
-                />
+                <%= render_slot(@badge, target) %>
               </div>
             </:col>
           </.table>
         </.stack>
       </.stack>
     </.card>
+    """
+  end
+
+  attr(:cache_hit, :atom, required: true)
+
+  def cache_hit_badge(assigns) do
+    ~H"""
+    <.badge
+      title={Atom.to_string(@cache_hit) |> String.capitalize()}
+      kind={
+        case @cache_hit do
+          :local -> :brand_subtle
+          :remote -> :brand
+          :miss -> :warning
+        end
+      }
+    />
     """
   end
 end

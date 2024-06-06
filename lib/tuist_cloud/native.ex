@@ -12,4 +12,5 @@ defmodule TuistCloud.Native do
   def s3_multipart_complete_upload(_options), do: :erlang.nif_error(:nif_not_loaded)
   def s3_size(_options), do: :erlang.nif_error(:nif_not_loaded)
   def s3_delete_all_objects(_options), do: :erlang.nif_error(:nif_not_loaded)
+  def s3_get_object_as_string(_options), do: :erlang.nif_error(:nif_not_loaded)
 end
