@@ -700,6 +700,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
         public struct CommandEventArtifact: Codable, Equatable, Hashable, Sendable {
+            /// The name of the file. It's used only for certain types such as result_bundle_object
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/name`.
+            public var name: Swift.String?
             /// The command event artifact type.
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
@@ -708,11 +712,15 @@ public enum Components {
                 _AutoLosslessStringConvertible, CaseIterable
             {
                 case result_bundle
+                case invocation_record
+                case result_bundle_object
                 /// Parsed a raw value that was not defined in the OpenAPI document.
                 case undocumented(String)
                 public init?(rawValue: String) {
                     switch rawValue {
                     case "result_bundle": self = .result_bundle
+                    case "invocation_record": self = .invocation_record
+                    case "result_bundle_object": self = .result_bundle_object
                     default: self = .undocumented(rawValue)
                     }
                 }
@@ -720,9 +728,13 @@ public enum Components {
                     switch self {
                     case let .undocumented(string): return string
                     case .result_bundle: return "result_bundle"
+                    case .invocation_record: return "invocation_record"
+                    case .result_bundle_object: return "result_bundle_object"
                     }
                 }
-                public static var allCases: [_typePayload] { [.result_bundle] }
+                public static var allCases: [_typePayload] {
+                    [.result_bundle, .invocation_record, .result_bundle_object]
+                }
             }
             /// The command event artifact type.
             ///
@@ -731,11 +743,19 @@ public enum Components {
             /// Creates a new `CommandEventArtifact`.
             ///
             /// - Parameters:
+            ///   - name: The name of the file. It's used only for certain types such as result_bundle_object
             ///   - _type: The command event artifact type.
-            public init(_type: Components.Schemas.CommandEventArtifact._typePayload) {
+            public init(
+                name: Swift.String? = nil,
+                _type: Components.Schemas.CommandEventArtifact._typePayload
+            ) {
+                self.name = name
                 self._type = _type
             }
-            public enum CodingKeys: String, CodingKey { case _type = "type" }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case _type = "type"
+            }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
         public struct _Error: Codable, Equatable, Hashable, Sendable {

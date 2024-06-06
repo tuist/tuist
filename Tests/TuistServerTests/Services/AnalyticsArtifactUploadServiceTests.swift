@@ -8,6 +8,7 @@ import XCTest
 
 final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     private var subject: AnalyticsArtifactUploadService!
+    private var xcresultToolController: MockXCResultToolControlling!
     private var fileArchiverFactory: MockFileArchivingFactorying!
     private var multipartUploadStartAnalyticsService: MockMultipartUploadStartAnalyticsServicing!
     private var multipartUploadGenerateURLAnalyticsService: MockMultipartUploadGenerateURLAnalyticsServicing!
@@ -17,6 +18,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     override func setUp() {
         super.setUp()
 
+        xcresultToolController = .init()
         fileArchiverFactory = .init()
         multipartUploadStartAnalyticsService = .init()
         multipartUploadGenerateURLAnalyticsService = .init()
@@ -25,7 +27,9 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         subject = AnalyticsArtifactUploadService(
             fileHandler: fileHandler,
+            xcresultToolController: xcresultToolController,
             fileArchiver: fileArchiverFactory,
+            retryProvider: RetryProvider(),
             multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
             multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
@@ -46,14 +50,14 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     func test_upload_analytics_artifact() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        let artifactPath = temporaryDirectory.appending(component: "artifact.bundle")
-        try FileHandler.shared.touch(artifactPath)
+        let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
+        try FileHandler.shared.touch(resultBundle)
 
         let serverURL: URL = .test()
 
         let fileArchiver = MockFileArchiving()
         given(fileArchiverFactory)
-            .makeFileArchiver(for: .value([artifactPath]))
+            .makeFileArchiver(for: .value([resultBundle]))
             .willReturn(fileArchiver)
 
         let artifactArchivePath = temporaryDirectory.appending(component: "artifact.zip")
@@ -64,6 +68,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
+                .value(.init(type: .resultBundle)),
                 commandEventId: .value(1),
                 serverURL: .value(serverURL)
             )
@@ -78,6 +83,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(multipartUploadCompleteAnalyticsService)
             .uploadAnalyticsArtifact(
+                .any,
                 commandEventId: .value(1),
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
@@ -87,9 +93,50 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             )
             .willReturn(())
 
+        given(multipartUploadStartAnalyticsService)
+            .uploadAnalyticsArtifact(
+                .value(.init(type: .invocationRecord)),
+                commandEventId: .value(1),
+                serverURL: .value(serverURL)
+            )
+            .willReturn("upload-id")
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(resultBundle.parentDirectory.appending(component: "invocation_record.json")),
+                generateUploadURL: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        given(xcresultToolController)
+            .resultBundleObject(.value(resultBundle))
+            .willReturn(invocationRecordMockString)
+
+        let testResultBundleObjectId =
+            "0~8YCjlb3k7BnCmnR4_ZFg18UnVp4hOkZw8KiWEX8RunY_pe9wBaIbW90Jo1HePHl7st5Le_nRyAP4_dSvsdxYpw=="
+
+        given(xcresultToolController)
+            .resultBundleObject(.value(resultBundle), id: .value(testResultBundleObjectId))
+            .willReturn("{}")
+
+        given(multipartUploadStartAnalyticsService)
+            .uploadAnalyticsArtifact(
+                .value(.init(type: .resultBundleObject, name: testResultBundleObjectId)),
+                commandEventId: .value(1),
+                serverURL: .value(serverURL)
+            )
+            .willReturn("upload-id")
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(resultBundle.parentDirectory.appending(component: "\(testResultBundleObjectId).json")),
+                generateUploadURL: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
         // When / Then
-        try await subject.uploadAnalyticsArtifact(
-            artifactPath: artifactPath,
+        try await subject.uploadResultBundle(
+            resultBundle,
             commandEventId: 1,
             serverURL: serverURL
         )

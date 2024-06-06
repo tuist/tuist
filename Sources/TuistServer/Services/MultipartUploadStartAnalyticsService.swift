@@ -5,6 +5,7 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
     func uploadAnalyticsArtifact(
+        _ artifact: CloudCommandEvent.Artifact,
         commandEventId: Int,
         serverURL: URL
     ) async throws -> String
@@ -39,6 +40,7 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
     public init() {}
 
     public func uploadAnalyticsArtifact(
+        _ artifact: CloudCommandEvent.Artifact,
         commandEventId: Int,
         serverURL: URL
     ) async throws -> String {
@@ -46,7 +48,7 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
         let response = try await client.startAnalyticsArtifactMultipartUpload(
             .init(
                 path: .init(run_id: commandEventId),
-                body: .json(.init(_type: .result_bundle))
+                body: .json(.init(artifact))
             )
         )
         switch response {

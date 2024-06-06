@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
@@ -56,8 +57,8 @@ public class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
         if fileHandler.exists(resultBundle) {
-            try await analyticsArtifactUploadService.uploadAnalyticsArtifact(
-                artifactPath: resultBundle,
+            try await analyticsArtifactUploadService.uploadResultBundle(
+                resultBundle,
                 commandEventId: cloudCommandEvent.id,
                 serverURL: config.url
             )
