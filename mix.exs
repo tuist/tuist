@@ -94,6 +94,7 @@ defmodule TuistCloud.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      "ecto.create": ["db.create"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
