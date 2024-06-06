@@ -17,7 +17,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             given(swiftVersionProvider)
                 .swiftVersion()
                 .willReturn("5.2")
-            
+
             xcodeController.selectedVersionStub = .success("11.0.0")
             try setupTestProject()
         } catch {
