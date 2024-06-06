@@ -6,6 +6,7 @@ Mimic.copy(TuistCloud.Storage)
 Mimic.copy(TuistCloud.Time)
 Mimic.copy(TuistCloud.Date)
 Mimic.copy(TuistCloud.Slack)
+Mimic.copy(TuistCloud.CommandEvents)
 Mimic.copy(Req)
 
 ExUnit.start()

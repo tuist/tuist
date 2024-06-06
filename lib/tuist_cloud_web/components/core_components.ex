@@ -277,7 +277,7 @@ defmodule TuistCloudWeb.CoreComponents do
   end
 
   attr :kind, :atom,
-    values: [:info, :error, :warning, :brand, :brand_subtle, :neutral],
+    values: [:info, :error, :warning, :brand, :brand_subtle, :neutral, :success],
     doc: "the kind of badge"
 
   attr :title, :string, required: true, doc: "the title of the badge"

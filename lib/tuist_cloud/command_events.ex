@@ -2,6 +2,21 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.CommandEvents.TargetTestSummary
+  alias TuistCloud.CommandEvents.TestSummary
+
+  alias TuistCloud.CommandEvents.ResultBundle.{
+    ActionTestSummaryGroup,
+    Reference,
+    ActionTestableSummary,
+    ActionTestPlanRunSummary,
+    ActionTestPlanRunSummaries,
+    ActionResult,
+    ActionsInvocationRecord,
+    ActionRecord,
+    ActionTestMetadata
+  }
+
   alias TuistCloud.Storage
   alias TuistCloud.Projects.Project
   alias TuistCloud.Accounts.Account
@@ -93,23 +108,43 @@ defmodule TuistCloud.CommandEvents do
     |> Flop.validate_and_run!(attrs)
   end
 
-  def get_command_event_by_id(id) do
+  def get_command_event_by_id(id, opts \\ []) do
+    preloads = opts |> Keyword.get(:preloads, user: :account)
+
     Repo.get(Event, id)
-    |> Repo.preload(user: :account)
+    |> Repo.preload(preloads)
   end
 
   def has_result_bundle?(%Event{} = command_event) do
-    Storage.exists(get_result_bundle_object_key(command_event))
+    Storage.exists(get_result_bundle_key(command_event))
   end
 
   def generate_result_bundle_url(%Event{} = command_event) do
-    Storage.generate_download_url(get_result_bundle_object_key(command_event))
+    Storage.generate_download_url(get_result_bundle_key(command_event))
   end
 
-  def get_result_bundle_object_key(%Event{} = command_event) do
+  def get_result_bundle_key(%Event{} = command_event) do
     command_event = command_event |> Repo.preload(project: :account)
 
-    "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}/result_bundle.zip"
+    "#{get_command_event_artifact_base_path_key(command_event)}/result_bundle.zip"
+  end
+
+  def get_result_bundle_invocation_record_key(%Event{} = command_event) do
+    command_event = command_event |> Repo.preload(project: :account)
+
+    "#{get_command_event_artifact_base_path_key(command_event)}/invocation_record.json"
+  end
+
+  def get_result_bundle_object_key(%Event{} = command_event, result_bundle_object_id) do
+    command_event = command_event |> Repo.preload(project: :account)
+
+    "#{get_command_event_artifact_base_path_key(command_event)}/#{result_bundle_object_id}.json"
+  end
+
+  defp get_command_event_artifact_base_path_key(%Event{} = command_event) do
+    command_event = command_event |> Repo.preload(project: :account)
+
+    "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
   end
 
   def get_command_duration_analytics(
@@ -566,6 +601,173 @@ defmodule TuistCloud.CommandEvents do
       String.slice(error_message, 0, 240) <> "... (truncated)"
     else
       error_message
+    end
+  end
+
+  def get_test_summary(%Event{} = command_event) do
+    invocation_record_key = get_result_bundle_invocation_record_key(command_event)
+
+    if Storage.exists(invocation_record_key) do
+      {:ok, invocation_record} =
+        Storage.get_object(invocation_record_key)
+        |> Jason.decode()
+
+      invocation_record = get_actions_invocation_record(invocation_record)
+
+      test_action_summaries =
+        invocation_record.actions
+        |> Enum.filter(fn action -> action.scheme_command_name == "Test" end)
+        |> Enum.map(fn action ->
+          {:ok, test_plan_summaries} =
+            Storage.get_object(
+              get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
+            )
+            |> Jason.decode()
+
+          test_plan_summaries
+          |> get_actions_test_plan_run_summaries()
+        end)
+        |> Enum.flat_map(& &1.summaries)
+
+      target_tests =
+        test_action_summaries
+        |> Enum.flat_map(& &1.testable_summaries)
+        |> Enum.reduce(%{}, fn testable_summary, tests_map ->
+          tests =
+            testable_summary.tests
+            |> Enum.flat_map(&get_test_summary_group_tests/1)
+
+          tests_map
+          |> Map.put(
+            testable_summary.target_name,
+            %TargetTestSummary{
+              tests: tests,
+              status:
+                if Enum.any?(tests, fn test -> test.test_status == "Failure" end) do
+                  :failure
+                else
+                  :success
+                end
+            }
+          )
+        end)
+
+      all_tests =
+        Enum.flat_map(target_tests, fn {_, target_test_summary} -> target_test_summary.tests end)
+
+      total_tests_count = length(all_tests)
+
+      failed_tests_count =
+        Enum.filter(all_tests, fn test -> test.test_status == "Failure" end) |> length
+
+      successful_tests_count = total_tests_count - failed_tests_count
+
+      %TestSummary{
+        target_tests: target_tests,
+        failed_tests_count: failed_tests_count,
+        successful_tests_count: successful_tests_count,
+        total_tests_count: total_tests_count
+      }
+    else
+      nil
+    end
+  end
+
+  defp get_test_summary_group_tests(action_test_summary_group) do
+    action_test_summary_group.subtests ++
+      Enum.flat_map(action_test_summary_group.subtest_groups, &get_test_summary_group_tests/1)
+  end
+
+  defp get_actions_test_plan_run_summaries(json) do
+    %ActionTestPlanRunSummaries{
+      summaries:
+        get_result_bundle_array(json, "summaries")
+        |> Enum.map(&get_actions_test_plan_run_summary/1)
+    }
+  end
+
+  defp get_actions_test_plan_run_summary(json) do
+    %ActionTestPlanRunSummary{
+      testable_summaries:
+        get_result_bundle_array(json, "testableSummaries")
+        |> Enum.map(&get_actions_testable_summary/1)
+    }
+  end
+
+  defp get_actions_testable_summary(json) do
+    %ActionTestableSummary{
+      target_name: get_result_bundle_value(json, "targetName"),
+      tests:
+        get_result_bundle_array(json, "tests", type: "ActionTestSummaryGroup")
+        |> Enum.map(&get_action_test_summary_group/1)
+    }
+  end
+
+  defp get_action_test_summary_group(json) do
+    %ActionTestSummaryGroup{
+      subtests:
+        get_result_bundle_array(json, "subtests", type: "ActionTestMetadata")
+        |> Enum.map(&get_action_test_metadata/1),
+      subtest_groups:
+        get_result_bundle_array(json, "subtests", type: "ActionTestSummaryGroup")
+        |> Enum.map(&get_action_test_summary_group/1)
+    }
+  end
+
+  defp get_action_test_metadata(json) do
+    %ActionTestMetadata{
+      test_status: get_result_bundle_value!(json, "testStatus"),
+      name: get_result_bundle_value(json, "name")
+    }
+  end
+
+  defp get_actions_invocation_record(json) do
+    %ActionsInvocationRecord{
+      actions:
+        get_result_bundle_array(json, "actions")
+        |> Enum.map(&get_action_record/1)
+    }
+  end
+
+  defp get_action_record(json) do
+    %ActionRecord{
+      scheme_command_name: get_result_bundle_value!(json, "schemeCommandName"),
+      action_result: get_action_result(json["actionResult"])
+    }
+  end
+
+  defp get_action_result(json) do
+    %ActionResult{
+      tests_ref: get_reference(json["testsRef"])
+    }
+  end
+
+  defp get_reference(json) do
+    %Reference{
+      id: get_result_bundle_value(json, "id")
+    }
+  end
+
+  defp get_result_bundle_value!(json, key) do
+    json[key]["_value"]
+  end
+
+  defp get_result_bundle_value(json, key) do
+    if is_nil(json[key]) do
+      nil
+    else
+      json[key]["_value"]
+    end
+  end
+
+  defp get_result_bundle_array(json, key, opts \\ []) do
+    type = Keyword.get(opts, :type)
+
+    if is_nil(type) do
+      json[key]["_values"]
+    else
+      json[key]["_values"]
+      |> Enum.filter(fn value -> value["_type"]["_name"] == type end)
     end
   end
 

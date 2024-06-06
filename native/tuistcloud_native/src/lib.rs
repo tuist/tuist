@@ -12,5 +12,6 @@ rustler::init!(
       s3::s3_multipart_complete_upload,
       s3::s3_size,
       s3::s3_delete_all_objects,
+      s3::s3_get_object_as_string
   ]
 );

@@ -288,6 +288,42 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
     end
+
+    test "starts multipart upload for a result_bundle_object", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
+
+      Storage
+      |> expect(:multipart_start, fn ^object_key ->
+        upload_id
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/runs/#{command_event.id}/start",
+          type: "result_bundle_object",
+          name: "some-id"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
   end
 
   describe "POST /api/runs/:run_id/generate-url" do
