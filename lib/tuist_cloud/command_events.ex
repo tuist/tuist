@@ -22,20 +22,36 @@ defmodule TuistCloud.CommandEvents do
         },
         attrs \\ []
       ) do
-    %CacheEvent{}
-    |> CacheEvent.create_changeset(%{
-      project_id: project_id,
-      name: name,
-      hash: hash,
-      event_type: event_type,
-      size: size,
-      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
-    })
-    |> Repo.insert!()
+    {:ok, cache_event} =
+      Repo.transaction(fn ->
+        if is_nil(get_cache_event(%{hash: hash, event_type: event_type})) do
+          %CacheEvent{}
+          |> CacheEvent.create_changeset(%{
+            project_id: project_id,
+            name: name,
+            hash: hash,
+            event_type: event_type,
+            size: size,
+            created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+          })
+          |> Repo.insert!()
+        end
+      end)
+
+    cache_event
   end
 
   def get_cache_event(%{hash: hash, event_type: event_type}) do
-    Repo.get_by(CacheEvent, hash: hash, event_type: event_type)
+    # Note
+    # We should have added a unique index on the hash and event_type columns.
+    # However, this was a design mistake, so we are taking the last event as the valid one.
+    # In a future iteration, we should delete duplicated rows, and add the unique index.
+    Repo.one(
+      from c in CacheEvent,
+        where: c.hash == ^hash and c.event_type == ^event_type,
+        order_by: [desc: :created_at],
+        limit: 1
+    )
   end
 
   def update_cache_event_counts() do

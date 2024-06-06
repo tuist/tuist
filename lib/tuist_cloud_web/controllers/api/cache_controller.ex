@@ -459,15 +459,13 @@ defmodule TuistCloudWeb.API.CacheController do
         end)
       )
 
-    if is_nil(CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})) do
-      CommandEvents.create_cache_event(%{
-        name: name,
-        event_type: :upload,
-        size: Storage.size(object_key(item)),
-        project_id: EnsureProjectPresencePlug.get_project(conn).id,
-        hash: hash
-      })
-    end
+    CommandEvents.create_cache_event(%{
+      name: name,
+      event_type: :upload,
+      size: Storage.size(object_key(item)),
+      project_id: EnsureProjectPresencePlug.get_project(conn).id,
+      hash: hash
+    })
 
     conn |> json(%{status: "success", data: %{}})
   end
