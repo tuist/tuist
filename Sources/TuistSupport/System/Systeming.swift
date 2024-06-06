@@ -45,7 +45,7 @@ public protocol Systeming {
     /// - Throws: An error if the command fails.
     func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws
 
-    /// Runs a command in the shell printing its output.
+    /// Runs a command in the shell and redirects output based on the passed in parameter.
     ///
     /// - Parameters:
     ///   - arguments: Command.

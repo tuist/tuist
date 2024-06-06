@@ -131,7 +131,7 @@ public final class System: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
-        try run(arguments, verbose: false, environment: environment, redirection: streamToStandardOutputs)
+        try run(arguments, verbose: verbose, environment: environment, redirection: streamToStandardOutputs)
     }
 
     private var streamToStandardOutputs: TSCBasic.Process.OutputRedirection {
