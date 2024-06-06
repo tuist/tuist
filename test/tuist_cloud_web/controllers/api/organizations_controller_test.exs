@@ -1,4 +1,4 @@
-defmodule TuistCloudWeb.OrganizationsControllerTest do
+defmodule TuistCloudWeb.API.OrganizationsControllerTest do
   alias TuistCloud.Environment
   alias TuistCloudWeb.Authentication
   alias TuistCloud.AccountsFixtures

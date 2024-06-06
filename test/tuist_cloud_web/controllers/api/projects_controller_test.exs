@@ -1,4 +1,4 @@
-defmodule TuistCloudWeb.ProjectsControllerTest do
+defmodule TuistCloudWeb.API.ProjectsControllerTest do
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Accounts

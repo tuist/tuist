@@ -25,12 +25,21 @@ defmodule TuistCloudWeb.ErrorHTML do
   end
 
   def render("404.html", assigns) do
+    reason = assigns.reason
+
+    reason_message =
+      if is_nil(reason) do
+        gettext("Sorry, the page you are looking for doesn't exist or has been moved.")
+      else
+        reason.message
+      end
+
     render_error_page(
       assigns
       |> Map.put(:title, gettext("We can't find that page."))
       |> Map.put(
         :message,
-        gettext("Sorry, the page you are looking for doesn't exist or has been moved.")
+        reason_message
       )
       |> Map.put(:error_name, gettext("404 error"))
     )

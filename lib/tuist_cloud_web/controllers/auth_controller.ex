@@ -7,6 +7,11 @@ defmodule TuistCloudWeb.AuthController do
   alias TuistCloud.Accounts
   alias TuistCloudWeb.Authentication
 
+  def request(_conn, _params) do
+    raise TuistCloudWeb.Errors.NotFoundError,
+          gettext("The authentication URL is not supported")
+  end
+
   def delete(conn, _params) do
     conn
     |> put_flash(:info, "You have been logged out!")
