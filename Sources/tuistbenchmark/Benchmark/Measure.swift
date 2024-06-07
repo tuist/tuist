@@ -1,4 +1,5 @@
 import Foundation
+import TSCUtility
 import TSCBasic
 
 struct MeasureResult {
@@ -49,6 +50,7 @@ final class Measure {
         fixturePath: AbsolutePath
     ) throws -> [TimeInterval] {
         try (0 ..< runs).map { _ in
+            
             try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
                 let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
                 try fileHandler.copy(path: fixturePath, to: temporaryPath)

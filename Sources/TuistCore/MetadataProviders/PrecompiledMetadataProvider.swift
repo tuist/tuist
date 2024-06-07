@@ -1,6 +1,6 @@
 import Foundation
 import MachO
-import TSCBasic
+import Path
 import TuistSupport
 import XcodeGraph
 

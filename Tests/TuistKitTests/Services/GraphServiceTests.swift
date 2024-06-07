@@ -2,7 +2,7 @@ import DOT
 import Foundation
 import GraphViz
 import ProjectAutomation
-import TSCBasic
+import Path
 import TuistPlugin
 import TuistSupport
 import XcodeGraph

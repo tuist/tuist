@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 
 struct CloudProjectCommand: ParsableCommand {
     static var configuration: CommandConfiguration {

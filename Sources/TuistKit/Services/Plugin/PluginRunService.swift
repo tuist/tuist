@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistSupport
 
 final class PluginRunService {

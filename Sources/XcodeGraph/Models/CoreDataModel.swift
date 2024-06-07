@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Represents a Core Data model
 public struct CoreDataModel: Equatable, Codable {

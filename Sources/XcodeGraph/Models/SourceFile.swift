@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// A type that represents a source file.
 public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {

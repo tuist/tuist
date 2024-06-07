@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import TSCBasic
+import Path
 import UniformTypeIdentifiers
 
 let systemGlob = Darwin.glob

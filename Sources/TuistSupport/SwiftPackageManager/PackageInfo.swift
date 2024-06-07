@@ -1,5 +1,5 @@
 import ProjectDescription
-import TSCBasic
+import Path
 import TSCUtility
 
 // MARK: - PackageInfo

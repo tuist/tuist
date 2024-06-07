@@ -1,9 +1,10 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
+import TSCBasic
 
 enum ProjectGroupsError: FatalError, Equatable {
     case missingGroup(String)

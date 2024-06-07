@@ -1,15 +1,16 @@
 import CryptoKit
 import Foundation
+import Path
 import TSCBasic
 import ZIPFoundation
 
 public enum FileHandlerError: FatalError, Equatable {
-    case invalidTextEncoding(AbsolutePath)
-    case writingError(AbsolutePath)
-    case fileNotFound(AbsolutePath)
-    case unreachableFileSize(AbsolutePath)
-    case expectedAFile(AbsolutePath)
-    case propertyListDecodeError(AbsolutePath, description: String)
+    case invalidTextEncoding(Path.AbsolutePath)
+    case writingError(Path.AbsolutePath)
+    case fileNotFound(Path.AbsolutePath)
+    case unreachableFileSize(Path.AbsolutePath)
+    case expectedAFile(Path.AbsolutePath)
+    case propertyListDecodeError(Path.AbsolutePath, description: String)
 
     public var description: String {
         switch self {
@@ -42,46 +43,46 @@ public enum FileHandlerError: FatalError, Equatable {
 /// methods to interact with the system files and folders.
 public protocol FileHandling: AnyObject {
     /// Returns the current path.
-    var currentPath: AbsolutePath { get }
+    var currentPath: Path.AbsolutePath { get }
 
     /// Returns `AbsolutePath` to home directory
-    var homeDirectory: AbsolutePath { get }
+    var homeDirectory: Path.AbsolutePath { get }
 
-    func replace(_ to: AbsolutePath, with: AbsolutePath) throws
-    func exists(_ path: AbsolutePath) -> Bool
-    func move(from: AbsolutePath, to: AbsolutePath) throws
-    func copy(from: AbsolutePath, to: AbsolutePath) throws
-    func readFile(_ at: AbsolutePath) throws -> Data
-    func readTextFile(_ at: AbsolutePath) throws -> String
-    func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T
+    func replace(_ to: Path.AbsolutePath, with: Path.AbsolutePath) throws
+    func exists(_ path: Path.AbsolutePath) -> Bool
+    func move(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
+    func copy(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
+    func readFile(_ at: Path.AbsolutePath) throws -> Data
+    func readTextFile(_ at: Path.AbsolutePath) throws -> String
+    func readPlistFile<T: Decodable>(_ at: Path.AbsolutePath) throws -> T
     /// Determine temporary directory either default for user or specified by ENV variable
-    func determineTemporaryDirectory() throws -> AbsolutePath
-    func temporaryDirectory() throws -> AbsolutePath
-    func inTemporaryDirectory(_ closure: @escaping (AbsolutePath) async throws -> Void) async throws
-    func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
-    func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws
-    func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result
-    func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result
-    func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
-    func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
-    func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath?
-    func files(in path: AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<AbsolutePath>
-    func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
-    func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath]
-    func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
-    func createFolder(_ path: AbsolutePath) throws
-    func delete(_ path: AbsolutePath) throws
-    func isFolder(_ path: AbsolutePath) -> Bool
-    func touch(_ path: AbsolutePath) throws
-    func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath]
-    func urlSafeBase64MD5(path: AbsolutePath) throws -> String
-    func fileSize(path: AbsolutePath) throws -> UInt64
-    func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
-    func resolveSymlinks(_ path: AbsolutePath) throws -> AbsolutePath
-    func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
-    func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]?
-    func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
-    func unzipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
+    func determineTemporaryDirectory() throws -> Path.AbsolutePath
+    func temporaryDirectory() throws -> Path.AbsolutePath
+    func inTemporaryDirectory(_ closure: @escaping (Path.AbsolutePath) async throws -> Void) async throws
+    func inTemporaryDirectory(_ closure: (Path.AbsolutePath) throws -> Void) throws
+    func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Void) throws
+    func inTemporaryDirectory<Result>(_ closure: (Path.AbsolutePath) throws -> Result) throws -> Result
+    func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Result) throws -> Result
+    func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws
+    func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath?
+    func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
+    func files(in path: Path.AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<Path.AbsolutePath>
+    func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath]
+    func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
+    func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
+    func createFolder(_ path: Path.AbsolutePath) throws
+    func delete(_ path: Path.AbsolutePath) throws
+    func isFolder(_ path: Path.AbsolutePath) -> Bool
+    func touch(_ path: Path.AbsolutePath) throws
+    func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath]
+    func urlSafeBase64MD5(path: Path.AbsolutePath) throws -> String
+    func fileSize(path: Path.AbsolutePath) throws -> UInt64
+    func changeExtension(path: Path.AbsolutePath, to newExtension: String) throws -> Path.AbsolutePath
+    func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath
+    func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any]
+    func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]?
+    func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
+    func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
 }
 
 public class FileHandler: FileHandling {
@@ -98,15 +99,15 @@ public class FileHandler: FileHandling {
         self.fileManager = fileManager
     }
 
-    public var currentPath: AbsolutePath {
+    public var currentPath: Path.AbsolutePath {
         try! AbsolutePath(validating: fileManager.currentDirectoryPath) // swiftlint:disable:this force_try
     }
 
-    public var homeDirectory: AbsolutePath {
+    public var homeDirectory: Path.AbsolutePath {
         try! AbsolutePath(validating: NSHomeDirectory()) // swiftlint:disable:this force_try
     }
 
-    public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
+    public func replace(_ to: Path.AbsolutePath, with: Path.AbsolutePath) throws {
         // To support cases where the destination is on a different volume
         // we need to create a temporary directory that is suitable
         // for performing a `replaceItemAt`
@@ -127,57 +128,65 @@ public class FileHandler: FileHandling {
         _ = try fileManager.replaceItemAt(to.url, withItemAt: tempUrl)
     }
 
-    public func temporaryDirectory() throws -> AbsolutePath {
+    public func temporaryDirectory() throws -> Path.AbsolutePath {
         let directory = try TemporaryDirectory(removeTreeOnDeinit: false)
         return directory.path
     }
 
-    public func determineTemporaryDirectory() throws -> AbsolutePath {
-        try determineTempDirectory()
+    public func determineTemporaryDirectory() throws -> Path.AbsolutePath {
+        try .init(validating: determineTempDirectory().pathString)
     }
 
-    public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
-        try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
+    public func inTemporaryDirectory<Result>(_ closure: (Path.AbsolutePath) throws -> Result) throws -> Result {
+        try withTemporaryDirectory(removeTreeOnDeinit: true, { path in
+            try closure(.init(validating: path.pathString))
+        })
     }
 
-    public func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws {
-        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
+    public func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Void) throws {
+        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, { path in
+            try closure(.init(validating: path.pathString))
+        })
     }
 
-    public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-        try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
+    public func inTemporaryDirectory(_ closure: (Path.AbsolutePath) throws -> Void) throws {
+        try withTemporaryDirectory(removeTreeOnDeinit: true, { path in
+            try closure(.init(validating: path.pathString))
+        })
     }
 
-    public func inTemporaryDirectory(_ closure: @escaping (AbsolutePath) async throws -> Void) async throws {
+    public func inTemporaryDirectory(_ closure: @escaping (Path.AbsolutePath) async throws -> Void) async throws {
         let directory = try TemporaryDirectory(removeTreeOnDeinit: true)
         try await closure(directory.path)
     }
 
     public func inTemporaryDirectory<Result>(
         removeOnCompletion: Bool,
-        _ closure: (AbsolutePath) throws -> Result
+        _ closure: (Path.AbsolutePath) throws -> Result
     ) throws -> Result {
-        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
+        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, { path in
+            try closure(try .init(validating: path.pathString))
+        })
     }
 
-    public func exists(_ path: AbsolutePath) -> Bool {
+    public func exists(_ path: Path.AbsolutePath) -> Bool {
         let exists = fileManager.fileExists(atPath: path.pathString)
         return exists
     }
 
-    public func copy(from: AbsolutePath, to: AbsolutePath) throws {
+    public func copy(from: Path.AbsolutePath, to: Path.AbsolutePath) throws {
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
     }
 
-    public func move(from: AbsolutePath, to: AbsolutePath) throws {
+    public func move(from: Path.AbsolutePath, to: Path.AbsolutePath) throws {
         try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
-    public func readFile(_ at: AbsolutePath) throws -> Data {
+    public func readFile(_ at: Path.AbsolutePath) throws -> Data {
         return try Data(contentsOf: at.url)
     }
 
-    public func readTextFile(_ at: AbsolutePath) throws -> String {
+    public func readTextFile(_ at: Path.AbsolutePath) throws -> String {
         let data = try Data(contentsOf: at.url)
         if let content = String(data: data, encoding: .utf8) {
             return content
@@ -186,7 +195,7 @@ public class FileHandler: FileHandling {
         }
     }
 
-    public func readPlistFile<T: Decodable>(_ at: AbsolutePath) throws -> T {
+    public func readPlistFile<T: Decodable>(_ at: Path.AbsolutePath) throws -> T {
         guard let data = fileManager.contents(atPath: at.pathString) else {
             throw FileHandlerError.fileNotFound(at)
         }
@@ -201,17 +210,17 @@ public class FileHandler: FileHandling {
         }
     }
 
-    public func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws {
+    public func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws {
         try fileManager.linkItem(atPath: atPath.pathString, toPath: toPath.pathString)
     }
 
-    public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+    public func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws {
         do {
             try content.write(to: path.url, atomically: atomically, encoding: .utf8)
         } catch {}
     }
 
-    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath? {
+    public func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath? {
         let extendedPath = from.appending(try RelativePath(validating: path))
         if exists(extendedPath) {
             return extendedPath
@@ -223,11 +232,11 @@ public class FileHandler: FileHandling {
     }
 
     public func files(
-        in path: AbsolutePath,
+        in path: Path.AbsolutePath,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
-    ) -> Set<AbsolutePath> {
-        var results = Set<AbsolutePath>()
+    ) -> Set<Path.AbsolutePath> {
+        var results = Set<Path.AbsolutePath>()
 
         let enumerator = fileManager.enumerator(
             at: path.url,
@@ -262,15 +271,15 @@ public class FileHandler: FileHandling {
         return results
     }
 
-    public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
+    public func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath] {
         path.glob(glob)
     }
 
-    public func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath] {
+    public func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath] {
         try path.throwingGlob(glob)
     }
 
-    public func createFolder(_ path: AbsolutePath) throws {
+    public func createFolder(_ path: Path.AbsolutePath) throws {
         try fileManager.createDirectory(
             at: path.url,
             withIntermediateDirectories: true,
@@ -278,13 +287,13 @@ public class FileHandler: FileHandling {
         )
     }
 
-    public func delete(_ path: AbsolutePath) throws {
+    public func delete(_ path: Path.AbsolutePath) throws {
         if exists(path) {
             try fileManager.removeItem(atPath: path.pathString)
         }
     }
 
-    public func touch(_ path: AbsolutePath) throws {
+    public func touch(_ path: Path.AbsolutePath) throws {
         try fileManager.createDirectory(
             at: path.removingLastComponent().url,
             withIntermediateDirectories: true,
@@ -293,16 +302,16 @@ public class FileHandler: FileHandling {
         try Data().write(to: path.url)
     }
 
-    public func isFolder(_ path: AbsolutePath) -> Bool {
+    public func isFolder(_ path: Path.AbsolutePath) -> Bool {
         var isDirectory = ObjCBool(true)
         let exists = fileManager.fileExists(atPath: path.pathString, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
     }
 
-    public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
+    public func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath? {
         let configPath = from.appending(component: path)
 
-        let root = try! AbsolutePath(validating: "/") // swiftlint:disable:this force_try
+        let root = try! Path.AbsolutePath(validating: "/") // swiftlint:disable:this force_try
         if FileHandler.shared.exists(configPath) {
             return configPath
         } else if from == root {
@@ -312,29 +321,29 @@ public class FileHandler: FileHandling {
         }
     }
 
-    public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
+    public func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath] {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { try AbsolutePath(validating: $0, relativeTo: path) }
     }
 
-    public func createSymbolicLink(at path: AbsolutePath, destination: AbsolutePath) throws {
+    public func createSymbolicLink(at path: Path.AbsolutePath, destination: Path.AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
     }
 
-    public func resolveSymlinks(_ path: AbsolutePath) throws -> AbsolutePath {
-        try TSCBasic.resolveSymlinks(path)
+    public func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath {
+        try .init(validating: TSCBasic.resolveSymlinks(.init(validating: path.pathString)).pathString)
     }
 
-    public func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any] {
+    public func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any] {
         try fileManager.attributesOfItem(atPath: path.pathString)
     }
 
-    public func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]? {
+    public func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]? {
         try fileManager.subpaths(atPath: path.pathString)?.map { path.appending(try RelativePath(validating: $0)) }
     }
 
     // MARK: - MD5
 
-    public func urlSafeBase64MD5(path: AbsolutePath) throws -> String {
+    public func urlSafeBase64MD5(path: Path.AbsolutePath) throws -> String {
         let data = try Data(contentsOf: path.url)
         let digestData = Data(Insecure.MD5.hash(data: data))
         return digestData.base64EncodedString()
@@ -344,7 +353,7 @@ public class FileHandler: FileHandling {
 
     // MARK: - File Attributes
 
-    public func fileSize(path: AbsolutePath) throws -> UInt64 {
+    public func fileSize(path: Path.AbsolutePath) throws -> UInt64 {
         let attr = try fileManager.attributesOfItem(atPath: path.pathString)
         guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }
         return size
@@ -352,7 +361,7 @@ public class FileHandler: FileHandling {
 
     // MARK: - Extension
 
-    public func changeExtension(path: AbsolutePath, to fileExtension: String) throws -> AbsolutePath {
+    public func changeExtension(path: Path.AbsolutePath, to fileExtension: String) throws -> Path.AbsolutePath {
         guard isFolder(path) == false else { throw FileHandlerError.expectedAFile(path) }
         let sanitizedExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
         guard path.extension != sanitizedExtension else { return path }
@@ -362,11 +371,11 @@ public class FileHandler: FileHandling {
         return newPath
     }
 
-    public func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws {
-        try fileManager.zipItem(at: sourcePath.asURL, to: destinationPath.asURL, shouldKeepParent: false)
+    public func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
+        try fileManager.zipItem(at: URL(string: sourcePath.pathString)!, to: URL(string: destinationPath.pathString)!, shouldKeepParent: false)
     }
 
-    public func unzipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws {
-        try fileManager.unzipItem(at: sourcePath.asURL, to: destinationPath.asURL)
+    public func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
+        try fileManager.unzipItem(at: URL(string: sourcePath.pathString)!, to: URL(string: destinationPath.pathString)!)
     }
 }

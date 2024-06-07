@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TSCBasic
+import Path
 import TuistSupport
 import XcodeGraph
 
@@ -36,7 +36,7 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
         return cacheDirectory.appending(components: ["tuist", category.directoryName])
     }
 
-    public func cacheDirectory() throws -> TSCBasic.AbsolutePath {
+    public func cacheDirectory() throws -> Path.AbsolutePath {
         if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
             return try AbsolutePath(validating: xdgCacheHome)
         } else {

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public struct BuildAction: Equatable, Codable {
     // MARK: - Attributes

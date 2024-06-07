@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public struct PlatformCondition: Codable, Hashable, Equatable, Comparable {
     public static func < (lhs: PlatformCondition, rhs: PlatformCondition) -> Bool {

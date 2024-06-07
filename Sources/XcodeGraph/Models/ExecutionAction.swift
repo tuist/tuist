@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// A execution action
 public struct ExecutionAction: Equatable, Codable {

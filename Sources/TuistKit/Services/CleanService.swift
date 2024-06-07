@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -55,7 +55,7 @@ enum TuistCleanCategory: CleanCategory, Equatable {
     func directory(
         packageDirectory: AbsolutePath?,
         cacheDirectory: AbsolutePath
-    ) throws -> TSCBasic.AbsolutePath? {
+    ) throws -> Path.AbsolutePath? {
         switch self {
         case let .global(category):
             return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)

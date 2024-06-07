@@ -1,7 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import XcodeGraph
+import TSCBasic
 
 extension XcodeGraph.Graph {
     /// Filters the project graph
@@ -59,7 +60,7 @@ extension XcodeGraph.Graph {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(_ projects: [AbsolutePath: XcodeGraph.Project]) -> Bool {
+    fileprivate func isExternal(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
         case let .target(_, path):
             return projects[path]?.isExternal ?? false

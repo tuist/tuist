@@ -3,7 +3,7 @@ import Foundation
 import GraphViz
 import ProjectAutomation
 import Tools
-import TSCBasic
+import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader

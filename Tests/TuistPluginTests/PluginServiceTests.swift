@@ -1,6 +1,7 @@
 import MockableTest
-import ProjectDescription
-import TSCBasic
+import struct ProjectDescription.Plugin
+import struct ProjectDescription.PluginLocation
+import Path
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
@@ -12,6 +13,7 @@ import TuistSupportTesting
 import XcodeGraph
 import XcodeGraphTesting
 import XCTest
+import TSCBasic
 
 @testable import TuistPlugin
 
@@ -134,13 +136,13 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         )
         var invokedCloneURL: String?
-        var invokedClonePath: AbsolutePath?
+        var invokedClonePath: Path.AbsolutePath?
         gitHandler.cloneToStub = { url, path in
             invokedCloneURL = url
             invokedClonePath = path
         }
         var invokedCheckoutID: String?
-        var invokedCheckoutPath: AbsolutePath?
+        var invokedCheckoutPath: Path.AbsolutePath?
         gitHandler.checkoutStub = { id, path in
             invokedCheckoutID = id
             invokedCheckoutPath = path
@@ -178,13 +180,13 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         )
         var invokedCloneURL: String?
-        var invokedClonePath: AbsolutePath?
+        var invokedClonePath: Path.AbsolutePath?
         gitHandler.cloneToStub = { url, path in
             invokedCloneURL = url
             invokedClonePath = path
         }
         var invokedCheckoutID: String?
-        var invokedCheckoutPath: AbsolutePath?
+        var invokedCheckoutPath: Path.AbsolutePath?
         gitHandler.checkoutStub = { id, path in
             invokedCheckoutID = id
             invokedCheckoutPath = path
@@ -321,7 +323,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = pluginPath.appending(components: "ResourceSynthesizers")
 
-        try makeDirectories(resourceTemplatesPath)
+        try makeDirectories(.init(validating: resourceTemplatesPath.pathString))
 
         manifestLoader.loadConfigStub = { _ in
             .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
@@ -356,7 +358,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
-        try makeDirectories(resourceTemplatesPath)
+        try makeDirectories(.init(validating: resourceTemplatesPath.pathString))
 
         manifestLoader.loadConfigStub = { _ in
             .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
@@ -397,7 +399,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         }
 
-        try makeDirectories(templatePath)
+        try makeDirectories(.init(validating: templatePath.pathString))
 
         // When
         manifestLoader.loadConfigStub = { _ in
@@ -434,7 +436,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             ]
         }
 
-        try makeDirectories(templatePath)
+        try makeDirectories(.init(validating: templatePath.pathString))
 
         // When
         manifestLoader.loadConfigStub = { _ in

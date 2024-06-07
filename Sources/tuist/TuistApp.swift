@@ -1,8 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistKit
 import TuistLoader
 import TuistSupport
+import TSCBasic
 
 @main
 @_documentation(visibility: private)

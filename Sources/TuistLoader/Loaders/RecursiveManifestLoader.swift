@@ -1,8 +1,8 @@
 import Foundation
 import ProjectDescription
-import TSCBasic
 import TuistSupport
 import XcodeGraph
+import Path
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
@@ -49,7 +49,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.packageInfoMapper = packageInfoMapper
     }
 
-    public func loadWorkspace(at path: TSCBasic.AbsolutePath) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
         let loadedWorkspace: ProjectDescription.Workspace?
         do {
             loadedWorkspace = try manifestLoader.loadWorkspace(at: path)

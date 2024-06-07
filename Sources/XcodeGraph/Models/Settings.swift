@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public typealias SettingsDictionary = [String: SettingValue]
 

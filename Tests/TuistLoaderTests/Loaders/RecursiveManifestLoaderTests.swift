@@ -1,7 +1,7 @@
 import Foundation
 import MockableTest
 import ProjectDescription
-import TSCBasic
+import Path
 import TuistSupport
 import XCTest
 

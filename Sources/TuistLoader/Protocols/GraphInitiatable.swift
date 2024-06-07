@@ -1,6 +1,7 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
+import TSCBasic
 
 /// Protocol conformed by the models that are part of the manifest.
 /// The protocol defines a constructor that takes the JSON representation
@@ -15,5 +16,5 @@ protocol GraphInitiatable {
     ///   - projectPath: Absolute path to the folder that contains the manifest.
     ///     This is useful to obtain absolute paths from the relative paths provided in the manifest by the user.
     /// - Throws: A decoding error if an expected property is missing or has an invalid value.
-    init(dictionary: JSON, projectPath: AbsolutePath) throws
+    init(dictionary: JSON, projectPath: Path.AbsolutePath) throws
 }

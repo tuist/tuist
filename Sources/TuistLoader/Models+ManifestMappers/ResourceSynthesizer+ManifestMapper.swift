@@ -1,5 +1,5 @@
 import ProjectDescription
-import TSCBasic
+import Path
 import XcodeGraph
 
 extension XcodeGraph.ResourceSynthesizer {

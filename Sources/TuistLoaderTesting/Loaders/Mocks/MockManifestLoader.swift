@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TSCBasic
+import Path
 import TuistSupport
 import struct XcodeGraph.Plugins
 @testable import TuistLoader

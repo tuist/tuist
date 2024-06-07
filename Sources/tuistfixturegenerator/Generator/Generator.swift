@@ -1,4 +1,5 @@
 import Foundation
+import TSCUtility
 import TSCBasic
 
 class Generator {

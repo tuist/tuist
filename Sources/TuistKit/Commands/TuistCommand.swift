@@ -1,6 +1,6 @@
 @_exported import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistAnalytics
 import TuistLoader
 import TuistSupport

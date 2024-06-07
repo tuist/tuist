@@ -1,9 +1,10 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import TSCBasic
 
 final class DumpService {
     private let manifestLoader: ManifestLoading
@@ -13,7 +14,7 @@ final class DumpService {
     }
 
     func run(path: String?, manifest: DumpableManifest) async throws {
-        let projectPath: AbsolutePath
+        let projectPath: Path.AbsolutePath
         if let path {
             projectPath = try AbsolutePath(validating: path, relativeTo: AbsolutePath.current)
         } else {

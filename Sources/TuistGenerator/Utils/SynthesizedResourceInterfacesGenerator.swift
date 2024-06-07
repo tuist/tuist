@@ -2,7 +2,7 @@ import PathKit
 import Stencil
 import StencilSwiftKit
 import SwiftGenKit
-import TSCBasic
+import Path
 import TuistSupport
 import XcodeGraph
 

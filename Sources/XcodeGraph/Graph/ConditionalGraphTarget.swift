@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public struct GraphTargetReference: Equatable, Comparable, Hashable, CustomDebugStringConvertible, CustomStringConvertible,
     Codable

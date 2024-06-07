@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import Path
 
 extension ProcessResult {
     /// Throws a SystemError if the result is unsuccessful.
@@ -213,10 +214,10 @@ public final class System: Systeming {
 
     public func chmod(
         _ mode: FileMode,
-        path: AbsolutePath,
+        path: Path.AbsolutePath,
         options: Set<FileMode.Option>
     ) throws {
-        try localFileSystem.chmod(mode, path: path, options: options)
+        try localFileSystem.chmod(mode, path: .init(validating: path.pathString), options: options)
     }
 
     public func run(

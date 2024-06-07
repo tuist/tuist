@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum CopyFileElement: Equatable, Hashable, Codable {
     case file(path: AbsolutePath, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)

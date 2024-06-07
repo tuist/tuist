@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum Package: Equatable, Codable {
     case remote(url: String, requirement: Requirement)

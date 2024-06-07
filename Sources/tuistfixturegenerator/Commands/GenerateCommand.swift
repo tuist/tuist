@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
 import TSCUtility
+import TSCBasic
 
 enum GenerateCommandError: Error {
     case invalidPath

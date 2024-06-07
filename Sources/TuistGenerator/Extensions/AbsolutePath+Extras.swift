@@ -1,6 +1,6 @@
 import Foundation
 import PathKit
-import TSCBasic
+import Path
 
 extension AbsolutePath {
     var path: Path {

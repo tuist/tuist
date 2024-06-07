@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Options for the `RunAction` action
 public struct RunActionOptions: Equatable, Codable {

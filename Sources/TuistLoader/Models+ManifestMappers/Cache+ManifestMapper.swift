@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TSCBasic
+import Path
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph

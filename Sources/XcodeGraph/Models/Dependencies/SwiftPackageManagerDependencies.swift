@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum PackagesOrManifest: Equatable {
     case packages([Package])

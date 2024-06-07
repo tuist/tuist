@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 // swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {

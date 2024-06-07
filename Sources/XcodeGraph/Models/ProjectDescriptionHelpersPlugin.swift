@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// A model representing a custom `ProjectDescription` helper.
 public struct ProjectDescriptionHelpersPlugin: Equatable {

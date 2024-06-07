@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TSCBasic
+import Path
 import TuistDependencies
 import TuistLoader
 import TuistSupport
