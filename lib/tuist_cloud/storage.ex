@@ -24,7 +24,12 @@ defmodule TuistCloud.Storage do
         region: native_region(),
         object_key: object_key,
         expires_in: opts |> Keyword.get(:expires_in, 3600),
-        part_number: part_number,
+        part_number:
+          if is_integer(part_number) do
+            part_number
+          else
+            String.to_integer(part_number)
+          end,
         upload_id: upload_id,
         credentials: native_credentials()
       })
