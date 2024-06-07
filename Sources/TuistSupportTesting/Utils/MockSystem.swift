@@ -60,7 +60,7 @@ public final class MockSystem: Systeming {
         _ = try capture(arguments, verbose: false, environment: env)
     }
 
-    public func runAndPrint(
+    public func run(
         _ arguments: [String],
         verbose _: Bool,
         environment _: [String: String],

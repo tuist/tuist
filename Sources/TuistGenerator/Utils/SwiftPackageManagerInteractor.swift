@@ -85,7 +85,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        try System.shared.runAndPrint(
+        try System.shared.run(
             arguments,
             verbose: false,
             environment: System.shared.env,
