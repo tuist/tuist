@@ -26,28 +26,6 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "XcodeGraph",
-        dependencies: [
-            pathDependency,
-            "AnyCodable",
-            "TuistSupport",
-            "Mockable",
-        ],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "XcodeGraphTesting",
-        dependencies: [
-            "XcodeGraph",
-            "TuistSupportTesting",
-            pathDependency,
-            "AnyCodable",
-        ],
-        linkerSettings: [.linkedFramework("XCTest")]
-    ),
-    .target(
         name: "TuistCore",
         dependencies: [
             pathDependency,
