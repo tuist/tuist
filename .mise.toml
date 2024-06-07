@@ -9,3 +9,8 @@ sourcedocs = "2.0.1"
 [plugins]
 python = 'https://github.com/asdf-community/asdf-tuist'
 sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
+
+[settings]
+jobs = 6
+http_timeout = 30
+experimental = true
