@@ -96,8 +96,13 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Path.git",
       "state" : {
+<<<<<<< HEAD
         "revision" : "4490da629937fc3994f72dd787dcc3f50d6973fe",
         "version" : "0.3.0"
+=======
+        "revision" : "61e3fa3b2fd56e0bd2496afd62a35c2cb98a6fca",
+        "version" : "0.2.0"
+>>>>>>> bc6618dc3 (Add dependency)
       }
     },
     {
@@ -233,6 +238,15 @@
       "state" : {
         "revision" : "3140aa2d58063dbe30426cce118f8ba8feb37e60",
         "version" : "2.0.1"
+      }
+    },
+    {
+      "identity" : "xcodegraph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "state" : {
+        "revision" : "bef77e5759b75b23abe19a96a8543f3f9a0e1e4c",
+        "version" : "0.1.0"
       }
     },
     {
