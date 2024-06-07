@@ -372,10 +372,10 @@ public class FileHandler: FileHandling {
     }
 
     public func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
-        try fileManager.zipItem(at: URL(string: sourcePath.pathString)!, to: URL(string: destinationPath.pathString)!, shouldKeepParent: false)
+        try fileManager.zipItem(at: URL(fileURLWithPath: sourcePath.pathString), to: URL(fileURLWithPath: destinationPath.pathString), shouldKeepParent: false)
     }
 
     public func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
-        try fileManager.unzipItem(at: URL(string: sourcePath.pathString)!, to: URL(string: destinationPath.pathString)!)
+        try fileManager.unzipItem(at: URL(fileURLWithPath: sourcePath.pathString), to: URL(fileURLWithPath: destinationPath.pathString))
     }
 }
