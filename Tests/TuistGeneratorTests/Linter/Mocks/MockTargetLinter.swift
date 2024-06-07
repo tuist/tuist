@@ -6,7 +6,7 @@ import XcodeGraphTesting
 @testable import TuistGenerator
 
 class MockTargetLinter: TargetLinting {
-    func lint(target _: Target) -> [LintingIssue] {
+    func lint(target _: Target, options _: Project.Options) -> [LintingIssue] {
         []
     }
 }

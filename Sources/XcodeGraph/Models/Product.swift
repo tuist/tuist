@@ -88,9 +88,9 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
         case .dynamicLibrary:
             return "dynamic library"
         case .framework:
-            return "framework"
+            return "dynamic framework"
         case .staticFramework:
-            return "staticFramework"
+            return "static framework"
         case .unitTests:
             return "unit tests"
         case .uiTests:
