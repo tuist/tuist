@@ -2,6 +2,8 @@ import Foundation
 import MockableTest
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
+import XcodeGraphTesting
 import XCTest
 
 @testable import TuistServer
@@ -14,6 +16,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     private var multipartUploadGenerateURLAnalyticsService: MockMultipartUploadGenerateURLAnalyticsServicing!
     private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
     private var multipartUploadCompleteAnalyticsService: MockMultipartUploadCompleteAnalyticsServicing!
+    private var completeAnalyticsArtifactsUploadsService: MockCompleteAnalyticsArtifactsUploadsServicing!
 
     override func setUp() {
         super.setUp()
@@ -24,6 +27,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         multipartUploadGenerateURLAnalyticsService = .init()
         multipartUploadArtifactService = .init()
         multipartUploadCompleteAnalyticsService = .init()
+        completeAnalyticsArtifactsUploadsService = .init()
 
         subject = AnalyticsArtifactUploadService(
             fileHandler: fileHandler,
@@ -33,7 +37,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
             multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
-            multipartUploadCompleteAnalyticsService: multipartUploadCompleteAnalyticsService
+            multipartUploadCompleteAnalyticsService: multipartUploadCompleteAnalyticsService,
+            completeAnalyticsArtifactsUploadsService: completeAnalyticsArtifactsUploadsService
         )
     }
 
@@ -43,6 +48,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         multipartUploadGenerateURLAnalyticsService = nil
         multipartUploadArtifactService = nil
         multipartUploadCompleteAnalyticsService = nil
+        completeAnalyticsArtifactsUploadsService = nil
 
         super.tearDown()
     }
@@ -137,6 +143,14 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // When / Then
         try await subject.uploadResultBundle(
             resultBundle,
+            targetHashes: [
+                GraphTarget(
+                    path: try temporaryPath(),
+                    target: .test(),
+                    project: .test()
+                ): "target-hash",
+            ],
+            graphPath: try temporaryPath(),
             commandEventId: 1,
             serverURL: serverURL
         )

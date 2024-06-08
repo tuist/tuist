@@ -337,6 +337,24 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Project
+    Target:
+      properties:
+        hash:
+          description: A hash that represents the current target, all its dependencies, and contents
+          type: string
+        project_relative_path:
+          description: Project's relative path from the root of the repository
+          type: string
+        target_name:
+          description: A name of the target
+          type: string
+      required:
+        - target_name
+        - project_relative_path
+        - hash
+      title: Target
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.Target
     User:
       description: A user.
       properties:
@@ -1516,6 +1534,50 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It completes a multi-part upload.
+      tags: []
+  /api/runs/{run_id}/complete_artifacts_uploads:
+    put:
+      callbacks: {}
+      description: Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+      operationId: completeAnalyticsArtifactsUploads
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                targets:
+                  description: A list of targets with their metadata.
+                  items:
+                    $ref: '#/components/schemas/Target'
+                  type: array
+              required:
+                - targets
+              type: object
+        description: Extra metadata for the post-processing of a command event.
+        required: false
+      responses:
+        204:
+          description: The command event artifact uploads were successfully finished
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The command event doesn't exist
+      summary: Completes artifacts uploads for a given command event
       tags: []
   /api/runs/{run_id}/generate-url:
     post:

@@ -100,10 +100,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let graphProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
 
-        let graphTargets = projects
-            .lazy
-            .map { ($0.path, $0.targets) }
-
         let graphDependencies = projects
             .lazy
             .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in

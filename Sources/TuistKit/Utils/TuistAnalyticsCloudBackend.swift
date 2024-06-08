@@ -56,9 +56,14 @@ public class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         let resultBundle = runDirectory
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
-        if fileHandler.exists(resultBundle) {
+        if fileHandler.exists(resultBundle),
+           let targetHashes = commandEvent.params["target_hashes"]?.value as? [GraphTarget: String],
+           let graphPath = commandEvent.params["graph_path"]?.value as? AbsolutePath
+        {
             try await analyticsArtifactUploadService.uploadResultBundle(
                 resultBundle,
+                targetHashes: targetHashes,
+                graphPath: graphPath,
                 commandEventId: cloudCommandEvent.id,
                 serverURL: config.url
             )

@@ -1,7 +1,7 @@
 import Foundation
 
 private func cloudURLSessionConfiguration() -> URLSessionConfiguration {
-    var configuration: URLSessionConfiguration = .ephemeral
+    let configuration: URLSessionConfiguration = .ephemeral
     /**
      Our API design leads to an inefficient usage of the transport layer, which leads to Fly having to spin
      new machines suddenly, and that causes URLSession to time out. The high timeouts here are temporary

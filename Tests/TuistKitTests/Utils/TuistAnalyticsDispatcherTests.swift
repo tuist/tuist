@@ -65,6 +65,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .any,
+                targetHashes: .any,
+                graphPath: .any,
                 commandEventId: .value(10),
                 serverURL: .value(cloudURL)
             )

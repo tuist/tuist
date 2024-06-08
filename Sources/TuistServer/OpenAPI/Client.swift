@@ -2004,6 +2004,87 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Completes artifacts uploads for a given command event
+    ///
+    /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+    ///
+    /// - Remark: HTTP `PUT /api/runs/{run_id}/complete_artifacts_uploads`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
+    public func completeAnalyticsArtifactsUploads(
+        _ input: Operations.completeAnalyticsArtifactsUploads.Input
+    ) async throws -> Operations.completeAnalyticsArtifactsUploads.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.completeAnalyticsArtifactsUploads.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/runs/{}/complete_artifacts_uploads",
+                    parameters: [input.path.run_id]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers:
+                        Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Headers =
+                            .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 403:
+                    let headers:
+                        Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// It generates a signed URL for uploading a part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
