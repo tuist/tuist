@@ -12,7 +12,7 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = SimulatorController()
+        subject = SimulatorController(system: System.shared, devEnvironment: DeveloperEnvironment.shared)
     }
 
     override func tearDown() {

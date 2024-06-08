@@ -285,7 +285,7 @@ public final class SimulatorController: SimulatorControlling {
 
     public func macOSDestination() -> String {
         let arch: String
-        switch DeveloperEnvironment.shared.architecture {
+        switch devEnvironment.architecture {
         case .arm64:
             arch = "arm64"
         case .x8664:
