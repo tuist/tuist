@@ -1,6 +1,6 @@
 import Foundation
-import ProjectDescription
 import Path
+import ProjectDescription
 import TuistCore
 import TuistLoaderTesting
 import TuistSupportTesting

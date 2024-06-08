@@ -116,7 +116,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ) throws -> ProjectDescriptionHelpersModule? {
         guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
-        if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
+            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
                    // swiftlint:disable:next force_try
                    of: try! AbsolutePath(validating: sourceRoot).appending(component: Constants.tuistDirectoryName)

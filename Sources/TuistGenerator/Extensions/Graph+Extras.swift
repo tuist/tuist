@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import TSCBasic
 import TuistCore
 import XcodeGraph
-import TSCBasic
 
 extension XcodeGraph.Graph {
     /// Filters the project graph

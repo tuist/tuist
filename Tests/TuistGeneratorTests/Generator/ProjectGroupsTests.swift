@@ -1,6 +1,6 @@
 import Foundation
-import PathKit
 import Path
+import PathKit
 import TuistCore
 import TuistCoreTesting
 import XcodeGraph

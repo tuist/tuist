@@ -1,7 +1,8 @@
 import MockableTest
+import Path
 import struct ProjectDescription.Plugin
 import struct ProjectDescription.PluginLocation
-import Path
+import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
@@ -13,7 +14,6 @@ import TuistSupportTesting
 import XcodeGraph
 import XcodeGraphTesting
 import XCTest
-import TSCBasic
 
 @testable import TuistPlugin
 

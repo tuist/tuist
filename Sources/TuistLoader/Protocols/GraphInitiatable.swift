@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import TuistSupport
 import TSCBasic
+import TuistSupport
 
 /// Protocol conformed by the models that are part of the manifest.
 /// The protocol defines a constructor that takes the JSON representation

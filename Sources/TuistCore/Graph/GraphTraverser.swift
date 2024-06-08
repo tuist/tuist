@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import TSCBasic
 import TuistSupport
 import XcodeGraph
-import TSCBasic
 
 // swiftlint:disable type_body_length
 public class GraphTraverser: GraphTraversing {

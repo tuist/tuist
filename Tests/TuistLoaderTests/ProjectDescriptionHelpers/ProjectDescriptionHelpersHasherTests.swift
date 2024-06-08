@@ -1,5 +1,5 @@
-import ProjectDescription
 import Path
+import ProjectDescription
 import TuistCore
 import TuistSupport
 import XCTest

@@ -1,6 +1,6 @@
 import Foundation
-import PathKit
 import Path
+import PathKit
 import TuistSupport
 import XcodeProj
 

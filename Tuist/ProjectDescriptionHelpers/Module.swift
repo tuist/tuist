@@ -212,7 +212,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.automation.targetName),
                 .external(name: "GraphViz"),
                 .external(name: "ArgumentParser"),
-                .external(name: "SwiftToolsSupport")
+                .external(name: "SwiftToolsSupport"),
             ]
         case .tuistBenchmark:
             [
@@ -269,7 +269,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.xcodeProjectGenerator.targetName),
                 .external(name: "XcodeProj"),
-                .external(name: "SwiftToolsSupport")
+                .external(name: "SwiftToolsSupport"),
             ]
         case .generator:
             [
@@ -281,7 +281,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "StencilSwiftKit"),
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
-                .external(name: "SwiftToolsSupport")
+                .external(name: "SwiftToolsSupport"),
             ]
         case .scaffold:
             [
@@ -333,7 +333,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .external(name: "PathKit"),
                 .external(name: "XcodeProj"),
-                .external(name: "SwiftToolsSupport")
+                .external(name: "SwiftToolsSupport"),
             ]
         case .dependencies:
             [

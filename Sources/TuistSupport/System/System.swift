@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
 import Path
+import TSCBasic
 
 extension ProcessResult {
     /// Throws a SystemError if the result is unsuccessful.

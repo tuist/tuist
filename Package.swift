@@ -14,7 +14,7 @@ var targets: [Target] = [
         dependencies: [
             argumentParserDependency,
             pathDependency,
-            swiftToolsSupportDependency
+            swiftToolsSupportDependency,
         ]
     ),
     .executableTarget(
@@ -22,7 +22,7 @@ var targets: [Target] = [
         dependencies: [
             argumentParserDependency,
             pathDependency,
-            swiftToolsSupportDependency
+            swiftToolsSupportDependency,
         ]
     ),
     .target(
@@ -104,7 +104,7 @@ var targets: [Target] = [
             "TuistKit",
             "ProjectDescription",
             "ProjectAutomation",
-            swiftToolsSupportDependency
+            swiftToolsSupportDependency,
         ]
     ),
     .target(
@@ -446,7 +446,7 @@ let package = Package(
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.2"),
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
-        .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0"))
+        .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
     ],
     targets: targets
 )

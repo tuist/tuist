@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import XCTest
 import TSCBasic
+import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
 

@@ -1,6 +1,6 @@
 import Foundation
-import PathKit
 import Path
+import PathKit
 
 extension AbsolutePath {
     var path: Path {

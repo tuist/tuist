@@ -1,7 +1,7 @@
 import Foundation
 import MockableTest
-import ProjectDescription
 import Path
+import ProjectDescription
 import TuistCore
 import TuistSupport
 import struct XcodeGraph.Plugins

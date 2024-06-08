@@ -138,21 +138,21 @@ public class FileHandler: FileHandling {
     }
 
     public func inTemporaryDirectory<Result>(_ closure: (Path.AbsolutePath) throws -> Result) throws -> Result {
-        try withTemporaryDirectory(removeTreeOnDeinit: true, { path in
+        try withTemporaryDirectory(removeTreeOnDeinit: true) { path in
             try closure(.init(validating: path.pathString))
-        })
+        }
     }
 
     public func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Void) throws {
-        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, { path in
+        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion) { path in
             try closure(.init(validating: path.pathString))
-        })
+        }
     }
 
     public func inTemporaryDirectory(_ closure: (Path.AbsolutePath) throws -> Void) throws {
-        try withTemporaryDirectory(removeTreeOnDeinit: true, { path in
+        try withTemporaryDirectory(removeTreeOnDeinit: true) { path in
             try closure(.init(validating: path.pathString))
-        })
+        }
     }
 
     public func inTemporaryDirectory(_ closure: @escaping (Path.AbsolutePath) async throws -> Void) async throws {
@@ -164,9 +164,9 @@ public class FileHandler: FileHandling {
         removeOnCompletion: Bool,
         _ closure: (Path.AbsolutePath) throws -> Result
     ) throws -> Result {
-        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, { path in
+        try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion) { path in
             try closure(try .init(validating: path.pathString))
-        })
+        }
     }
 
     public func exists(_ path: Path.AbsolutePath) -> Bool {
@@ -372,10 +372,17 @@ public class FileHandler: FileHandling {
     }
 
     public func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
-        try fileManager.zipItem(at: URL(fileURLWithPath: sourcePath.pathString), to: URL(fileURLWithPath: destinationPath.pathString), shouldKeepParent: false)
+        try fileManager.zipItem(
+            at: URL(fileURLWithPath: sourcePath.pathString),
+            to: URL(fileURLWithPath: destinationPath.pathString),
+            shouldKeepParent: false
+        )
     }
 
     public func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
-        try fileManager.unzipItem(at: URL(fileURLWithPath: sourcePath.pathString), to: URL(fileURLWithPath: destinationPath.pathString))
+        try fileManager.unzipItem(
+            at: URL(fileURLWithPath: sourcePath.pathString),
+            to: URL(fileURLWithPath: destinationPath.pathString)
+        )
     }
 }

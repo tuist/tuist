@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
-import struct ProjectDescription.Config
 import Path
+import struct ProjectDescription.Config
 import TuistCore
 import TuistSupport
 import XcodeGraph

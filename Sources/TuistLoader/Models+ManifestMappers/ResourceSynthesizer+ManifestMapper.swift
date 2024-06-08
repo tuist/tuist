@@ -1,5 +1,5 @@
-import ProjectDescription
 import Path
+import ProjectDescription
 import XcodeGraph
 
 extension XcodeGraph.ResourceSynthesizer {

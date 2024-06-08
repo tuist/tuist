@@ -1,8 +1,8 @@
 import DOT
 import Foundation
 import GraphViz
-import ProjectAutomation
 import Path
+import ProjectAutomation
 import TuistPlugin
 import TuistSupport
 import XcodeGraph

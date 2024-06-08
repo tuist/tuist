@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import TSCBasic
 import TuistSupport
 import XcodeProj
-import TSCBasic
 
 public enum TargetsExtractorError: FatalError, Equatable {
     case missingXcodeProj(Path.AbsolutePath)

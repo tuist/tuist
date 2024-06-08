@@ -1,11 +1,11 @@
 import Path
+import TSCBasic
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
 import XcodeGraphTesting
 import XcodeProj
 import XCTest
-import TSCBasic
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
