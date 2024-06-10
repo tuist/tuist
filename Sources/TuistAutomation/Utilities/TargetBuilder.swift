@@ -29,7 +29,7 @@ public protocol TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
         passthroughXcodeBuildArguments: [String]
@@ -87,7 +87,7 @@ public final class TargetBuilder: TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
         passthroughXcodeBuildArguments: [String]
@@ -105,7 +105,7 @@ public final class TargetBuilder: TargetBuilding {
             for: target.target,
             on: platform,
             scheme: scheme,
-            version: osVersion,
+            version: osVersion.map { try .init(versionString: $0.description) },
             deviceName: device,
             graphTraverser: graphTraverser,
             simulatorController: simulatorController

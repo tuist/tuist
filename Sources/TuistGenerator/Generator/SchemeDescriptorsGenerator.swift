@@ -121,7 +121,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
-        lastUpgradeCheck: Version?
+        lastUpgradeCheck: XcodeGraph.Version?
     ) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,

@@ -28,7 +28,7 @@ extension XcodeGraph.PackageSettings {
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
-            swiftToolsVersion: swiftToolsVersion
+            swiftToolsVersion: .init(stringLiteral: swiftToolsVersion.description)
         )
     }
 }

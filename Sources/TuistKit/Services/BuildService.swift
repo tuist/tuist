@@ -138,7 +138,7 @@ public final class BuildService {
                 buildOutputPath: buildOutputPath,
                 derivedDataPath: derivedDataPath,
                 device: device,
-                osVersion: osVersion?.version(),
+                osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
                 rosetta: rosetta,
                 graphTraverser: graphTraverser,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
@@ -170,7 +170,7 @@ public final class BuildService {
                     buildOutputPath: buildOutputPath,
                     derivedDataPath: derivedDataPath,
                     device: device,
-                    osVersion: osVersion?.version(),
+                    osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
                     rosetta: rosetta,
                     graphTraverser: graphTraverser,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments

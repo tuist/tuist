@@ -56,7 +56,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             sourceRootPath.appending(component: "PluginThree"),
         ].map { EditablePluginManifest(name: $0.basename, path: $0) }
         swiftPackageManagerController.getToolsVersionStub = { _ in
-            Version("5.5.0")
+            .init(stringLiteral: "5.5.0")
         }
         xcodeController.selectedStub = .success(.test(path: AbsolutePath("/Applications/Xcode.app")))
 

@@ -117,7 +117,7 @@ final class RunService {
             buildOutputPath: nil,
             derivedDataPath: nil,
             device: device,
-            osVersion: version?.version(),
+            osVersion: version?.version().map { .init(stringLiteral: $0.description) },
             rosetta: rosetta,
             graphTraverser: graphTraverser,
             passthroughXcodeBuildArguments: []

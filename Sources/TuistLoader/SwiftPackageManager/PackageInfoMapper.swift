@@ -375,7 +375,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             name: packageInfo.name,
             options: options,
             settings: packageInfo.projectSettings(
-                swiftToolsVersion: packageSettings.swiftToolsVersion,
+                swiftToolsVersion: .init(packageSettings.swiftToolsVersion.description),
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,

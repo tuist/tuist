@@ -10,7 +10,6 @@ public enum Module: String, CaseIterable {
     case acceptanceTesting = "TuistAcceptanceTesting"
     case support = "TuistSupport"
     case kit = "TuistKit"
-    case xcodeProjectGenerator = "XcodeGraph"
     case core = "TuistCore"
     case generator = "TuistGenerator"
     case scaffold = "TuistScaffold"
@@ -147,7 +146,7 @@ public enum Module: String, CaseIterable {
 
     public var integrationTestsTargetName: String? {
         switch self {
-        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription, .xcodeProjectGenerator,
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
              .asyncQueue,
              .plugin, .analytics, .dependencies, .acceptanceTesting, .app:
             return nil
@@ -252,30 +251,25 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.asyncQueue.targetName),
                 .target(name: Module.analytics.targetName),
                 .target(name: Module.plugin.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "XcodeGraph"),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
-                .external(name: "AnyCodable"),
-            ]
-        case .xcodeProjectGenerator:
-            [
-                .target(name: Module.support.targetName),
                 .external(name: "AnyCodable"),
             ]
         case .core:
             [
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "XcodeGraph"),
                 .external(name: "XcodeProj"),
                 .external(name: "SwiftToolsSupport"),
             ]
         case .generator:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "XcodeGraph"),
                 .external(name: "SwiftGenKit"),
                 .external(name: "PathKit"),
                 .external(name: "StencilSwiftKit"),
@@ -286,32 +280,31 @@ public enum Module: String, CaseIterable {
         case .scaffold:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "XcodeGraph"),
                 .external(name: "PathKit"),
                 .external(name: "StencilSwiftKit"),
             ]
         case .loader:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
                 .target(name: Module.projectDescription.targetName),
+                .external(name: "XcodeGraph"),
                 .external(name: "XcodeProj"),
                 .external(name: "SwiftToolsSupport"),
             ]
         case .asyncQueue:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "XcodeGraph"),
                 .external(name: "Queuer"),
                 .external(name: "XcodeProj"),
             ]
         case .plugin:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .target(name: Module.scaffold.targetName),
@@ -321,34 +314,34 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.asyncQueue.targetName),
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .external(name: "AnyCodable"),
+                .external(name: "XcodeGraph"),
             ]
         case .migration:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
                 .external(name: "PathKit"),
                 .external(name: "XcodeProj"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "XcodeGraph"),
             ]
         case .dependencies:
             [
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "XcodeGraph"),
             ]
         case .automation:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.targetName),
                 .external(name: "XcodeProj"),
                 .external(name: "XcbeautifyLib"),
+                .external(name: "XcodeGraph"),
             ]
         case .app:
             [
@@ -388,53 +381,45 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.automation.testingTargetName!),
                 .target(name: Module.migration.testingTargetName!),
                 .target(name: Module.asyncQueue.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.plugin.targetName),
                 .target(name: Module.plugin.testingTargetName!),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
-            ]
-        case .xcodeProjectGenerator:
-            [
-                .target(name: Module.core.targetName),
-                .target(name: Module.core.testingTargetName!),
-                .target(name: Module.support.targetName),
-                .target(name: Module.support.testingTargetName!),
-                .external(name: "XcodeProj"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .core:
             [
                 .target(name: Module.support.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraph"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .generator:
             [
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .scaffold:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .loader:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .asyncQueue:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
                 .external(name: "Queuer"),
             ]
         case .plugin:
@@ -442,36 +427,36 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.loader.targetName),
                 .target(name: Module.loader.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.scaffold.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .analytics:
             [
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .migration:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .dependencies:
             [
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.loader.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .automation:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .app:
             [
@@ -499,61 +484,55 @@ public enum Module: String, CaseIterable {
         case .support:
             [
                 .target(name: Module.core.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "XcodeGraph"),
             ]
         case .kit:
             []
-        case .xcodeProjectGenerator:
-            [
-                .target(name: Module.support.targetName),
-                .target(name: Module.support.testingTargetName!),
-                .external(name: "XcodeProj"),
-            ]
         case .core:
             [
                 .target(name: Module.support.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraph"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .generator:
             [
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
                 .external(name: "XcodeProj"),
             ]
         case .scaffold:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "XcodeGraph"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .loader:
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "XcodeGraph"),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .asyncQueue:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .plugin:
             [
-                .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "XcodeGraph"),
             ]
         case .analytics:
             []
         case .migration:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .dependencies:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.projectDescription.targetName),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .automation:
             [
@@ -561,7 +540,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .app:
             []
@@ -579,8 +558,9 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.support.targetName),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.loader.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "XcodeProj"),
             ]
         case .kit:
@@ -590,11 +570,9 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.automation.targetName),
                 .target(name: Module.loader.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
                 .external(name: "XcodeProj"),
             ]
-        case .xcodeProjectGenerator:
-            []
         case .core:
             [
                 .target(name: Module.support.testingTargetName!),
@@ -603,19 +581,19 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
                 .external(name: "XcodeProj"),
             ]
         case .scaffold:
             [
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .loader:
             [
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.projectDescription.targetName),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .asyncQueue:
             []
@@ -627,14 +605,14 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .dependencies:
             []
         case .automation:
             [
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.xcodeProjectGenerator.testingTargetName!),
+                .external(name: "XcodeGraphTesting"),
             ]
         case .app:
             []

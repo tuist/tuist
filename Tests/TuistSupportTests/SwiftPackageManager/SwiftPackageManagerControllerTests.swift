@@ -66,7 +66,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version))
+        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
     }
 
     func test_loadPackageInfo() throws {

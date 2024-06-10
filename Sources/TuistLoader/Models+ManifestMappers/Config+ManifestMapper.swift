@@ -34,7 +34,7 @@ extension XcodeGraph.Config {
         return XcodeGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
             cloud: cloud,
-            swiftVersion: swiftVersion,
+            swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
             plugins: plugins,
             generationOptions: generationOptions,
             path: path
