@@ -416,11 +416,12 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects
+        XCTAssertEqual(
+            gotTarget.settings?.base["GCC_PREFIX_HEADER"],
+            nil
         )
+        XCTAssertEqual(gotTarget.sources.count, 1)
+        XCTAssertEqual(gotSideEffects.count, 0)
     }
 
     func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name(

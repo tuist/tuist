@@ -81,7 +81,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if target.supportsSources,
+        if project.isExternal,
+           target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources
         {
