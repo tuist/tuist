@@ -38,6 +38,49 @@ defmodule TuistCloud.CommandEventsTest do
       assert String.length(command_event.error_message) == 200
       assert command_event.error_message == error_message
     end
+
+    test "sends telemetry events" do
+      # Given
+      run_create_ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :run, :command]])
+      cache_event_ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :cache, :event]])
+
+      # When
+      command_event =
+        CommandEvents.create_command_event(%{
+          name: "generate",
+          subcommand: "",
+          command_arguments: [],
+          duration: 100,
+          tuist_version: "4.1.0",
+          swift_version: "5.2",
+          macos_version: "10.15",
+          project_id: 1,
+          cacheable_targets: ["A", "B", "C", "D"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: ["B", "C"],
+          test_targets: [],
+          local_test_target_hits: [],
+          remote_test_target_hits: [],
+          is_ci: false,
+          user_id: 1,
+          client_id: "client-id",
+          status: :success,
+          error_message: nil
+        })
+
+      # Then
+      assert_received {[:tuist, :run, :command], ^run_create_ref, %{duration: 100},
+                       %{command_event: ^command_event}}
+
+      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 1},
+                       %{event_type: :local_hit}}
+
+      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 2},
+                       %{event_type: :remote_hit}}
+
+      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 1},
+                       %{event_type: :miss}}
+    end
   end
 
   describe "get_command_event_by_id/1" do

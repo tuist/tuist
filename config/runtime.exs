@@ -222,3 +222,11 @@ config :tuist_cloud, Oban,
            else: []
          )}
   ]
+
+# Prometheus
+config :tuist_cloud, TuistCloud.PromEx,
+  disabled: not TuistCloud.Environment.on_premise?(),
+  manual_metrics_start_delay: :no_delay,
+  drop_metrics_groups: [],
+  grafana: :disabled,
+  metrics_server: :disabled

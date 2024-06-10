@@ -32,7 +32,7 @@ defmodule TuistCloud.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.7.11"},
+      {:phoenix, "~> 1.7.12"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.10"},
       {:postgrex, ">= 0.0.0"},
@@ -81,7 +81,9 @@ defmodule TuistCloud.MixProject do
       {:telemetry_test, "~> 0.1.2"},
       {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.25.0"},
-      {:timex, "~> 3.7"}
+      {:timex, "~> 3.7"},
+      {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
+      {:ranch, "~> 2.1.0", override: true}
     ]
   end
 
