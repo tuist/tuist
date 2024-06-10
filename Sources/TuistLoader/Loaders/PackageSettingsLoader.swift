@@ -5,6 +5,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {
@@ -12,7 +13,7 @@ public protocol PackageSettingsLoading {
     /// - Parameter path: The absolute path for the `PackageSettings` to load.
     /// - Parameter plugins: The plugins for the `PackageSettings` to load.
     /// - Returns: The `PackageSettings` loaded from the specified path.
-    func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> XcodeGraph.PackageSettings
+    func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> TuistModels.PackageSettings
 }
 
 public final class PackageSettingsLoader: PackageSettingsLoading {
@@ -33,7 +34,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
         self.manifestFilesLocator = manifestFilesLocator
     }
 
-    public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> XcodeGraph.PackageSettings {
+    public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> TuistModels.PackageSettings {
         let path = manifestFilesLocator.locatePackageManifest(at: path)?.parentDirectory ?? path
         try manifestLoader.register(plugins: plugins)
         let manifest = try manifestLoader.loadPackageSettings(at: path)
@@ -42,7 +43,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
             at: path
         )
 
-        return try XcodeGraph.PackageSettings.from(
+        return try TuistModels.PackageSettings.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             swiftToolsVersion: swiftToolsVersion

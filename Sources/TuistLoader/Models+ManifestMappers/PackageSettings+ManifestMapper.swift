@@ -4,9 +4,10 @@ import ProjectDescription
 import TSCUtility
 import TuistCore
 import TuistSupport
+import TuistModels
 import XcodeGraph
 
-extension XcodeGraph.PackageSettings {
+extension TuistModels.PackageSettings {
     /// Creates `XcodeGraph.PackageSettings` instance from `ProjectDescription.PackageSettings`
     /// instance.
     static func from(

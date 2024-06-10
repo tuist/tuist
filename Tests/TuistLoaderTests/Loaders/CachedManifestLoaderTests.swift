@@ -4,7 +4,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
-import struct XcodeGraph.Plugins
+import struct TuistModels.Plugins
 import XCTest
 
 @testable import TuistCoreTesting

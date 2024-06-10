@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import XcodeGraph
+import TuistModels
 @testable import TuistLoader
 
 public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {

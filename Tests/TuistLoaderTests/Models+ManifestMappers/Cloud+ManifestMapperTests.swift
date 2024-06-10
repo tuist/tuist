@@ -1,5 +1,5 @@
 import Foundation
-import XcodeGraph
+import TuistModels
 import XCTest
 
 @testable import TuistLoader
@@ -8,7 +8,7 @@ import XCTest
 final class CloudManifestMapperTests: TuistUnitTestCase {
     func test_removes_trailing_back_slash_if_present_in_url() throws {
         // When
-        let got = try XcodeGraph.Cloud.from(
+        let got = try TuistModels.Cloud.from(
             manifest: .cloud(
                 projectId: "tuist/tuist",
                 url: "https://cloud.tuist.io/"

@@ -3,8 +3,8 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
-import struct XcodeGraph.Config
-import struct XcodeGraph.Plugins
+import struct TuistModels.Config
+import struct TuistModels.Plugins
 
 /// Cached Manifest Loader
 ///

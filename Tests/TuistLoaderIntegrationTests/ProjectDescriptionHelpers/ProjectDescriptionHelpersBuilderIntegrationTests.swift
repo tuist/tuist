@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
+import TuistModels
 import XCTest
 
 @testable import TuistLoader

@@ -4,6 +4,7 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)

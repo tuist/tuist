@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
-import XcodeGraph
+import TuistModels
 
-extension XcodeGraph.PluginLocation {
+extension TuistModels.PluginLocation {
     /// Convert from `ProjectDescription.PluginLocation` to `XcodeGraph.PluginLocation`
     static func from(
         manifest: ProjectDescription.PluginLocation,
         generatorPaths: GeneratorPaths
-    ) throws -> XcodeGraph.PluginLocation {
+    ) throws -> TuistModels.PluginLocation {
         switch manifest.type {
         case let .local(path):
             return .local(path: try generatorPaths.resolve(path: path).pathString)

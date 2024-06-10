@@ -3,6 +3,7 @@ import Mockable
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 @Mockable
 public protocol CacheStorageFactorying {

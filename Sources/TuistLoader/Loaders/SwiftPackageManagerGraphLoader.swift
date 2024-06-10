@@ -5,6 +5,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -48,7 +49,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: XcodeGraph.PackageSettings
+        packageSettings: TuistModels.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -73,7 +74,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: XcodeGraph.PackageSettings
+        packageSettings: TuistModels.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName

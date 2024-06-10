@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import XcodeGraph
+import TuistModels
 
 public final class MockTemplateLoader: TemplateLoading {
     public var loadTemplateStub: ((AbsolutePath) throws -> Template)?

@@ -2,7 +2,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistSupport
-import struct XcodeGraph.Plugins
+import struct TuistModels.Plugins
 @testable import TuistLoader
 @testable import TuistSupportTesting
 

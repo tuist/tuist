@@ -4,7 +4,7 @@ import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
+import TuistModels
 
 /// Paths to remote plugin's code and artifacts.
 public struct RemotePluginPaths: Equatable, Hashable {

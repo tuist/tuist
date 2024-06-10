@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistSupport
 import XCTest
+import TuistModels
 
 @testable import TuistCoreTesting
 @testable import TuistLoader

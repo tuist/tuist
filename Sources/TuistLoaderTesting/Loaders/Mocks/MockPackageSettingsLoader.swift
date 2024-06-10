@@ -1,7 +1,6 @@
 import Path
 import TuistSupport
-import XcodeGraph
-import XcodeGraphTesting
+import TuistModels
 
 @testable import TuistLoader
 

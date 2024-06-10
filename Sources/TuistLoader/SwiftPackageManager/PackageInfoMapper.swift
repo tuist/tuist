@@ -6,6 +6,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 // MARK: - PackageInfo Mapper Errors
 
@@ -111,7 +112,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: XcodeGraph.PackageSettings,
+        packageSettings: TuistModels.PackageSettings,
         packageToProject: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project?
 }
@@ -257,7 +258,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: XcodeGraph.PackageSettings,
+        packageSettings: TuistModels.PackageSettings,
         packageToProject _: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly

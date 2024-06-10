@@ -3,6 +3,7 @@ import Path
 import TSCBasic
 import TuistCore
 import TuistLoaderTesting
+import TuistModels
 import XcodeGraph
 import XcodeGraphTesting
 import XcodeProj

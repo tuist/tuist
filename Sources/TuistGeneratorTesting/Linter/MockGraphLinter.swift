@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
-import XcodeGraph
+import TuistModels
 @testable import TuistGenerator
 
 public class MockGraphLinter: GraphLinting {

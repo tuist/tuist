@@ -5,7 +5,7 @@ import TSCUtility
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
-import XcodeGraph
+import TuistModels
 import XcodeGraphTesting
 import XCTest
 

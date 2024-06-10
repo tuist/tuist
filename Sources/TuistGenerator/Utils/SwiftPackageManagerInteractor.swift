@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistModels
 
 /// Swift Package Manager Interactor
 ///

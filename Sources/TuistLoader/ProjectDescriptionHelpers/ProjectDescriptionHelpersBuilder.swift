@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistSupport
-import XcodeGraph
+import TuistModels
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
@@ -19,7 +19,7 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
-        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+        projectDescriptionHelperPlugins: [TuistModels.ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule]
 
     /// Builds all the plugin helpers module and returns the location to the built modules.

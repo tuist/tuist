@@ -2,6 +2,7 @@ import Foundation
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
+import TuistModels
 import XcodeGraph
 
 public protocol GraphLinting: AnyObject {
