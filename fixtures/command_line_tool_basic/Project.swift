@@ -9,7 +9,10 @@ let project = Project(
             product: .commandLineTool,
             bundleId: "com.example.commandlinetool",
             infoPlist: .default,
-            sources: ["main.swift"]
+            sources: ["main.swift"],
+            dependencies: [
+                .external(name: "SystemPackage"),
+            ]
         ),
     ]
 )

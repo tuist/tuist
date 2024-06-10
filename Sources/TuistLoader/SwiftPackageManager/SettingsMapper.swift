@@ -19,12 +19,12 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> XcodeGraph.SettingsDictionary {
+    func mapSettings() throws -> XcodeGraph.SettingsDictionary {
         var resolvedSettings = try settingsDictionary()
 
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
+        for platform in XcodeGraph.Platform.allCases.sorted(by: { $0.rawValue < $1.rawValue }) {
             let platformSettings = try settingsDictionary(for: platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
+            resolvedSettings.overlay(with: platformSettings, for: platform)
         }
 
         return resolvedSettings
@@ -41,8 +41,8 @@ struct SettingsMapper {
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> XcodeGraph.SettingsDictionary {
-        let platformSettings = try settings(for: platform?.platformName)
+    func settingsDictionary(for platform: XcodeGraph.Platform? = nil) throws -> XcodeGraph.SettingsDictionary {
+        let platformSettings = try settings(for: platform?.rawValue)
 
         return try map(
             settings: platformSettings,

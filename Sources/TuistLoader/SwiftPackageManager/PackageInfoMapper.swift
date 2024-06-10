@@ -593,7 +593,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
             packageFolder: packageFolder,
             packageName: packageInfo.name,
             settings: target.settings,
-            platforms: packageInfo.platforms,
             moduleMap: moduleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
@@ -943,7 +942,6 @@ extension ProjectDescription.Settings {
         packageFolder: AbsolutePath,
         packageName _: String,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        platforms: [PackageInfo.Platform],
         moduleMap: ModuleMap?,
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.SettingsDictionary]
@@ -980,7 +978,7 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsForPlatforms(platforms)
+        let resolvedSettings = try mapper.mapSettings()
 
         settingsDictionary.merge(resolvedSettings) { $1 }
 

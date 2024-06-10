@@ -211,14 +211,14 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
 
-        let iosPlatformSettings = try mapper.settingsDictionary(for: .ios)
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
-        let combinedSettings = try mapper.settingsForPlatforms([.ios, .macos, .tvos])
+        let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
