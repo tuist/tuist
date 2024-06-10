@@ -47,7 +47,10 @@ let project = Project(
             bundleId: "io.tuist.MyApp",
             infoPlist: .extendingDefault(
                 with: [
-                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "UILaunchScreen": [
+                        "UIColorName": "",
+                        "UIImageName": "",
+                    ],
                 ]
             ),
             sources: ["MyApp/Sources/**"],

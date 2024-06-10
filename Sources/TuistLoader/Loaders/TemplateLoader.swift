@@ -6,11 +6,11 @@ import TuistSupport
 import XcodeGraph
 
 public protocol TemplateLoading {
-    /// Load `TuistScaffold.Template` at given `path`
+    /// Load `XcodeGraph.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `name_of_template.swift`
     ///     - plugins: List of available plugins.
-    /// - Returns: Loaded `TuistScaffold.Template`
+    /// - Returns: Loaded `XcodeGraph.Template`
     func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> XcodeGraph.Template
 }
 
