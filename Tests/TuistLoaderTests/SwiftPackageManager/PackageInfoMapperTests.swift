@@ -2300,7 +2300,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenConditionalSetting_ignoresByPlatform() throws {
+    func testMap_whenConditionalSetting() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2348,7 +2348,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/otherValue"]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/otherValue"],
+                            "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                                "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
+                            "HEADER_SEARCH_PATHS[sdk=appletvsimulator*]": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                                "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
+                        ]
                     ),
                 ]
             )

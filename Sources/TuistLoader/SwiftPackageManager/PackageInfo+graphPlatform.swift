@@ -4,23 +4,6 @@ import TuistSupport
 import XcodeGraph
 
 extension PackageInfo.Platform {
-    func graphPlatform() throws -> XcodeGraph.Platform {
-        switch platformName.lowercased() {
-        case "ios", "maccatalyst":
-            return .iOS
-        case "macos":
-            return .macOS
-        case "tvos":
-            return .tvOS
-        case "watchos":
-            return .watchOS
-        case "visionos":
-            return .visionOS
-        default:
-            throw PackageInfoMapperError.unknownPlatform(platformName)
-        }
-    }
-
     func destinations() throws -> ProjectDescription.Destinations {
         switch platformName.lowercased() {
         case "ios":
