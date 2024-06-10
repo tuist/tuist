@@ -13,7 +13,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}
 
     public static var analyticsDelegate: TrackableParametersDelegate?
-    public var runId = ""
+    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
