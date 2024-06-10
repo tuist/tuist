@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, Codable {

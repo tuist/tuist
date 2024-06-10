@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// A model which contains all loaded plugin representations.
 public struct Plugins: Equatable {

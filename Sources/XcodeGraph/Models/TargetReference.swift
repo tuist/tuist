@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public struct TargetReference: Hashable, Codable {
     public var projectPath: AbsolutePath

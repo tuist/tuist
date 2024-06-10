@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import XcodeGraph
 
 extension XcodeGraph.RunActionOptions {

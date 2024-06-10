@@ -1,9 +1,10 @@
+import Path
 import TSCBasic
 
-public func withTemporaryDirectories<Result>(body: (AbsolutePath, AbsolutePath) throws -> Result) throws -> Result {
+public func withTemporaryDirectories<Result>(body: (Path.AbsolutePath, Path.AbsolutePath) throws -> Result) throws -> Result {
     try withTemporaryDirectory { tempDirOne in
         try withTemporaryDirectory { tempDirTwo in
-            try body(tempDirOne, tempDirTwo)
+            try body(.init(validating: tempDirOne.pathString), .init(validating: tempDirTwo.pathString))
         }
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// It represents a runtime that is available in the system. The list of available runtimes is obtained
 /// using Xcode's simctl cli tool.

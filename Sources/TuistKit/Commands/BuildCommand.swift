@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 import TuistServer
 import TuistSupport

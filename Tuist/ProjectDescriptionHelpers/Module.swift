@@ -111,7 +111,7 @@ public enum Module: String, CaseIterable {
 
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
-            .external(name: "SwiftToolsSupport"),
+            .external(name: "Path"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -212,13 +212,16 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.automation.targetName),
                 .external(name: "GraphViz"),
                 .external(name: "ArgumentParser"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .tuistBenchmark:
             [
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "ArgumentParser"),
             ]
         case .tuistFixtureGenerator:
             [
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "ArgumentParser"),
             ]
         case .projectAutomation, .projectDescription:
@@ -226,6 +229,7 @@ public enum Module: String, CaseIterable {
         case .support:
             [
                 .target(name: Module.projectDescription.targetName),
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "AnyCodable"),
                 .external(name: "XcodeProj"),
                 .external(name: "KeychainAccess"),
@@ -249,6 +253,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.analytics.targetName),
                 .target(name: Module.plugin.targetName),
                 .target(name: Module.xcodeProjectGenerator.targetName),
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
@@ -264,6 +269,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.xcodeProjectGenerator.targetName),
                 .external(name: "XcodeProj"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .generator:
             [
@@ -275,6 +281,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "StencilSwiftKit"),
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .scaffold:
             [
@@ -291,6 +298,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.projectDescription.targetName),
                 .external(name: "XcodeProj"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .asyncQueue:
             [
@@ -307,6 +315,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .target(name: Module.scaffold.targetName),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .analytics:
             [
@@ -324,6 +333,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .external(name: "PathKit"),
                 .external(name: "XcodeProj"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .dependencies:
             [
@@ -571,7 +581,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.xcodeProjectGenerator.testingTargetName!),
                 .target(name: Module.loader.testingTargetName!),
-                .external(name: "SwiftToolsSupport"),
                 .external(name: "XcodeProj"),
             ]
         case .kit:

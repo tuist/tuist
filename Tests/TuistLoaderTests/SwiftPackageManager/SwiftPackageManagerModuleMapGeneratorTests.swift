@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistCoreTesting
 import TuistSupportTesting
 import XCTest

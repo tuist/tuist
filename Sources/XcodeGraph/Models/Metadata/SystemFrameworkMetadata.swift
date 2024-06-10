@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// The metadata associated with a system framework or library (e.g. UIKit.framework, libc++.tbd)
 public struct SystemFrameworkMetadata: Equatable {

@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import struct TSCUtility.Version
 import TuistAutomation
 import XcodeGraph

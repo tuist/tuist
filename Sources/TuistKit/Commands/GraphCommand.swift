@@ -2,7 +2,7 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import GraphViz
-import TSCBasic
+import Path
 import TuistGenerator
 import TuistLoader
 import TuistSupport

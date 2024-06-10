@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 @testable import XcodeGraph
 
 extension AnalyzeAction {

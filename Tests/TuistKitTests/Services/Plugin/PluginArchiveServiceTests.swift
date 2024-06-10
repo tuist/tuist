@@ -1,5 +1,5 @@
 import MockableTest
-import TSCBasic
+import Path
 import TuistLoaderTesting
 import TuistSupport
 import TuistSupportTesting

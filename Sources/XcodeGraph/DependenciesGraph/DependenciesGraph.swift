@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistSupport
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.

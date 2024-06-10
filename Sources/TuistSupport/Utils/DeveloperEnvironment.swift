@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public protocol DeveloperEnvironmenting {
     /// Returns the derived data directory selected in the environment.

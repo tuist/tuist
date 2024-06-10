@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TSCUtility
 import TuistSupport
 

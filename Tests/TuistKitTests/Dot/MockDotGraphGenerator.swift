@@ -1,6 +1,6 @@
 import Foundation
 import GraphViz
-import TSCBasic
+import Path
 import TuistGenerator
 import TuistKit
 import XcodeGraph

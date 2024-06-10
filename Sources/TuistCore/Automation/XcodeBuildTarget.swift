@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum XcodeBuildTarget: Equatable {
     /// The target is an Xcode project.

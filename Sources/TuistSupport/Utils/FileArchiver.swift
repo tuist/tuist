@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TSCBasic
+import Path
 
 /// An interface to archive files in a zip file.
 @Mockable

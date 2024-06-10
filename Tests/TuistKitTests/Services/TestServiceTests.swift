@@ -1,6 +1,6 @@
 import Foundation
 import MockableTest
-import TSCBasic
+import Path
 import TuistAutomation
 import TuistCore
 import TuistLoader

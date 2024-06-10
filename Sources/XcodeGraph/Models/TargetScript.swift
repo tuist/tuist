@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// It represents a target script build phase
 public struct TargetScript: Equatable, Codable {

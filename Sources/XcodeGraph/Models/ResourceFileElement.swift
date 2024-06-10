@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum ResourceFileElement: Equatable, Hashable, Codable {
     /// A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, ODR tags list and inclusion

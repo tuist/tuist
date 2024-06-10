@@ -1,6 +1,6 @@
 import AnyCodable
 import Foundation
-import TSCBasic
+import Path
 
 public struct ResourceSynthesizer: Equatable, Hashable, Codable {
     public let parser: Parser

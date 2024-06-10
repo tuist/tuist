@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import SwiftGenKit
-import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeGraph

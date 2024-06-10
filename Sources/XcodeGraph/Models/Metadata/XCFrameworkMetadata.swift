@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// The metadata associated with a precompiled xcframework
 public struct XCFrameworkMetadata: Equatable {

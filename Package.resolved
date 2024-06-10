@@ -1,5 +1,5 @@
 {
-  "originHash" : "d37db3f22e16eeca44eacdba528daf5f694b1c811b68c38e2fd77199db920165",
+  "originHash" : "355f9ed60b1d843fa8956e1b2c94f0be3e9c4591068b9955a571c0456e0e8a6c",
   "pins" : [
     {
       "identity" : "aexml",
@@ -89,6 +89,15 @@
       "state" : {
         "revision" : "58523193c26fb821ed1720dcd8a21009055c7cdb",
         "version" : "1.1.3"
+      }
+    },
+    {
+      "identity" : "path",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Path.git",
+      "state" : {
+        "revision" : "4490da629937fc3994f72dd787dcc3f50d6973fe",
+        "version" : "0.3.0"
       }
     },
     {

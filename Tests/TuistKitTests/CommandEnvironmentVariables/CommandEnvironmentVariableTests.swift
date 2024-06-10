@@ -3,7 +3,7 @@ import Difference
 import Foundation
 import TSCUtility
 import XCTest
-@testable import TSCBasic
+@testable import Path
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport

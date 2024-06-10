@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 enum FileClientError: LocalizedError, FatalError {
     case urlSessionError(URLRequest, Error, AbsolutePath?)
