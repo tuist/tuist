@@ -141,7 +141,14 @@ struct SettingsMapper {
     {
         settings.filter { setting in
             if let platformName, setting.hasConditions {
-                return setting.condition?.platformNames.contains(platformName) == true
+                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
+                let platformNames: [String]
+                if hasMacCatalystPlatform {
+                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
+                } else {
+                    platformNames = setting.condition?.platformNames ?? []
+                }
+                return platformNames.contains(platformName)
             } else {
                 return !setting.hasConditions
             }
