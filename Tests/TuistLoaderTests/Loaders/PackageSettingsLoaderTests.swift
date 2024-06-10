@@ -71,7 +71,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
-            swiftToolsVersion: TSCUtility.Version("5.4.9")
+            swiftToolsVersion: Version(stringLiteral: "5.4.9")
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)

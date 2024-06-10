@@ -61,7 +61,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(swiftVersion: stubbedSwiftVersion)
+                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
@@ -126,7 +126,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(swiftVersion: stubbedSwiftVersion)
+                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }

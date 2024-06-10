@@ -335,14 +335,6 @@ let package = Package(
             targets: ["ProjectAutomation"]
         ),
         .library(
-            name: "XcodeGraph",
-            targets: ["XcodeGraph"]
-        ),
-        .library(
-            name: "XcodeGraphTesting",
-            targets: ["XcodeGraphTesting"]
-        ),
-        .library(
             name: "TuistKit",
             targets: ["TuistKit"]
         ),
@@ -425,7 +417,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.1.0"))
+        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets
 )

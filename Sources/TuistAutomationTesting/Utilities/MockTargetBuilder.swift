@@ -16,7 +16,7 @@ public final class MockTargetBuilder: TargetBuilding {
         AbsolutePath?,
         AbsolutePath?,
         String?,
-        Version?,
+        XcodeGraph.Version?,
         Bool,
         GraphTraversing,
         [String]
@@ -32,7 +32,7 @@ public final class MockTargetBuilder: TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
         passthroughXcodeBuildArguments: [String]

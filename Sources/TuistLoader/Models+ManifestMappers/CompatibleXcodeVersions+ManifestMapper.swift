@@ -15,11 +15,11 @@ extension XcodeGraph.CompatibleXcodeVersions {
         case .all:
             return .all
         case let .exact(version):
-            return .exact(version)
+            return .exact(.init(stringLiteral: version.description))
         case let .upToNextMajor(version):
-            return .upToNextMajor(version)
+            return .upToNextMajor(.init(stringLiteral: version.description))
         case let .upToNextMinor(version):
-            return .upToNextMinor(version)
+            return .upToNextMinor(.init(stringLiteral: version.description))
         case let .list(versions):
             return .list(versions.map { from(manifest: $0) })
         }

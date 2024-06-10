@@ -251,7 +251,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.asyncQueue.targetName),
                 .target(name: Module.analytics.targetName),
                 .target(name: Module.plugin.targetName),
-                .target(name: Module.xcodeProjectGenerator.targetName),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "XcodeGraph"),
                 .external(name: "ArgumentParser"),
@@ -309,7 +308,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .target(name: Module.scaffold.targetName),
-                .external(name: "SwiftToolsSupport")
+                .external(name: "SwiftToolsSupport"),
             ]
         case .analytics:
             [
@@ -318,7 +317,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .external(name: "AnyCodable"),
-                .external(name: "XcodeGraph")
+                .external(name: "XcodeGraph"),
             ]
         case .migration:
             [
@@ -327,7 +326,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "PathKit"),
                 .external(name: "XcodeProj"),
                 .external(name: "SwiftToolsSupport"),
-                .external(name: "XcodeGraph")
+                .external(name: "XcodeGraph"),
             ]
         case .dependencies:
             [
@@ -485,7 +484,7 @@ public enum Module: String, CaseIterable {
         case .support:
             [
                 .target(name: Module.core.targetName),
-                .external(name: "XcodeGraph")
+                .external(name: "XcodeGraph"),
             ]
         case .kit:
             []
@@ -522,13 +521,13 @@ public enum Module: String, CaseIterable {
             ]
         case .plugin:
             [
-                .external(name: "XcodeGraph")
+                .external(name: "XcodeGraph"),
             ]
         case .analytics:
             []
         case .migration:
             [
-                .external(name: "XcodeGraphTesting"),            
+                .external(name: "XcodeGraphTesting"),
             ]
         case .dependencies:
             [
@@ -595,7 +594,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.projectDescription.targetName),
                 .external(name: "XcodeGraphTesting"),
-
             ]
         case .asyncQueue:
             []
