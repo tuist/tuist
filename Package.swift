@@ -44,7 +44,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
-            "XcodeGraphTesting",
+            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -248,7 +248,7 @@ var targets: [Target] = [
             "TuistLoader",
             pathDependency,
             "TuistCore",
-            "XcodeGraphTesting",
+            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             "ProjectDescription",
             "TuistSupportTesting",
         ],
