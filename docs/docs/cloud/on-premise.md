@@ -35,7 +35,7 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more.
+For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
 
 > [!INFO] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
@@ -313,3 +313,40 @@ volumes:
   db:
     driver: local
 ```
+
+## Metrics
+
+You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint.
+
+### Runs metrics
+
+A set of metrics related to Tuist Runs.
+
+#### `tuist_runs_total` (counter)
+
+The total number of Tuist Runs.
+
+**Tags:**
+- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
+- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
+- `status` – `0` in case of `success`, `1` in case of `failure`
+
+#### `tuist_runs_duration_milliseconds` (histogram)
+
+The total duration of each tuist run in milliseconds.
+
+**Tags:**
+- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
+- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
+- `status` – `0` in case of `success`, `1` in case of `failure`
+
+### Cache metrics
+
+A set of metrics related to the Tuist Cache.
+
+#### `tuist_cache_events_total` (counter)
+
+The total number of Tuist Binary Cache events.
+
+**Tags:**
+- `event_type`: Can be either of `local_hit`, `remote_hit`, or `miss`.
