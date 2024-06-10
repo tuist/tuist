@@ -570,30 +570,63 @@ defmodule TuistCloud.CommandEvents do
         },
         attrs \\ []
       ) do
-    %Event{}
-    |> Event.create_changeset(%{
-      name: name,
-      subcommand: subcommand,
-      command_arguments: Enum.join(command_arguments, " "),
-      duration: duration,
-      tuist_version: tuist_version,
-      swift_version: swift_version,
-      macos_version: macos_version,
-      project_id: project_id,
-      cacheable_targets: cacheable_targets,
-      local_cache_target_hits: local_cache_target_hits,
-      remote_cache_target_hits: remote_cache_target_hits,
-      test_targets: test_targets,
-      local_test_target_hits: local_test_target_hits,
-      remote_test_target_hits: remote_test_target_hits,
-      is_ci: is_ci,
-      user_id: user_id,
-      client_id: client_id,
-      status: status,
-      error_message: error_message |> truncate_error_message(),
-      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
-    })
-    |> Repo.insert!()
+    command_event =
+      %Event{}
+      |> Event.create_changeset(%{
+        name: name,
+        subcommand: subcommand,
+        command_arguments: Enum.join(command_arguments, " "),
+        duration: duration,
+        tuist_version: tuist_version,
+        swift_version: swift_version,
+        macos_version: macos_version,
+        project_id: project_id,
+        cacheable_targets: cacheable_targets,
+        local_cache_target_hits: local_cache_target_hits,
+        remote_cache_target_hits: remote_cache_target_hits,
+        test_targets: test_targets,
+        local_test_target_hits: local_test_target_hits,
+        remote_test_target_hits: remote_test_target_hits,
+        is_ci: is_ci,
+        user_id: user_id,
+        client_id: client_id,
+        status: status,
+        error_message: error_message |> truncate_error_message(),
+        created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+      })
+      |> Repo.insert!()
+
+    :telemetry.execute(
+      [:tuist, :run, :command],
+      %{duration: duration},
+      %{command_event: command_event}
+    )
+
+    :telemetry.execute(
+      [:tuist, :cache, :event],
+      %{
+        count:
+          length(cacheable_targets) - length(local_cache_target_hits) -
+            length(remote_cache_target_hits)
+      },
+      %{event_type: :miss}
+    )
+
+    :telemetry.execute(
+      [:tuist, :cache, :event],
+      %{count: length(local_cache_target_hits)},
+      %{event_type: :local_hit}
+    )
+
+    :telemetry.execute(
+      [:tuist, :cache, :event],
+      %{
+        count: length(remote_cache_target_hits)
+      },
+      %{event_type: :remote_hit}
+    )
+
+    command_event
   end
 
   defp truncate_error_message(error_message) do
