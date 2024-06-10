@@ -31,7 +31,7 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.shared.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try System.shared.swiftVersion()
+        let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
         #if DEBUG
             let debug = true
         #else

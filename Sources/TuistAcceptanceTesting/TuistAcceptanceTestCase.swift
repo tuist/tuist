@@ -42,7 +42,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         do {
             // Environment
             environment = try MockEnvironment()
-            Environment.shared = environment
+            Environment._shared.mutate { $0 = environment }
         } catch {
             XCTFail("Failed to setup environment")
         }

@@ -1,3 +1,4 @@
+import MockableTest
 import Path
 import TSCBasic
 import TuistCore
@@ -14,7 +15,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         do {
-            system.swiftVersionStub = { "5.2" }
+            given(swiftVersionProvider)
+                .swiftVersion()
+                .willReturn("5.2")
+
             xcodeController.selectedVersionStub = .success("11.0.0")
             try setupTestProject()
         } catch {
@@ -518,7 +522,7 @@ private func extractBuildSettings(path: XcodePath) throws -> ExtractedBuildSetti
         arguments.append(scheme)
     }
 
-    let rawBuildSettings = try TSCBasic.Process.checkNonZeroExit(arguments: arguments)
+    let rawBuildSettings = try Process.checkNonZeroExit(arguments: arguments)
     return ExtractedBuildSettings(rawBuildSettings: rawBuildSettings)
 }
 

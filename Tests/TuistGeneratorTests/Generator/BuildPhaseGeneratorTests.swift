@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import TuistCore
 import TuistSupport
@@ -1199,7 +1200,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateTarget_actions() throws {
         // Given
-        system.swiftVersionStub = { "5.2" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1274,7 +1278,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateTarget_action_custom_shell() throws {
         // Given
-        system.swiftVersionStub = { "5.2" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1340,7 +1347,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateTarget_action_dependency_file() throws {
         // Given
-        system.swiftVersionStub = { "5.2" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)

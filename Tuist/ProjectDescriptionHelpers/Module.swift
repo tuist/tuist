@@ -641,6 +641,7 @@ public enum Module: String, CaseIterable {
         }
         dependencies.append(contentsOf: sharedDependencies)
         dependencies.append(.target(name: targetName))
+        dependencies.append(.external(name: "MockableTest"))
         if let testingTargetName {
             dependencies.append(contentsOf: [.target(name: testingTargetName)])
         }

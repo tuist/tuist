@@ -15,12 +15,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEnvironment = try! MockEnvironment()
-        Environment.shared = mockEnvironment
+        Environment._shared.mutate { $0 = mockEnvironment }
     }
 
     override func tearDown() {
         mockEnvironment = nil
-        Environment.shared = Environment()
+        Environment._shared.mutate { $0 = Environment() }
         super.tearDown()
     }
 

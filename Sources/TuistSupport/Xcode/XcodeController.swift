@@ -21,11 +21,21 @@ public class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.
-    public static var shared: XcodeControlling = XcodeController()
+    public static var shared: XcodeControlling {
+        _shared.value
+    }
+
+    // swiftlint:disable:next identifier_name
+    static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command
-    @Atomic
-    private var selectedXcode: Xcode?
+    private let selectedXcode = ThrowableCaching<Xcode?> {
+        guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
+            return nil
+        }
+
+        return try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
+    }
 
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
@@ -33,19 +43,7 @@ public class XcodeController: XcodeControlling, @unchecked Sendable {
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
     public func selected() throws -> Xcode? {
-        // Return cached value if available
-        if let cached = selectedXcode {
-            return cached
-        }
-
-        // e.g. /Applications/Xcode.app/Contents/Developer
-        guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
-            return nil
-        }
-
-        let xcode = try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
-        selectedXcode = xcode
-        return xcode
+        return try selectedXcode.value
     }
 
     enum XcodeVersionError: FatalError {

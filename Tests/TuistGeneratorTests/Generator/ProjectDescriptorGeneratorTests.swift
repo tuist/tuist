@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import struct TSCUtility.Version
 import TuistCore
@@ -16,7 +17,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        system.swiftVersionStub = { "5.2" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
         subject = ProjectDescriptorGenerator()
     }
 
