@@ -1,5 +1,6 @@
 import MockableTest
 import Path
+import TSCBasic
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
@@ -521,7 +522,7 @@ private func extractBuildSettings(path: XcodePath) throws -> ExtractedBuildSetti
         arguments.append(scheme)
     }
 
-    let rawBuildSettings = try TSCBasic.Process.checkNonZeroExit(arguments: arguments)
+    let rawBuildSettings = try Process.checkNonZeroExit(arguments: arguments)
     return ExtractedBuildSettings(rawBuildSettings: rawBuildSettings)
 }
 
