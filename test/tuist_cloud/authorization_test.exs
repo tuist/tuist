@@ -227,6 +227,67 @@ defmodule TuistCloud.AuthorizationTest do
              false
   end
 
+  test "can.update.project.command_event when the subject is a user that belongs to the project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :update, project, :command_event, is_ci: false) == true
+  end
+
+  test "can.update.project.command_event when the subject is a user that belongs to the project organization and is ci" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :update, project, :command_event, is_ci: true) == false
+  end
+
+  test "can.update.project.command_event when the subject is a user that doesn't belong to the project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :update, project, :command_event, is_ci: false) == false
+  end
+
+  test "can.update.project.command_event when the subject is the same project being read and is not ci" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(project, :update, project, :command_event, is_ci: false) == false
+  end
+
+  test "can.update.project.command_event when the subject is the same project being read" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(project, :update, project, :command_event, is_ci: true) == true
+  end
+
+  test "can.update.project.command_event when the subject is not the same project being read" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    another_project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(another_project, :update, project, :command_event, is_ci: true) ==
+             false
+  end
+
   test "can.read.project.command_event when the subject is a user that belongs to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

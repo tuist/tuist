@@ -171,7 +171,8 @@ defmodule TuistCloud.ProjectsTest do
                  account: user_account,
                  project: project_two
                }
-             ] == got
+             ]
+             |> Enum.sort_by(& &1.handle) == got |> Enum.sort_by(& &1.handle)
     end
   end
 

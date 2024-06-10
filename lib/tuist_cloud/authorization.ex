@@ -87,6 +87,18 @@ defmodule TuistCloud.Authorization do
       Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
+  def can(%User{} = user, :update, %Project{} = project, :command_event, opts) do
+    is_ci = Keyword.get(opts, :is_ci, false)
+
+    not is_ci and
+      Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def can(%Project{} = current_project, :update, %Project{} = project, :command_event, opts) do
+    is_ci = Keyword.get(opts, :is_ci, true)
+    is_ci and current_project.id == project.id
+  end
+
   def can(%Project{} = current_project, :create, %Project{} = project, :command_event, opts) do
     is_ci = Keyword.get(opts, :is_ci, true)
     is_ci and current_project.id == project.id

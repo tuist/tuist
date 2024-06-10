@@ -4,7 +4,7 @@ defmodule TuistCloud.CommandEvents.TestSummary do
   """
 
   defstruct [
-    :target_tests,
+    :project_tests,
     :failed_tests_count,
     :successful_tests_count,
     :total_tests_count

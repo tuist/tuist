@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.API.AnalyticsController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.API.Schemas.Module
   alias TuistCloudWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistCloudWeb.API.Schemas.ArtifactMultipartUploadParts
   alias TuistCloudWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -379,6 +380,124 @@ defmodule TuistCloudWeb.API.AnalyticsController do
     conn
     |> put_status(:no_content)
     |> json(%{})
+  end
+
+  operation(:complete_artifacts_uploads,
+    summary: "Completes artifacts uploads for a given command event",
+    description:
+      "Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.",
+    operation_id: "completeAnalyticsArtifactsUploads",
+    parameters: [
+      run_id: [
+        in: :path,
+        type: :integer,
+        required: true,
+        description: "The id of the command event."
+      ]
+    ],
+    request_body:
+      {"Extra metadata for the post-processing of a command event.", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           modules: %Schema{
+             type: :array,
+             description: "A list of modules with their metadata.",
+             items: Module
+           }
+         },
+         required: [:modules]
+       }},
+    responses: %{
+      no_content: "The command event artifact uploads were successfully finished",
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
+      not_found: {"The command event doesn't exist", "application/json", Error}
+    }
+  )
+
+  def complete_artifacts_uploads(
+        %{
+          path_params: %{
+            "run_id" => run_id
+          },
+          body_params: %{
+            modules: modules
+          }
+        } = conn,
+        _params
+      ) do
+    modules =
+      modules
+      |> Enum.reduce(%{}, fn module, acc ->
+        Map.update(
+          acc,
+          module.project_identifier,
+          %{
+            module.name => module.hash
+          },
+          fn project_map ->
+            Map.put(project_map, module.name, module.hash)
+          end
+        )
+      end)
+
+    command_event =
+      CommandEvents.get_command_event_by_id(run_id)
+
+    test_summary =
+      CommandEvents.get_test_summary(command_event)
+
+    if not is_nil(test_summary) do
+      create_test_case_runs(%{
+        project_tests: test_summary.project_tests,
+        modules: modules,
+        run_id: run_id
+      })
+    end
+
+    conn
+    |> put_status(:no_content)
+    |> json(%{})
+  end
+
+  defp create_test_case_runs(%{
+         project_tests: project_tests,
+         modules: modules,
+         run_id: run_id
+       }) do
+    Enum.each(project_tests, fn {project_identifier, module_tests} ->
+      Enum.each(module_tests, fn {module_name, target_test_summary} ->
+        create_test_case_runs(%{
+          tests: target_test_summary.tests,
+          modules: modules,
+          module_name: module_name,
+          project_identifier: project_identifier,
+          run_id: run_id
+        })
+      end)
+    end)
+  end
+
+  defp create_test_case_runs(%{
+         tests: tests,
+         modules: modules,
+         module_name: module_name,
+         project_identifier: project_identifier,
+         run_id: run_id
+       }) do
+    Enum.each(tests, fn test ->
+      CommandEvents.create_test_case_run(%{
+        name: test.name,
+        module_name: module_name,
+        identifier: test.identifier_url,
+        module_hash: modules[project_identifier][module_name],
+        project_identifier: project_identifier,
+        command_event_id: run_id,
+        status: test.test_status
+      })
+    end)
   end
 
   defp get_object_key(%{type: type, run_id: run_id, name: name}) do

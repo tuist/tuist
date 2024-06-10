@@ -37,6 +37,23 @@ defmodule TuistCloud.CommandEventsFixtures do
     )
   end
 
+  def test_case_run_fixture(attrs \\ []) do
+    command_event_id =
+      Keyword.get_lazy(attrs, :command_event_id, fn ->
+        command_event_fixture().id
+      end)
+
+    CommandEvents.create_test_case_run(%{
+      name: Keyword.get(attrs, :name, "test"),
+      module_name: Keyword.get(attrs, :module_name, "AppTests"),
+      identifier: Keyword.get(attrs, :identifier, "AppTests/testExample"),
+      project_identifier: Keyword.get(attrs, :project_identifier, "AppTests/AppTests.swift"),
+      module_hash: Keyword.get(attrs, :module_hash, "module-hash"),
+      status: Keyword.get(attrs, :status, :success),
+      command_event_id: command_event_id
+    })
+  end
+
   def invocation_record_fixture do
     ~S"""
     {
