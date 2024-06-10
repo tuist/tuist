@@ -18,9 +18,13 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
     CommandEvents
     |> stub(:get_test_summary, fn _ ->
       %CommandEvents.TestSummary{
-        target_tests: %{
-          "A" => %CommandEvents.TargetTestSummary{tests: [], status: :success},
-          "B" => %CommandEvents.TargetTestSummary{tests: [], status: :failure}
+        project_tests: %{
+          "A/A.xcodeproj" => %{
+            "A" => %CommandEvents.TargetTestSummary{tests: [], status: :success}
+          },
+          "B/B.xcodeproj" => %{
+            "B" => %CommandEvents.TargetTestSummary{tests: [], status: :failure}
+          }
         },
         failed_tests_count: 1,
         successful_tests_count: 3,

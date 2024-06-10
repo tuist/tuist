@@ -64,6 +64,10 @@ defmodule TuistCloudWeb.Router do
          AnalyticsController,
          :multipart_complete
 
+    put "/runs/:run_id/complete_artifacts_uploads",
+        AnalyticsController,
+        :complete_artifacts_uploads
+
     get "/cache", CacheController, :download
     get "/cache/exists", CacheController, :exists
     post "/cache/multipart/start", CacheController, :multipart_start

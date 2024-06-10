@@ -2,6 +2,7 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.CommandEvents.TestCaseRun
   alias TuistCloud.CommandEvents.TargetTestSummary
   alias TuistCloud.CommandEvents.TestSummary
 
@@ -209,6 +210,23 @@ defmodule TuistCloud.CommandEvents do
           & &1.average
         )
     }
+  end
+
+  def get_flaky_tests(%Project{} = project) do
+    query =
+      from(
+        t1 in TestCaseRun,
+        join: t2 in TestCaseRun,
+        on: t1.identifier == t2.identifier,
+        join: e in Event,
+        on: t1.command_event_id == e.id,
+        where: e.project_id == ^project.id,
+        where: t1.status == ^:failure,
+        where: t2.status == ^:success,
+        distinct: t1.identifier
+      )
+
+    Repo.all(query)
   end
 
   def get_command_runs_analytics(name, opts) do
@@ -637,6 +655,32 @@ defmodule TuistCloud.CommandEvents do
     end
   end
 
+  def create_test_case_run(
+        %{
+          name: name,
+          module_name: module_name,
+          identifier: identifier,
+          module_hash: module_hash,
+          project_identifier: project_identifier,
+          command_event_id: command_event_id,
+          status: status
+        },
+        attrs \\ []
+      ) do
+    %TestCaseRun{}
+    |> TestCaseRun.create_changeset(%{
+      identifier: identifier,
+      module_hash: module_hash,
+      module_name: module_name,
+      project_identifier: project_identifier,
+      name: name,
+      command_event_id: command_event_id,
+      status: status,
+      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+    })
+    |> Repo.insert!()
+  end
+
   def get_test_summary(%Event{} = command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
 
@@ -647,7 +691,7 @@ defmodule TuistCloud.CommandEvents do
 
       invocation_record = get_actions_invocation_record(invocation_record)
 
-      test_action_summaries =
+      test_case_run_summaries =
         invocation_record.actions
         |> Enum.filter(fn action -> action.scheme_command_name == "Test" end)
         |> Enum.map(fn action ->
@@ -662,41 +706,25 @@ defmodule TuistCloud.CommandEvents do
         end)
         |> Enum.flat_map(& &1.summaries)
 
-      target_tests =
-        test_action_summaries
+      project_tests =
+        test_case_run_summaries
         |> Enum.flat_map(& &1.testable_summaries)
-        |> Enum.reduce(%{}, fn testable_summary, tests_map ->
-          tests =
-            testable_summary.tests
-            |> Enum.flat_map(&get_test_summary_group_tests/1)
-
-          tests_map
-          |> Map.put(
-            testable_summary.target_name,
-            %TargetTestSummary{
-              tests: tests,
-              status:
-                if Enum.any?(tests, fn test -> test.test_status == "Failure" end) do
-                  :failure
-                else
-                  :success
-                end
-            }
-          )
-        end)
+        |> get_project_tests_map()
 
       all_tests =
-        Enum.flat_map(target_tests, fn {_, target_test_summary} -> target_test_summary.tests end)
+        Map.values(project_tests)
+        |> Enum.flat_map(&Map.values(&1))
+        |> Enum.flat_map(& &1.tests)
 
       total_tests_count = length(all_tests)
 
       failed_tests_count =
-        Enum.filter(all_tests, fn test -> test.test_status == "Failure" end) |> length
+        Enum.filter(all_tests, fn test -> test.test_status == :failure end) |> length
 
       successful_tests_count = total_tests_count - failed_tests_count
 
       %TestSummary{
-        target_tests: target_tests,
+        project_tests: project_tests,
         failed_tests_count: failed_tests_count,
         successful_tests_count: successful_tests_count,
         total_tests_count: total_tests_count
@@ -704,6 +732,36 @@ defmodule TuistCloud.CommandEvents do
     else
       nil
     end
+  end
+
+  defp get_project_tests_map(testable_summaries) do
+    testable_summaries
+    |> Enum.reduce(%{}, fn testable_summary, tests_map ->
+      tests =
+        testable_summary.tests
+        |> Enum.flat_map(&get_test_summary_group_tests/1)
+
+      target_test_summary = %TargetTestSummary{
+        tests: tests,
+        status:
+          if Enum.any?(tests, fn test -> test.test_status == :failure end) do
+            :failure
+          else
+            :success
+          end
+      }
+
+      Map.update(
+        tests_map,
+        testable_summary.project_identifier,
+        %{
+          testable_summary.module_name => target_test_summary
+        },
+        fn project_map ->
+          Map.put(project_map, testable_summary.module_name, target_test_summary)
+        end
+      )
+    end)
   end
 
   defp get_test_summary_group_tests(action_test_summary_group) do
@@ -729,7 +787,8 @@ defmodule TuistCloud.CommandEvents do
 
   defp get_actions_testable_summary(json) do
     %ActionTestableSummary{
-      target_name: get_result_bundle_value(json, "targetName"),
+      module_name: get_result_bundle_value(json, "targetName"),
+      project_identifier: get_result_bundle_value(json, "projectRelativePath"),
       tests:
         get_result_bundle_array(json, "tests", type: "ActionTestSummaryGroup")
         |> Enum.map(&get_action_test_summary_group/1)
@@ -740,7 +799,8 @@ defmodule TuistCloud.CommandEvents do
     %ActionTestSummaryGroup{
       subtests:
         get_result_bundle_array(json, "subtests", type: "ActionTestMetadata")
-        |> Enum.map(&get_action_test_metadata/1),
+        |> Enum.map(&get_action_test_metadata/1)
+        |> Enum.filter(&(not is_nil(&1))),
       subtest_groups:
         get_result_bundle_array(json, "subtests", type: "ActionTestSummaryGroup")
         |> Enum.map(&get_action_test_summary_group/1)
@@ -748,10 +808,22 @@ defmodule TuistCloud.CommandEvents do
   end
 
   defp get_action_test_metadata(json) do
-    %ActionTestMetadata{
-      test_status: get_result_bundle_value!(json, "testStatus"),
-      name: get_result_bundle_value(json, "name")
-    }
+    test_status =
+      case get_result_bundle_value!(json, "testStatus") do
+        "Failure" -> :failure
+        "Success" -> :success
+        _ -> nil
+      end
+
+    if is_nil(test_status) do
+      nil
+    else
+      %ActionTestMetadata{
+        test_status: test_status,
+        name: get_result_bundle_value(json, "name"),
+        identifier_url: get_result_bundle_value(json, "identifierURL")
+      }
+    end
   end
 
   defp get_actions_invocation_record(json) do

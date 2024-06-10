@@ -1,4 +1,6 @@
 defmodule TuistCloudWeb.AnalyticsControllerTest do
+  alias TuistCloud.CommandEvents.TestCaseRun
+  alias TuistCloud.Repo
   alias TuistCloud.Storage
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.CommandEvents
@@ -6,6 +8,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Accounts
   alias TuistCloudWeb.Authentication
+  import Ecto.Query, only: [from: 2]
   use TuistCloudWeb.ConnCase, async: true
   use Mimic
 
@@ -413,6 +416,144 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
+    end
+  end
+
+  describe "PUT /api/runs/:run_id/complete_artifacts_uploads" do
+    test "creates test action events", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        |> Repo.preload(project: :account)
+
+      base_path =
+        "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
+
+      invocation_record_object_key =
+        "#{base_path}/invocation_record.json"
+
+      test_plan_object_key =
+        "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
+
+      Storage
+      |> stub(:exists, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            true
+
+          ^test_plan_object_key ->
+            true
+        end
+      end)
+
+      Storage
+      |> stub(:get_object, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            CommandEventsFixtures.invocation_record_fixture()
+
+          ^test_plan_object_key ->
+            CommandEventsFixtures.test_plan_object_fixture()
+        end
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/runs/#{command_event.id}/complete_artifacts_uploads",
+          modules: [
+            %{
+              name: "AppTests",
+              project_identifier: "App/MainApp.xcodeproj",
+              hash: "app-module_hash"
+            },
+            %{
+              name: "Framework1Tests",
+              project_identifier: "Framework1/Framework1.xcodeproj",
+              hash: "framework1-module_hash"
+            },
+            %{
+              name: "Framework2Tests",
+              project_identifier: "Framework2/Framework2.xcodeproj",
+              hash: "framework2-module_hash"
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+
+      test_case_runs =
+        from(
+          t in TestCaseRun,
+          where: t.command_event_id == ^command_event.id
+        )
+        |> Repo.all()
+        |> Enum.map(& &1.identifier)
+        |> Enum.sort()
+
+      assert length(test_case_runs) == 5
+
+      assert test_case_runs == [
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+             ]
+    end
+
+    test "noops when test_summary is missing", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        |> Repo.preload(project: :account)
+
+      Storage
+      |> stub(:exists, fn _ -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/runs/#{command_event.id}/complete_artifacts_uploads",
+          modules: [
+            %{
+              name: "AppTests",
+              project_identifier: "App/MainApp.xcodeproj",
+              hash: "app-module_hash"
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+
+      test_case_runs =
+        from(
+          t in TestCaseRun,
+          where: t.command_event_id == ^command_event.id
+        )
+        |> Repo.all()
+
+      assert Enum.empty?(test_case_runs) == true
     end
   end
 end

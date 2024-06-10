@@ -35,13 +35,9 @@ defmodule TuistCloudWeb.RunDetailLive do
       if is_nil(test_summary) do
         []
       else
-        test_summary.target_tests
-        |> Enum.map(fn {target, target_test_summary} ->
-          %{
-            name: target,
-            status: target_test_summary.status
-          }
-        end)
+        test_summary.project_tests
+        |> Map.values()
+        |> Enum.flat_map(&get_target_results(&1))
         |> Enum.sort_by(& &1.name)
       end
 
@@ -59,8 +55,16 @@ defmodule TuistCloudWeb.RunDetailLive do
     }
   end
 
-  attr(:title, :string, required: true)
+  defp get_target_results(targets_map) do
+    Enum.map(targets_map, fn {target, target_test_summary} ->
+      %{
+        name: target,
+        status: target_test_summary.status
+      }
+    end)
+  end
 
+  attr(:title, :string, required: true)
   slot(:inner_block, required: true, doc: "the inner block to present a custom value component")
 
   def run_detail_row(assigns) do

@@ -922,44 +922,121 @@ defmodule TuistCloud.CommandEventsTest do
                failed_tests_count: 1,
                successful_tests_count: 4,
                total_tests_count: 5,
-               target_tests: %{
-                 "AppTests" => %TargetTestSummary{
-                   tests: [
-                     %ActionTestMetadata{
-                       test_status: "Success",
-                       name: "testHello()"
-                     }
-                   ],
-                   status: :success
+               project_tests: %{
+                 "App/MainApp.xcodeproj" => %{
+                   "AppTests" => %TargetTestSummary{
+                     tests: [
+                       %ActionTestMetadata{
+                         identifier_url:
+                           "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello",
+                         test_status: :success,
+                         name: "testHello()"
+                       }
+                     ],
+                     status: :success
+                   }
                  },
-                 "Framework1Tests" => %TargetTestSummary{
-                   tests: [
-                     %ActionTestMetadata{
-                       test_status: "Success",
-                       name: "testHello()"
-                     },
-                     %ActionTestMetadata{
-                       test_status: "Success",
-                       name: "testHelloFromFramework2()"
-                     }
-                   ],
-                   status: :success
+                 "Framework1/Framework1.xcodeproj" => %{
+                   "Framework1Tests" => %TargetTestSummary{
+                     tests: [
+                       %ActionTestMetadata{
+                         identifier_url:
+                           "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+                         test_status: :success,
+                         name: "testHello()"
+                       },
+                       %ActionTestMetadata{
+                         identifier_url:
+                           "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+                         test_status: :success,
+                         name: "testHelloFromFramework2()"
+                       }
+                     ],
+                     status: :success
+                   }
                  },
-                 "Framework2Tests" => %TargetTestSummary{
-                   tests: [
-                     %ActionTestMetadata{
-                       test_status: "Failure",
-                       name: "testHello()"
-                     },
-                     %ActionTestMetadata{
-                       test_status: "Success",
-                       name: "testHello()"
-                     }
-                   ],
-                   status: :failure
+                 "Framework2/Framework2.xcodeproj" => %{
+                   "Framework2Tests" => %TargetTestSummary{
+                     tests: [
+                       %ActionTestMetadata{
+                         identifier_url:
+                           "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+                         test_status: :failure,
+                         name: "testHello()"
+                       },
+                       %ActionTestMetadata{
+                         identifier_url:
+                           "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+                         test_status: :success,
+                         name: "testHello()"
+                       }
+                     ],
+                     status: :failure
+                   }
                  }
                }
              }
+    end
+  end
+
+  describe "get_flaky_tests/1" do
+    test "returns flaky tests" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      command_event_one = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      command_event_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test0",
+        command_event_id: command_event_one.id,
+        status: :failure
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test0",
+        command_event_id: command_event_two.id,
+        status: :success
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test0",
+        command_event_id: command_event_three.id,
+        status: :success
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test1",
+        command_event_id: command_event_three.id,
+        status: :success
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test1",
+        command_event_id: command_event_two.id,
+        status: :success
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test2",
+        command_event_id: command_event_one.id,
+        status: :failure
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        identifier: "test2",
+        command_event_id: command_event_two.id,
+        status: :success
+      )
+
+      # When
+      got = CommandEvents.get_flaky_tests(project)
+
+      # Then
+      assert Enum.map(got, & &1.identifier) |> Enum.sort() == ["test0", "test2"]
     end
   end
 end
