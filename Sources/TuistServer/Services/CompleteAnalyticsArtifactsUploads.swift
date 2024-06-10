@@ -6,7 +6,7 @@ import TuistSupport
 @Mockable
 public protocol CompleteAnalyticsArtifactsUploadsServicing {
     func completeAnalyticsArtifactsUploads(
-        targets: [CloudTarget],
+        modules: [CloudModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws
@@ -40,7 +40,7 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
     public init() {}
 
     public func completeAnalyticsArtifactsUploads(
-        targets: [CloudTarget],
+        modules: [CloudModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws {
@@ -49,7 +49,7 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
             .init(
                 path: .init(run_id: commandEventId),
                 body: .json(
-                    .init(targets: .init(targets.map(Components.Schemas.Target.init)))
+                    .init(modules: .init(modules.map(Components.Schemas.Module.init)))
                 )
             )
         )

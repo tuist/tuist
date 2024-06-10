@@ -713,7 +713,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/name`.
             public var name: Swift.String?
-            /// The command event artifact type.
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             @frozen
@@ -745,7 +749,11 @@ public enum Components {
                     [.result_bundle, .invocation_record, .result_bundle_object]
                 }
             }
-            /// The command event artifact type.
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             public var _type: Components.Schemas.CommandEventArtifact._typePayload
@@ -753,7 +761,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - name: The name of the file. It's used only for certain types such as result_bundle_object
-            ///   - _type: The command event artifact type.
+            ///   - _type: The command event artifact type. It can be:
             public init(
                 name: Swift.String? = nil,
                 _type: Components.Schemas.CommandEventArtifact._typePayload
@@ -826,6 +834,37 @@ public enum Components {
                 case inviter
                 case organization_id
                 case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Module`.
+        public struct Module: Codable, Equatable, Hashable, Sendable {
+            /// A hash that represents the module.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/hash`.
+            public var hash: Swift.String
+            /// A name of the module
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/name`.
+            public var name: Swift.String
+            /// Project's relative path from the root of the repository
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/project_identifier`.
+            public var project_identifier: Swift.String
+            /// Creates a new `Module`.
+            ///
+            /// - Parameters:
+            ///   - hash: A hash that represents the module.
+            ///   - name: A name of the module
+            ///   - project_identifier: Project's relative path from the root of the repository
+            public init(hash: Swift.String, name: Swift.String, project_identifier: Swift.String) {
+                self.hash = hash
+                self.name = name
+                self.project_identifier = project_identifier
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hash
+                case name
+                case project_identifier
             }
         }
         /// An organization
@@ -1061,41 +1100,6 @@ public enum Components {
                 case full_name
                 case id
                 case token
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/Target`.
-        public struct Target: Codable, Equatable, Hashable, Sendable {
-            /// A hash that represents the current target, all its dependencies, and contents
-            ///
-            /// - Remark: Generated from `#/components/schemas/Target/hash`.
-            public var hash: Swift.String
-            /// Project's relative path from the root of the repository
-            ///
-            /// - Remark: Generated from `#/components/schemas/Target/project_relative_path`.
-            public var project_relative_path: Swift.String
-            /// A name of the target
-            ///
-            /// - Remark: Generated from `#/components/schemas/Target/target_name`.
-            public var target_name: Swift.String
-            /// Creates a new `Target`.
-            ///
-            /// - Parameters:
-            ///   - hash: A hash that represents the current target, all its dependencies, and contents
-            ///   - project_relative_path: Project's relative path from the root of the repository
-            ///   - target_name: A name of the target
-            public init(
-                hash: Swift.String,
-                project_relative_path: Swift.String,
-                target_name: Swift.String
-            ) {
-                self.hash = hash
-                self.project_relative_path = project_relative_path
-                self.target_name = target_name
-            }
-            public enum CodingKeys: String, CodingKey {
-                case hash
-                case project_relative_path
-                case target_name
             }
         }
         /// A user.
@@ -5802,16 +5806,16 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                    /// A list of targets with their metadata.
+                    /// A list of modules with their metadata.
                     ///
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/json/targets`.
-                    public var targets: [Components.Schemas.Target]
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/json/modules`.
+                    public var modules: [Components.Schemas.Module]
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - targets: A list of targets with their metadata.
-                    public init(targets: [Components.Schemas.Target]) { self.targets = targets }
-                    public enum CodingKeys: String, CodingKey { case targets }
+                    ///   - modules: A list of modules with their metadata.
+                    public init(modules: [Components.Schemas.Module]) { self.modules = modules }
+                    public enum CodingKeys: String, CodingKey { case modules }
                 }
                 case json(Operations.completeAnalyticsArtifactsUploads.Input.Body.jsonPayload)
             }

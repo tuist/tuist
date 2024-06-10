@@ -196,7 +196,11 @@ components:
           description: The name of the file. It's used only for certain types such as result_bundle_object
           type: string
         type:
-          description: The command event artifact type.
+          description: |
+            The command event artifact type. It can be:
+            - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
           enum:
             - result_bundle
             - invocation_record
@@ -241,6 +245,24 @@ components:
       title: Invitation
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Invitation
+    Module:
+      properties:
+        hash:
+          description: A hash that represents the module.
+          type: string
+        name:
+          description: A name of the module
+          type: string
+        project_identifier:
+          description: Project's relative path from the root of the repository
+          type: string
+      required:
+        - name
+        - project_identifier
+        - hash
+      title: Module
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.Module
     Organization:
       description: An organization
       properties:
@@ -337,24 +359,6 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Project
-    Target:
-      properties:
-        hash:
-          description: A hash that represents the current target, all its dependencies, and contents
-          type: string
-        project_relative_path:
-          description: Project's relative path from the root of the repository
-          type: string
-        target_name:
-          description: A name of the target
-          type: string
-      required:
-        - target_name
-        - project_relative_path
-        - hash
-      title: Target
-      type: object
-      x-struct: Elixir.TuistCloudWeb.API.Schemas.Target
     User:
       description: A user.
       properties:
@@ -1552,13 +1556,13 @@ paths:
           application/json:
             schema:
               properties:
-                targets:
-                  description: A list of targets with their metadata.
+                modules:
+                  description: A list of modules with their metadata.
                   items:
-                    $ref: '#/components/schemas/Target'
+                    $ref: '#/components/schemas/Module'
                   type: array
               required:
-                - targets
+                - modules
               type: object
         description: Extra metadata for the post-processing of a command event.
         required: false

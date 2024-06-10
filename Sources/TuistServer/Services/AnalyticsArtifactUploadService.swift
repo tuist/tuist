@@ -117,17 +117,17 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             serverURL: serverURL
         )
 
-        let targets = targetHashes.map { key, value in
-            CloudTarget(
+        let modules = targetHashes.map { key, value in
+            CloudModule(
                 hash: value,
                 projectRelativePath:
                 key.project.xcodeProjPath.relative(to: graphPath),
-                targetName: key.target.name
+                name: key.target.name
             )
         }
 
         try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
-            targets: targets,
+            modules: modules,
             commandEventId: commandEventId,
             serverURL: serverURL
         )
