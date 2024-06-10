@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import TSCBasic
 
 public protocol Systeming {
@@ -85,7 +86,7 @@ public protocol Systeming {
     ///     - mode: Defines user file mode.
     ///     - path: Path of file for which the permissions should be changed.
     ///     - options: Options for changing permissions.
-    func chmod(_ mode: FileMode, path: AbsolutePath, options: Set<FileMode.Option>) throws
+    func chmod(_ mode: FileMode, path: Path.AbsolutePath, options: Set<FileMode.Option>) throws
 }
 
 extension Systeming {

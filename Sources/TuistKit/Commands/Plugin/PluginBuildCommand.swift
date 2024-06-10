@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 
 public struct PluginBuildCommand: ParsableCommand {
     public init() {}

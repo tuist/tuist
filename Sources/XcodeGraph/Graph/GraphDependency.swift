@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
     public struct XCFramework: Hashable, CustomStringConvertible, Comparable, Codable {

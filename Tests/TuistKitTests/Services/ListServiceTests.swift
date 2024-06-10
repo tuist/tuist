@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistPluginTesting
 import XcodeGraph
 import XcodeGraphTesting

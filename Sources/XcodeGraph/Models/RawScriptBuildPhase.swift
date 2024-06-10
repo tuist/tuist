@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// It represents a raw script build phase.
 public struct RawScriptBuildPhase: Equatable, Codable {

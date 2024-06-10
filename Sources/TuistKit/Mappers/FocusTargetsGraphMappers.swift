@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import TSCBasic
 import TuistCore
 import TuistSupport

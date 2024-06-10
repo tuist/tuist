@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import ProjectAutomation
-import TSCBasic
 import TuistSupport
 import XcodeGraph
 

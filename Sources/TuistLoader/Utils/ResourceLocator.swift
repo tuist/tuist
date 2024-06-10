@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 public protocol ResourceLocating: AnyObject {
@@ -58,7 +58,8 @@ public final class ResourceLocator: ResourceLocating {
                 */
             bundlePath.parentDirectory.appending(component: "lib"),
         ]
-        if let frameworkSearchPaths = ProcessEnv.vars["TUIST_FRAMEWORK_SEARCH_PATHS"]?.components(separatedBy: " ")
+        if let frameworkSearchPaths = ProcessInfo.processInfo.environment["TUIST_FRAMEWORK_SEARCH_PATHS"]?
+            .components(separatedBy: " ")
             .filter({ !$0.isEmpty })
         {
             paths.append(

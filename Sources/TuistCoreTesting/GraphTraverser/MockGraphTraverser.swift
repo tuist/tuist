@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import XcodeGraph
 @testable import TuistCore
 
@@ -68,7 +68,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedTargets = false
     var invokedTargetsCount = 0
     var stubbedTargets: [AbsolutePath: [String: Target]]! = [:]
-    func targets() -> [TSCBasic.AbsolutePath: [String: XcodeGraph.Target]] {
+    func targets() -> [Path.AbsolutePath: [String: XcodeGraph.Target]] {
         invokedTargets = true
         invokedTargetsCount += 1
         return stubbedTargets
@@ -198,7 +198,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedBuildsForMacCatalystParametersList = [(path: AbsolutePath, name: String)]()
     var stubbedBuildsForMacCatalystResult: Bool!
 
-    func buildsForMacCatalyst(path: TSCBasic.AbsolutePath, name: String) -> Bool {
+    func buildsForMacCatalyst(path: Path.AbsolutePath, name: String) -> Bool {
         invokedBuildsForMacCatalyst = true
         invokedBuildsForMacCatalystCount += 1
         invokedBuildsForMacCatalystParameters = (path, name)
@@ -241,7 +241,7 @@ final class MockGraphTraverser: GraphTraversing {
         name: String
     )?
     var invokedAllTargetDependenciesResult: Set<XcodeGraph.GraphTarget> = []
-    func allTargetDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
+    func allTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
         invokedAllTargetDependencies = true
         invokedAllTargetDependenciesCount += 1
         invokedAllTargetDependenciesParameters = (path, name)
@@ -565,7 +565,7 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedExtensionKitExtensionDependenciesResult: Set<GraphTargetReference>! = []
 
-    func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    func extensionKitExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedExtensionKitExtensionDependencies = true
         invokedExtensionKitExtensionDependenciesCount += 1
         invokedExtensionKitExtensionDependenciesParameters = (path, name)
@@ -582,7 +582,7 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedExtensionKitExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
 
-    func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+    func extensionKitExtensionDependenciesWithConditions(path: Path.AbsolutePath, name: String) -> [(
         XcodeGraph.GraphTarget,
         XcodeGraph.PlatformCondition?
     )] {
@@ -600,7 +600,7 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectSwiftMacroExecutablesResult: Set<GraphDependencyReference>! = []
 
-    func directSwiftMacroExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistCore.GraphDependencyReference> {
+    func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<TuistCore.GraphDependencyReference> {
         invokedDirectSwiftMacroExecutables = true
         invokedDirectSwiftMacroExecutablesCount += 1
         invokedDirectSwiftMacroExecutablesParameters = (path, name)
@@ -614,7 +614,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedDirectSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectSwiftMacroTargetsResult: Set<GraphTargetReference>! = []
-    func directSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    func directSwiftMacroTargets(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedDirectSwiftMacroTargets = true
         invokedDirectSwiftMacroTargetsCount += 1
         invokedDirectSwiftMacroTargetsParameters = (path, name)
@@ -628,7 +628,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAllSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedAllSwiftMacroTargetsResult: Set<GraphTarget>! = []
-    func allSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
+    func allSwiftMacroTargets(path: Path.AbsolutePath, name: String) -> Set<XcodeGraph.GraphTarget> {
         invokedAllSwiftMacroTargets = true
         invokedAllSwiftMacroTargetsCount += 1
         invokedAllSwiftMacroTargetsParameters = (path, name)
@@ -692,7 +692,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAllSwiftPluginExecutablesParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedAllSwiftPluginExecutablesResult: Set<String>! = []
-    func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
+    func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
         invokedAllSwiftPluginExecutables = true
         invokedAllSwiftPluginExecutablesCount += 1
         invokedAllSwiftPluginExecutablesParameters = (path, name)

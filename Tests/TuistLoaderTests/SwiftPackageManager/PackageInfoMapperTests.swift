@@ -1,6 +1,6 @@
 import MockableTest
+import Path
 import ProjectDescription
-import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistSupport

@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 
 /// A structs that represents an invalid glob pattern.
 public struct InvalidGlob: Equatable, CustomStringConvertible, Sendable {

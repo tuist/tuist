@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 public struct TuistBenchmarkCommand: ParsableCommand {

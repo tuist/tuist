@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum FileElement: Equatable, Hashable, Codable {
     case file(path: AbsolutePath)

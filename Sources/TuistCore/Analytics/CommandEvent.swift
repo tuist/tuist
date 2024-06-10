@@ -1,6 +1,6 @@
 import AnyCodable
 import Foundation
-import TSCBasic
+import Path
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {

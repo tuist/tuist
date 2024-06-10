@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.

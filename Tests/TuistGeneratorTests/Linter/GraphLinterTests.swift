@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport

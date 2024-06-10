@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public protocol FileContentHashing {
     func hash(path: AbsolutePath) throws -> String

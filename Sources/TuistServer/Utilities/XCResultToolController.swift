@@ -1,5 +1,5 @@
 import Mockable
-import TSCBasic
+import Path
 import TuistSupport
 
 @Mockable

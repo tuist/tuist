@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -43,13 +43,13 @@ final class FileHandlerTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let tempFile = temporaryPath.appending(component: "Temporary")
         let destFile = temporaryPath.appending(component: "Destination")
-        try "content".write(to: tempFile.asURL, atomically: true, encoding: .utf8)
+        try "content".write(to: URL(fileURLWithPath: tempFile.pathString), atomically: true, encoding: .utf8)
 
         // When
         try subject.replace(destFile, with: tempFile)
 
         // Then
-        let content = try String(contentsOf: destFile.asURL)
+        let content = try String(contentsOf: URL(fileURLWithPath: destFile.pathString))
         XCTAssertEqual(content, "content")
     }
 
@@ -135,7 +135,7 @@ final class FileHandlerTests: TuistUnitTestCase {
             create: true
         ).path)
         let rootTempPath = tempPath.parentDirectory
-        try fileManager.removeItem(at: tempPath.asURL)
+        try fileManager.removeItem(at: URL(fileURLWithPath: tempPath.pathString))
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)
         return content.count
     }

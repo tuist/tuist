@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Headers
 public struct Headers: Equatable, Codable {

@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 
 /// A command to install the remote content the project depends on.
 public struct InstallCommand: AsyncParsableCommand {

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public protocol DeveloperEnvironmenting {
     /// Returns the derived data directory selected in the environment.
@@ -51,7 +51,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
 
     /// https://pewpewthespells.com/blog/xcode_build_locations.html
     private let derivedDataDirectoryCache: ThrowableCaching<AbsolutePath>
-    public var derivedDataDirectory: TSCBasic.AbsolutePath {
+    public var derivedDataDirectory: Path.AbsolutePath {
         // swiftlint:disable:next force_try
         try! derivedDataDirectoryCache.value
     }

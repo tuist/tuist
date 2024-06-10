@@ -1,5 +1,5 @@
 import Mockable
-import TSCBasic
+import Path
 
 /// An interface that defines a factory of archiver and unarchivers.
 @Mockable

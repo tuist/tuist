@@ -1,6 +1,6 @@
 import Foundation
 import GraphViz
-import TSCBasic
+import Path
 import TuistCore
 import XcodeGraph
 import XcodeGraphTesting

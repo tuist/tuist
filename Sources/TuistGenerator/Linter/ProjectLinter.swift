@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -48,8 +48,8 @@ class ProjectLinter: ProjectLinting {
     }
 
     private func lintTargets(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        issues.append(contentsOf: project.targets.values.flatMap(targetLinter.lint))
-        return issues
+        return project.targets.values.flatMap { target in
+            targetLinter.lint(target: target, options: project.options)
+        }
     }
 }

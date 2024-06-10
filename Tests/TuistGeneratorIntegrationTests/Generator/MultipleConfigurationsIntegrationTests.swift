@@ -1,5 +1,5 @@
 import MockableTest
-import TSCBasic
+import Path
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
@@ -356,7 +356,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     @discardableResult
-    private func createFile(path relativePath: String, content: String) throws -> AbsolutePath {
+    private func createFile(path relativePath: String, content: String) throws -> Path.AbsolutePath {
         let temporaryPath = try temporaryPath()
         let absolutePath = temporaryPath.appending(try RelativePath(validating: relativePath))
         try FileHandler.shared.touch(absolutePath)
@@ -388,7 +388,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
     }
 
-    private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
+    private func createWorkspace(path: Path.AbsolutePath, projects: [String]) throws -> Workspace {
         Workspace(
             path: path,
             xcWorkspacePath: path.appending(component: "Workspace.xcworkspace"),
@@ -399,7 +399,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createProject(
-        path: AbsolutePath,
+        path: Path.AbsolutePath,
         settings: Settings,
         targets: [Target],
         packages: [Package] = [],
@@ -440,7 +440,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
     }
 
-    private func pathTo(_ relativePath: String) throws -> AbsolutePath {
+    private func pathTo(_ relativePath: String) throws -> Path.AbsolutePath {
         let temporaryPath = try temporaryPath()
         return temporaryPath.appending(try RelativePath(validating: relativePath))
     }

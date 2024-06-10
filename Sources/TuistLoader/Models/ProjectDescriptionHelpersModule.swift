@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Defines a module for a project description helper.
 /// Project description helpers are modules which can be imported wherever "ProjectDescription" can be imported.

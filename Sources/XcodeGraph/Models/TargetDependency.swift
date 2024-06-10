@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public enum FrameworkStatus: String, Hashable, Codable {
     case required

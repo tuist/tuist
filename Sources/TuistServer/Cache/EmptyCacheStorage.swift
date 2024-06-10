@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 
 /// Empty `CacheStoring` implementation as we noop cache storing in the opensource repository

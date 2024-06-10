@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 /// `ContentHasher`

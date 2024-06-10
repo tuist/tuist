@@ -1,7 +1,7 @@
 import Foundation
+import Path
 import PathKit
 import StencilSwiftKit
-import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeGraph

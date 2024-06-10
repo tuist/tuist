@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -33,7 +33,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         try FileManager.default.createDirectory(
-            at: temporaryPath.appending(component: "model.xcdatamodeld").asURL,
+            at: URL(fileURLWithPath: temporaryPath.appending(component: "model.xcdatamodeld").pathString),
             withIntermediateDirectories: false
         )
         try createVersionFile(xcVersion: xcVersionDataString(), temporaryPath: temporaryPath)
@@ -63,7 +63,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         try FileManager.default.createDirectory(
-            at: temporaryPath.appending(component: "model.xcdatamodeld").asURL,
+            at: URL(fileURLWithPath: temporaryPath.appending(component: "model.xcdatamodeld").pathString),
             withIntermediateDirectories: false
         )
         try createVersionFile(
@@ -105,7 +105,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let urlToCurrentVersion = temporaryPath.appending(try RelativePath(validating: "model.xcdatamodeld"))
             .appending(component: ".xccurrentversion")
         let data = try XCTUnwrap(xcVersion.data(using: .utf8))
-        try data.write(to: urlToCurrentVersion.asURL)
+        try data.write(to: URL(fileURLWithPath: urlToCurrentVersion.pathString))
     }
 
     private func xcVersionDataString() -> String {

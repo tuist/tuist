@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistSupport
 import XcodeGraph
 
@@ -49,7 +49,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.packageInfoMapper = packageInfoMapper
     }
 
-    public func loadWorkspace(at path: TSCBasic.AbsolutePath) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
         let loadedWorkspace: ProjectDescription.Workspace?
         do {
             loadedWorkspace = try manifestLoader.loadWorkspace(at: path)

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 public struct CopyFilesAction: Equatable, Codable {
     /// Name of the build phase when the project gets generated.

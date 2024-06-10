@@ -36,7 +36,7 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.app.description, "application")
         XCTAssertEqual(Product.staticLibrary.description, "static library")
         XCTAssertEqual(Product.dynamicLibrary.description, "dynamic library")
-        XCTAssertEqual(Product.framework.description, "framework")
+        XCTAssertEqual(Product.framework.description, "dynamic framework")
         XCTAssertEqual(Product.unitTests.description, "unit tests")
         XCTAssertEqual(Product.uiTests.description, "ui tests")
         XCTAssertEqual(Product.appExtension.description, "app extension")
