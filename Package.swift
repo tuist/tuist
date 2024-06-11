@@ -97,6 +97,7 @@ var targets: [Target] = [
         dependencies: [
             pathDependency,
             loggingDependency,
+            swiftToolsSupportDependency,
             "KeychainAccess",
             "ZIPFoundation",
             "ProjectDescription",
