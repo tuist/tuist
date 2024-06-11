@@ -14,7 +14,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     public static var analyticsDelegate: TrackableParametersDelegate?
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public var runId = ""
+    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
