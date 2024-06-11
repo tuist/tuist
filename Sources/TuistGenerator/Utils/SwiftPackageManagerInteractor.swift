@@ -101,7 +101,9 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.delete(rootPackageResolvedPath)
         }
-
-        try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        
+        if fileHandler.exists(workspacePackageResolvedPath) {
+            try fileHandler.copy(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
+        }
     }
 }
