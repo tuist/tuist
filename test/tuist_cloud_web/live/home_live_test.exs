@@ -19,7 +19,7 @@ defmodule TuistCloudWeb.HomeLiveTest do
       |> assign(:selected_project, selected_project)
       |> assign(:selected_owner, account.name)
       |> assign(:selected_account, account)
-      |> log_in_user(AccountsFixtures.user_fixture())
+      |> log_in_user(user)
 
     %{conn: conn, user: user, project: selected_project, account: account}
   end
