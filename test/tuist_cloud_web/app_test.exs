@@ -161,6 +161,28 @@ defmodule TuistCloudWeb.AppTest do
     assert socket.assigns.can_update_billing == false
   end
 
+  test "raises NotFoundError when a user is not a member of an organization", %{
+    session: session
+  } do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When / Then
+    assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
+      App.on_mount(
+        :mount_app,
+        %{
+          "owner" => account.name,
+          "project" => project.name
+        },
+        session,
+        %LiveView.Socket{}
+      )
+    end
+  end
+
   test "raises NotFoundError when a project does not exist", %{session: session} do
     # When / Then
     assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->

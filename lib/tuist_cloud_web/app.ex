@@ -20,7 +20,8 @@ defmodule TuistCloudWeb.App do
 
     owner_account = Accounts.get_account_by_handle(owner)
 
-    if is_nil(project) or is_nil(owner_account) do
+    if is_nil(project) or is_nil(owner_account) or
+         not Authorization.can(user, :read, owner_account, :project) do
       raise TuistCloudWeb.Errors.NotFoundError,
             "The page you are looking for doesn't exist or has been moved."
     end

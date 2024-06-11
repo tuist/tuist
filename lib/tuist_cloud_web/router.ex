@@ -2,6 +2,7 @@ defmodule TuistCloudWeb.Router do
   use TuistCloudWeb, :router
 
   import TuistCloudWeb.Authentication
+  import TuistCloudWeb.Authorization
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistCloudWeb.API.Spec
@@ -183,14 +184,39 @@ defmodule TuistCloudWeb.Router do
     get "/cli/:device_code", AuthController, :authenticate
   end
 
-  # Authenticated routes
+  # Project routes
   scope "/", TuistCloudWeb do
     pipe_through [
       :open_api,
       :browser,
       :require_authenticated_user,
       :analytics,
-      TuistCloudWeb.AutoRedirectToProjectPlug
+      TuistCloudWeb.AutoRedirectToProjectPlug,
+      :require_user_can_read_project
+    ]
+
+    live_session :project,
+      on_mount: [
+        {TuistCloudWeb.Authentication, :mount_current_user},
+        {TuistCloudWeb.App, :mount_app}
+      ] do
+      live "/", HomeLive
+      live "/:owner/:project", HomeLive
+      live "/:owner/:project/runs", RunsLive
+      get "/:owner/:project/runs/:id/download", RunsController, :download
+      live "/:owner/:project/runs/:id", RunDetailLive
+      # Used in tuist cloud analytics command
+      live "/:owner/:project/analytics", HomeLive
+    end
+  end
+
+  # Authenticated routes
+  scope "/", TuistCloudWeb do
+    pipe_through [
+      :open_api,
+      :browser,
+      :require_authenticated_user,
+      :analytics
     ]
 
     live_session :authenticated,
@@ -198,16 +224,9 @@ defmodule TuistCloudWeb.Router do
         {TuistCloudWeb.Authentication, :mount_current_user},
         {TuistCloudWeb.App, :mount_app}
       ] do
-      live "/", HomeLive
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/get-started", GetStartedLive
-      live "/:owner/:project", HomeLive
-      live "/:owner/:project/runs", RunsLive
-      get "/:owner/:project/runs/:id/download", RunsController, :download
-      live "/:owner/:project/runs/:id", RunDetailLive
-      # Used in tuist cloud analytics command
-      live "/:owner/:project/analytics", HomeLive
     end
   end
 end
