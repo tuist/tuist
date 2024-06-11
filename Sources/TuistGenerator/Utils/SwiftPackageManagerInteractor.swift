@@ -58,12 +58,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             .appending(try RelativePath(validating: "\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.createFolder(workspacePackageResolvedFolderPath)
-            if fileHandler.exists(workspacePackageResolvedPath) {
-                try fileHandler.delete(workspacePackageResolvedPath)
+        if fileHandler.exists(rootPackageResolvedPath), !fileHandler.exists(workspacePackageResolvedPath) {
+            if !fileHandler.exists(workspacePackageResolvedPath.parentDirectory) {
+                try fileHandler.createFolder(workspacePackageResolvedPath.parentDirectory)
             }
-            try fileHandler.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
+            try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
         }
 
         let workspacePath = path.appending(component: workspaceName)
@@ -98,12 +97,9 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             })
         )
 
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.delete(rootPackageResolvedPath)
-        }
-        
-        if fileHandler.exists(workspacePackageResolvedPath) {
+        if !fileHandler.exists(rootPackageResolvedPath), fileHandler.exists(workspacePackageResolvedPath) {
             try fileHandler.copy(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
+            try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
         }
     }
 }
