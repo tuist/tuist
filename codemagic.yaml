@@ -22,6 +22,29 @@ workflows:
         - pattern: '*'
           include: true
       cancel_previous_builds: true
+  spm_build:
+    name: SPM Build
+    max_build_duration: 60
+    environment:
+      xcode: 15.3
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Build
+        script: swift build --configuration debug
+    triggering: &branch_triggering
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: '*'
+          include: true
+      cancel_previous_builds: true
   build_docs:
     name: Build Documentation
     max_build_duration: 60
