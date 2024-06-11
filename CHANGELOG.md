@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.17.0 - 2024-06-11
+
+### Tuist
+
+#### Changed
+
+- Do not generate resource accessors for internal targets with resources and Objective-C source files [#6388](https://github.com/tuist/tuist/pull/6388) by [@fortmarek](https://github.com/fortmarek)
+- Complete analytics uploads with extra test metadata [#6382](https://github.com/tuist/tuist/pull/6382) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Upload test run result bundle objects [#6373](https://github.com/tuist/tuist/pull/6373) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix extra logs from Xcode commands [#6372](https://github.com/tuist/tuist/pull/6372) by [@waltflanagan](https://github.com/waltflanagan)
+- Fix missing platform-specific settings for SPM packages [#6386](https://github.com/tuist/tuist/pull/6386) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.16.1 - 2024-06-05
 
 ### Tuist
