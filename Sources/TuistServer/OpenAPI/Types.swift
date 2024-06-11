@@ -184,6 +184,15 @@ public protocol APIProtocol: Sendable {
     func completeAnalyticsArtifactMultipartUpload(
         _ input: Operations.completeAnalyticsArtifactMultipartUpload.Input
     ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
+    /// Completes artifacts uploads for a given command event
+    ///
+    /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+    ///
+    /// - Remark: HTTP `PUT /api/runs/{run_id}/complete_artifacts_uploads`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
+    func completeAnalyticsArtifactsUploads(
+        _ input: Operations.completeAnalyticsArtifactsUploads.Input
+    ) async throws -> Operations.completeAnalyticsArtifactsUploads.Output
     /// It generates a signed URL for uploading a part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
@@ -704,7 +713,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/name`.
             public var name: Swift.String?
-            /// The command event artifact type.
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             @frozen
@@ -736,7 +749,11 @@ public enum Components {
                     [.result_bundle, .invocation_record, .result_bundle_object]
                 }
             }
-            /// The command event artifact type.
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             public var _type: Components.Schemas.CommandEventArtifact._typePayload
@@ -744,7 +761,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - name: The name of the file. It's used only for certain types such as result_bundle_object
-            ///   - _type: The command event artifact type.
+            ///   - _type: The command event artifact type. It can be:
             public init(
                 name: Swift.String? = nil,
                 _type: Components.Schemas.CommandEventArtifact._typePayload
@@ -817,6 +834,37 @@ public enum Components {
                 case inviter
                 case organization_id
                 case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Module`.
+        public struct Module: Codable, Equatable, Hashable, Sendable {
+            /// A hash that represents the module.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/hash`.
+            public var hash: Swift.String
+            /// A name of the module
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/name`.
+            public var name: Swift.String
+            /// Project's relative path from the root of the repository
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/project_identifier`.
+            public var project_identifier: Swift.String
+            /// Creates a new `Module`.
+            ///
+            /// - Parameters:
+            ///   - hash: A hash that represents the module.
+            ///   - name: A name of the module
+            ///   - project_identifier: Project's relative path from the root of the repository
+            public init(hash: Swift.String, name: Swift.String, project_identifier: Swift.String) {
+                self.hash = hash
+                self.name = name
+                self.project_identifier = project_identifier
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hash
+                case name
+                case project_identifier
             }
         }
         /// An organization
@@ -5714,6 +5762,184 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Completes artifacts uploads for a given command event
+    ///
+    /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
+    ///
+    /// - Remark: HTTP `PUT /api/runs/{run_id}/complete_artifacts_uploads`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
+    public enum completeAnalyticsArtifactsUploads {
+        public static let id: String = "completeAnalyticsArtifactsUploads"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id:
+                public init(run_id: Swift.Int) { self.run_id = run_id }
+            }
+            public var path: Operations.completeAnalyticsArtifactsUploads.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.completeAnalyticsArtifactsUploads.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.completeAnalyticsArtifactsUploads.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.completeAnalyticsArtifactsUploads.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Extra metadata for the post-processing of a command event.
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// A list of modules with their metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/json/modules`.
+                    public var modules: [Components.Schemas.Module]
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - modules: A list of modules with their metadata.
+                    public init(modules: [Components.Schemas.Module]) { self.modules = modules }
+                    public enum CodingKeys: String, CodingKey { case modules }
+                }
+                case json(Operations.completeAnalyticsArtifactsUploads.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completeAnalyticsArtifactsUploads.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.completeAnalyticsArtifactsUploads.Input.Path,
+                query: Operations.completeAnalyticsArtifactsUploads.Input.Query = .init(),
+                headers: Operations.completeAnalyticsArtifactsUploads.Input.Headers = .init(),
+                cookies: Operations.completeAnalyticsArtifactsUploads.Input.Cookies = .init(),
+                body: Operations.completeAnalyticsArtifactsUploads.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Headers =
+                        .init(),
+                    body: Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The command event artifact uploads were successfully finished
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.completeAnalyticsArtifactsUploads.Output.NoContent)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeAnalyticsArtifactsUploads.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.completeAnalyticsArtifactsUploads.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The command event doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeAnalyticsArtifactsUploads.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

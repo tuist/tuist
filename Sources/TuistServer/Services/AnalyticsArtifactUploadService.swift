@@ -2,11 +2,14 @@ import Foundation
 import Mockable
 import Path
 import TuistSupport
+import XcodeGraph
 
 @Mockable
 public protocol AnalyticsArtifactUploadServicing {
     func uploadResultBundle(
         _ resultBundle: AbsolutePath,
+        targetHashes: [GraphTarget: String],
+        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws
@@ -21,6 +24,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
     private let multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing
+    private let completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing
 
     public convenience init() {
         self.init(
@@ -33,7 +37,8 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             MultipartUploadGenerateURLAnalyticsService(),
             multipartUploadArtifactService: MultipartUploadArtifactService(),
             multipartUploadCompleteAnalyticsService:
-            MultipartUploadCompleteAnalyticsService()
+            MultipartUploadCompleteAnalyticsService(),
+            completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsService()
         )
     }
 
@@ -45,7 +50,8 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing,
         multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing,
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
-        multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing
+        multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing,
+        completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing
     ) {
         self.fileHandler = fileHandler
         self.xcresultToolController = xcresultToolController
@@ -55,10 +61,13 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         self.multipartUploadGenerateURLAnalyticsService = multipartUploadGenerateURLAnalyticsService
         self.multipartUploadArtifactService = multipartUploadArtifactService
         self.multipartUploadCompleteAnalyticsService = multipartUploadCompleteAnalyticsService
+        self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
     }
 
     public func uploadResultBundle(
         _ resultBundle: AbsolutePath,
+        targetHashes: [GraphTarget: String],
+        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws {
@@ -104,6 +113,21 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
                 type: .invocationRecord
             ),
             artifactPath: invocationRecordPath,
+            commandEventId: commandEventId,
+            serverURL: serverURL
+        )
+
+        let modules = targetHashes.map { key, value in
+            CloudModule(
+                hash: value,
+                projectRelativePath:
+                key.project.xcodeProjPath.relative(to: graphPath),
+                name: key.target.name
+            )
+        }
+
+        try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
+            modules: modules,
             commandEventId: commandEventId,
             serverURL: serverURL
         )

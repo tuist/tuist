@@ -135,6 +135,8 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .value(resultBundle),
+                targetHashes: .any,
+                graphPath: .any,
                 commandEventId: .value(10),
                 serverURL: .value(config.url)
             )

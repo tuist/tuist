@@ -16,10 +16,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             product: .framework
         )
         let project = Project.test(targets: [target])
-        let frameworkTarget = GraphTarget.test(
-            path: project.path,
-            target: target
-        )
         let graph = Graph.test(
             projects: [
                 project.path: project,
@@ -41,10 +37,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             product: .unitTests
         )
         let project = Project.test(targets: [target])
-        let unitTestsTarget = GraphTarget.test(
-            path: project.path,
-            target: target
-        )
         let graph = Graph.test(
             projects: [
                 project.path: project,
@@ -99,10 +91,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ])
         )
         let project = Project.test(targets: [target])
-        let frameworkTarget = GraphTarget.test(
-            path: project.path,
-            target: target
-        )
         let graph = Graph.test(
             projects: [
                 project.path: project,
