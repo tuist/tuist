@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol BuildGraphInspecting {
     /// Returns the build arguments to be used with the given target.
     /// - Parameter project: Project whose build arguments will be returned.

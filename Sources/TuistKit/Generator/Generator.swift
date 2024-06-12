@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -9,6 +10,7 @@ import TuistPlugin
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) async throws -> Graph
