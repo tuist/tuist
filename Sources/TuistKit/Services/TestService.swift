@@ -265,7 +265,6 @@ final class TestService { // swiftlint:disable:this type_body_length
                 logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                 return
             case (_?, _, true), (_?, _, nil):
-                print(scheme)
                 logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
                 return
             default:
