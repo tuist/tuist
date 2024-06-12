@@ -1,7 +1,7 @@
 import Path
+import TuistModels
 import TuistPluginTesting
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistCore

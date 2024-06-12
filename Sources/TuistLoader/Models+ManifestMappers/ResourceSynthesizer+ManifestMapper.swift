@@ -1,7 +1,7 @@
 import Path
 import ProjectDescription
-import XcodeGraph
 import TuistModels
+import XcodeGraph
 
 extension XcodeGraph.ResourceSynthesizer {
     static func from(

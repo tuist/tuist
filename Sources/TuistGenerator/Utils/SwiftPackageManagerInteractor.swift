@@ -1,9 +1,9 @@
 import Foundation
 import Path
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 /// Swift Package Manager Interactor
 ///

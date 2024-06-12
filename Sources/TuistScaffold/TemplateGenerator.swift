@@ -3,8 +3,8 @@ import Path
 import PathKit
 import StencilSwiftKit
 import TuistCore
-import TuistSupport
 import TuistModels
+import TuistSupport
 
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
@@ -27,7 +27,7 @@ public final class TemplateGenerator: TemplateGenerating {
     public func generate(
         template: Template,
         to destinationPath: AbsolutePath,
-        attributes: [String:Template.Attribute.Value]
+        attributes: [String: Template.Attribute.Value]
     ) throws {
         let renderedItems = try renderItems(
             template: template,

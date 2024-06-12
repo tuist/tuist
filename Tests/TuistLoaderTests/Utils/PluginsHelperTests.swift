@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import TuistModels
 import TuistSupport
 import XCTest
-import TuistModels
 
 @testable import TuistCoreTesting
 @testable import TuistLoader

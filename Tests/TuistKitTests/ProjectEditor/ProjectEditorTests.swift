@@ -3,11 +3,11 @@ import MockableTest
 import Path
 import TuistCore
 import TuistLoader
+import TuistModels
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistCoreTesting

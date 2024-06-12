@@ -3,9 +3,9 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 extension TuistModels.Config {
     /// Maps a ProjectDescription.Config instance into a XcodeGraph.Config model.
@@ -18,7 +18,7 @@ extension TuistModels.Config {
             manifest: manifest.generationOptions,
             generatorPaths: generatorPaths
         )
-        let compatibleXcodeVersions = XcodeGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
+        let compatibleXcodeVersions = TuistModels.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
         let swiftVersion: TSCUtility.Version?
         if let configuredVersion = manifest.swiftVersion {

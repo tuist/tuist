@@ -1,8 +1,8 @@
 import Foundation
 import Path
 import ProjectDescription
-import TuistSupport
 import TuistModels
+import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {

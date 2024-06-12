@@ -4,7 +4,6 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

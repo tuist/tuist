@@ -3,8 +3,9 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistLoaderTesting
-import TuistSupportTesting
 import TuistModels
+import TuistSupportTesting
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -126,7 +127,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         let manifestDirectory = try temporaryPath()
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
-        var invokedResourceSynthesizerPlugins: [PluginResourceSynthesizer] = []
+        var invokedResourceSynthesizerPlugins: [TuistModels.PluginResourceSynthesizer] = []
         resourceSynthesizerPathLocator.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
             invokedPluginNames.append(pluginName)
             invokedResourceNames.append(resourceName)

@@ -3,8 +3,8 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistSupport
 import TuistModels
+import TuistSupport
 import XcodeGraph
 
 extension TuistModels.PackageSettings {

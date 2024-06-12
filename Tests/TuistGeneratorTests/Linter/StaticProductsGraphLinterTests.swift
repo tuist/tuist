@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import TuistModels
 import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
-@testable import XcodeGraphTesting
 
 class StaticProductsGraphLinterTests: XCTestCase {
     var subject: StaticProductsGraphLinter!

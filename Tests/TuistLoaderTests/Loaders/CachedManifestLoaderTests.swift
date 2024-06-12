@@ -3,8 +3,8 @@ import MockableTest
 import Path
 import ProjectDescription
 import TuistCore
-import TuistSupport
 import struct TuistModels.Plugins
+import TuistSupport
 import XCTest
 
 @testable import TuistCoreTesting

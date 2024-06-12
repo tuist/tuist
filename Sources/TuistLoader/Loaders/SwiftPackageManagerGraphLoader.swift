@@ -3,9 +3,9 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 // MARK: - Swift Package Manager Graph Generator Errors
 

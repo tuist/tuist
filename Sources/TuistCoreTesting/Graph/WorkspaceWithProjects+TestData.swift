@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import XcodeGraph
-import XcodeGraphTesting
 @testable import TuistCore
 
 extension WorkspaceWithProjects {

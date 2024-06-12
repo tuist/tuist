@@ -3,7 +3,6 @@ import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 @testable import TuistGenerator
 
 class MockProjectLinter: ProjectLinting {

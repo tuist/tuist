@@ -5,7 +5,6 @@ import TuistCore
 import TuistLoaderTesting
 import TuistModels
 import XcodeGraph
-import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

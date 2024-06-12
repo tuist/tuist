@@ -3,9 +3,9 @@ import Mockable
 import Path
 import struct ProjectDescription.Config
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 @Mockable
 public protocol ConfigLoading {

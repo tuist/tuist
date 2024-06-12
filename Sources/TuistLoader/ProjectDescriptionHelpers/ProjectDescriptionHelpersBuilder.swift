@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import TuistSupport
 import TuistModels
+import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported

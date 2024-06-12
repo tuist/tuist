@@ -2,9 +2,9 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 enum CloudManifestMapperError: FatalError {
     /// Thrown when the cloud URL is invalid.

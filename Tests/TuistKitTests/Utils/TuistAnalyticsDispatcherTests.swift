@@ -1,10 +1,10 @@
 import Mockable
 import MockableTest
 import TuistCore
+import TuistModels
 import TuistServer
 import TuistSupport
 import XcodeGraph
-
 import XCTest
 @testable import TuistAnalytics
 @testable import TuistCoreTesting

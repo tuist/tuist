@@ -2,9 +2,9 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import TuistSupport
 import struct TuistModels.Config
 import struct TuistModels.Plugins
+import TuistSupport
 
 /// Cached Manifest Loader
 ///

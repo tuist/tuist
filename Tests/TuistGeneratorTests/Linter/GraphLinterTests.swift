@@ -2,6 +2,7 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -9,7 +10,6 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
-@testable import XcodeGraphTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
     var subject: GraphLinter!
@@ -1765,7 +1765,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: iOSAndMacTarget.name, path: path),
                     to: .target(name: macOnlyTarget.name, path: path)
-                ): try .test([.macos]),
+                ): try XCTUnwrap(.test([.macos])),
             ]
         )
         let config = Config.test()

@@ -2,9 +2,9 @@ import Foundation
 import Path
 import TuistCore
 import TuistLoader
+import TuistModels
 import TuistScaffold
 import TuistSupport
-import TuistModels
 
 /// Paths to remote plugin's code and artifacts.
 public struct RemotePluginPaths: Equatable, Hashable {

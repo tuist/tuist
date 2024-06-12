@@ -4,6 +4,7 @@ import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistModels
 import TuistServer
 import TuistSupport
 import XcodeGraph

@@ -3,9 +3,9 @@ import Foundation
 import Path
 import TuistCore
 import TuistCoreTesting
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

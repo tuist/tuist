@@ -1,6 +1,6 @@
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 public protocol TemplateGitLoading {
     /// Load `XcodeGraph.Template` from the given Git repository

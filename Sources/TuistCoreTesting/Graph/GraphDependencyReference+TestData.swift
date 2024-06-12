@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 
 extension GraphDependencyReference {
     public static func testFramework(

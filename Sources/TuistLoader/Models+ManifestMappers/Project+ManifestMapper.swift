@@ -1,8 +1,8 @@
 import Foundation
 import Path
 import ProjectDescription
-import XcodeGraph
 import TuistModels
+import XcodeGraph
 
 extension XcodeGraph.Project {
     /// Maps a `ProjectDescription.Project` instance into a `XcodeGraph.Project` instance.

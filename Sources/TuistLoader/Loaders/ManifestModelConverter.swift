@@ -3,9 +3,9 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
-import TuistModels
 
 /// A component responsible for converting Manifests (`ProjectDescription`) to Models (`TuistCore`)
 public protocol ManifestModelConverting {

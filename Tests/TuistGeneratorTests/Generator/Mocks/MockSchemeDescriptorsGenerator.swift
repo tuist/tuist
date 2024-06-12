@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistCoreTesting
 import XcodeGraph
-import XcodeGraphTesting
 @testable import TuistGenerator
 
 final class MockSchemeDescriptorsGenerator: SchemeDescriptorsGenerating {

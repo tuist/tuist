@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistDependencies
 import TuistGenerator
+import TuistModels
 import XcodeGraph
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.

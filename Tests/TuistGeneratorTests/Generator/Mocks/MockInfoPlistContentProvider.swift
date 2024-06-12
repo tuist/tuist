@@ -2,7 +2,6 @@ import Foundation
 import TuistCore
 import TuistCoreTesting
 import XcodeGraph
-import XcodeGraphTesting
 @testable import TuistGenerator
 
 final class MockInfoPlistContentProvider: InfoPlistContentProviding {

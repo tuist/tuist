@@ -29,13 +29,13 @@ public struct Cloud: Equatable, Hashable {
 }
 
 #if DEBUG
-extension Cloud {
-    public static func test(
-        url: URL = URL(string: "https://test.tuist.io")!,
-        projectId: String = "123",
-        options: [Cloud.Option] = []
-    ) -> Cloud {
-        Cloud(url: url, projectId: projectId, options: options)
+    extension Cloud {
+        public static func test(
+            url: URL = URL(string: "https://test.tuist.io")!,
+            projectId: String = "123",
+            options: [Cloud.Option] = []
+        ) -> Cloud {
+            Cloud(url: url, projectId: projectId, options: options)
+        }
     }
-}
 #endif

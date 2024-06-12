@@ -7,14 +7,13 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
+import TuistModels
 import TuistScaffold
 import TuistScaffoldTesting
 import TuistSupport
 import TuistSupportTesting
-import TuistModels
-import XcodeGraphTesting
+import XcodeGraph
 import XCTest
-
 @testable import TuistPlugin
 
 final class PluginServiceTests: TuistUnitTestCase {
@@ -460,7 +459,7 @@ final class PluginServiceTests: TuistUnitTestCase {
     }
 
     private func mockConfig(plugins: [TuistModels.PluginLocation]) -> TuistModels.Config {
-        Config(
+        TuistModels.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
             swiftVersion: nil,

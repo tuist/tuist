@@ -1,5 +1,5 @@
-import TuistPlugin
 import TuistModels
+import TuistPlugin
 
 public final class MockPluginService: PluginServicing {
     public init() {}

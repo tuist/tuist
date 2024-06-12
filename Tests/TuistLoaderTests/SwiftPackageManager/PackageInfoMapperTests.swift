@@ -3,10 +3,10 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistModels
 import TuistSupport
 import XcodeGraph
 import XCTest
-import TuistModels
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
