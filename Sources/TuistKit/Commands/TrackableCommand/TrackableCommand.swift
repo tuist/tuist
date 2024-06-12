@@ -43,7 +43,7 @@ public class TrackableCommand: TrackableParametersDelegate {
     public func run() async throws {
         let runId: String
         let timer = clock.startTimer()
-        if var command = command as? HasTrackableParameters & ParsableCommand {
+        if let command = command as? HasTrackableParameters & ParsableCommand {
             type(of: command).analyticsDelegate = self
             runId = command.runId
             self.command = command

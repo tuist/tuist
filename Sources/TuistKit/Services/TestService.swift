@@ -245,7 +245,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         if let schemeName {
-            guard let scheme = testableSchemes.first(where: { $0.name == schemeName })
+            guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
                 throw TestServiceError.schemeNotFound(
                     scheme: schemeName,
@@ -253,11 +253,19 @@ final class TestService { // swiftlint:disable:this type_body_length
                 )
             }
 
+            if !testableSchemes.contains(where: { $0.name == scheme.name }) {
+                logger.info("\(scheme.name) has no tests to run, finishing early.")
+                return
+            }
+
             switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
+            case (_, false, _):
+                break
             case (nil, true, _), (nil, nil, _):
                 logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                 return
             case (_?, _, true), (_?, _, nil):
+                print(scheme)
                 logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
                 return
             default:
