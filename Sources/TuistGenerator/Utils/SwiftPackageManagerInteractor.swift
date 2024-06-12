@@ -99,7 +99,9 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         if !fileHandler.exists(rootPackageResolvedPath), fileHandler.exists(workspacePackageResolvedPath) {
             try fileHandler.copy(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
-            try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
+            if !fileHandler.exists(workspacePackageResolvedPath) {
+                try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
+            }
         }
     }
 }
