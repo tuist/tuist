@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
-import XcodeGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

@@ -131,7 +131,7 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: XcodeGraph.Template.Attribute.Value] {
+    ) throws -> [String: Template.Attribute.Value] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):

@@ -6,7 +6,6 @@ import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import ProjectDescription
@@ -58,7 +57,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
-        let expected: XcodeGraph.PackageSettings = .init(
+        let expected: TuistCore.PackageSettings = .init(
             productTypes: [:],
             productDestinations: [:],
             baseSettings: XcodeGraph.Settings(

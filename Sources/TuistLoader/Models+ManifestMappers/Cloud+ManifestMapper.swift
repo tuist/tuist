@@ -25,21 +25,21 @@ enum CloudManifestMapperError: FatalError {
     }
 }
 
-extension XcodeGraph.Cloud {
-    static func from(manifest: ProjectDescription.Cloud) throws -> XcodeGraph.Cloud {
+extension TuistCore.Cloud {
+    static func from(manifest: ProjectDescription.Cloud) throws -> TuistCore.Cloud {
         var cloudURL: URL!
         if let manifestCloudURL = URL(string: manifest.url.dropSuffix("/")) {
             cloudURL = manifestCloudURL
         } else {
             throw CloudManifestMapperError.invalidCloudURL(manifest.url)
         }
-        let options = manifest.options.compactMap(XcodeGraph.Cloud.Option.from)
-        return XcodeGraph.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
+        let options = manifest.options.compactMap(TuistCore.Cloud.Option.from)
+        return TuistCore.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
     }
 }
 
-extension XcodeGraph.Cloud.Option {
-    static func from(manifest: ProjectDescription.Cloud.Option) -> XcodeGraph.Cloud.Option? {
+extension TuistCore.Cloud.Option {
+    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistCore.Cloud.Option? {
         switch manifest {
         case .optional:
             return .optional

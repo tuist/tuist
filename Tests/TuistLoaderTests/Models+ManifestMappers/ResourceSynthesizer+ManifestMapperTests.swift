@@ -126,7 +126,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         let manifestDirectory = try temporaryPath()
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
-        var invokedResourceSynthesizerPlugins: [PluginResourceSynthesizer] = []
+        var invokedResourceSynthesizerPlugins: [TuistCore.PluginResourceSynthesizer] = []
         resourceSynthesizerPathLocator.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
             invokedPluginNames.append(pluginName)
             invokedResourceNames.append(resourceName)

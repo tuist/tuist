@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
-@testable import XcodeGraphTesting
 
 final class GraphTraverserTests: TuistUnitTestCase {
     func test_dependsOnXCTest_when_is_framework() {
@@ -3869,7 +3868,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try .test([.ios]),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try XCTUnwrap(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -3910,8 +3909,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try .test([.macos]),
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try .test([.ios]),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try XCTUnwrap(.test([.macos])),
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -3950,7 +3949,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try .test([.ios]),
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4007,7 +4006,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): try .test([.ios]),
+                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4077,7 +4076,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): try .test([.macos]),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): try XCTUnwrap(.test([.macos])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4285,7 +4284,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             appDependency: Set([frameworkDependency]),
             frameworkDependency: Set([]),
         ]
-        let platformCondition = try PlatformCondition.test([.ios])
+        let platformCondition = try XCTUnwrap(PlatformCondition.test([.ios]))
 
         // Given: Value Graph
         let graph = Graph.test(
@@ -4333,7 +4332,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             frameworkBDependency: Set([frameworkCDependency]),
             frameworkCDependency: Set([frameworkDDependency]),
         ]
-        let platformCondition = try PlatformCondition.test([.ios])
+        let platformCondition = try XCTUnwrap(PlatformCondition.test([.ios]))
 
         // Given: Value Graph
         let graph = Graph.test(

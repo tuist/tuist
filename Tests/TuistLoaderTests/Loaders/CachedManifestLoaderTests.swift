@@ -3,8 +3,8 @@ import MockableTest
 import Path
 import ProjectDescription
 import TuistCore
+import struct TuistCore.Plugins
 import TuistSupport
-import struct XcodeGraph.Plugins
 import XCTest
 
 @testable import TuistCoreTesting
@@ -21,8 +21,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var projectManifests: [AbsolutePath: Project] = [:]
-    private var configManifests: [AbsolutePath: Config] = [:]
-    private var pluginManifests: [AbsolutePath: Plugin] = [:]
+    private var configManifests: [AbsolutePath: ProjectDescription.Config] = [:]
+    private var pluginManifests: [AbsolutePath: ProjectDescription.Plugin] = [:]
     private var recordedLoadWorkspaceCalls: Int = 0
     private var recordedLoadProjectCalls: Int = 0
     private var recordedLoadConfigCalls: Int = 0
@@ -337,7 +337,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(
-        deprecatedManifest manifest: Config,
+        deprecatedManifest manifest: ProjectDescription.Config,
         at path: AbsolutePath
     ) throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
@@ -356,7 +356,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stubPlugins(withHash hash: String) throws {
-        let plugin = Plugin(name: "TestPlugin")
+        let plugin = ProjectDescription.Plugin(name: "TestPlugin")
         let path = try temporaryPath().appending(component: "TestPlugin")
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
         try fileHandler.touch(manifestPath)

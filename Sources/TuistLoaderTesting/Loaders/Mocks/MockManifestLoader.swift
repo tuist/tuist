@@ -1,8 +1,8 @@
 import Foundation
 import Path
 import ProjectDescription
+import struct TuistCore.Plugins
 import TuistSupport
-import struct XcodeGraph.Plugins
 @testable import TuistLoader
 @testable import TuistSupportTesting
 

@@ -1,6 +1,5 @@
 import Foundation
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistDependencies

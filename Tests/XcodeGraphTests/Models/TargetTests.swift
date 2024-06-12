@@ -5,7 +5,6 @@ import TuistSupport
 import XCTest
 @testable import TuistSupportTesting
 @testable import XcodeGraph
-@testable import XcodeGraphTesting
 
 final class TargetErrorTests: TuistUnitTestCase {
     func test_description() {

@@ -9,7 +9,6 @@ import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistKit

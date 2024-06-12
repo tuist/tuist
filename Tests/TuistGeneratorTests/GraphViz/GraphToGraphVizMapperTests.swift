@@ -3,7 +3,6 @@ import GraphViz
 import Path
 import TuistCore
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistGenerator

@@ -1,5 +1,6 @@
 import Path
 import ProjectDescription
+import TuistCore
 import XcodeGraph
 
 extension XcodeGraph.ResourceSynthesizer {

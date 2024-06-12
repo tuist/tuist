@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
-@testable import XcodeGraphTesting
 
 public final class MockGraphLoader: GraphLoading {
     public init() {}

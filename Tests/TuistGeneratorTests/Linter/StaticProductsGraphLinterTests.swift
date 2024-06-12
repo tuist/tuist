@@ -6,7 +6,6 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
-@testable import XcodeGraphTesting
 
 class StaticProductsGraphLinterTests: XCTestCase {
     var subject: StaticProductsGraphLinter!

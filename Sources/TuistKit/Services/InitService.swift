@@ -187,8 +187,8 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: XcodeGraph.Template.Attribute.Value] {
-        let defaultAttributes: [String: XcodeGraph.Template.Attribute.Value] = [
+    ) throws -> [String: Template.Attribute.Value] {
+        let defaultAttributes: [String: Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),

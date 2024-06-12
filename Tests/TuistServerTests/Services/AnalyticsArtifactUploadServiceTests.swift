@@ -3,7 +3,6 @@ import MockableTest
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistServer

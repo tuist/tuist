@@ -1,5 +1,5 @@
+import TuistCore
 import TuistPlugin
-import XcodeGraph
 
 public final class MockPluginService: PluginServicing {
     public init() {}
