@@ -306,7 +306,7 @@ var targets: [Target] = [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    )
+    ),
 ]
 
 #if TUIST
