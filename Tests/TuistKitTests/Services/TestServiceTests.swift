@@ -423,7 +423,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])))
             }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
@@ -443,7 +443,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertStandardOutput(pattern: "ProjectSchemeOne has no tests to run, finishing early.")
+        XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
         XCTAssertEmpty(testedSchemes)
     }
 

@@ -253,11 +253,6 @@ final class TestService { // swiftlint:disable:this type_body_length
                 )
             }
 
-            if !testableSchemes.contains(where: { $0.name == scheme.name }) {
-                logger.info("\(scheme.name) has no tests to run, finishing early.")
-                return
-            }
-
             switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
             case (_, false, _):
                 break
