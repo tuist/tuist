@@ -44,7 +44,6 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
-            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -133,6 +132,7 @@ var targets: [Target] = [
         name: "TuistGenerator",
         dependencies: [
             "XcodeProj",
+            "TuistModels",
             pathDependency,
             "TuistCore",
             "XcodeGraph",
@@ -159,6 +159,7 @@ var targets: [Target] = [
         dependencies: [
             pathDependency,
             "TuistCore",
+            "TuistModels",
             "XcodeGraph",
             "TuistSupport",
             "StencilSwiftKit",
@@ -232,6 +233,7 @@ var targets: [Target] = [
         name: "TuistLoader",
         dependencies: [
             "XcodeProj",
+            "TuistModels",
             pathDependency,
             "TuistCore",
             "XcodeGraph",
@@ -249,7 +251,6 @@ var targets: [Target] = [
             "TuistLoader",
             pathDependency,
             "TuistCore",
-            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             "ProjectDescription",
             "TuistSupportTesting",
         ],
@@ -289,6 +290,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
+            "TuistModels",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
@@ -298,6 +300,13 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistModels",
+        dependencies: [],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
 ]
 
 #if TUIST
