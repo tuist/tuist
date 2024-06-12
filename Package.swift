@@ -132,7 +132,6 @@ var targets: [Target] = [
         name: "TuistGenerator",
         dependencies: [
             "XcodeProj",
-            "TuistModels",
             pathDependency,
             "TuistCore",
             "XcodeGraph",
@@ -159,7 +158,6 @@ var targets: [Target] = [
         dependencies: [
             pathDependency,
             "TuistCore",
-            "TuistModels",
             "XcodeGraph",
             "TuistSupport",
             "StencilSwiftKit",
@@ -233,7 +231,6 @@ var targets: [Target] = [
         name: "TuistLoader",
         dependencies: [
             "XcodeProj",
-            "TuistModels",
             pathDependency,
             "TuistCore",
             "XcodeGraph",
@@ -290,19 +287,11 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
-            "TuistModels",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         exclude: ["OpenAPI/cloud.yml"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistModels",
-        dependencies: [],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

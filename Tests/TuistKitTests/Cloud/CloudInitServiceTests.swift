@@ -1,7 +1,7 @@
 import MockableTest
 import Path
+import TuistCore
 import TuistLoader
-import TuistModels
 import TuistServer
 import TuistSupport
 import XcodeGraph

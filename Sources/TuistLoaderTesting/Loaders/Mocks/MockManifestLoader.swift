@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import ProjectDescription
-import struct TuistModels.Plugins
+import struct TuistCore.Plugins
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting

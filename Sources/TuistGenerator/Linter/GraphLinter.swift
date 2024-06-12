@@ -1,7 +1,6 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 

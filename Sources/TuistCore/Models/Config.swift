@@ -100,7 +100,7 @@ public struct Config: Equatable, Hashable {
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            staticSideEffectsWarningTargets: TuistModels.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
+            staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil
         ) -> Self {

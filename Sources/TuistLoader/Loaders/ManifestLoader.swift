@@ -2,7 +2,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 

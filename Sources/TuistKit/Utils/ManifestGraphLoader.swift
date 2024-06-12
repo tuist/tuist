@@ -4,7 +4,6 @@ import ProjectDescription
 import TuistCore
 import TuistDependencies
 import TuistLoader
-import TuistModels
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
@@ -108,7 +107,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         // Load DependenciesGraph
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
-        let packageSettings: TuistModels.PackageSettings?
+        let packageSettings: TuistCore.PackageSettings?
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),

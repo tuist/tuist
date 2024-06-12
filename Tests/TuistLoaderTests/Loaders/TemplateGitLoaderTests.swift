@@ -1,6 +1,5 @@
 import Path
 import TuistCore
-import TuistModels
 import TuistSupport
 import XCTest
 
@@ -43,7 +42,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         var pathToLoadTemplateFrom: AbsolutePath?
         templateLoader.loadTemplateStub = { path in
             pathToLoadTemplateFrom = path
-            return TuistModels.Template(
+            return TuistCore.Template(
                 description: ""
             )
         }

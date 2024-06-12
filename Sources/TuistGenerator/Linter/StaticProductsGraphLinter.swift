@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import TuistCore
-import TuistModels
 import XcodeGraph
 
 /// Static Products Graph Linter

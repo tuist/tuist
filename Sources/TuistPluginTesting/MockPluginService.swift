@@ -1,4 +1,4 @@
-import TuistModels
+import TuistCore
 import TuistPlugin
 
 public final class MockPluginService: PluginServicing {

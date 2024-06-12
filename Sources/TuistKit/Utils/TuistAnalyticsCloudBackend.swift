@@ -3,7 +3,6 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistModels
 import TuistServer
 import TuistSupport
 import XcodeGraph

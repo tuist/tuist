@@ -2,7 +2,6 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 import XCTest

@@ -4,7 +4,6 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 
@@ -112,7 +111,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistModels.PackageSettings,
+        packageSettings: TuistCore.PackageSettings,
         packageToProject: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project?
 }
@@ -258,7 +257,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistModels.PackageSettings,
+        packageSettings: TuistCore.PackageSettings,
         packageToProject _: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly

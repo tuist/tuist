@@ -2,8 +2,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import struct TuistModels.Config
-import struct TuistModels.Plugins
 import TuistSupport
 
 /// Cached Manifest Loader
@@ -79,19 +77,19 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> Template {
+    public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
         try load(manifest: .template, at: path) {
             try manifestLoader.loadTemplate(at: path)
         }
     }
 
-    public func loadPlugin(at path: AbsolutePath) throws -> Plugin {
+    public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
         try load(manifest: .plugin, at: path) {
             try manifestLoader.loadPlugin(at: path)
         }
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
+    public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
         try load(manifest: .packageSettings, at: path) {
             try manifestLoader.loadPackageSettings(at: path)
         }

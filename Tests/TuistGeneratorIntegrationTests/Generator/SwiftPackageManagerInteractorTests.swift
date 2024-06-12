@@ -3,7 +3,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistCoreTesting
-import TuistModels
 import TuistSupport
 import XcodeGraph
 import XcodeProj

@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TuistModels
+import TuistCore
 import TuistSupport
 
 @testable import TuistLoader

@@ -3,7 +3,6 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 
@@ -49,7 +48,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistModels.PackageSettings
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -74,7 +73,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistModels.PackageSettings
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName

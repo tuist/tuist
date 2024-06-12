@@ -3,11 +3,10 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 
-extension TuistModels.PackageSettings {
+extension TuistCore.PackageSettings {
     /// Creates `XcodeGraph.PackageSettings` instance from `ProjectDescription.PackageSettings`
     /// instance.
     static func from(

@@ -1,5 +1,5 @@
 import Foundation
-import TuistModels
+import TuistCore
 
 public final class EmptyCacheStorageFactory: CacheStorageFactorying {
     public init() {}

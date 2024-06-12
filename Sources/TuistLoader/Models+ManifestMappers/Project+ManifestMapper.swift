@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import ProjectDescription
-import TuistModels
+import TuistCore
 import XcodeGraph
 
 extension XcodeGraph.Project {

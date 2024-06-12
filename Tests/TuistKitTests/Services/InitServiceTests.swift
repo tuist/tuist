@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TuistModels
+import TuistCore
 import TuistScaffold
 import TuistSupport
 import XcodeGraph

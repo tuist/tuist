@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistModels
 import TuistPlugin
 import TuistSupport
 import XcodeGraph

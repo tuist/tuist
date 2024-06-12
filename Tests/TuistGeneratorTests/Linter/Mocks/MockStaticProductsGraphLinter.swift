@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistModels
 @testable import TuistGenerator
 
 class MockStaticProductsGraphLinter: StaticProductsGraphLinting {

@@ -3,7 +3,6 @@ import Path
 import PathKit
 import StencilSwiftKit
 import TuistCore
-import TuistModels
 import TuistSupport
 
 /// Interface for generating content defined in template manifest

@@ -1,5 +1,5 @@
 import Path
-import TuistModels
+import TuistCore
 import TuistPluginTesting
 import XcodeGraph
 import XCTest

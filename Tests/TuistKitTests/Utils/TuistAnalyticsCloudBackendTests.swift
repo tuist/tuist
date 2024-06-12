@@ -2,7 +2,6 @@ import MockableTest
 import TuistAnalytics
 import TuistCore
 import TuistCoreTesting
-import TuistModels
 import TuistServer
 import TuistSupport
 import XcodeGraph

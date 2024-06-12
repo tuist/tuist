@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TuistModels
+import TuistCore
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
@@ -19,7 +19,7 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
-        projectDescriptionHelperPlugins: [TuistModels.ProjectDescriptionHelpersPlugin]
+        projectDescriptionHelperPlugins: [TuistCore.ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule]
 
     /// Builds all the plugin helpers module and returns the location to the built modules.

@@ -3,7 +3,6 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistModels
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -3330,7 +3329,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageType: PackageType? = nil,
         packageInfos: [String: PackageInfo] = [:],
-        packageSettings: TuistModels.PackageSettings = .test(
+        packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
         )
     ) throws -> ProjectDescription.Project? {

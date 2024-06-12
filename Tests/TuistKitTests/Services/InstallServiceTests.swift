@@ -5,7 +5,6 @@ import TSCUtility
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
-import TuistModels
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
