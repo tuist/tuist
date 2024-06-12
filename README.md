@@ -1,4 +1,4 @@
-# Tuist App
+# Tuist Server
 
 This repository contains the source code of the server-side application that extends the functionality of the [Tuist](https://tuist.io) CLI.
 
@@ -12,7 +12,7 @@ This repository contains the source code of the server-side application that ext
 
 ### Set up
 
-1. Clone the repository: `git clone https://github.com/tuist/app.git`.
+1. Clone the repository: `git clone https://github.com/tuist/server.git`.
 2. Install additional system dependencies with: `mise install`.
 3. Install the project dependencies with: `mise run install`
 3. Run `mise run dev`
