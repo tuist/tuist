@@ -9,6 +9,12 @@
             "state" : "translated",
             "value" : "App!"
           }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App!"
+          }
         }
       }
     },
@@ -20,7 +26,7 @@
             "plural" : {
               "one" : {
                 "stringUnit" : {
-                  "state" : "needs_review",
+                  "state" : "translated",
                   "value" : "%d apple"
                 }
               },
