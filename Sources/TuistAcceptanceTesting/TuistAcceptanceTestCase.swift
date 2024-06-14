@@ -1,8 +1,8 @@
 // swiftlint:disable force_try
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 @_exported import TuistKit
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupport
@@ -42,7 +42,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         do {
             // Environment
             environment = try MockEnvironment()
-            Environment.shared = environment
+            Environment._shared.mutate { $0 = environment }
         } catch {
             XCTFail("Failed to setup environment")
         }
@@ -71,9 +71,9 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--path", fixturePath.pathString,
-        ]
+        ] + arguments
 
         var parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
@@ -97,10 +97,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: EditCommand.Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--path", fixturePath.pathString,
             "--permanent",
-        ]
+        ] + arguments
 
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
@@ -121,20 +121,20 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--derived-data-path", derivedDataPath.pathString,
             "--path", fixturePath.pathString,
-        ]
+        ] + arguments
 
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }
 
     public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--derived-data-path", derivedDataPath.pathString,
             "--path", fixturePath.pathString,
-        ]
+        ] + arguments
 
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
@@ -144,11 +144,15 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await run(command, arguments)
     }
 
+    public func run(_ command: GenerateCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
     public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
-        let arguments = arguments + [
+        let arguments = [
             "--no-open",
             "--path", fixturePath.pathString,
-        ]
+        ] + arguments
 
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()

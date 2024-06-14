@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import TSCBasic
 import TSCLibc
 
@@ -8,7 +9,7 @@ public final class TemporaryDirectory {
     let prefix: String
 
     /// The full path of the temporary directory.
-    public let path: AbsolutePath
+    public let path: Path.AbsolutePath
 
     /// If true, try to remove the whole directory tree before deallocating.
     let shouldRemoveTreeOnDeinit: Bool
@@ -24,14 +25,15 @@ public final class TemporaryDirectory {
     ///
     /// - Throws: MakeDirectoryError
     public init(
-        dir: AbsolutePath? = nil,
+        dir: Path.AbsolutePath? = nil,
         prefix: String = "TemporaryDirectory",
         removeTreeOnDeinit: Bool = false
     ) throws {
         shouldRemoveTreeOnDeinit = removeTreeOnDeinit
         self.prefix = prefix
         // Construct path to the temporary directory.
-        let path = try determineTempDirectory(dir).appending(try RelativePath(validating: prefix + ".XXXXXX"))
+        let path = try determineTempDirectory(dir.map { try .init(validating: $0.pathString) })
+            .appending(try RelativePath(validating: prefix + ".XXXXXX"))
 
         // Convert path to a C style string terminating with null char to be an valid input
         // to mkdtemp method. The XXXXXX in this string will be replaced by a random string
@@ -42,7 +44,7 @@ public final class TemporaryDirectory {
             throw MakeDirectoryError.other(errno)
         }
 
-        self.path = try AbsolutePath(validating: String(cString: template))
+        self.path = try Path.AbsolutePath(validating: String(cString: template))
     }
 
     /// Remove the temporary file before deallocating.

@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 protocol ProjectEditorMapping: AnyObject {
     func map(
@@ -54,7 +54,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
         logger.notice("Building the editable project graph")
-        let swiftVersion = try System.shared.swiftVersion()
+        let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -100,15 +100,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let graphProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
 
-        let graphTargets = projects
-            .lazy
-            .map { ($0.path, $0.targets) }
-            .map { path, targets in (path, Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })) }
-
         let graphDependencies = projects
             .lazy
             .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in
-                let graphDependencies = project.targets.map(\.dependencies).lazy.map { dependencies in
+                let graphDependencies = project.targets.values.map(\.dependencies).lazy.map { dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
                         case let .target(name, _):
@@ -123,7 +118,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     }
                 }
 
-                return zip(project.targets, graphDependencies).map { target, dependencies in
+                return zip(project.targets.values, graphDependencies).map { target, dependencies in
                     (GraphDependency.target(name: target.name, path: project.path), Set(dependencies))
                 }
             }
@@ -134,7 +129,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             workspace: workspace,
             projects: graphProjects,
             packages: [:],
-            targets: Dictionary(uniqueKeysWithValues: graphTargets),
             dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
             dependencyConditions: [:]
         )

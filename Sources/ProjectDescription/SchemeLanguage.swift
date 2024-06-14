@@ -1,7 +1,7 @@
 import Foundation
 
 /// A language to use for run and test actions.
-public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
+public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral, Sendable {
     public let identifier: String
 
     /// Creates a new scheme language.

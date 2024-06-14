@@ -23,7 +23,7 @@ await execa(
   [
     "generate",
     "-o",
-    path.join(docsDirectory, "docs/generated/"),
+    path.join(docsDirectory, "docs/generated/manifest"),
     "--clean",
     "--table-of-contents",
     "--module-name",
@@ -37,9 +37,9 @@ await execa(
   { cwd: rootDirectory, stdio: "inherit" }
 );
 
-fs.rmSync(path.join(docsDirectory, "docs/generated/README.md"));
+fs.rmSync(path.join(docsDirectory, "docs/generated/manifest/README.md"));
 
-fg.sync(path.join(docsDirectory, "docs/generated/**/*.md")).forEach((file) => {
+fg.sync(path.join(docsDirectory, "docs/generated/manifest/**/*.md")).forEach((file) => {
   const renamedPath = file.replace(/\[(.*?)\]/g, "Array<$1>");
   fs.renameSync(file, renamedPath);
 });

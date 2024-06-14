@@ -1,12 +1,11 @@
 import Foundation
 import MockableTest
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -58,20 +57,20 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
-        let expected: TuistGraph.PackageSettings = .init(
+        let expected: TuistCore.PackageSettings = .init(
             productTypes: [:],
             productDestinations: [:],
-            baseSettings: TuistGraph.Settings(
+            baseSettings: XcodeGraph.Settings(
                 base: [:],
                 baseDebug: [:],
                 configurations: [
-                    .release: TuistGraph.Configuration(settings: [:], xcconfig: nil),
-                    .debug: TuistGraph.Configuration(settings: [:], xcconfig: nil),
+                    .release: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
+                    .debug: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
                 ],
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
-            swiftToolsVersion: TSCUtility.Version("5.4.9")
+            swiftToolsVersion: Version(stringLiteral: "5.4.9")
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)

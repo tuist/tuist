@@ -1,7 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
-import TuistGraphTesting
+import Path
+import XcodeGraph
 @testable import TuistCore
 
 extension WorkspaceWithProjects {

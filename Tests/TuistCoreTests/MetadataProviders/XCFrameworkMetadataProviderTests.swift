@@ -1,8 +1,8 @@
-import TSCBasic
+import Path
 import XCTest
 @testable import TuistCore
-@testable import TuistGraph
 @testable import TuistSupportTesting
+@testable import XcodeGraph
 
 final class XCFrameworkMetadataProviderTests: TuistTestCase {
     var subject: XCFrameworkMetadataProvider!

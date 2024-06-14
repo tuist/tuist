@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -634,6 +634,7 @@ final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
 final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
     func test_command_line_tool_basic() async throws {
         try setUpFixture(.commandLineToolBasic)
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "CommandLineTool")
     }
@@ -858,6 +859,17 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
         try await run(BuildCommand.self)
     }
 }
+
+final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
+    func test_framework_with_macro_and_plugin_packages() async throws {
+        try setUpFixture(.frameworkWithMacroAndPluginPackages)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "--", "-skipPackagePluginValidation")
+    }
+}
+
+// frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
     private func resourcePath(

@@ -1,7 +1,9 @@
 import Foundation
-import TuistGraph
+import Mockable
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol CacheDirectoriesProviderFactoring {
     func cacheDirectories() throws -> CacheDirectoriesProviding
 }

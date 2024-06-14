@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 
 extension TargetScript {
     /// Returns the shell script that should be used in the target build phase.

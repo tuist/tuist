@@ -1,8 +1,8 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 struct SettingsMapper {
     init(
@@ -19,12 +19,12 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
+    func mapSettings() throws -> XcodeGraph.SettingsDictionary {
         var resolvedSettings = try settingsDictionary()
 
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
+        for platform in XcodeGraph.Platform.allCases.sorted(by: { $0.rawValue < $1.rawValue }) {
             let platformSettings = try settingsDictionary(for: platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
+            resolvedSettings.overlay(with: platformSettings, for: platform)
         }
 
         return resolvedSettings
@@ -32,7 +32,7 @@ struct SettingsMapper {
 
     func settingsForBuildConfiguration(
         _ buildConfiguration: String
-    ) throws -> TuistGraph.SettingsDictionary {
+    ) throws -> XcodeGraph.SettingsDictionary {
         try map(
             settings: settings.filter { setting in
                 return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
@@ -41,8 +41,8 @@ struct SettingsMapper {
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionary(for platform: PackageInfo.Platform? = nil) throws -> TuistGraph.SettingsDictionary {
-        let platformSettings = try settings(for: platform?.platformName)
+    func settingsDictionary(for platform: XcodeGraph.Platform? = nil) throws -> XcodeGraph.SettingsDictionary {
+        let platformSettings = try settings(for: platform?.rawValue)
 
         return try map(
             settings: platformSettings,
@@ -57,7 +57,7 @@ struct SettingsMapper {
         headerSearchPaths: [String] = [],
         defines: [String: String] = [:],
         swiftDefines: String = ""
-    ) throws -> TuistGraph.SettingsDictionary {
+    ) throws -> XcodeGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = defines
         var swiftDefines = swiftDefines
@@ -66,7 +66,7 @@ struct SettingsMapper {
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
-        var settingsDictionary = TuistGraph.SettingsDictionary()
+        var settingsDictionary = XcodeGraph.SettingsDictionary()
         for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
@@ -141,7 +141,14 @@ struct SettingsMapper {
     {
         settings.filter { setting in
             if let platformName, setting.hasConditions {
-                return setting.condition?.platformNames.contains(platformName) == true
+                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
+                let platformNames: [String]
+                if hasMacCatalystPlatform {
+                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
+                } else {
+                    platformNames = setting.condition?.platformNames ?? []
+                }
+                return platformNames.contains(platformName)
             } else {
                 return !setting.hasConditions
             }

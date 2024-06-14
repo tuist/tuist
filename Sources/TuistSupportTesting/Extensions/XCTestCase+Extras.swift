@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 import XCTest
 
@@ -138,6 +138,19 @@ extension XCTestCase {
             return
         }
         XCTFail("No error was thrown", file: file, line: line)
+    }
+
+    public func XCTAssertThrows(
+        _ closure: @autoclosure () async throws -> some Any,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await closure()
+            XCTFail("No error was thrown", file: file, line: line)
+        } catch {
+            // Succeeded
+        }
     }
 
     public func XCTAssertCodableEqualToJson<C: Codable>(

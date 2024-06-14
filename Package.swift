@@ -3,16 +3,17 @@
 import PackageDescription
 
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
-let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 var targets: [Target] = [
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
             argumentParserDependency,
+            pathDependency,
             swiftToolsSupportDependency,
         ]
     ),
@@ -20,38 +21,17 @@ var targets: [Target] = [
         name: "tuistfixturegenerator",
         dependencies: [
             argumentParserDependency,
+            pathDependency,
             swiftToolsSupportDependency,
         ]
-    ),
-    .target(
-        name: "TuistGraph",
-        dependencies: [
-            swiftToolsSupportDependency,
-            "AnyCodable",
-            "TuistSupport",
-            "Mockable",
-        ],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistGraphTesting",
-        dependencies: [
-            "TuistGraph",
-            "TuistSupportTesting",
-            swiftToolsSupportDependency,
-            "AnyCodable",
-        ],
-        linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistCore",
         dependencies: [
-            swiftToolsSupportDependency,
+            pathDependency,
             "ProjectDescription",
             "TuistSupport",
-            "TuistGraph",
+            "XcodeGraph",
             "XcodeProj",
             "Mockable",
         ],
@@ -64,8 +44,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
-            "TuistGraphTesting",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -73,7 +52,7 @@ var targets: [Target] = [
         name: "TuistKit",
         dependencies: [
             "XcodeProj",
-            swiftToolsSupportDependency,
+            pathDependency,
             argumentParserDependency,
             "TuistSupport",
             "TuistGenerator",
@@ -88,8 +67,9 @@ var targets: [Target] = [
             "TuistAsyncQueue",
             "TuistAnalytics",
             "TuistPlugin",
-            "TuistGraph",
+            "XcodeGraph",
             "Mockable",
+            "TuistServer",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -101,6 +81,7 @@ var targets: [Target] = [
             "TuistKit",
             "ProjectDescription",
             "ProjectAutomation",
+            swiftToolsSupportDependency,
         ]
     ),
     .target(
@@ -113,9 +94,9 @@ var targets: [Target] = [
     .target(
         name: "TuistSupport",
         dependencies: [
-            combineExtDependency,
-            swiftToolsSupportDependency,
+            pathDependency,
             loggingDependency,
+            swiftToolsSupportDependency,
             "KeychainAccess",
             "ZIPFoundation",
             "ProjectDescription",
@@ -129,8 +110,8 @@ var targets: [Target] = [
         name: "TuistSupportTesting",
         dependencies: [
             "TuistSupport",
-            "TuistGraph",
-            swiftToolsSupportDependency,
+            "XcodeGraph",
+            pathDependency,
             "Difference",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -143,7 +124,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistSupportTesting",
             "XcodeProj",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -151,9 +132,9 @@ var targets: [Target] = [
         name: "TuistGenerator",
         dependencies: [
             "XcodeProj",
-            swiftToolsSupportDependency,
+            pathDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "GraphViz",
             swiftGenKitDependency,
@@ -168,16 +149,16 @@ var targets: [Target] = [
         name: "TuistGeneratorTesting",
         dependencies: [
             "TuistGenerator",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistScaffold",
         dependencies: [
-            swiftToolsSupportDependency,
+            pathDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "StencilSwiftKit",
             "Stencil",
@@ -191,10 +172,10 @@ var targets: [Target] = [
         name: "TuistAutomation",
         dependencies: [
             "XcodeProj",
-            swiftToolsSupportDependency,
+            pathDependency,
             .product(name: "XcbeautifyLib", package: "xcbeautify"),
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "Mockable",
         ],
@@ -207,11 +188,11 @@ var targets: [Target] = [
         dependencies: [
             "ProjectDescription",
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "TuistPlugin",
             "Mockable",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -221,11 +202,11 @@ var targets: [Target] = [
         name: "TuistMigration",
         dependencies: [
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "XcodeProj",
             "Mockable",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -235,11 +216,11 @@ var targets: [Target] = [
         name: "TuistAsyncQueue",
         dependencies: [
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "XcodeProj",
             "Mockable",
-            swiftToolsSupportDependency,
+            pathDependency,
             "Queuer",
         ],
         swiftSettings: [
@@ -250,9 +231,9 @@ var targets: [Target] = [
         name: "TuistLoader",
         dependencies: [
             "XcodeProj",
-            swiftToolsSupportDependency,
+            pathDependency,
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistSupport",
             "Mockable",
             "ProjectDescription",
@@ -265,9 +246,8 @@ var targets: [Target] = [
         name: "TuistLoaderTesting",
         dependencies: [
             "TuistLoader",
-            swiftToolsSupportDependency,
+            pathDependency,
             "TuistCore",
-            "TuistGraphTesting",
             "ProjectDescription",
             "TuistSupportTesting",
         ],
@@ -279,10 +259,10 @@ var targets: [Target] = [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
             "TuistCore",
-            "TuistGraph",
+            "XcodeGraph",
             "TuistLoader",
             "Mockable",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -291,13 +271,27 @@ var targets: [Target] = [
     .target(
         name: "TuistPlugin",
         dependencies: [
-            "TuistGraph",
+            "XcodeGraph",
             "TuistLoader",
             "TuistSupport",
             "TuistScaffold",
             "Mockable",
-            swiftToolsSupportDependency,
+            pathDependency,
         ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistServer",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+        ],
+        exclude: ["OpenAPI/cloud.yml"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -338,14 +332,6 @@ let package = Package(
             name: "ProjectAutomation",
             type: .dynamic,
             targets: ["ProjectAutomation"]
-        ),
-        .library(
-            name: "TuistGraph",
-            targets: ["TuistGraph"]
-        ),
-        .library(
-            name: "TuistGraphTesting",
-            targets: ["TuistGraphTesting"]
         ),
         .library(
             name: "TuistKit",
@@ -391,6 +377,10 @@ let package = Package(
             name: "TuistAcceptanceTesting",
             targets: ["TuistAcceptanceTesting"]
         ),
+        .library(
+            name: "TuistServer",
+            targets: ["TuistServer"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -411,7 +401,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.3"),
         .package(url: "https://github.com/apple/swift-log", from: "1.5.3"),
         .package(url: "https://github.com/apple/swift-tools-support-core", from: "0.6.1"),
-        .package(url: "https://github.com/CombineCommunity/CombineExt", from: "1.8.1"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer", from: "2.1.1"),
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.7"),
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.17"),
@@ -424,6 +413,10 @@ let package = Package(
         .package(url: "https://github.com/cpisciotta/xcbeautify", exact: "2.0.1"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.2"),
+        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.5.0")),
     ],
     targets: targets
 )

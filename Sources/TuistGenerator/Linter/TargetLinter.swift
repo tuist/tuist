@@ -1,10 +1,10 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol TargetLinting: AnyObject {
-    func lint(target: Target) -> [LintingIssue]
+    func lint(target: Target, options: Project.Options) -> [LintingIssue]
 }
 
 class TargetLinter: TargetLinting {
@@ -25,7 +25,7 @@ class TargetLinter: TargetLinting {
 
     // MARK: - TargetLinting
 
-    func lint(target: Target) -> [LintingIssue] {
+    func lint(target: Target, options: Project.Options) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintProductNameBuildSettings(target: target))
@@ -33,7 +33,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
-        issues.append(contentsOf: lintLibraryHasNoResources(target: target))
+        issues.append(contentsOf: lintLibraryHasNoResources(target: target, options: options))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
@@ -76,14 +76,14 @@ class TargetLinter: TargetLinting {
     private func lintProductName(target: Target) -> [LintingIssue] {
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
-        let allowsDot = target.product == .app || target.product == .commandLineTool
-        if allowsDot {
-            allowed.formUnion(CharacterSet(charactersIn: "."))
+        let allowsExtraCharacters = target.product != .framework && target.product != .staticFramework
+        if allowsExtraCharacters {
+            allowed.formUnion(CharacterSet(charactersIn: ".-"))
         }
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason =
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsDot ? ", period (.)" : ""), and underscore (_) characters."
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsExtraCharacters ? ", period (.), hyphen (-)" : ""), and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }
@@ -220,15 +220,15 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
+    private func lintLibraryHasNoResources(target: Target, options: Project.Options) -> [LintingIssue] {
         if target.supportsResources {
             return []
         }
 
-        if target.resources.resources.isEmpty == false {
+        if target.resources.resources.isEmpty == false, options.disableBundleAccessors {
             return [
                 LintingIssue(
-                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    reason: "Target \(target.name) cannot contain resources. For \(target.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                     severity: .error
                 ),
             ]

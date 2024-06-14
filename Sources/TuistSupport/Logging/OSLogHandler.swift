@@ -1,6 +1,6 @@
 import Foundation
 import struct Logging.Logger
-import os
+@preconcurrency import os
 
 public struct OSLogHandler: LogHandler {
     public var logLevel: Logger.Level

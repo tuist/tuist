@@ -1,8 +1,8 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue]
@@ -370,7 +370,7 @@ public class GraphLinter: GraphLinting {
     }
 
     struct LintableTarget: Equatable, Hashable {
-        let platform: TuistGraph.Platform
+        let platform: XcodeGraph.Platform
         let product: Product
     }
 

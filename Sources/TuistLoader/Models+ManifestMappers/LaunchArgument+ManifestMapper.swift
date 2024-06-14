@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.LaunchArgument {
-    /// Maps a ProjectDescription.LaunchArgument instance into a TuistGraph.LaunchArgument instance.
+extension XcodeGraph.LaunchArgument {
+    /// Maps a ProjectDescription.LaunchArgument instance into a XcodeGraph.LaunchArgument instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of launch argument model.
-    static func from(manifest: ProjectDescription.LaunchArgument) -> TuistGraph.LaunchArgument {
+    static func from(manifest: ProjectDescription.LaunchArgument) -> XcodeGraph.LaunchArgument {
         LaunchArgument(name: manifest.name, isEnabled: manifest.isEnabled)
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 @testable import TuistSupportTesting
@@ -12,8 +12,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         Bool,
         AbsolutePath?,
         Bool,
-        [XcodeBuildArgument]
-    ) -> [SystemEvent<XcodeBuildOutput>])?
+        [XcodeBuildArgument],
+        [String]
+    ) -> Void)?
 
     func build(
         _ target: XcodeBuildTarget,
@@ -22,24 +23,24 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
+    ) throws {
         if let buildStub {
-            return buildStub(
+            buildStub(
                 target,
                 scheme,
                 destination,
                 rosetta,
                 derivedDataPath,
                 clean,
-                arguments
-            ).asAsyncThrowingStream()
+                arguments,
+                passthroughXcodeBuildArguments
+            )
         } else {
-            return AsyncThrowingStream {
-                throw TestError(
-                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"
-                )
-            }
+            throw TestError(
+                "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"
+            )
         }
     }
 
@@ -56,9 +57,10 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             Int,
             [TestIdentifier],
             [TestIdentifier],
-            TestPlanConfiguration?
+            TestPlanConfiguration?,
+            [String]
         )
-            -> [SystemEvent<XcodeBuildOutput>]
+            -> Void
     )?
     var testErrorStub: Error?
     func test(
@@ -73,10 +75,11 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
+    ) throws {
         if let testStub {
-            let results = testStub(
+            testStub(
                 target,
                 scheme,
                 clean,
@@ -88,27 +91,22 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 retryCount,
                 testTargets,
                 skipTestTargets,
-                testPlanConfiguration
+                testPlanConfiguration,
+                passthroughXcodeBuildArguments
             )
             if let testErrorStub {
-                return AsyncThrowingStream {
-                    throw testErrorStub
-                }
-            } else {
-                return results.asAsyncThrowingStream()
+                throw testErrorStub
             }
         } else {
-            return AsyncThrowingStream {
-                throw TestError(
-                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"
-                )
-            }
+            throw TestError(
+                "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"
+            )
         }
     }
 
     var archiveStub: (
         (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument], AbsolutePath?)
-            -> [SystemEvent<XcodeBuildOutput>]
+            -> Void
     )?
     func archive(
         _ target: XcodeBuildTarget,
@@ -117,35 +115,30 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws {
         if let archiveStub {
-            return archiveStub(target, scheme, clean, archivePath, arguments, derivedDataPath)
-                .asAsyncThrowingStream()
+            archiveStub(target, scheme, clean, archivePath, arguments, derivedDataPath)
         } else {
-            return AsyncThrowingStream {
-                throw TestError(
-                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"
-                )
-            }
+            throw TestError(
+                "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"
+            )
         }
     }
 
     var createXCFrameworkStub: (
         ([String], AbsolutePath)
-            -> [SystemEvent<XcodeBuildOutput>]
+            -> Void
     )?
     func createXCFramework(
         arguments: [String],
         output: AbsolutePath
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws {
         if let createXCFrameworkStub {
-            return createXCFrameworkStub(arguments, output).asAsyncThrowingStream()
+            createXCFrameworkStub(arguments, output)
         } else {
-            return AsyncThrowingStream {
-                throw TestError(
-                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
-                )
-            }
+            throw TestError(
+                "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
+            )
         }
     }
 
@@ -162,15 +155,6 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             throw TestError(
                 "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
             )
-        }
-    }
-}
-
-extension Collection {
-    func asAsyncThrowingStream() -> AsyncThrowingStream<Element, Error> {
-        var iterator = makeIterator()
-        return AsyncThrowingStream {
-            iterator.next()
         }
     }
 }

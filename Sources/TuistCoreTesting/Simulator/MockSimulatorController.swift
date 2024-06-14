@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import struct TSCUtility.Version
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 @testable import TuistCore
 @testable import TuistSupportTesting
 
@@ -11,12 +11,22 @@ public final class MockSimulatorController: SimulatorControlling {
 
     public var findAvailableDevicesStub: ((Platform, Version?, Version?, String?) -> [SimulatorDeviceAndRuntime])?
     public func findAvailableDevices(
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         version: TSCUtility.Version?,
         minVersion: TSCUtility.Version?,
         deviceName: String?
     ) async throws -> [TuistCore.SimulatorDeviceAndRuntime] {
         findAvailableDevicesStub?(platform, version, minVersion, deviceName) ?? [SimulatorDeviceAndRuntime.test()]
+    }
+
+    public var askForAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> SimulatorDeviceAndRuntime)?
+    public func askForAvailableDevice(
+        platform: XcodeGraph.Platform,
+        version: TSCUtility.Version?,
+        minVersion: TSCUtility.Version?,
+        deviceName: String?
+    ) async throws -> TuistCore.SimulatorDeviceAndRuntime {
+        askForAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? SimulatorDeviceAndRuntime.test()
     }
 
     public var findAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> SimulatorDeviceAndRuntime)?

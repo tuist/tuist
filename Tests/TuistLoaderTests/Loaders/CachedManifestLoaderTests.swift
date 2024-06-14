@@ -1,7 +1,9 @@
 import Foundation
+import MockableTest
+import Path
 import ProjectDescription
-import TSCBasic
-import struct TuistGraph.Plugins
+import TuistCore
+import struct TuistCore.Plugins
 import TuistSupport
 import XCTest
 
@@ -15,12 +17,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var manifestLoader = MockManifestLoader()
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var projectManifests: [AbsolutePath: Project] = [:]
-    private var configManifests: [AbsolutePath: Config] = [:]
-    private var pluginManifests: [AbsolutePath: Plugin] = [:]
+    private var configManifests: [AbsolutePath: ProjectDescription.Config] = [:]
+    private var pluginManifests: [AbsolutePath: ProjectDescription.Plugin] = [:]
     private var recordedLoadWorkspaceCalls: Int = 0
     private var recordedLoadProjectCalls: Int = 0
     private var recordedLoadConfigCalls: Int = 0
@@ -32,10 +34,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         super.setUp()
 
         do {
-            cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+            cacheDirectoriesProvider = .init()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
-            cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-            cacheDirectoriesProvider.tuistCacheDirectoryStub = cacheDirectory.parentDirectory
+            cacheDirectoriesProviderFactory = .init()
+            given(cacheDirectoriesProviderFactory)
+                .cacheDirectories()
+                .willReturn(cacheDirectoriesProvider)
+            given(cacheDirectoriesProvider)
+                .tuistCacheDirectory(for: .value(.manifests))
+                .willReturn(cacheDirectory)
         } catch {
             XCTFail("Failed to create temporary directory")
         }
@@ -330,7 +337,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(
-        deprecatedManifest manifest: Config,
+        deprecatedManifest manifest: ProjectDescription.Config,
         at path: AbsolutePath
     ) throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
@@ -349,7 +356,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     private func stubPlugins(withHash hash: String) throws {
-        let plugin = Plugin(name: "TestPlugin")
+        let plugin = ProjectDescription.Plugin(name: "TestPlugin")
         let path = try temporaryPath().appending(component: "TestPlugin")
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
         try fileHandler.touch(manifestPath)

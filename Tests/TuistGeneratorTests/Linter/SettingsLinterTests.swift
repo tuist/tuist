@@ -1,11 +1,10 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class SettingsLinterTests: TuistUnitTestCase {

@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 
 // MARK: - CircularDependencyLinting
 
@@ -40,7 +40,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         }
         cache.add(project: project)
 
-        for target in project.targets {
+        for target in project.targets.values.sorted() {
             try lintTarget(
                 path: path,
                 name: target.name,

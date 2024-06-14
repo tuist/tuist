@@ -35,7 +35,7 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more.
+For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
 
 > [!INFO] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
@@ -134,20 +134,15 @@ Once the app is created you'll need to set the following environment variables:
 
  Tuist Cloud needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist Cloud to operate effectively.
 
-#### S3-Compliant storages
+#### S3-compliant storages
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_S3_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID` | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
-| `TUIST_S3_SECRET_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY` | The access key secret | Yes | | `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` |
-| `TUIST_S3_BUCKET_NAME` | Name of the bucket | Yes | | `my-bucket` |
-| `TUIST_S3_REGION`, `AWS_REGION` | The bucket's region | No | `eu-west-1` | `us-east-1` |
-| `TUIST_S3_ENDPOINT` | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
-| `TUIST_AWS_PROFILE`, `AWS_PROFILE` | Set an [AWS profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html#cli-configure-files-using-profiles) for authorization. Doesn't work with other storages | No | | `user1` |
-| `TUIST_AWS_SESSION_TOKEN`, `AWS_SESSION_TOKEN` | [Session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `8ea7c2b4e79bec6f2990afe47f8439a44ed7dc4` |
-| `TUIST_USE_SESSION_TOKEN` | When `1` it uses the [session token](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_use-resources.html) to authenticate requests | No | | `1` |
+The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
 
-For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `TUIST_S3_ACCESS_KEY_ID` and `TUIST_S3_SECRET_ACCESS_KEY` pair. The `TUIST_S3_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+> [!NOTE] RUST SDK
+> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used. 
+
+### Google Cloud Storage
+For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
 ## Deployment
 
@@ -306,11 +301,11 @@ services:
       TUIST_OKTA_EVENT_HOOK_SECRET: # Optional
 
       # Storage
-      TUIST_S3_ACCESS_KEY_ID: # ...
-      TUIST_S3_SECRET_ACCESS_KEY: # ...
+      AWS_ACCESS_KEY_ID: # ...
+      AWS_SECRET_ACCESS_KEY: # ...
+      AWS_S3_REGION: # ...
+      AWS_ENDPOINT: # https://amazonaws.com
       TUIST_S3_BUCKET_NAME: # ...
-      TUIST_S3_REGION: # ...
-      TUIST_S3_ENDPOINT: # https://amazonaws.com
     
       # Other
 
@@ -318,3 +313,40 @@ volumes:
   db:
     driver: local
 ```
+
+## Metrics
+
+You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
+
+### Runs metrics
+
+A set of metrics related to Tuist Runs.
+
+#### `tuist_runs_total` (counter)
+
+The total number of Tuist Runs.
+
+**Tags:**
+- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
+- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
+- `status` – `0` in case of `success`, `1` in case of `failure`
+
+#### `tuist_runs_duration_milliseconds` (histogram)
+
+The total duration of each tuist run in milliseconds.
+
+**Tags:**
+- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
+- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
+- `status` – `0` in case of `success`, `1` in case of `failure`
+
+### Cache metrics
+
+A set of metrics related to the Tuist Cache.
+
+#### `tuist_cache_events_total` (counter)
+
+The total number of Tuist Binary Cache events.
+
+**Tags:**
+- `event_type`: Can be either of `local_hit`, `remote_hit`, or `miss`.

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 public final class MockDerivedDataLocator: DerivedDataLocating {

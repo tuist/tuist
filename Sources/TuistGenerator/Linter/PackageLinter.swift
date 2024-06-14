@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol PackageLinting: AnyObject {
     func lint(_ package: Package) -> [LintingIssue]

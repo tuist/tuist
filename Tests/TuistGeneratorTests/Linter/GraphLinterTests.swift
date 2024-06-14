@@ -1,14 +1,13 @@
 import Foundation
-import TSCBasic
+import Path
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
@@ -137,12 +136,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                appTarget.name: appTarget,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticLibrary.name: staticLibrary,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -184,12 +177,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                appTarget.name: appTarget,
-                staticLibraryA.name: staticLibraryA,
-                staticLibraryB.name: staticLibraryB,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -234,12 +221,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                appTarget.name: appTarget,
-                messagesExtension.name: messagesExtension,
-                staticFramework.name: staticFramework,
-                staticLibrary.name: staticLibrary,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -267,10 +248,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                bundle.name: bundle,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -298,10 +275,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                bundle.name: bundle,
-                application.name: application,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -341,13 +314,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                xpc.name: xpc,
-                dynamicFramework.name: dynamicFramework,
-                dynamicLibrary.name: dynamicLibrary,
-                staticFramework.name: staticFramework,
-                staticLibrary.name: staticLibrary,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -377,11 +343,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                bundle.name: bundle,
-                unitTests.name: unitTests,
-                uiTests.name: uiTests,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -411,11 +372,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                staticFramework.name: staticFramework,
-                staticLibrary.name: staticLibrary,
-                dynamicFramework.name: dynamicFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -434,7 +390,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let macStaticFramework = Target.empty(name: "MacStaticFramework", destinations: .macOS, product: .staticFramework)
         let iosStaticFramework = Target.empty(name: "iOSStaticFramework", destinations: .iOS, product: .staticFramework)
         let iosStaticLibrary = Target.empty(name: "iOSStaticLibrary", destinations: .iOS, product: .staticLibrary)
-        let project = Project.empty(path: path)
+        let project = Project.empty(path: path, targets: [macStaticFramework, iosStaticLibrary, iosStaticFramework])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(
@@ -451,11 +407,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                macStaticFramework.name: macStaticFramework,
-                iosStaticFramework.name: iosStaticFramework,
-                iosStaticLibrary.name: iosStaticLibrary,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -483,10 +434,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                watchExtension.name: watchExtension,
-                watchApp.name: watchApp,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -504,7 +451,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let invalidDependency = Target.empty(name: "Framework", destinations: .watchOS, product: .framework)
         let watchApp = Target.empty(name: "WatchApp", destinations: .watchOS, product: .watch2App)
-        let project = Project.empty(path: path)
+        let project = Project.empty(path: path, targets: [invalidDependency, watchApp])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: watchApp.name, path: path): Set([.target(name: invalidDependency.name, path: path)]),
@@ -514,10 +461,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                invalidDependency.name: invalidDependency,
-                watchApp.name: watchApp,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -555,7 +498,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [watchApp.name: watchApp, watchAppTests.name: watchAppTests]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -593,7 +535,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [staticLibrary.name: staticLibrary, watchAppTests.name: watchAppTests]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -631,7 +572,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [framework.name: framework, watchAppTests.name: watchAppTests]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -669,7 +609,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [staticFramework.name: staticFramework, watchAppTests.name: watchAppTests]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -722,13 +661,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [
-                path: [
-                    watchApplication.name: watchApplication,
-                    staticFramework.name: staticFramework,
-                    dynamicFramework.name: dynamicFramework,
-                ],
-            ],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -773,12 +705,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [
-                path: [
-                    watchApplication.name: watchApplication,
-                    widgetExtension.name: widgetExtension,
-                ],
-            ],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -820,12 +746,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [
-                path: [
-                    app.name: app,
-                    watchApplication.name: watchApplication,
-                ],
-            ],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -879,11 +799,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 projectAPath: projectA,
                 projectBPath: projectB,
                 projectCPath: projectC,
-            ],
-            targets: [
-                projectAPath: [targetA.name: targetA],
-                projectBPath: [targetB.name: targetB],
-                projectCPath: [targetC.name: targetC],
             ],
             dependencies: dependencies
         )
@@ -954,11 +869,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 projectAPath: projectA,
                 projectBPath: projectB,
                 projectCPath: projectC,
-            ],
-            targets: [
-                projectAPath: [targetA.name: targetA],
-                projectBPath: [targetB.name: targetB],
-                projectCPath: [targetC.name: targetC],
             ],
             dependencies: dependencies
         )
@@ -1032,11 +942,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 projectBPath: projectB,
                 projectCPath: projectC,
             ],
-            targets: [
-                projectAPath: [targetA.name: targetA],
-                projectBPath: [targetB.name: targetB],
-                projectCPath: [targetC.name: targetC],
-            ],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1081,7 +986,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1126,7 +1030,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1180,7 +1083,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             workspace: Workspace.test(projects: [temporaryPath]),
             projects: [temporaryPath: project],
-            targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1226,7 +1128,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             workspace: Workspace.test(projects: [temporaryPath]),
             projects: [temporaryPath: project],
-            targets: [temporaryPath: [app.name: app, appClip.name: appClip]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1269,7 +1170,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [app.name: app, appClip.name: appClip]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1313,7 +1213,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [app.name: app, appClip.name: appClip]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1380,7 +1279,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             workspace: Workspace.test(projects: [temporaryPath]),
             projects: [temporaryPath: project],
-            targets: [temporaryPath: [app.name: app, appClip1.name: appClip1, appClip2.name: appClip2]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1434,7 +1332,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             workspace: Workspace.test(projects: [temporaryPath]),
             projects: [temporaryPath: project],
-            targets: [temporaryPath: [app.name: app, appClip.name: appClip, framework.name: framework]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1474,7 +1371,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [tool.name: tool, dynamic.name: dynamic]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1514,7 +1410,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [tool.name: tool, dynamic.name: dynamic]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1565,7 +1460,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [tool.name: tool, staticFmwk.name: staticFmwk, staticLib.name: staticLib]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1605,10 +1499,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [
-                path: [appTarget.name: appTarget],
-                frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
-            ],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1643,17 +1533,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             workspace: Workspace.test(projects: [project.path]),
             projects: [
                 project.path: project,
-            ],
-            targets: [
-                project.path: [
-                    appTarget.name: appTarget,
-                    frameworkA.name: frameworkA,
-                    frameworkB.name: frameworkB,
-                    frameworkC.name: frameworkC,
-                    frameworkD.name: frameworkD,
-                    frameworkE.name: frameworkE,
-                    frameworkF.name: frameworkF,
-                ],
             ],
             dependencies: [:]
         )
@@ -1726,13 +1605,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                     autogeneratedWorkspaceSchemes: .enabled(codeCoverageMode: .relevant, testingOptions: [])
                 )
             ),
-            projects: [temporaryPath: project],
-            targets: [
-                temporaryPath: [
-                    "TargetA": targetA,
-                    "TargetB": targetB,
-                ],
-            ]
+            projects: [temporaryPath: project]
         )
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1789,13 +1662,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                     )
                 )
             ),
-            projects: [temporaryPath: project],
-            targets: [
-                temporaryPath: [
-                    "TargetA": .test(),
-                    "TargetB": .test(),
-                ],
-            ]
+            projects: [temporaryPath: project]
         )
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1852,13 +1719,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                     )
                 )
             ),
-            projects: [temporaryPath: project],
-            targets: [
-                temporaryPath: [
-                    "TargetB": .test(),
-                    "TargetC": .test(),
-                ],
-            ]
+            projects: [temporaryPath: project]
         )
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1893,12 +1754,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
         let graph = Graph.test(
             projects: [path: project],
-            targets: [
-                path: [
-                    iOSAndMacTarget.name: iOSAndMacTarget,
-                    macOnlyTarget.name: macOnlyTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: iOSAndMacTarget.name, path: path): [
                     .target(name: macOnlyTarget.name, path: path),
@@ -1909,7 +1764,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: iOSAndMacTarget.name, path: path),
                     to: .target(name: macOnlyTarget.name, path: path)
-                ): try .test([.macos]),
+                ): try XCTUnwrap(.test([.macos])),
             ]
         )
         let config = Config.test()
@@ -1937,12 +1792,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
         let graph = Graph.test(
             projects: [path: project],
-            targets: [
-                path: [
-                    iOSAndMacTarget.name: iOSAndMacTarget,
-                    watchOnlyTarget.name: watchOnlyTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: iOSAndMacTarget.name, path: path): [
                     .target(name: watchOnlyTarget.name, path: path),
@@ -1985,14 +1834,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
         let graph = Graph.test(
             projects: [path: project],
-            targets: [
-                path: [
-                    iOSAndMacTarget.name: iOSAndMacTarget,
-                    iOSOnlyTarget.name: iOSOnlyTarget,
-                    iOSApp.name: iOSApp,
-                    watchApp.name: watchApp,
-                ],
-            ],
             dependencies: [
                 .target(name: iOSAndMacTarget.name, path: path): [
                     .target(name: iOSOnlyTarget.name, path: path),

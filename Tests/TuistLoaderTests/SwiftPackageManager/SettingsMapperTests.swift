@@ -1,9 +1,9 @@
+import Path
 import ProjectDescription
-import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -211,14 +211,14 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
 
-        let iosPlatformSettings = try mapper.settingsDictionary(for: .ios)
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
-        let combinedSettings = try mapper.settingsForPlatforms([.ios, .macos, .tvos])
+        let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
@@ -245,11 +245,60 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
     }
+
+    func test_set_maccatalyst() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil),
+                value: ["Define2"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1")
+        )
+
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+
+        XCTAssertEqual(
+            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        let combinedSettings = try mapper.mapSettings()
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1")
+        )
+    }
 }
 
 // OTHER_LDFLAGS
 
-extension TuistGraph.SettingsDictionary {
+extension XcodeGraph.SettingsDictionary {
     func stringValueFor(_ key: String) throws -> String {
         try XCTUnwrap(self[key]?.stringValue)
     }
@@ -259,7 +308,7 @@ extension TuistGraph.SettingsDictionary {
     }
 }
 
-extension TuistGraph.SettingValue {
+extension XcodeGraph.SettingValue {
     var stringValue: String? {
         if case let .string(string) = self {
             return string

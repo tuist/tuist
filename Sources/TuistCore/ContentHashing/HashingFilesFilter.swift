@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 class HashingFilesFilter {
     /// an array of filters, which should return if a path should be included in hashing calculations or not.

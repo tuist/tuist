@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
@@ -19,7 +19,7 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
-        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+        projectDescriptionHelperPlugins: [TuistCore.ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule]
 
     /// Builds all the plugin helpers module and returns the location to the built modules.
@@ -116,7 +116,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ) throws -> ProjectDescriptionHelpersModule? {
         guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
-            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"],
+            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
                    // swiftlint:disable:next force_try
                    of: try! AbsolutePath(validating: sourceRoot).appending(component: Constants.tuistDirectoryName)

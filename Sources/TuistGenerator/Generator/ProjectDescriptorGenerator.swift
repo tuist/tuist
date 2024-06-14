@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 protocol ProjectDescriptorGenerating: AnyObject {
@@ -204,7 +204,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         graphTraverser: GraphTraversing
     ) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
-        for target in project.targets {
+        for target in project.targets.values.sorted() {
             let nativeTarget = try targetGenerator.generateTarget(
                 target: target,
                 project: project,
@@ -221,7 +221,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         /// Target dependencies
         try targetGenerator.generateTargetDependencies(
             path: project.path,
-            targets: project.targets,
+            targets: Array(project.targets.values),
             nativeTargets: nativeTargets,
             graphTraverser: graphTraverser
         )

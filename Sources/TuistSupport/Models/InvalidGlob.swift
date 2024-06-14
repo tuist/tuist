@@ -1,7 +1,7 @@
-import TSCBasic
+import Path
 
 /// A structs that represents an invalid glob pattern.
-public struct InvalidGlob: Equatable, CustomStringConvertible {
+public struct InvalidGlob: Equatable, CustomStringConvertible, Sendable {
     /// Glob patterns.
     public let pattern: String
 

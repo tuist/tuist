@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import SwiftGenKit
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 // swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
@@ -52,13 +52,14 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
         logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
-        let mappings = try project.targets
+        let mappings = try project.targets.values
             .map { try mapTarget($0, project: project) }
 
         let targets: [Target] = mappings.map(\.0)
         let sideEffects: [SideEffectDescriptor] = mappings.map(\.1).flatMap { $0 }
-
-        return (project.with(targets: targets), sideEffects)
+        var project = project
+        project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+        return (project, sideEffects)
     }
 
     // MARK: - Helpers

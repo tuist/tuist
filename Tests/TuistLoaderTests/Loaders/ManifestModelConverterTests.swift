@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 import XCTest
@@ -86,13 +86,13 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.targets.count, 2)
         try XCTAssertTargetMatchesManifest(
-            target: model.targets[0],
+            target: try XCTUnwrap(model.targets["A"]),
             matches: targetA,
             at: temporaryPath,
             generatorPaths: generatorPaths
         )
         try XCTAssertTargetMatchesManifest(
-            target: model.targets[1],
+            target: try XCTUnwrap(model.targets["B"]),
             matches: targetB,
             at: temporaryPath,
             generatorPaths: generatorPaths

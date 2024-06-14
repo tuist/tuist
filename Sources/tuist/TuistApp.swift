@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import TSCBasic
 import TuistKit
 import TuistLoader
@@ -6,7 +7,7 @@ import TuistSupport
 
 @main
 @_documentation(visibility: private)
-private enum TuistApp {
+private enum TuistServer {
     static func main() async throws {
         if CommandLine.arguments.contains("--verbose") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
@@ -16,6 +17,6 @@ private enum TuistApp {
 
         try TuistSupport.Environment.shared.bootstrap()
 
-        await TuistCommand.main()
+        try await TuistCommand.main()
     }
 }

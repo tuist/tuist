@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol TemplateLoading {
     /// Load `TuistScaffold.Template` at given `path`
@@ -11,7 +11,7 @@ public protocol TemplateLoading {
     ///     - path: Path of template manifest file `name_of_template.swift`
     ///     - plugins: List of available plugins.
     /// - Returns: Loaded `TuistScaffold.Template`
-    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistGraph.Template
+    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -26,28 +26,28 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistGraph.Template {
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template {
         try manifestLoader.register(plugins: plugins)
         let template = try manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try TuistGraph.Template.from(
+        return try TuistCore.Template.from(
             manifest: template,
             generatorPaths: generatorPaths
         )
     }
 }
 
-extension TuistGraph.Template {
-    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
-        let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
+extension TuistCore.Template {
+    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistCore.Template {
+        let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
         let items = try manifest.items.map { Item(
             path: try RelativePath(validating: $0.path),
-            contents: try TuistGraph.Template.Contents.from(
+            contents: try TuistCore.Template.Contents.from(
                 manifest: $0.contents,
                 generatorPaths: generatorPaths
             )
         ) }
-        return TuistGraph.Template(
+        return TuistCore.Template(
             description: manifest.description,
             attributes: attributes,
             items: items
@@ -55,8 +55,8 @@ extension TuistGraph.Template {
     }
 }
 
-extension TuistGraph.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistGraph.Template.Attribute {
+extension TuistCore.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistCore.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -66,8 +66,8 @@ extension TuistGraph.Template.Attribute {
     }
 }
 
-extension TuistGraph.Template.Attribute.Value {
-    static func from(value: ProjectDescription.Template.Attribute.Value) throws -> TuistGraph.Template.Attribute.Value {
+extension TuistCore.Template.Attribute.Value {
+    static func from(value: ProjectDescription.Template.Attribute.Value) throws -> TuistCore.Template.Attribute.Value {
         switch value {
         case let .string(string):
             return .string(string)
@@ -78,23 +78,23 @@ extension TuistGraph.Template.Attribute.Value {
         case let .boolean(boolean):
             return .boolean(boolean)
         case let .dictionary(dictionary):
-            var newDictionary: [String: TuistGraph.Template.Attribute.Value] = [:]
+            var newDictionary: [String: TuistCore.Template.Attribute.Value] = [:]
             for (key, value) in dictionary {
                 newDictionary[key] = try from(value: value)
             }
             return .dictionary(newDictionary)
         case let .array(array):
-            let newArray: [TuistGraph.Template.Attribute.Value] = try array.map { try from(value: $0) }
+            let newArray: [TuistCore.Template.Attribute.Value] = try array.map { try from(value: $0) }
             return .array(newArray)
         }
     }
 }
 
-extension TuistGraph.Template.Contents {
+extension TuistCore.Template.Contents {
     static func from(
         manifest: ProjectDescription.Template.Contents,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistGraph.Template.Contents {
+    ) throws -> TuistCore.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)

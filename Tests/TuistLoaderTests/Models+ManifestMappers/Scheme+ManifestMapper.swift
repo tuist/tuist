@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -20,7 +20,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         // When
-        let model = try TuistGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
@@ -60,7 +60,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)

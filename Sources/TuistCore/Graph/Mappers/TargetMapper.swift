@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeGraph
 
 public protocol TargetMapping {
     func map(target: Target) throws -> (Target, [SideEffectDescriptor])

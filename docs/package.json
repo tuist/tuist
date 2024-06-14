@@ -6,15 +6,14 @@
   "devDependencies": {
     "execa": "^8.0.1",
     "fast-glob": "^3.3.2",
-    "vitepress": "^1.0.1"
+    "vitepress": "^1.0.1",
+    "vue": "^3.4.27",
+    "wrangler": "^3.37.0"
   },
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
     "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main"
-  },
-  "dependencies": {
-    "wrangler": "^3.37.0"
   }
 }

@@ -1,8 +1,8 @@
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistSupportTesting
 
@@ -66,7 +66,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version))
+        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
     }
 
     func test_loadPackageInfo() throws {

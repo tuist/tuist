@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
 import examplesDataLoader from "../docs/reference/examples/examples.data";
+import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
@@ -29,6 +30,51 @@ function capitalize(text) {
     });
   }
 });
+
+function generateNestedSidebarItems(items) {
+  const nestedItems = {};
+
+  items.forEach((item) => {
+    const category = item.category
+    if (!nestedItems[category]) {
+      nestedItems[category] = {
+        text: capitalize(category),
+        collapsed: true,
+        items: [],
+      };
+    }
+    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
+  });
+
+  function isLinkItem(item) {
+    return typeof item.link === "string";
+  }
+
+  function convertToArray(obj) {
+    return Object.values(obj).reduce((acc, item) => {
+      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
+        acc.push(item);
+      } else {
+        acc.push({
+          text: item.text,
+          collapsed: true,
+          items: convertToArray(item.items),
+        });
+      }
+      return acc;
+    }, []);
+  }
+
+  return convertToArray(nestedItems);
+}
+
+  
+const cliData = cliDataLoader.load();
+
+const cliSidebar = {
+  text: "CLI",
+  items: generateNestedSidebarItems(cliData),
+};
 
 const guideSidebar = [
   {
@@ -83,7 +129,7 @@ const guideSidebar = [
     ],
   },
   {
-    text: "Project",
+    text: "Tuist Projects",
     items: [
       {
         text: "Manifests",
@@ -112,33 +158,50 @@ const guideSidebar = [
         text: "Plugins",
         link: "/guide/project/plugins",
       },
-    ],
-  },
-  {
-    text: "Automation",
-    items: [
-      { text: "Generate", link: "/guide/automation/generate" },
-      { text: "Build", link: "/guide/automation/build" },
-      { text: "Test", link: "/guide/automation/test" },
-      { text: "Run", link: "/guide/automation/run" },
-      { text: "Graph", link: "/guide/automation/graph" },
-      { text: "Clean", link: "/guide/automation/clean" },
-    ],
-  },
-  {
-    text: "Scale",
-    items: [
-      // {
-      //   text: "Xcode",
-      //   link: "/guide/scale/xcode",
-      // },
       {
-        text: "µFeatures architecture",
-        link: "/guide/scale/ufeatures-architecture",
+        text: "Commands",
+        collapsed: true,
+        items: [
+          { text: "Generate", link: "/guide/automation/generate" },
+          { text: "Build", link: "/guide/automation/build" },
+          { text: "Test", link: "/guide/automation/test" },
+          { text: "Run", link: "/guide/automation/run" },
+          { text: "Graph", link: "/guide/automation/graph" },
+          { text: "Clean", link: "/guide/automation/clean" },
+        ],
       },
       {
-        text: "Tuist Cloud",
+        text: "The Modular Architecture",
+        link: "/guide/scale/tma-architecture",
+      },
+    ],
+  },
+  {
+    text: "Tuist Cloud",
+    items: [
+      {
+        text: "What is Tuist Cloud?",
         link: "/cloud/what-is-cloud",
+      },
+      {
+        text: "Get started",
+        link: "/cloud/get-started",
+      },
+      {
+        text: "Binary caching",
+        link: "/cloud/binary-caching",
+      },
+      {
+        text: "Selective testing",
+        link: "/cloud/selective-testing",
+      },
+      {
+        text: "Hashing",
+        link: "/cloud/hashing",
+      },
+      {
+        text: "On-premise",
+        link: "/cloud/on-premise",
       },
     ],
   },
@@ -162,8 +225,8 @@ export default defineConfig({
       "script",
       {},
       `
-    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-    posthog.init('phc_pNR89Xu2WWDZdXReTnuePI7XO2Ktb2orTpzVWxHlBxq',{api_host:'https://eu.i.posthog.com'})
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
     `,
     ],
     [
@@ -208,6 +271,8 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
+/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
@@ -219,8 +284,10 @@ export default defineConfig({
     },
     nav: [
       { text: "Guide", link: "/" },
-      { text: "Reference", link: "/reference/project-description/structs/project" },
-      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
+      {
+        text: "Reference",
+        link: "/reference/project-description/structs/project",
+      },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
     ],
@@ -251,53 +318,13 @@ export default defineConfig({
           ],
         },
       ],
-      "/cloud": [
-        {
-          text: "Tuist Cloud",
-          items: [
-            {
-              text: "What is Tuist Cloud?",
-              link: "/cloud/what-is-cloud",
-            },
-            {
-              text: "Get started",
-              link: "/cloud/get-started",
-            },
-            {
-              text: "Binary caching",
-              link: "/cloud/binary-caching",
-            },
-            {
-              text: "Selective testing",
-              link: "/cloud/selective-testing",
-            },
-            {
-              text: "Hashing",
-              link: "/cloud/hashing",
-            },
-            {
-              text: "On-premise",
-              link: "/cloud/on-premise",
-            },
-          ],
-        },
-      ],
       "/guide/": guideSidebar,
       "/": guideSidebar,
       "/reference/": [
         {
           text: "Reference",
           items: [
-            // TODO
-            // {
-            //   text: "CLI",
-            //   items: cliDataLoader.load().map((item) => {
-            //     return {
-            //       text: item.title,
-            //       link: `/reference/cli/${item.command}`,
-            //     };
-            //   }),
-            // },
+            cliSidebar,
             projectDescriptionSidebar,
             {
               text: "Examples",

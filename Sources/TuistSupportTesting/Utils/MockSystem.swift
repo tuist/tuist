@@ -1,5 +1,5 @@
-import Combine
 import Foundation
+import Path
 import TSCBasic
 import XCTest
 @testable import TuistSupport
@@ -11,8 +11,6 @@ public final class MockSystem: Systeming {
     public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
     public var whichStub: ((String) throws -> String?)?
-    public var swiftVersionStub: (() throws -> String)?
-    public var swiftlangVersionStub: (() throws -> String)?
 
     public init() {}
 
@@ -61,85 +59,31 @@ public final class MockSystem: Systeming {
         _ = try capture(arguments, verbose: false, environment: env)
     }
 
-    public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        var values = publisher(arguments)
-            .mapToString()
-            .collectOutput()
-            .eraseToAnyPublisher()
-            .stream
-            .makeAsyncIterator()
-
-        return try await values.next()!
-    }
-
-    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        publisher(arguments, verbose: false, environment: env)
-    }
-
-    public func publisher(
+    public func run(
         _ arguments: [String],
         verbose _: Bool,
-        environment _: [String: String]
-    ) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher<SystemEvent<Data>, Error>.create { subscriber in
-            let command = arguments.joined(separator: " ")
-            guard let stub = self.stubs[command] else {
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-                return AnyCancellable {}
-            }
-            guard stub.exitstatus == 0 else {
-                if let error = stub.stderror {
-                    subscriber.send(.standardError(error.data(using: .utf8)!))
-                }
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-
-                return AnyCancellable {}
-            }
-            if let stdout = stub.stdout {
-                subscriber.send(.standardOutput(stdout.data(using: .utf8)!))
-            }
-            subscriber.send(completion: .finished)
-            return AnyCancellable {}
-        }
+        environment _: [String: String],
+        redirection _: TSCBasic.Process.OutputRedirection
+    ) throws {
+        _ = try capture(arguments, verbose: false, environment: env)
     }
 
-    public func publisher(_ arguments: [String], pipeTo _: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher<SystemEvent<Data>, Error>.create { subscriber in
-            let command = arguments.joined(separator: " ")
-            guard let stub = self.stubs[command] else {
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-                return AnyCancellable {}
-            }
-            guard stub.exitstatus == 0 else {
-                if let error = stub.stderror {
-                    subscriber.send(.standardError(error.data(using: .utf8)!))
-                }
-                subscriber
-                    .send(completion: .failure(
-                        TuistSupport.SystemError
-                            .terminated(command: arguments.first!, code: 1, standardError: Data())
-                    ))
-
-                return AnyCancellable {}
-            }
-            if let stdout = stub.stdout {
-                subscriber.send(.standardOutput(stdout.data(using: .utf8)!))
-            }
-            subscriber.send(completion: .finished)
-            return AnyCancellable {}
+    public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
+        let command = arguments.joined(separator: " ")
+        guard let stub = stubs[command] else {
+            throw TuistSupport.SystemError
+                .terminated(command: arguments.first!, code: 1, standardError: Data())
         }
+
+        guard stub.exitstatus == 0 else {
+            throw TuistSupport.SystemError
+                .terminated(command: arguments.first!, code: 1, standardError: stub.stderror?.data(using: .utf8) ?? Data())
+        }
+
+        return SystemCollectedOutput(
+            standardOutput: stub.stdout ?? "",
+            standardError: stub.stderror ?? ""
+        )
     }
 
     public func async(_ arguments: [String]) throws {
@@ -152,22 +96,6 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func swiftVersion() throws -> String {
-        if let swiftVersionStub {
-            return try swiftVersionStub()
-        } else {
-            throw TestError("Call to non-stubbed method swiftVersion")
-        }
-    }
-
-    public func swiftlangVersion() throws -> String {
-        if let swiftlangVersion = swiftlangVersionStub {
-            return try swiftlangVersion()
-        } else {
-            throw TestError("Call to non-stubbed method swiftlangVersion")
-        }
-    }
-
     public func which(_ name: String) throws -> String {
         if let path = try whichStub?(name) {
             return path
@@ -176,10 +104,10 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public var chmodStub: ((FileMode, AbsolutePath, Set<FileMode.Option>) throws -> Void)?
+    public var chmodStub: ((FileMode, Path.AbsolutePath, Set<FileMode.Option>) throws -> Void)?
     public func chmod(
         _ mode: FileMode,
-        path: AbsolutePath,
+        path: Path.AbsolutePath,
         options: Set<FileMode.Option>
     ) throws {
         try chmodStub?(mode, path, options)

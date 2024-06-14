@@ -1,16 +1,16 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
-private typealias Platform = TuistGraph.Platform
-private typealias Product = TuistGraph.Product
+private typealias Platform = XcodeGraph.Platform
+private typealias Product = XcodeGraph.Product
 
 public struct InitCommand: ParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {
@@ -21,29 +21,34 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
     }
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = UUID().uuidString
 
     @Option(
         help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"])
+        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"]),
+        envKey: .initPlatform
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the project will be generated. (Default: Current directory)",
-        completion: .directory
+        completion: .directory,
+        envKey: .initPath
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. (Default: Name of the current directory)"
+        help: "The name of the project. (Default: Name of the current directory)",
+        envKey: .initName
     )
     var name: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the template to use (you can list available templates with tuist scaffold list)"
+        help: "The name of the template to use (you can list available templates with tuist scaffold list)",
+        envKey: .initTemplate
     )
     var template: String?
 

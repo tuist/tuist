@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import struct TSCUtility.Version
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol SimulatorControlling {
     /// Finds first available device defined by given parameters
@@ -12,6 +12,20 @@ public protocol SimulatorControlling {
     ///     - minVersion: Minimum version of the OS
     ///     - deviceName: Specific device name (eg. iPhone X)
     func findAvailableDevice(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) async throws -> SimulatorDeviceAndRuntime
+
+    /// Ask the user to select one of the available devices defined by given parameters
+    /// if there is more than one, otherwise return the only one available
+    /// - Parameters:
+    ///    - platform: Given platform
+    ///    - version: Specific version, ignored if nil
+    ///    - minVersion: Minimum version of the OS
+    ///    - deviceName: Specific device name (eg. iPhone X)
+    func askForAvailableDevice(
         platform: Platform,
         version: Version?,
         minVersion: Version?,
@@ -81,8 +95,11 @@ public enum SimulatorControllerError: Equatable, FatalError {
 
 public final class SimulatorController: SimulatorControlling {
     private let jsonDecoder = JSONDecoder()
+    private let userInputReader: UserInputReading
 
-    public init() {}
+    public init(userInputReader: UserInputReading = UserInputReader()) {
+        self.userInputReader = userInputReader
+    }
 
     /// Returns the list of simulator devices that are available in the system.
     func devices() async throws -> [SimulatorDevice] {
@@ -189,6 +206,37 @@ public final class SimulatorController: SimulatorControlling {
         else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, try await devicesAndRuntimes())
         }
         return device
+    }
+
+    public func askForAvailableDevice(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) async throws -> SimulatorDeviceAndRuntime {
+        let availableDevices = try await findAvailableDevices(
+            platform: platform,
+            version: version,
+            minVersion: minVersion,
+            deviceName: deviceName
+        )
+        if availableDevices.isEmpty {
+            throw SimulatorControllerError.deviceNotFound(
+                platform,
+                version,
+                deviceName,
+                try await devicesAndRuntimes()
+            )
+        }
+        if availableDevices.count == 1, let onlyOption = availableDevices.first {
+            return onlyOption
+        }
+        var prompt = "Select the simulator device where you want to run the app:\n"
+        for (index, availableDevice) in availableDevices.enumerated() {
+            prompt += "\t\(index): \(availableDevice.device.name) (\(availableDevice.device.udid))\n"
+        }
+        let choice = userInputReader.readInt(asking: prompt, maxValueAllowed: availableDevices.count)
+        return availableDevices[choice]
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {

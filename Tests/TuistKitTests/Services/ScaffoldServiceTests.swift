@@ -1,10 +1,11 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting
@@ -19,7 +20,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     var templateLoader: MockTemplateLoader!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var templateGenerator: MockTemplateGenerator!
-    var configLoader: MockConfigLoader!
+    var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
 
     override func setUp() {
@@ -27,8 +28,11 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         pluginService = MockPluginService()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         subject = ScaffoldService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
@@ -220,6 +224,9 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_attributes_are_passed_to_generator() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
                 .optional("optional", default: .string("")),

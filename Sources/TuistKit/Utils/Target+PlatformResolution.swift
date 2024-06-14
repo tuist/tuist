@@ -1,6 +1,6 @@
 import Foundation
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 struct UnspecifiedPlatformError: FatalError, CustomStringConvertible {
     var type: TuistSupport.ErrorType = .abort

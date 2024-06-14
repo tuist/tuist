@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Swift Package Manager Interactor
 ///
@@ -58,12 +58,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             .appending(try RelativePath(validating: "\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.createFolder(workspacePackageResolvedFolderPath)
-            if fileHandler.exists(workspacePackageResolvedPath) {
-                try fileHandler.delete(workspacePackageResolvedPath)
+        if fileHandler.exists(rootPackageResolvedPath), !fileHandler.exists(workspacePackageResolvedPath) {
+            if !fileHandler.exists(workspacePackageResolvedPath.parentDirectory) {
+                try fileHandler.createFolder(workspacePackageResolvedPath.parentDirectory)
             }
-            try fileHandler.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
+            try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
         }
 
         let workspacePath = path.appending(component: workspaceName)
@@ -85,20 +84,24 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        let events = System.shared.publisher(arguments).mapToString().values
-        for try await event in events {
-            switch event {
-            case let .standardError(error):
-                logger.error("\(error)")
-            case let .standardOutput(output):
+        try System.shared.run(
+            arguments,
+            verbose: false,
+            environment: System.shared.env,
+            redirection: .stream(stdout: { bytes in
+                let output = String(decoding: bytes, as: Unicode.UTF8.self)
                 logger.debug("\(output)")
+            }, stderr: { bytes in
+                let error = String(decoding: bytes, as: Unicode.UTF8.self)
+                logger.error("\(error)")
+            })
+        )
+
+        if !fileHandler.exists(rootPackageResolvedPath), fileHandler.exists(workspacePackageResolvedPath) {
+            try fileHandler.copy(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
+            if !fileHandler.exists(workspacePackageResolvedPath) {
+                try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
             }
         }
-
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.delete(rootPackageResolvedPath)
-        }
-
-        try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
     }
 }

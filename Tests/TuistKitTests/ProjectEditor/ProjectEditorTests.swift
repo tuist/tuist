@@ -1,13 +1,12 @@
 import Foundation
 import MockableTest
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting

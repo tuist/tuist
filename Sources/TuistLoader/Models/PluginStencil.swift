@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Stencil plugin model
 public struct PluginStencil: Equatable {

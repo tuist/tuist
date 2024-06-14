@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol ProjectLinting: AnyObject {
     func lint(_ project: Project) -> [LintingIssue]
@@ -48,25 +48,8 @@ class ProjectLinter: ProjectLinting {
     }
 
     private func lintTargets(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        issues.append(contentsOf: project.targets.flatMap(targetLinter.lint))
-        issues.append(contentsOf: lintNotDuplicatedTargets(project: project))
-        return issues
-    }
-
-    private func lintNotDuplicatedTargets(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        let duplicatedTargets = project.targets.map(\.name)
-            .reduce(into: [String: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
-            .filter { $0.value > 1 }
-            .keys
-        if !duplicatedTargets.isEmpty {
-            let issue = LintingIssue(
-                reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
-                severity: .error
-            )
-            issues.append(issue)
+        return project.targets.values.flatMap { target in
+            targetLinter.lint(target: target, options: project.options)
         }
-        return issues
     }
 }

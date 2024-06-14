@@ -1,4 +1,5 @@
 import Buy
+import JWTKit
 import KSCrash_Installations
 import Pay
 import SwiftUI
@@ -10,6 +11,8 @@ struct ContentView: View {
         _ = PayAddress()
         // Use KSCrash
         _ = KSCrashInstallationStandard()
+        // Use JWTKit
+        _ = JWTKit.ES256PrivateKey()
     }
 
     var body: some View {

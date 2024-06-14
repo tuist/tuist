@@ -1,6 +1,5 @@
-import Combine
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 
@@ -38,8 +37,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool = false,
-        arguments: [XcodeBuildArgument]
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
+    ) async throws {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -56,6 +56,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
 
         // Destination
         switch destination {
@@ -76,7 +79,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
-        return try run(command: command)
+        try await run(command: command)
     }
 
     public func test(
@@ -91,8 +94,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -110,6 +114,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
+        // Passthrough arguments
+        command.append(contentsOf: passthroughXcodeBuildArguments)
+        
         // Retry On Failure
         if retryCount > 0 {
             command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
@@ -156,7 +163,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
         }
 
-        return try run(command: command)
+        try await run(command: command)
     }
 
     public func archive(
@@ -166,7 +173,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) async throws {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -192,19 +199,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return try run(command: command)
+        try await run(command: command)
     }
 
     public func createXCFramework(
         arguments: [String],
         output: AbsolutePath
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) async throws {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: arguments)
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
 
-        return try run(command: command)
+        try await run(command: command)
     }
 
     enum ShowBuildSettingsError: Error {
@@ -232,84 +239,120 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
-
-        let values = System.shared.publisher(command)
-            .mapToString()
-            .collectAndMergeOutput()
-            // xcodebuild has a bug where xcodebuild -showBuildSettings
-            // can sometimes hang indefinitely on projects that don't
-            // share any schemes, so automatically bail out if it looks
-            // like that's happening.
-            .timeout(.seconds(20), scheduler: DispatchQueue.main, customError: { ShowBuildSettingsError.timeout })
-            .retry(5)
-            .values
+        
+        let buildSettings = try await loadBuildSettings(command)
+        
         var buildSettingsByTargetName = [String: XcodeBuildSettings]()
-        for try await string in values {
-            var currentSettings: [String: String] = [:]
-            var currentTarget: String?
-
-            let flushTarget = { () in
-                if let currentTarget {
-                    let buildSettings = XcodeBuildSettings(
-                        currentSettings,
-                        target: currentTarget,
-                        configuration: configuration
-                    )
-                    buildSettingsByTargetName[buildSettings.target] = buildSettings
-                }
-
-                currentTarget = nil
-                currentSettings = [:]
+        var currentSettings: [String: String] = [:]
+        var currentTarget: String?
+        
+        func flushTarget() {
+            if let currentTarget {
+                let buildSettings = XcodeBuildSettings(
+                    currentSettings,
+                    target: currentTarget,
+                    configuration: configuration
+                )
+                buildSettingsByTargetName[buildSettings.target] = buildSettings
             }
-
-            string.enumerateLines { line, _ in
-                if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
-                    in: line,
-                    range: NSRange(line.startIndex..., in: line)
-                ) {
-                    let targetRange = Range(result.range(at: 1), in: line)!
-
-                    flushTarget()
-                    currentTarget = String(line[targetRange])
-                    return
-                }
-
-                let trimSet = CharacterSet.whitespacesAndNewlines
-                let components = line
-                    .split(maxSplits: 1) { $0 == "=" }
-                    .map { $0.trimmingCharacters(in: trimSet) }
-
-                if components.count == 2 {
-                    currentSettings[components[0]] = components[1]
-                }
-            }
-            flushTarget()
+            
+            currentTarget = nil
+            currentSettings = [:]
         }
+
+        buildSettings.enumerateLines { line, _ in
+            if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
+                in: line,
+                range: NSRange(line.startIndex..., in: line)
+            ) {
+                let targetRange = Range(result.range(at: 1), in: line)!
+                
+                flushTarget()
+                currentTarget = String(line[targetRange])
+                return
+            }
+            
+            let trimSet = CharacterSet.whitespacesAndNewlines
+            let components = line
+                .split(maxSplits: 1) { $0 == "=" }
+                .map { $0.trimmingCharacters(in: trimSet) }
+            
+            if components.count == 2 {
+                currentSettings[components[0]] = components[1]
+            }
+        }
+        
+        flushTarget()
+        
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String]) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
-        return System.shared.publisher(command)
-            .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
-                switch event {
-                case let .standardError(errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                    if self?.environment.isVerbose == true {
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: line))
-                    } else {
-                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
-                    }
-                case let .standardOutput(outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                    if self?.environment.isVerbose == true {
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
-                    } else {
-                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
-                    }
+    fileprivate func run(command: [String]) async throws {
+        func format(_ bytes: [UInt8]) -> String {
+            let string = String(decoding: bytes, as: Unicode.UTF8.self)
+            if self.environment.isVerbose == true {
+                return string
+            } else {
+                return self.format(string)
+            }
+        }
+        
+        func log(_ bytes: [UInt8], isError: Bool = false) {
+            let lines = format(bytes).split(separator: "\n")
+            for line in lines where !line.isEmpty {
+                if isError {
+                    logger.error("\(line)")
+                } else {
+                    logger.notice("\(line)")
                 }
             }
-            .eraseToAnyPublisher()
-            .stream
+        }
+        
+        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        
+        try System.shared.run(command,
+                                      verbose: false,
+                                      environment: System.shared.env,
+                                      redirection: .stream(stdout: { bytes in
+            log(bytes)
+        }, stderr: { bytes in
+            log(bytes, isError: true)
+        }))
+       
+    }
+    
+    private func loadBuildSettings(_ command: [String]) async throws -> String {
+        // xcodebuild has a bug where xcodebuild -showBuildSettings
+        // can sometimes hang indefinitely on projects that don't
+        // share any schemes, so automatically bail out if it looks
+        // like that's happening.
+        return try await Task.retrying(maxRetryCount: 5) {
+            let systemTask = Task {
+                return try await System.shared.runAndCollectOutput(command).standardOutput
+            }
+            
+            let timeoutTask = Task {
+                try await Task.sleep(nanoseconds: 20_000_000)
+                systemTask.cancel()
+            }
+            
+            let result = try await systemTask.value
+            timeoutTask.cancel()
+            return result
+        }.value
+    }
+}
+
+// MARK: - Helpers
+
+fileprivate extension XcodeBuildController {
+    func format(_ multiLineText: String) -> String {
+        multiLineText.split(separator: "\n").map {
+            let line = String($0)
+            let formattedLine = formatter.format(line)
+
+            return formattedLine ?? ""
+        }
+        .joined(separator: "\n")
     }
 }

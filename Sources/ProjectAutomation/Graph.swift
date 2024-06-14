@@ -1,7 +1,7 @@
 import Foundation
 
 /// The structure defining the output schema of the entire project graph.
-public struct Graph: Codable, Equatable {
+public struct Graph: Codable, Equatable, Sendable {
     /// The name of this graph.
     public let name: String
 

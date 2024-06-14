@@ -1,6 +1,6 @@
 import Difference
 import Foundation
-import TSCBasic
+import Path
 import XCTest
 
 @testable import TuistSupport
@@ -131,14 +131,14 @@ open class TuistTestCase: XCTestCase {
         do {
             // Environment
             environment = try MockEnvironment()
-            Environment.shared = environment
+            Environment._shared.mutate { $0 = environment }
         } catch {
             XCTFail("Failed to setup environment")
         }
 
         // FileHandler
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
-        FileHandler.shared = fileHandler
+        FileHandler._shared.mutate { $0 = fileHandler }
     }
 
     override open func tearDown() {

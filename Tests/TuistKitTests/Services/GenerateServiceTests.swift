@@ -1,8 +1,10 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
+import TuistServer
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -11,20 +13,38 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GenerateServiceTests: TuistUnitTestCase {
-    var subject: GenerateService!
-    var opener: MockOpener!
-    var generator: MockGenerator!
-    var generatorFactory: MockGeneratorFactory!
-    var clock: StubClock!
+    private var subject: GenerateService!
+    private var opener: MockOpener!
+    private var generator: MockGenerating!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var clock: StubClock!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generator = MockGenerator()
-        generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedDefaultResult = generator
+        generator = .init()
+        generatorFactory = .init()
+        given(generatorFactory)
+            .generation(
+                config: .any,
+                sources: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+        cacheStorageFactory = .init()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
         clock = StubClock()
-        subject = GenerateService(clock: clock, opener: opener, generatorFactory: generatorFactory)
+        subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            clock: clock,
+            opener: opener
+        )
     }
 
     override func tearDown() {
@@ -32,21 +52,25 @@ final class GenerateServiceTests: TuistUnitTestCase {
         generator = nil
         subject = nil
         generatorFactory = nil
+        cacheStorageFactory = nil
         clock = nil
         super.tearDown()
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
-        generator.generateStub = { _ in
-            throw expectedError
-        }
+        given(generator)
+            .generate(path: .any)
+            .willThrow(expectedError)
 
         do {
             try await subject
                 .run(
                     path: nil,
-                    noOpen: true
+                    sources: [],
+                    noOpen: true,
+                    configuration: nil,
+                    ignoreBinaryCache: false
                 )
             XCTFail("Must throw")
         } catch {
@@ -57,13 +81,16 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
-        generator.generateStub = { _ in
-            workspacePath
-        }
+        given(generator)
+            .generate(path: .any)
+            .willReturn(workspacePath)
 
         try await subject.run(
             path: nil,
-            noOpen: false
+            sources: [],
+            noOpen: false,
+            configuration: nil,
+            ignoreBinaryCache: false
         )
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
@@ -73,9 +100,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
-        generator.generateStub = { _ in
-            workspacePath
-        }
+        given(generator)
+            .generate(path: .any)
+            .willReturn(workspacePath)
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
@@ -84,7 +111,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: nil,
-            noOpen: false
+            sources: [],
+            noOpen: false,
+            configuration: nil,
+            ignoreBinaryCache: false
         )
 
         // Then

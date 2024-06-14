@@ -1,4 +1,5 @@
 {
+  "originHash" : "be656e1285b67cd89206d2e44ae693ca74086bd97ce1788a21d0533b6a6b6f62",
   "pins" : [
     {
       "identity" : "aexml",
@@ -25,15 +26,6 @@
       "state" : {
         "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
         "version" : "0.2.1"
-      }
-    },
-    {
-      "identity" : "combineext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CombineCommunity/CombineExt.git",
-      "state" : {
-        "revision" : "d7b896fa9ca8b47fa7bcde6b43ef9b70bf8c1f56",
-        "version" : "1.8.1"
       }
     },
     {
@@ -97,6 +89,15 @@
       "state" : {
         "revision" : "58523193c26fb821ed1720dcd8a21009055c7cdb",
         "version" : "1.1.3"
+      }
+    },
+    {
+      "identity" : "path",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Path.git",
+      "state" : {
+        "revision" : "4490da629937fc3994f72dd787dcc3f50d6973fe",
+        "version" : "0.3.0"
       }
     },
     {
@@ -172,6 +173,24 @@
       }
     },
     {
+      "identity" : "swift-openapi-runtime",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/swift-openapi-runtime",
+      "state" : {
+        "branch" : "swift-tools-version",
+        "revision" : "863d51ca0b55a72143462f4517065d906a24e0fb"
+      }
+    },
+    {
+      "identity" : "swift-openapi-urlsession",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/swift-openapi-urlsession",
+      "state" : {
+        "branch" : "swift-tools-version",
+        "revision" : "91b1694705584a09827049b690e07f9118cdab5d"
+      }
+    },
+    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-syntax.git",
@@ -217,6 +236,15 @@
       }
     },
     {
+      "identity" : "xcodegraph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "state" : {
+        "revision" : "0e44220403553ce7f20a79e49873b492302b4650",
+        "version" : "0.5.0"
+      }
+    },
+    {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
@@ -253,5 +281,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

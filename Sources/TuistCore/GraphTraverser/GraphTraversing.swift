@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 
 public protocol GraphTraversing {
     /// Graph name
@@ -22,7 +22,7 @@ public protocol GraphTraversing {
     var projects: [AbsolutePath: Project] { get }
 
     /// Returns all the targets of the graph.
-    var targets: [AbsolutePath: [String: Target]] { get }
+    func targets() -> [AbsolutePath: [String: Target]]
 
     /// Dependencies.
     var dependencies: [GraphDependency: Set<GraphDependency>] { get }

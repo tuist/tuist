@@ -1,8 +1,9 @@
 import Foundation
+import Path
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum ProjectGroupsError: FatalError, Equatable {
@@ -143,7 +144,7 @@ class ProjectGroups {
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {
-        let groups = [project.filesGroup] + project.targets.map(\.filesGroup)
+        let groups = [project.filesGroup] + project.targets.values.map(\.filesGroup)
         let groupNames: [String] = groups.compactMap {
             switch $0 {
             case let .group(name: groupName):

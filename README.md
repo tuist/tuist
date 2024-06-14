@@ -268,6 +268,28 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/crunchyroll.svg" alt="crunchyroll_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://altel.kz" target="_blank">
+          <img src="assets/companies/altel.svg" alt="altel_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://tele2.kz" target="_blank">
+          <img src="assets/companies/tele2.svg" alt="altel_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://ozon.tech" target="_blank">
+          <img src="assets/companies/ozontech.svg" alt="ozontech_logo" height="75"/>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td width="20%" align="center">
+        <a href="https://smlab.digital" target="_blank">
+          <img src="assets/companies/smlab.svg" alt="smlab_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -529,6 +551,13 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/alexfilimon"><img src="https://avatars.githubusercontent.com/u/19904867?v=4" width="100px;" alt=""/><br /><sub><b>Alexander Filimonov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/rofle100lvl"><img src="https://avatars.githubusercontent.com/u/45801227?v=4" width="100px;" alt=""/><br /><sub><b>Gorbenko Roman</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/lucas-paim/"><img src="https://avatars.githubusercontent.com/u/7849484?v=4" width="100px;" alt=""/><br /><sub><b>Lucas Mrowskovsky Paim</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://actuallytaylor.com"><img src="https://avatars.githubusercontent.com/u/32944568?v=4" width="100px;" alt=""/><br /><sub><b>Taylor Lineman</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/nandodelauni"><img src="https://avatars.githubusercontent.com/u/1938501?v=4" width="100px;" alt=""/><br /><sub><b>Miguel Ferrando</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/barredewe"><img src="https://avatars.githubusercontent.com/u/19188911?v=4" width="100px;" alt=""/><br /><sub><b>BarredEwe</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/chris-livefront"><img src="https://avatars.githubusercontent.com/u/126101032?v=4" width="100px;" alt=""/><br /><sub><b>Chris Sessions</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ajkolean"><img src="https://avatars.githubusercontent.com/u/5394701?v=4" width="100px;" alt=""/><br /><sub><b>Andy Kolean</b></sub></a></td>
     </tr>
   </tbody>
 </table>

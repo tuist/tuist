@@ -3,7 +3,7 @@ import Foundation
 /// An action that archives the built products.
 ///
 /// It's initialized with the `.archiveAction` static method.
-public struct ArchiveAction: Equatable, Codable {
+public struct ArchiveAction: Equatable, Codable, Sendable {
     /// Indicates the build configuration to run the archive with.
     public var configuration: ConfigurationName
     /// If set to true, Xcode will reveal the Organizer on completion.

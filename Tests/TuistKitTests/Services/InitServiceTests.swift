@@ -1,8 +1,9 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistKit
@@ -67,12 +68,12 @@ final class InitServiceTests: TuistUnitTestCase {
         let tuistVersion = "4.0.3"
         tuistVersionLoader.getVersionStub = tuistVersion
 
-        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
             "tuist_version": .string(tuistVersion),
         ]
-        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -94,12 +95,12 @@ final class InitServiceTests: TuistUnitTestCase {
         let tuistVersion = "4.0.3"
         tuistVersionLoader.getVersionStub = tuistVersion
 
-        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
         ]
-        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -127,14 +128,14 @@ final class InitServiceTests: TuistUnitTestCase {
         let tuistVersion = "4.0.3"
         tuistVersionLoader.getVersionStub = tuistVersion
 
-        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
             "tuist_version": .string(tuistVersion),
             "required": .string("requiredValue"),
             "optional": .string("optionalValue"),
         ]
-        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -155,7 +156,7 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
-        let context: TuistGraph.Template.Attribute.Value = .dictionary([
+        let context: Template.Attribute.Value = .dictionary([
             "key1": .string("value1"),
             "key2": .string("value2"),
         ])
@@ -174,14 +175,14 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
 
-        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
             "optional": context,
         ]
 
-        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -195,7 +196,7 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
-        let defaultIntegerValue: TuistGraph.Template.Attribute.Value = .integer(999)
+        let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
@@ -211,14 +212,14 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
 
-        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
             "optional": defaultIntegerValue,
         ]
 
-        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }

@@ -1,7 +1,6 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
 
 public protocol EnvironmentLinting {

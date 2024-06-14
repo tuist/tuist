@@ -1,28 +1,32 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    var subject: ProjectFileElements!
-    var groups: ProjectGroups!
-    var pbxproj: PBXProj!
-    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var subject: ProjectFileElements!
+    private var groups: ProjectGroups!
+    private var pbxproj: PBXProj!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
 
     override func setUpWithError() throws {
         super.setUp()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = .init()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try! temporaryPath())
 
         subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
@@ -945,11 +949,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             packages: [
                 project.path: [
                     "A": .remote(url: "url", requirement: .branch("master")),
-                ],
-            ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
                 ],
             ],
             dependencies: [

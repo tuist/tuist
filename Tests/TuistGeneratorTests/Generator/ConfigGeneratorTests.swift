@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -754,13 +753,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
         let project = Project.test(targets: [app, macroFramework, macroExecutable])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
-            project.path: [
-                app.name: app,
-                macroFramework.name: macroFramework,
-                macroExecutable.name: macroExecutable,
-            ],
-        ], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([.target(
                 name: macroExecutable.name,
@@ -806,12 +799,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
         let project = Project.test(targets: [app, macroFramework])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
-            project.path: [
-                app.name: app,
-                macroFramework.name: macroFramework,
-            ],
-        ], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([]),
         ])
@@ -837,6 +825,79 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .buildSettings
             .toSettings()["OTHER_SWIFT_FLAGS"]
         XCTAssertEqual(targetSettingsResult, nil)
+    }
+
+    func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvided() throws {
+        let projectSettings = Settings.default
+        let appClip = Target.test(
+            name: "app",
+            platform: .iOS,
+            product: .appClip,
+            entitlements: .variable("$(MY_CUSTOM_VARIABLE)")
+        )
+
+        let project = Project.test(targets: [appClip])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            appClip,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["CODE_SIGN_ENTITLEMENTS"]
+        XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
+    }
+
+    func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvidedByStringLiteral(
+    ) throws {
+        let projectSettings = Settings.default
+        let appClip = Target.test(
+            name: "app",
+            platform: .iOS,
+            product: .appClip,
+            entitlements: "$(MY_CUSTOM_VARIABLE)"
+        )
+
+        let project = Project.test(targets: [appClip])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            appClip,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["CODE_SIGN_ENTITLEMENTS"]
+        XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
     }
 
     // MARK: - Helpers
@@ -947,13 +1008,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         let target = Target.test(name: "Test", destinations: destinations, product: uiTest ? .uiTests : .unitTests)
-        let project = Project.test(path: dir, name: "Project", targets: [target])
+        let project = Project.test(path: dir, name: "Project", targets: [target, appTarget])
 
         let graph = Graph.test(
             name: project.name,
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [appTarget.name: appTarget, target.name: target]],
             dependencies: [
                 GraphDependency
                     .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),

@@ -1,39 +1,50 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
-public protocol CleanCategory: ExpressibleByArgument & CaseIterable {
+protocol CleanCategory: ExpressibleByArgument & CaseIterable {
     func directory(
-        rootDirectory: AbsolutePath?,
         packageDirectory: AbsolutePath?,
         cacheDirectory: AbsolutePath
     ) throws -> AbsolutePath?
 }
 
-public enum TuistCleanCategory: CleanCategory {
-    public static let allCases = CacheCategory.allCases.map { .global($0) } + [Self.dependencies]
+enum TuistCleanCategory: CleanCategory, Equatable {
+    static let allCases = CacheCategory.App.allCases.map { .cloud($0) } + CacheCategory.allCases
+        .map { .global($0) } + [Self.dependencies]
+
+    static var allValueStrings: [String] {
+        TuistCleanCategory.allCases.map(\.defaultValueDescription)
+    }
 
     /// The global cache
     case global(CacheCategory)
 
+    /// The global cloud cache
+    case cloud(CacheCategory.App)
+
     /// The local dependencies cache
     case dependencies
 
-    public var defaultValueDescription: String {
+    var defaultValueDescription: String {
         switch self {
         case let .global(cacheCategory):
+            return cacheCategory.rawValue
+        case let .cloud(cacheCategory):
             return cacheCategory.rawValue
         case .dependencies:
             return "dependencies"
         }
     }
 
-    public init?(argument: String) {
+    init?(argument: String) {
         if let cacheCategory = CacheCategory(rawValue: argument) {
             self = .global(cacheCategory)
+        } else if let cacheCategory = CacheCategory.App(rawValue: argument) {
+            self = .cloud(cacheCategory)
         } else if argument == "dependencies" {
             self = .dependencies
         } else {
@@ -41,14 +52,18 @@ public enum TuistCleanCategory: CleanCategory {
         }
     }
 
-    public func directory(
-        rootDirectory _: AbsolutePath?,
+    func directory(
         packageDirectory: AbsolutePath?,
         cacheDirectory: AbsolutePath
-    ) throws -> TSCBasic.AbsolutePath? {
+    ) throws -> Path.AbsolutePath? {
         switch self {
         case let .global(category):
             return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)
+        case let .cloud(category):
+            return CacheDirectoriesProvider.tuistCloudCacheDirectory(
+                for: category,
+                cacheDirectory: cacheDirectory
+            )
         case .dependencies:
             return packageDirectory?.appending(
                 component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -93,13 +108,11 @@ final class CleanService {
             FileHandler.shared.currentPath
         }
 
-        let rootDirectory = rootDirectoryLocator.locate(from: resolvedPath)
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
         let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
             if let directory = try category.directory(
-                rootDirectory: rootDirectory,
                 packageDirectory: packageDirectory,
                 cacheDirectory: cacheDirectory
             ),

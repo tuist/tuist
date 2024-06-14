@@ -1,10 +1,10 @@
+import Path
 import PathKit
 import Stencil
 import StencilSwiftKit
 import SwiftGenKit
-import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol SynthesizedResourceInterfacesGenerating {
     func render(

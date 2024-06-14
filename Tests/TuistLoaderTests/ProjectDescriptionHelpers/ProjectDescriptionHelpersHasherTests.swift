@@ -1,5 +1,6 @@
+import MockableTest
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
@@ -12,7 +13,9 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        system.swiftVersionStub = { "5.2" }
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
         subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
     }
 

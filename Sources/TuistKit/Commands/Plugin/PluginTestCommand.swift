@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 
 public struct PluginTestCommand: ParsableCommand {
     public init() {}
@@ -8,6 +8,7 @@ public struct PluginTestCommand: ParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
+
             abstract: "Tests a plugin."
         )
     }
@@ -16,12 +17,14 @@ public struct PluginTestCommand: ParsableCommand {
     var pluginOptions: PluginCommand.PluginOptions
 
     @Flag(
-        help: "Build both source and test targets."
+        help: "Build both source and test targets.",
+        envKey: .pluginTestBuildTests
     )
     var buildTests = false
 
     @Option(
-        help: "Test the specified products."
+        help: "Test the specified products.",
+        envKey: .pluginTestTestProducts
     )
     var testProducts: [String] = []
 
