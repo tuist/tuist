@@ -1,7 +1,9 @@
+import DOT
 import Foundation
 import GraphViz
 import Path
 import ProjectAutomation
+import Tools
 import TuistCore
 import TuistGenerator
 import TuistLoader
