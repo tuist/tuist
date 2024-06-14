@@ -408,7 +408,7 @@ let package = Package(
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
-        .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
+        .package(url: "https://github.com/leszko11/SwiftGen", branch: "feature/xcstrings-support"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", exact: "2.0.1"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
