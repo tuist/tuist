@@ -127,6 +127,6 @@ extension SynthesizedResourceInterfaceTemplates {
     // No strings catalog found
     {% endif %}
     // swiftlint:enable all
-    
+
     """
 }
