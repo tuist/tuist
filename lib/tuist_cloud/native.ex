@@ -1,6 +1,6 @@
 defmodule TuistCloud.Native do
   @moduledoc """
-  This module is an interface to the native code (Rust-based) that Tuist Cloud uses.
+  This module is an interface to the native code (Rust-based) that Tuist uses.
   """
   use Rustler, otp_app: :tuist_cloud, crate: "tuistcloud_native"
 

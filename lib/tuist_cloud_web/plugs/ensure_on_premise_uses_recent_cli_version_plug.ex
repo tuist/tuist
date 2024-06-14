@@ -1,6 +1,6 @@
 defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlug do
   @moduledoc ~S"""
-  This plug ensures that the on-premise version of Tuist Cloud is up-to-date with the version of the CLI that is being used.
+  This plug ensures that the on-premise version of Tuist is up-to-date with the version of the CLI that is being used.
   """
   import Plug.Conn
   use TuistCloudWeb, :controller
@@ -24,18 +24,18 @@ defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlug do
       diff = Date.diff(cli_release_date, tuist_cloud_release_date)
 
       cond do
-        # Tuist Cloud is 15 days behind (warning)
+        # Tuist is 15 days behind (warning)
         diff > 15 ->
           conn
           |> WarningsHeaderPlug.put_warning(
-            "Your version of Tuist Cloud is 15 days behind the version of the CLI that you are using, #{cli_version}. Please update Tuist Cloud to the latest version."
+            "Your version of the Tuist server is 15 days behind the version of the CLI that you are using, #{cli_version}. Please update it to the latest version."
           )
 
         # Tuist is 4 months behind (warning)
         diff < -(30 * 4) ->
           conn
           |> WarningsHeaderPlug.put_warning(
-            "Your version of the Tuist CLI is 4 months behind the version of Tuist Cloud that you are using. We recommend updating the CLI to the latest version."
+            "Your version of the Tuist CLI is 4 months behind the version of the Tuist server that you are using. We recommend updating the CLI to the latest version."
           )
 
         true ->

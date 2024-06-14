@@ -51,7 +51,7 @@ defmodule TuistCloudWeb.EnsureValidAccountPlanPlugTest do
     warnings = WarningsHeaderPlug.get_warnings(got)
 
     assert warnings == [
-             "Your account is nearing the 30-day free limit of #{EnsureValidAccountPlanPlug.formatted_upload_count_threshold()} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
+             "Your account is nearing the 30-day free limit of #{EnsureValidAccountPlanPlug.formatted_upload_count_threshold()} cache uploads on Tuist. Once this limit is reached, you won't be able to use Tuist's remote caching feature. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist plan."
            ]
   end
 
@@ -77,7 +77,7 @@ defmodule TuistCloudWeb.EnsureValidAccountPlanPlugTest do
     # Then
     assert json_response(got, 402) == %{
              "message" =>
-               "Your account is over the 30-day free limit of #{EnsureValidAccountPlanPlug.formatted_upload_count_threshold()} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist Cloud plan."
+               "Your account is over the 30-day free limit of #{EnsureValidAccountPlanPlug.formatted_upload_count_threshold()} cache uploads on Tuist. To continue enjoying this service, please reach out to us at contact@tuist.io for a quote on a Tuist plan."
            }
   end
 end

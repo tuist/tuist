@@ -10,7 +10,7 @@ defmodule TuistCloudWeb.UserConfirmationLive do
     <.stack class="auth-page" gap="4xl">
       <.auth_header
         title={gettext("Confirm account")}
-        subtitle={gettext("Confirm your account to access Tuist Cloud.")}
+        subtitle={gettext("Confirm your account to access Tuist.")}
       >
         <:icon>
           <div class="auth-header-icon">

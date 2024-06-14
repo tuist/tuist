@@ -4,8 +4,8 @@ defmodule TuistCloud.Environment do
 
   defmodule Version do
     @moduledoc ~S"""
-    A module that represents a Tuist Cloud version.
-    Tuist Cloud versions follow the convention MAJOR.YY.MM.DD.
+    A module that represents a Tuist version.
+    Tuist versions follow the convention MAJOR.YY.MM.DD.
     """
     @type t :: %{
             major: integer(),

@@ -1,6 +1,6 @@
 defmodule TuistCloudWeb.AuthComponents do
   @moduledoc """
-  Auth components for Tuist Cloud
+  Auth components for Tuist
   """
 
   use Phoenix.Component
