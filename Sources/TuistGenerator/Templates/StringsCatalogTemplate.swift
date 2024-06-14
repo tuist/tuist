@@ -7,66 +7,66 @@ extension SynthesizedResourceInterfaceTemplates {
 
     {% if tables.count > 0 %}
     {% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
-    {% set bundleToken %}{{param.name}}Resources{% endset %}
     import Foundation
 
-    // swiftlint:disable superfluous_disable_command file_length implicit_return
+    // swiftlint:disable superfluous_disable_command file_length implicit_return prefer_self_in_static_references
 
-    // MARK: - Strings
+    // MARK: - Strings Catalog
 
-    {% macro parametersBlock types %}{% filter removeNewlines:"leading" %}
-      {% for type in types %}
-        {% if type == "String" %}
+    {% macro parametersBlock types %}
+      {%- for type in types -%}
+        {%- if type == "String" -%}
         _ p{{forloop.counter}}: Any
-        {% else %}
+        {%- else -%}
         _ p{{forloop.counter}}: {{type}}
-        {% endif %}
+        {%- endif -%}
         {{ ", " if not forloop.last }}
-      {% endfor %}
-    {% endfilter %}{% endmacro %}
-    {% macro argumentsBlock types %}{% filter removeNewlines:"leading" %}
-      {% for type in types %}
-        {% if type == "String" %}
+      {%- endfor -%}
+    {% endmacro %}
+    {% macro argumentsBlock types %}
+      {%- for type in types -%}
+        {%- if type == "String" -%}
         String(describing: p{{forloop.counter}})
-        {% elif type == "UnsafeRawPointer" %}
+        {%- elif type == "UnsafeRawPointer" -%}
         Int(bitPattern: p{{forloop.counter}})
-        {% else %}
+        {%- else -%}
         p{{forloop.counter}}
-        {% endif %}
+        {%- endif -%}
         {{ ", " if not forloop.last }}
-      {% endfor %}
-    {% endfilter %}{% endmacro %}
+      {%- endfor -%}
+    {% endmacro %}
     {% macro recursiveBlock table item %}
       {% for string in item.strings %}
       {% if not param.noComments %}
-      /// {{string.translation}}
+      {% for line in string.comment|default:string.translation|split:"\n" %}
+      /// {{line}}
+      {% endfor %}
       {% endif %}
+      {% set translation string.translation|replace:'"','\"'|replace:'    ','\t' %}
       {% if string.types %}
       {{accessModifier}} static func {{string.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}({% call parametersBlock string.types %}) -> String {
-        return {{enumName}}.string("{{table}}", "{{string.key}}", "{{string.comment}}", {% call argumentsBlock string.types %})
+        return {{enumName}}.tr("{{table}}", "{{string.key}}", {%+ call argumentsBlock string.types %})
       }
       {% elif param.lookupFunction %}
-      {# custom localization function is mostly used for in-app lang selection, so we want the loc to be recomputed at each call for those (hence the computed var) #}
-      {{accessModifier}} static var {{string.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}: String { return {{enumName}}.string("{{table}}", "{{string.key}}", "{{string.comment}}")
+      {{accessModifier}} static var {{string.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}: String { return {{enumName}}.tr("{{table}}", "{{string.key}}") }
       {% else %}
-      {{accessModifier}} static let {{string.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{enumName}}.string("{{table}}", "{{string.key}}", "{{string.comment}}")
+      {{accessModifier}} static let {{string.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{enumName}}.tr("{{table}}", "{{string.key}}")
       {% endif %}
       {% endfor %}
       {% for child in item.children %}
-
       {{accessModifier}} enum {{child.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
-        {% filter indent:2 %}{% call recursiveBlock table child %}{% endfilter %}
+        {% filter indent:2," ",true %}{% call recursiveBlock table child %}{% endfilter %}
       }
       {% endfor %}
     {% endmacro %}
     // swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
-    // swiftlint:disable nesting type_body_length type_name
-    {% set enumName %}{{param.name}}StringsCatalog{% endset %}
+    // swiftlint:disable nesting type_body_length type_name vertical_whitespace_opening_braces
+    {% set enumName %}{{param.enumName}}StringsCatalog{% endset %}
     {{accessModifier}} enum {{enumName}} {
       {% if tables.count > 1 or param.forceFileNameEnum %}
       {% for table in tables %}
       {{accessModifier}} enum {{table.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
-        {% filter indent:2 %}{% call recursiveBlock table.name table.levels %}{% endfilter %}
+        {% filter indent:2," ",true %}{% call recursiveBlock table.name table.levels %}{% endfilter %}
       }
       {% endfor %}
       {% else %}
@@ -74,63 +74,59 @@ extension SynthesizedResourceInterfaceTemplates {
       {% endif %}
     }
     // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
-    // swiftlint:enable nesting type_body_length type_name
+    // swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces
 
     // MARK: - Implementation Details
 
-    {% set enumName %}{{param.name}}StringsCatalog{% endset %}
     extension {{enumName}} {
-      private static func string(_ table: String, _ key: StaticString, _ comment: StaticString?, _ args: CVarArg...) -> String {
+      private static func tr(_ table: String, _ key: StaticString, _ args: CVarArg...) -> String {
         return String(
           localized: key,
           defaultValue: defaultValue(key, args),
           table: table,
-          bundle: {{bundleToken}}.bundle,
-          locale: .current,
-          comment: comment
+          bundle: {{param.bundle|default:"BundleToken.bundle"}},
+          locale: Locale.current
         )
       }
 
-      private static func resource(_ table: String, _ key: StaticString, _ comment: StaticString?, _ args: CVarArg...) -> LocalizedStringResource {
-        return LocalizedStringResource(
-          key,
-          defaultValue: defaultValue(key, args),
-          table: table,
-          locale: .current,
-          bundle: .forClass({{bundleToken}}.self),
-          comment: comment
-        )
-      }
       private static func defaultValue(_ key: StaticString,
-                                       _ args: CVarArg...) -> String.LocalizationValue {
+                                        _ args: CVarArg...) -> String.LocalizationValue {
         var stringInterpolation = String.LocalizationValue.StringInterpolation(literalCapacity: 0, interpolationCount: args.count)
         args.forEach { stringInterpolation.appendInterpolation(arg: $0) }
         return .init(stringInterpolation: stringInterpolation)
       }
     }
-    
+
     private extension String.LocalizationValue.StringInterpolation {
-        mutating func appendInterpolation(arg: CVarArg) {
-            switch arg {
-            case let arg as String: appendInterpolation(arg)
-            case let arg as Int: appendInterpolation(arg)
-            case let arg as UInt: appendInterpolation(arg)
-            case let arg as Double: appendInterpolation(arg)
-            case let arg as Float: appendInterpolation(arg)
-            default: return
-            }
+      mutating func appendInterpolation(arg: CVarArg) {
+        switch arg {
+        case let arg as String: appendInterpolation(arg)
+        case let arg as Int: appendInterpolation(arg)
+        case let arg as UInt: appendInterpolation(arg)
+        case let arg as Double: appendInterpolation(arg)
+        case let arg as Float: appendInterpolation(arg)
+        default: return
         }
+      }
     }
-    {% if not param.lookupFunction %}
+    {% if not param.bundle and not param.lookupFunction %}
 
     // swiftlint:disable convenience_type
+    private final class BundleToken {
+      static let bundle: Bundle = {
+        #if SWIFT_PACKAGE
+        return Bundle.module
+        #else
+        return Bundle(for: BundleToken.self)
+        #endif
+      }()
+    }
+    // swiftlint:enable convenience_type
     {% endif %}
     {% else %}
-    // No string found
+    // No strings catalog found
     {% endif %}
     // swiftlint:enable all
-    // swiftformat:enable all
-
-
+    
     """
 }
