@@ -1,6 +1,6 @@
 defmodule TuistCloudWeb.API.Spec do
   @moduledoc ~S"""
-  A module that contains the spec of the Tuist Cloud API.
+  A module that contains the spec of the Tuist API.
   """
   alias OpenApiSpex.{Components, Info, OpenApi, Paths, Server, SecurityScheme}
   alias TuistCloudWeb.{Endpoint, Router}
@@ -13,7 +13,7 @@ defmodule TuistCloudWeb.API.Spec do
         Server.from_endpoint(Endpoint)
       ],
       info: %Info{
-        title: "Tuist Cloud",
+        title: "Tuist",
         version: "0.1.0"
       },
       components: %Components{

@@ -20,11 +20,11 @@
     <img
       class="get-started__page__header__logo"
       src="/images/tuist_logo_32x32@2x.png"
-      alt="Tuist Cloud Icon"
+      alt="Tuist Icon"
     />
     <.stack gap="lg">
       <h5 class="get-started__page__header__title font--semibold color--text-primary">
-        <%= gettext("Welcome to Tuist Cloud!") %>
+        <%= gettext("Welcome to Tuist!") %>
       </h5>
       <p class="get-started__page__header__text text--medium color--text-tertiary">
         <%= gettext("Let's get you started.") %>
@@ -35,25 +35,25 @@
   <.card>
     <.stack gap="2xl">
       <.stack gap="l">
-        <.section_header title={gettext("Connect Tuist Cloud")} />
+        <.section_header title={gettext("Connect Tuist")} />
         <p class="text--medium color--text-tertiary">
-          <%= gettext("To set up Tuist Cloud in your Tuist project is run:") %>
+          <%= gettext("To set up Tuist in your Tuist project is run:") %>
         </p>
       </.stack>
       <code>
-        <span class="code-comment"># Initialize Tuist Cloud in your project</span> <br />
+        <span class="code-comment"># Initialize Tuist in your project</span> <br />
         <span class="text-green-500 select-none">$&nbsp;</span><span class="code-executable">tuist&nbsp;</span>cloud init
       </code>
       <.stack gap="l">
-        <.section_header title={gettext("Connect Tuist Cloud")} />
+        <.section_header title={gettext("Connect Tuist")} />
         <p class="text--medium color--text-tertiary">
           <%= gettext(
-            "If you have a Tuist Cloud project, run the following command to connect to Tuist Cloud:"
+            "If you have a Tuist project, run the following command to connect to the server:"
           ) %>
         </p>
       </.stack>
       <code>
-        <span class="code-comment"># Authenticate with Tuist Cloud</span> <br />
+        <span class="code-comment"># Authenticate with Tuist</span> <br />
         <span class="text-green-500 select-none">$&nbsp;</span><span class="code-executable">tuist&nbsp;</span>cloud auth
       </code>
     </.stack>
@@ -61,7 +61,7 @@
   <.stack direction="horizontal" gap="4xl" class="get-started__page__more-cards">
     <.more_card
       title={gettext("Documentation")}
-      subtitle={gettext("Dive in to learn more about Tuist and Tuist Cloud.")}
+      subtitle={gettext("Dive in to learn more about Tuist.")}
       link="https://docs.tuist.io/cloud/what-is-cloud.html"
       link_text={gettext("Start learning")}
     >

@@ -88,7 +88,7 @@ defmodule TuistCloud.Accounts.UserNotifier do
           <div class="container">
             <h1>#{gettext("Email confirmation")}</h1>
             <p>
-              #{gettext("Welcome! To start using Tuist Cloud, you need to confirm your email address. Please, click the button below:")}
+              #{gettext("Welcome! To start using Tuist, you need to confirm your email address. Please, click the button below:")}
             </p>
             <p>
               <a href="#{url}" class="button">#{gettext("Confirm my account")}</a>

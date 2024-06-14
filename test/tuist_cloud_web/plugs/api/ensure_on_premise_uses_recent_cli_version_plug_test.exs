@@ -38,7 +38,7 @@ defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlugTest do
     assert got == conn
   end
 
-  test "returns the connection with a warning when it's on premise and Tuist Cloud is more than 15 days behind",
+  test "returns the connection with a warning when it's on premise and Tuist is more than 15 days behind",
        %{conn: conn} do
     # Given
     TuistCloud.Environment
@@ -61,7 +61,7 @@ defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlugTest do
     [warning] = TuistCloudWeb.WarningsHeaderPlug.get_warnings(got)
 
     assert warning ==
-             "Your version of Tuist Cloud is 15 days behind the version of the CLI that you are using, 1.2.3. Please update Tuist Cloud to the latest version."
+             "Your version of the Tuist server is 15 days behind the version of the CLI that you are using, 1.2.3. Please update it to the latest version."
   end
 
   test "returns the connection with a warning when it's on premise and the CLI is more than one month behind",
@@ -87,6 +87,6 @@ defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlugTest do
     [warning] = TuistCloudWeb.WarningsHeaderPlug.get_warnings(got)
 
     assert warning ==
-             "Your version of the Tuist CLI is 4 months behind the version of Tuist Cloud that you are using. We recommend updating the CLI to the latest version."
+             "Your version of the Tuist CLI is 4 months behind the version of the Tuist server that you are using. We recommend updating the CLI to the latest version."
   end
 end

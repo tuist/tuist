@@ -205,7 +205,7 @@ defmodule TuistCloudWeb.Router do
       live "/:owner/:project/runs", RunsLive
       get "/:owner/:project/runs/:id/download", RunsController, :download
       live "/:owner/:project/runs/:id", RunDetailLive
-      # Used in tuist cloud analytics command
+      # Used in tuist analytics command
       live "/:owner/:project/analytics", HomeLive
     end
   end
