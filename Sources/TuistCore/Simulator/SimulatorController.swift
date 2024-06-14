@@ -99,8 +99,12 @@ public final class SimulatorController: SimulatorControlling {
 
     private let system: Systeming
     private let devEnvironment: DeveloperEnvironmenting
-    
-    public init(userInputReader: UserInputReading = UserInputReader(), system: Systeming, devEnvironment: DeveloperEnvironmenting) {
+
+    public init(
+        userInputReader: UserInputReading = UserInputReader(),
+        system: Systeming,
+        devEnvironment: DeveloperEnvironmenting
+    ) {
         self.userInputReader = userInputReader
         self.system = system
         self.devEnvironment = devEnvironment
@@ -246,13 +250,13 @@ public final class SimulatorController: SimulatorControlling {
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
         logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
-        let device = try device.booted(using:system)
+        let device = try device.booted(using: system)
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
         logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
-        let device = try device.booted(using:system)
+        let device = try device.booted(using: system)
         try system.run(["/usr/bin/open", "-a", "Simulator"])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
@@ -293,7 +297,6 @@ public final class SimulatorController: SimulatorControlling {
         }
         return "platform=macOS,arch=\(arch)"
     }
-    
 }
 
 extension SimulatorDevice {

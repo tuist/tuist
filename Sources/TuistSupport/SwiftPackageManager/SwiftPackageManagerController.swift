@@ -47,7 +47,7 @@ public protocol SwiftPackageManagerControlling {
 public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
     let system: Systeming
     let fileHandler: FileHandling
-    
+
     public init(system: Systeming, fileHandler: FileHandling) {
         self.system = system
         self.fileHandler = fileHandler

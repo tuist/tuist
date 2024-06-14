@@ -67,7 +67,10 @@ public final class TargetRunner: TargetRunning {
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
-        simulatorController: SimulatorControlling = SimulatorController(system: System.shared, devEnvironment: DeveloperEnvironment.shared)
+        simulatorController: SimulatorControlling = SimulatorController(
+            system: System.shared,
+            devEnvironment: DeveloperEnvironment.shared
+        )
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator

@@ -73,7 +73,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            command.append(contentsOf: ["-destination",  simulatorController.macOSDestination()])
+            command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
         case nil:
             break
         }

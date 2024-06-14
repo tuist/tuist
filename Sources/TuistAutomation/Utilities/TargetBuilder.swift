@@ -69,7 +69,10 @@ public final class TargetBuilder: TargetBuilding {
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
-        simulatorController: SimulatorControlling = SimulatorController(system: System.shared, devEnvironment: DeveloperEnvironment.shared)
+        simulatorController: SimulatorControlling = SimulatorController(
+            system: System.shared,
+            devEnvironment: DeveloperEnvironment.shared
+        )
     ) {
         self.buildGraphInspector = buildGraphInspector
         self.xcodeBuildController = xcodeBuildController
