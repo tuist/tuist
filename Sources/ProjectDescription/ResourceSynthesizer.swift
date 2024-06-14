@@ -91,7 +91,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             extensions: ["strings", "stringsdict"]
         )
     }
-    
+
     /// Default strings synthesizer defined in `Tuist/{ProjectName}` or tuist itself
     public static func stringsCatalog(parserOptions: [String: Parser.Option] = [:]) -> Self {
         .stringsCatalog(
@@ -441,7 +441,7 @@ extension [ResourceSynthesizer] {
             .assets(),
             .plists(),
             .fonts(),
-            .stringsCatalog()
+            .stringsCatalog(),
         ]
     }
 }
