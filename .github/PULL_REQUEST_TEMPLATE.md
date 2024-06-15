@@ -1,4 +1,4 @@
-Resolves https://github.com/tuist/tuist/issues/YYY
+Resolves <https://github.com/tuist/tuist/issues/YYY>
 
 ### Short description 📝
 
@@ -10,7 +10,7 @@ Resolves https://github.com/tuist/tuist/issues/YYY
 
 ### Contributor checklist ✅
 
-- [ ] The code has been linted using run `mise run lint:fix`
+- [ ] The code has been linted using run `mise run lint-fix`
 - [ ] The change is tested via unit testing or acceptance testing, or both
 - [ ] The title of the PR is formulated in a way that is usable as a changelog entry
 - [ ] In case the PR introduces changes that affect users, the documentation has been updated
