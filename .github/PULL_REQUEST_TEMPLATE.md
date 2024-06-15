@@ -6,7 +6,7 @@ Resolves https://github.com/tuist/tuist/issues/YYY
 
 ### How to test the changes locally 🧐
 
-> Include a set of steps for the reviewer to test the changes locally (see [the documentation](https://docs.tuist.io/contributors/testing-strategy) for reference).
+> Include a set of steps for the reviewer to test the changes locally (see [the documentation](https://docs.tuist.io/contributors/get-started) for reference).
 
 ### Contributor checklist ✅
 
