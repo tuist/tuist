@@ -1,7 +1,7 @@
 import Foundation
 import Path
+import TuistCore
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import TuistCore

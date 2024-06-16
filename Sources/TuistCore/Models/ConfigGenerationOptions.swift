@@ -1,5 +1,4 @@
 import Path
-import TSCUtility
 
 extension Config {
     public struct GenerationOptions: Codable, Hashable {

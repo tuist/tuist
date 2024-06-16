@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TSCUtility
+import XcodeGraph
 
 /// This model allows to configure Tuist.
 public struct Config: Equatable, Hashable {
@@ -73,3 +73,45 @@ public struct Config: Equatable, Hashable {
         hasher.combine(compatibleXcodeVersions)
     }
 }
+
+#if DEBUG
+    extension Config {
+        public static func test(
+            compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+            cloud: Cloud? = Cloud.test(),
+            swiftVersion: Version? = nil,
+            plugins: [PluginLocation] = [],
+            generationOptions: GenerationOptions = Config.default.generationOptions,
+            path: AbsolutePath? = nil
+        ) -> Config {
+            .init(
+                compatibleXcodeVersions: compatibleXcodeVersions,
+                cloud: cloud,
+                swiftVersion: swiftVersion,
+                plugins: plugins,
+                generationOptions: generationOptions,
+                path: path
+            )
+        }
+    }
+
+    extension Config.GenerationOptions {
+        public static func test(
+            resolveDependenciesWithSystemScm: Bool = false,
+            disablePackageVersionLocking: Bool = false,
+            clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil
+        ) -> Self {
+            .init(
+                resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                enforceExplicitDependencies: enforceExplicitDependencies,
+                defaultConfiguration: defaultConfiguration
+            )
+        }
+    }
+#endif

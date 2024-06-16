@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import XcodeGraphTesting
 @testable import TuistKit
 
 final class MockGenerator: Generating {

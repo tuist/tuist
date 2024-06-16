@@ -177,6 +177,7 @@ public final class GraphLoader: GraphLoading {
                     source: .system
                 )
             }
+
         case let .package(product, type, _):
             switch type {
             case .macro:
@@ -186,6 +187,7 @@ public final class GraphLoader: GraphLoading {
             case .plugin:
                 return try loadPackage(fromPath: path, productName: product, type: .plugin)
             }
+
         case .xctest:
             return try platforms.map { platform in
                 try loadXCTestSDK(platform: platform)

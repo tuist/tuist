@@ -91,7 +91,6 @@ struct SettingsMapper {
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 // Handled as dependency
                 continue
-
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),

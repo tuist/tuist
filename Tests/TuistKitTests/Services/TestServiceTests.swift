@@ -6,7 +6,6 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeGraph
-import XcodeGraphTesting
 import XCTest
 
 @testable import TuistAutomationTesting
@@ -16,10 +15,10 @@ import XCTest
 
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
-    private var generator: MockGenerator!
+    private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var xcodebuildController: MockXcodeBuildController!
-    private var buildGraphInspector: MockBuildGraphInspector!
+    private var buildGraphInspector: MockBuildGraphInspecting!
     private var simulatorController: MockSimulatorController!
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
@@ -52,6 +51,10 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher.hashStub = { _ in
             "hash"
         }
+
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -183,46 +186,57 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         givenGenerator()
         let path = try temporaryPath()
-        var generatedPath: AbsolutePath?
-        generator.generateWithGraphStub = {
-            generatedPath = $0
-            return ($0, Graph.test())
-        }
+        given(generator)
+            .generateWithGraph(path: .value(path))
+            .willReturn((path, .test()))
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
 
         // When
-        try? await subject.testRun(
+        try await subject.testRun(
             path: path
         )
-
-        // Then
-        XCTAssertEqual(generatedPath, path)
     }
 
-    func test_run_tests_wtih_specified_arch() async throws {
+    func test_run_tests_with_specified_arch() async throws {
         // Given
         givenGenerator()
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "App-Workspace"),
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.testableTargetStub = { scheme, _, _, _, _ in
-            GraphTarget.test(
-                target: Target.test(
-                    name: scheme.name
-                )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "App-Workspace"),
+                    Scheme.test(name: "TestScheme"),
+                ]
             )
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willProduce { scheme, _, _, _, _ in
+                GraphTarget.test(
+                    target: Target.test(
+                        name: scheme.name
+                    )
+                )
+            }
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+            }
         var testedRosetta: Bool?
         xcodebuildController.testStub = { _, _, _, _, rosetta, _, _, _, _, _, _, _, _ in
             testedRosetta = rosetta
@@ -245,22 +259,31 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "App-Workspace"),
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.testableTargetStub = { scheme, _, _, _, _ in
-            GraphTarget.test(
-                target: Target.test(
-                    name: scheme.name
-                )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "App-Workspace"),
+                    Scheme.test(name: "TestScheme"),
+                ]
             )
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willProduce { scheme, _, _, _, _ in
+                GraphTarget.test(
+                    target: Target.test(
+                        name: scheme.name
+                    )
+                )
+            }
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+            }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -282,20 +305,29 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOne"),
-                Scheme.test(name: "ProjectSchemeTwo"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "TestScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                    Scheme.test(name: "ProjectSchemeTwo"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test())
+            }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -328,20 +360,29 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOne"),
-                Scheme.test(name: "ProjectSchemeTwo"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "TestScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                    Scheme.test(name: "ProjectSchemeTwo"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne"), .test(name: "ProjectSchemeTwo")])))
+            }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -363,6 +404,48 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
     }
 
+    func test_run_tests_individual_scheme_with_no_test_actions() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])))
+            }
+        var testedSchemes: [String] = []
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            testedSchemes.append(scheme)
+        }
+        try fileHandler.touch(
+            testsCacheTemporaryDirectory.path.appending(component: "A")
+        )
+        try fileHandler.touch(
+            testsCacheTemporaryDirectory.path.appending(component: "B")
+        )
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
+        XCTAssertEmpty(testedSchemes)
+    }
+
     func test_run_tests_with_skipped_targets() async throws {
         // Given
         given(generatorFactory)
@@ -382,14 +465,24 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOneTests"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOneTests"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])))
+            }
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -412,14 +505,24 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectScheme"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectScheme"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test())
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
         var testedSchemes: [String] = []
         xcodebuildController.testErrorStub = NSError.test()
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
@@ -453,12 +556,20 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            []
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test())
+            }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -486,14 +597,24 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resourceBundlePath = gotResourceBundlePath
         }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectScheme"),
-            ]
-        }
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test())
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
 
         // When
         try await subject.testRun(
@@ -519,14 +640,24 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resultBundlePath = gotResourceBundlePath
         }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectScheme"),
-            ]
-        }
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test())
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
@@ -564,15 +695,25 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.testStub = { _, _, _, _, _, _, gotResourceBundlePath, _, _, _, _, _, _ in
             resourceBundlePath = gotResourceBundlePath
         }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectScheme"),
-                Scheme.test(name: "ProjectScheme2"),
-            ]
-        }
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme2")])))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectScheme"),
+                    Scheme.test(name: "ProjectScheme2"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
 
         // When
         try await subject.testRun(
@@ -594,19 +735,28 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOne"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "TestScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])))
+            }
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
 
         var passedRetryCount = 0
         xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
@@ -630,19 +780,28 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "TestScheme"),
-            ]
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOne"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "TestScheme"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])))
+            }
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
 
         var passedRetryCount = -1
         xcodebuildController.testStub = { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
@@ -667,29 +826,54 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "App-Workspace"),
-                Scheme.test(
-                    name: "TestScheme",
-                    testAction: .test(
-                        testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
-                    )
-                ),
-            ]
-        }
-        var passedTestPlan: String?
-        buildGraphInspector.testableTargetStub = { scheme, testPlan, _, _, _ in
-            passedTestPlan = testPlan
-            return GraphTarget.test(
-                target: Target.test(
-                    name: scheme.name
-                )
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "App-Workspace"),
+                    Scheme.test(
+                        name: "TestScheme",
+                        testAction: .test(
+                            testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
+                        )
+                    ),
+                ]
             )
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .value(testPlan),
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any
+            )
+            .willProduce { scheme, _, _, _, _ in
+                GraphTarget.test(
+                    target: Target.test(
+                        name: scheme.name
+                    )
+                )
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    .test(
+                        workspace: .test(
+                            schemes: [
+                                .test(
+                                    name: "TestScheme",
+                                    testAction: .test(targets: [.test()])
+                                ),
+                            ]
+                        )
+                    )
+                )
+            }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
@@ -704,7 +888,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["TestScheme"])
-        XCTAssertEqual(passedTestPlan, testPlan)
     }
 
     func test_run_test_plan_failure() async throws {
@@ -715,25 +898,34 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
-        buildGraphInspector.testableSchemesStub = { _ in
-            [
-                Scheme.test(name: "App-Workspace"),
-                Scheme.test(
-                    name: "TestScheme",
-                    testAction: .test(
-                        testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
-                    )
-                ),
-            ]
-        }
-        buildGraphInspector.workspaceSchemesStub = { _ in
-            [
-                Scheme.test(name: "ProjectSchemeOne"),
-            ]
-        }
-        generator.generateWithGraphStub = { path in
-            (path, Graph.test())
-        }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "App-Workspace"),
+                    Scheme.test(
+                        name: "TestScheme",
+                        testAction: .test(
+                            testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
+                        )
+                    ),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                ]
+            )
+        given(buildGraphInspector)
+            .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
+            .willReturn(.test())
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+            }
         xcodebuildController.testStub = { _, _, _, _, _, _, _, _, _, _, _, _, _ in }
 
         let notDefinedTestPlan = "NotDefined"

@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public protocol EnvironmentLinting {
     /// Lints a given Tuist configuration.

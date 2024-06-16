@@ -6,7 +6,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-extension XcodeGraph.PackageSettings {
+extension TuistCore.PackageSettings {
     /// Creates `XcodeGraph.PackageSettings` instance from `ProjectDescription.PackageSettings`
     /// instance.
     static func from(

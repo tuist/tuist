@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TSCBasic
+import Path
 import TuistSupport
 import XcodeGraph
 

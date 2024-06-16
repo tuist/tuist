@@ -15,7 +15,7 @@ import XCTest
 final class GenerateServiceTests: TuistUnitTestCase {
     private var subject: GenerateService!
     private var opener: MockOpener!
-    private var generator: MockGenerator!
+    private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var clock: StubClock!
@@ -23,7 +23,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generator = MockGenerator()
+        generator = .init()
         generatorFactory = .init()
         given(generatorFactory)
             .generation(
@@ -59,9 +59,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
-        generator.generateStub = { _ in
-            throw expectedError
-        }
+        given(generator)
+            .generate(path: .any)
+            .willThrow(expectedError)
 
         do {
             try await subject
@@ -81,9 +81,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
-        generator.generateStub = { _ in
-            workspacePath
-        }
+        given(generator)
+            .generate(path: .any)
+            .willReturn(workspacePath)
 
         try await subject.run(
             path: nil,
@@ -100,9 +100,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
-        generator.generateStub = { _ in
-            workspacePath
-        }
+        given(generator)
+            .generate(path: .any)
+            .willReturn(workspacePath)
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,

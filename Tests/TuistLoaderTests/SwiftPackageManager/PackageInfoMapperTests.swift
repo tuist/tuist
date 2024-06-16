@@ -3329,7 +3329,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageType: PackageType? = nil,
         packageInfos: [String: PackageInfo] = [:],
-        packageSettings: XcodeGraph.PackageSettings = .test(
+        packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
         )
     ) throws -> ProjectDescription.Project? {

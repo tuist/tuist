@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public protocol ResourceSynthesizerPathLocating {
     func locate(at: AbsolutePath) -> AbsolutePath?
@@ -10,7 +9,7 @@ public protocol ResourceSynthesizerPathLocating {
     func templatePath(
         for pluginName: String,
         resourceName: String,
-        resourceSynthesizerPlugins: [PluginResourceSynthesizer]
+        resourceSynthesizerPlugins: [TuistCore.PluginResourceSynthesizer]
     ) throws -> AbsolutePath
 
     func templatePath(

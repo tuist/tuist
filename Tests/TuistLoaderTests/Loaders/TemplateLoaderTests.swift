@@ -1,7 +1,6 @@
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -56,7 +55,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         let got = try subject.loadTemplate(at: temporaryPath, plugins: .none)
 
         // Then
-        XCTAssertEqual(got, XcodeGraph.Template(
+        XCTAssertEqual(got, TuistCore.Template(
             description: "desc",
             items: [Template.Item(
                 path: try RelativePath(validating: "generateOne"),

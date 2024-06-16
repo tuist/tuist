@@ -44,7 +44,6 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
-            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -249,7 +248,6 @@ var targets: [Target] = [
             "TuistLoader",
             pathDependency,
             "TuistCore",
-            .product(name: "XcodeGraphTesting", package: "XcodeGraph"),
             "ProjectDescription",
             "TuistSupportTesting",
         ],
@@ -418,7 +416,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.2.0"),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.5.0")),
     ],
     targets: targets
 )

@@ -6,12 +6,12 @@ import TuistSupport
 import XcodeGraph
 
 public protocol TemplateLoading {
-    /// Load `XcodeGraph.Template` at given `path`
+    /// Load `TuistCore.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `name_of_template.swift`
     ///     - plugins: List of available plugins.
-    /// - Returns: Loaded `XcodeGraph.Template`
-    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> XcodeGraph.Template
+    /// - Returns: Loaded `TuistCore.Template`
+    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -26,28 +26,28 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> XcodeGraph.Template {
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template {
         try manifestLoader.register(plugins: plugins)
         let template = try manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try XcodeGraph.Template.from(
+        return try TuistCore.Template.from(
             manifest: template,
             generatorPaths: generatorPaths
         )
     }
 }
 
-extension XcodeGraph.Template {
-    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Template {
-        let attributes = try manifest.attributes.map(XcodeGraph.Template.Attribute.from)
+extension TuistCore.Template {
+    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistCore.Template {
+        let attributes = try manifest.attributes.map(TuistCore.Template.Attribute.from)
         let items = try manifest.items.map { Item(
             path: try RelativePath(validating: $0.path),
-            contents: try XcodeGraph.Template.Contents.from(
+            contents: try TuistCore.Template.Contents.from(
                 manifest: $0.contents,
                 generatorPaths: generatorPaths
             )
         ) }
-        return XcodeGraph.Template(
+        return TuistCore.Template(
             description: manifest.description,
             attributes: attributes,
             items: items
@@ -55,8 +55,8 @@ extension XcodeGraph.Template {
     }
 }
 
-extension XcodeGraph.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> XcodeGraph.Template.Attribute {
+extension TuistCore.Template.Attribute {
+    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistCore.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -66,8 +66,8 @@ extension XcodeGraph.Template.Attribute {
     }
 }
 
-extension XcodeGraph.Template.Attribute.Value {
-    static func from(value: ProjectDescription.Template.Attribute.Value) throws -> XcodeGraph.Template.Attribute.Value {
+extension TuistCore.Template.Attribute.Value {
+    static func from(value: ProjectDescription.Template.Attribute.Value) throws -> TuistCore.Template.Attribute.Value {
         switch value {
         case let .string(string):
             return .string(string)
@@ -78,23 +78,23 @@ extension XcodeGraph.Template.Attribute.Value {
         case let .boolean(boolean):
             return .boolean(boolean)
         case let .dictionary(dictionary):
-            var newDictionary: [String: XcodeGraph.Template.Attribute.Value] = [:]
+            var newDictionary: [String: TuistCore.Template.Attribute.Value] = [:]
             for (key, value) in dictionary {
                 newDictionary[key] = try from(value: value)
             }
             return .dictionary(newDictionary)
         case let .array(array):
-            let newArray: [XcodeGraph.Template.Attribute.Value] = try array.map { try from(value: $0) }
+            let newArray: [TuistCore.Template.Attribute.Value] = try array.map { try from(value: $0) }
             return .array(newArray)
         }
     }
 }
 
-extension XcodeGraph.Template.Contents {
+extension TuistCore.Template.Contents {
     static func from(
         manifest: ProjectDescription.Template.Contents,
         generatorPaths: GeneratorPaths
-    ) throws -> XcodeGraph.Template.Contents {
+    ) throws -> TuistCore.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)

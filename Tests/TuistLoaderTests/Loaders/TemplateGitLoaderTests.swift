@@ -1,7 +1,6 @@
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -43,7 +42,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         var pathToLoadTemplateFrom: AbsolutePath?
         templateLoader.loadTemplateStub = { path in
             pathToLoadTemplateFrom = path
-            return XcodeGraph.Template(
+            return TuistCore.Template(
                 description: ""
             )
         }
