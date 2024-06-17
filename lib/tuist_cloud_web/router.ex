@@ -195,7 +195,8 @@ defmodule TuistCloudWeb.Router do
       :rate_limit,
       :require_authenticated_user_for_private_projects,
       :analytics,
-      :require_user_can_read_project
+      :require_user_can_read_project,
+      TuistCloudWeb.RedirectToRunsPlug
     ]
 
     live_session :project,

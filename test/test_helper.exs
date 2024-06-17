@@ -8,6 +8,7 @@ Mimic.copy(TuistCloud.Time)
 Mimic.copy(TuistCloud.Date)
 Mimic.copy(TuistCloud.Slack)
 Mimic.copy(TuistCloud.CommandEvents)
+Mimic.copy(TuistCloud.Repo)
 Mimic.copy(Req)
 Mimic.copy(Hammer)
 
