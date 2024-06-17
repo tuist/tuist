@@ -10,7 +10,7 @@ defmodule TuistCloudWeb.AuthorizationTest do
   end
 
   describe "require_user_can_read_project/2" do
-    test "raises NotFoundError if a user can't read the given project", %{user: user} do
+    test "raises NotFoundError if a user can't read the given project using a conn", %{user: user} do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -27,7 +27,7 @@ defmodule TuistCloudWeb.AuthorizationTest do
       end
     end
 
-    test "returns conn if a user can read the given project", %{user: user} do
+    test "returns conn if a user can read the given project using a conn", %{user: user} do
       # Given
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -42,6 +42,35 @@ defmodule TuistCloudWeb.AuthorizationTest do
 
       # Then
       assert conn == got
+    end
+
+    test "raises NotFoundError if a user can't read the given project", %{user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When / Then
+      assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
+        Authorization.require_user_can_read_project(%{
+          user: user,
+          owner_handle: account.name,
+          project_handle: project.name
+        })
+      end
+    end
+
+    test "returns conn if a user can read the given project", %{user: user} do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When / Then
+      Authorization.require_user_can_read_project(%{
+        user: user,
+        owner_handle: account.name,
+        project_handle: project.name
+      })
     end
   end
 end

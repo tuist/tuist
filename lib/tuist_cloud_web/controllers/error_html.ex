@@ -45,6 +45,27 @@ defmodule TuistCloudWeb.ErrorHTML do
     )
   end
 
+  def render("429.html", assigns) do
+    reason = assigns.reason
+
+    reason_message =
+      if is_nil(reason) do
+        gettext("Sorry, you made too many requests. Please try again later.")
+      else
+        reason.message
+      end
+
+    render_error_page(
+      assigns
+      |> Map.put(:title, gettext("Too many requests."))
+      |> Map.put(
+        :message,
+        reason_message
+      )
+      |> Map.put(:error_name, gettext("429 error"))
+    )
+  end
+
   def render("500.html", assigns) do
     render_error_page(
       assigns

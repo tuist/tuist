@@ -62,6 +62,9 @@ config :ueberauth, Ueberauth,
     google: {Ueberauth.Strategy.Google, []}
   ]
 
+config :hammer,
+  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
+
 config :flop, repo: TuistCloud.Repo
 
 # Import environment specific config. This must remain at the bottom

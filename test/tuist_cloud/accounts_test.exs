@@ -867,6 +867,12 @@ defmodule TuistCloud.AccountsTest do
       assert session_user.id == user.id
     end
 
+    test "returns user by token with a preloaded account", %{user: user, token: token} do
+      assert session_user = Accounts.get_user_by_session_token(token, preloads: [:account])
+      assert session_user.id == user.id
+      assert session_user.account == Accounts.get_account_from_user(user)
+    end
+
     test "does not return user for invalid token" do
       refute Accounts.get_user_by_session_token("oops")
     end

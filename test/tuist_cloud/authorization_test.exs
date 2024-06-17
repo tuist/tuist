@@ -385,6 +385,43 @@ defmodule TuistCloud.AuthorizationTest do
     assert Authorization.can(user, :read, account, :project) == false
   end
 
+  test "can.read.project.dashboard when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :read, project, :dashboard) == true
+  end
+
+  test "can.read.project.dashboard when the subject is a user that doesn't belong to an organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(user, :read, project, :dashboard) == false
+  end
+
+  test "can.read.project.dashboard when the subject is an anonymous user and a project is private" do
+    # Given
+    project = ProjectsFixtures.project_fixture(visibility: :private)
+
+    # When
+    assert Authorization.can(nil, :read, project, :dashboard) == false
+  end
+
+  test "can.read.project.dashboard when the subject is an anonymous user and a project is public" do
+    # Given
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+
+    # When
+    assert Authorization.can(nil, :read, project, :dashboard) == true
+  end
+
   test "can.delete.account.project when the subject is a user that belongs to an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

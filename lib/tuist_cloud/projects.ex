@@ -123,13 +123,15 @@ defmodule TuistCloud.Projects do
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
     token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_token())
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
+    visibility = opts |> Keyword.get(:visibility, :private)
 
     %Project{}
     |> Project.create_changeset(%{
       token: token,
       name: name,
       account_id: account_id,
-      created_at: created_at
+      created_at: created_at,
+      visibility: visibility
     })
     |> Repo.insert!()
   end

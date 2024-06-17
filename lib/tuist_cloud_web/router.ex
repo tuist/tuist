@@ -3,6 +3,7 @@ defmodule TuistCloudWeb.Router do
 
   import TuistCloudWeb.Authentication
   import TuistCloudWeb.Authorization
+  import TuistCloudWeb.RateLimit
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistCloudWeb.API.Spec
@@ -189,18 +190,17 @@ defmodule TuistCloudWeb.Router do
     pipe_through [
       :open_api,
       :browser,
-      :require_authenticated_user,
+      :rate_limit,
+      :require_authenticated_user_for_private_projects,
       :analytics,
-      TuistCloudWeb.AutoRedirectToProjectPlug,
       :require_user_can_read_project
     ]
 
     live_session :project,
       on_mount: [
-        {TuistCloudWeb.Authentication, :mount_current_user},
-        {TuistCloudWeb.App, :mount_app}
+        {TuistCloudWeb.App, :mount_app},
+        {TuistCloudWeb.Authentication, :mount_current_user}
       ] do
-      live "/", HomeLive
       live "/:owner/:project", HomeLive
       live "/:owner/:project/runs", RunsLive
       get "/:owner/:project/runs/:id/download", RunsController, :download
@@ -216,14 +216,15 @@ defmodule TuistCloudWeb.Router do
       :open_api,
       :browser,
       :require_authenticated_user,
-      :analytics
+      :analytics,
+      TuistCloudWeb.AutoRedirectToProjectPlug
     ]
 
     live_session :authenticated,
       on_mount: [
-        {TuistCloudWeb.Authentication, :mount_current_user},
-        {TuistCloudWeb.App, :mount_app}
+        {TuistCloudWeb.Authentication, :mount_current_user}
       ] do
+      live "/", HomeLive
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/get-started", GetStartedLive

@@ -1,6 +1,8 @@
 defmodule TuistCloudWeb.AuthenticationTest do
   use TuistCloudWeb.ConnCase, async: true
 
+  alias TuistCloud.Repo
+  alias TuistCloud.ProjectsFixtures
   alias Phoenix.LiveView
   alias TuistCloud.Accounts
   alias TuistCloudWeb.Authentication
@@ -274,6 +276,59 @@ defmodule TuistCloudWeb.AuthenticationTest do
       conn = conn |> assign(:current_user, user) |> Authentication.require_authenticated_user([])
       refute conn.halted
       refute conn.status
+    end
+  end
+
+  describe "require_authenticated_user_for_private_projects/2" do
+    test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_private_projects([])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "does not redirect if a user is anonymous and a project is public", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(visibility: :public)
+        |> Repo.preload(:account)
+
+      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+
+      # When
+      conn = Authentication.require_authenticated_user_for_private_projects(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects if a user is anonymous and a project is private", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(visibility: :private)
+        |> Repo.preload(:account)
+
+      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+
+      # When
+      conn = Authentication.require_authenticated_user_for_private_projects(conn, [])
+
+      # Then
+      assert conn.halted
+      assert conn.status
     end
   end
 end

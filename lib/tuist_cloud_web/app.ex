@@ -10,31 +10,48 @@ defmodule TuistCloudWeb.App do
   alias TuistCloud.Projects
   import Phoenix.Component
 
-  def on_mount(:mount_app, %{"owner" => owner, "project" => project}, session, socket)
-      when is_binary(owner) and is_binary(project) do
-    user = Accounts.get_user_by_session_token(session["user_token"])
-    account = user |> Accounts.get_account_from_user()
+  def on_mount(
+        :mount_app,
+        %{"owner" => owner_handle, "project" => project_handle},
+        session,
+        socket
+      )
+      when is_binary(owner_handle) and is_binary(project_handle) do
+    user_token = session["user_token"]
+
+    user =
+      if is_nil(user_token) do
+        nil
+      else
+        Accounts.get_user_by_session_token(session["user_token"], preloads: [:account])
+      end
+
+    TuistCloudWeb.Authorization.require_user_can_read_project(%{
+      user: user,
+      owner_handle: owner_handle,
+      project_handle: project_handle
+    })
 
     project =
-      Projects.get_project_by_account_and_project_name(owner, project)
+      Projects.get_project_by_account_and_project_name(owner_handle, project_handle)
 
-    owner_account = Accounts.get_account_by_handle(owner)
+    owner_account = Accounts.get_account_by_handle(owner_handle)
 
-    if is_nil(project) or is_nil(owner_account) or
-         not Authorization.can(user, :read, owner_account, :project) do
-      raise TuistCloudWeb.Errors.NotFoundError,
-            "The page you are looking for doesn't exist or has been moved."
-    end
+    projects =
+      if is_nil(user) do
+        []
+      else
+        Projects.get_all_project_accounts(user)
+      end
 
     {:cont,
      socket
-     |> assign(:selected_owner, owner)
+     |> assign(:selected_owner, owner_handle)
      |> assign(:selected_project, project)
      |> assign(:current_user, user)
-     |> assign(:selected_account, account)
      |> assign(
        :projects,
-       Projects.get_all_project_accounts(user)
+       projects
      )
      |> assign(
        :can_update_billing,

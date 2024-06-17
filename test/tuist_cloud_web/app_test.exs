@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.AppTest do
   use TuistCloudWeb.ConnCase, async: true
 
+  alias TuistCloud.Repo
   alias TuistCloud.ProjectsFixtures
   alias TuistCloudWeb.Authentication
   alias TuistCloudWeb.App
@@ -82,24 +83,7 @@ defmodule TuistCloudWeb.AppTest do
         )
 
       # Then
-      assert socket.assigns.current_user == user
-    end
-
-    test "assigns current account", %{session: session, user: user} do
-      # When
-      {:cont, socket} =
-        App.on_mount(
-          :mount_app,
-          %{
-            "owner" => "tuist-org",
-            "project" => "tuist"
-          },
-          session,
-          %LiveView.Socket{}
-        )
-
-      # Then
-      assert socket.assigns.selected_account == Accounts.get_account_from_user(user)
+      assert socket.assigns.current_user.id == user.id
     end
 
     test "assigns projects", %{session: session} do
@@ -161,6 +145,35 @@ defmodule TuistCloudWeb.AppTest do
     assert socket.assigns.can_update_billing == false
   end
 
+  test "assigns can_update_billing to false when a user is anonymous and a project is public", %{
+    conn: conn
+  } do
+    # Given
+    project =
+      ProjectsFixtures.project_fixture(visibility: :public)
+      |> Repo.preload(:account)
+
+    session =
+      conn
+      |> init_test_session(%{})
+      |> get_session()
+
+    # When
+    {:cont, socket} =
+      App.on_mount(
+        :mount_app,
+        %{
+          "owner" => project.account.name,
+          "project" => project.name
+        },
+        session,
+        %LiveView.Socket{}
+      )
+
+    # Then
+    assert socket.assigns.can_update_billing == false
+  end
+
   test "raises NotFoundError when a user is not a member of an organization", %{
     session: session
   } do
@@ -191,6 +204,28 @@ defmodule TuistCloudWeb.AppTest do
         %{
           "owner" => "tuist-org",
           "project" => "non-existent"
+        },
+        session,
+        %LiveView.Socket{}
+      )
+    end
+  end
+
+  test "raises NotFoundError when a project is private and a user is anonymous", %{conn: conn} do
+    # Given
+    project =
+      ProjectsFixtures.project_fixture(visibility: :private)
+      |> Repo.preload(:account)
+
+    session = conn |> init_test_session(%{}) |> get_session()
+
+    # When / Then
+    assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
+      App.on_mount(
+        :mount_app,
+        %{
+          "owner" => project.account.name,
+          "project" => project.name
         },
         session,
         %LiveView.Socket{}

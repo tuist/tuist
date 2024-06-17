@@ -15,7 +15,7 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.current_user(got) == user
+    assert TuistCloudWeb.Authentication.current_user(got).id == user.id
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
   end
 
@@ -29,7 +29,7 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     got = conn |> AuthenticationPlug.call(opts)
 
     # Then
-    assert TuistCloudWeb.Authentication.current_project(got) == project
+    assert TuistCloudWeb.Authentication.current_project(got).id == project.id
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
   end
 

@@ -3,6 +3,7 @@ defmodule TuistCloudWeb.HomeLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
+  alias TuistCloud.Repo
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Accounts
   alias TuistCloud.ProjectsFixtures
@@ -18,10 +19,28 @@ defmodule TuistCloudWeb.HomeLiveTest do
       conn
       |> assign(:selected_project, selected_project)
       |> assign(:selected_owner, account.name)
-      |> assign(:selected_account, account)
       |> log_in_user(user)
 
     %{conn: conn, user: user, project: selected_project, account: account}
+  end
+
+  test "renders home when a user is anonymous and a project is public" do
+    # Given
+    project =
+      ProjectsFixtures.project_fixture(visibility: :public)
+      |> Repo.preload(:account)
+
+    conn =
+      build_conn()
+      |> assign(:selected_project, project)
+      |> assign(:selected_owner, project.account.name)
+
+    # When
+    {:ok, _lv, html} = conn |> live(~p"/#{project.account.name}/#{project.name}")
+
+    # Then
+    assert html =~ "Sign in"
+    assert html =~ "Dashboard"
   end
 
   test "renders home with a cache hit rate", %{conn: conn, project: project, account: account} do

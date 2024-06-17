@@ -39,7 +39,6 @@ defmodule TuistCloudWeb.RunDetailLiveTest do
       conn
       |> assign(:selected_project, selected_project)
       |> assign(:selected_owner, "tuist-org")
-      |> assign(:selected_account, account)
       |> log_in_user(user)
 
     %{conn: conn, user: user, project: selected_project}

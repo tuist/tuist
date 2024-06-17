@@ -8,6 +8,7 @@ Mimic.copy(TuistCloud.Date)
 Mimic.copy(TuistCloud.Slack)
 Mimic.copy(TuistCloud.CommandEvents)
 Mimic.copy(Req)
+Mimic.copy(Hammer)
 
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(TuistCloud.Repo, :manual)
