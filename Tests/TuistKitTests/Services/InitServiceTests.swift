@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import TuistKit
@@ -125,14 +124,14 @@ final class InitServiceTests: TuistUnitTestCase {
         let tuistVersion = "4.0.3"
         tuistVersionLoader.getVersionStub = tuistVersion
 
-        let expectedAttributes: [String: XcodeGraph.Template.Attribute.Value] = [
+        let expectedAttributes: [String: TuistCore.Template.Attribute.Value] = [
             "name": .string("unusual name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
             "class_name": .string("UnusualName"),
             "bundle_identifier": .string("unusual-name"),
         ]
-        var generatorAttributes: [String: XcodeGraph.Template.Attribute.Value] = [:]
+        var generatorAttributes: [String: TuistCore.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
