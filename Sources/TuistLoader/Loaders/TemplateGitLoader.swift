@@ -1,9 +1,8 @@
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public protocol TemplateGitLoading {
-    /// Load `XcodeGraph.Template` from the given Git repository
+    /// Load `TuistCore.Template` from the given Git repository
     /// to a temporary directory and performs `closure` on that template.
     /// - Parameters:
     ///     - templateURL: Git repository url
