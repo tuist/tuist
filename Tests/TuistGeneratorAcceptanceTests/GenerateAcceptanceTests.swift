@@ -483,6 +483,11 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             "App.app",
             destination: "Debug-iphonesimulator"
         )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "WidgetExtension.appex",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
+        )
     }
 }
 

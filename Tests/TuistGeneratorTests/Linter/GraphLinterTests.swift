@@ -233,6 +233,33 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func test_lint_appExtension_canDependOnBundle() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appExtension = Target.empty(name: "app_extension", product: .appExtension)
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let project = Project.empty(path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appExtension.name, path: path): Set([.target(name: bundle.name, path: path)]),
+            .target(name: bundle.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_lint_frameworkDependsOnBundle() throws {
         // Given
         let path: AbsolutePath = "/project"
