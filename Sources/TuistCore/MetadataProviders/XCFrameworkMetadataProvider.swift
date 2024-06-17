@@ -149,6 +149,8 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
     ) throws -> AbsolutePath {
         let binaryPath: AbsolutePath
 
+        // FIXME: detect platform, "an XCFramework can include dynamic library files" for macOS
+        // https://github.com/tuist/XcodeGraph/pull/12
         switch library.path.extension {
         case "framework":
             binaryPath = try AbsolutePath(validating: library.identifier, relativeTo: xcframeworkPath)
