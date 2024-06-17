@@ -193,7 +193,7 @@ class InitService {
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),
             "class_name": .string(name.toValidSwiftIdentifier()),
-            "bundle_identifier": .string(name.toValidBundleIdentifierSuffix()),
+            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if defaultAttributes.keys.contains(attribute.name) { return }

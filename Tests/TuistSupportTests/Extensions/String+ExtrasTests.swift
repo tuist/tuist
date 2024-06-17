@@ -73,45 +73,45 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got, "ValidClassName")
     }
 
-    func test_to_valid_bundle_identifier_suffix_when_string_is_already_valid() {
+    func test_to_valid_in_bundle_identifier_when_string_is_already_valid() {
         // Given
         let subject = "TestBundleIdentifier.tuist"
 
         // When
-        let got = subject.toValidBundleIdentifierSuffix()
+        let got = subject.toValidInBundleIdentifier()
 
         // Then
         XCTAssertEqual(got, "TestBundleIdentifier.tuist")
     }
 
-    func test_to_valid_bundle_identifier_suffix_when_string_contains_under_bars() {
+    func test_to_valid_in_bundle_identifier_when_string_contains_under_bars() {
         // Given
         let subject = "_test_bundle_identifier_"
 
         // When
-        let got = subject.toValidBundleIdentifierSuffix()
+        let got = subject.toValidInBundleIdentifier()
 
         // Then
         XCTAssertEqual(got, "-test-bundle-identifier-")
     }
 
-    func test_to_valid_bundle_identifier_suffix_when_string_contains_special_characters() {
+    func test_to_valid_in_bundle_identifier_when_string_contains_special_characters() {
         // Given
         let subject = "$test+bundle@identifier"
 
         // When
-        let got = subject.toValidBundleIdentifierSuffix()
+        let got = subject.toValidInBundleIdentifier()
 
         // Then
         XCTAssertEqual(got, "-test-bundle-identifier")
     }
 
-    func test_to_valid_bundle_identifier_suffix_when_string_contains_white_spaces() {
+    func test_to_valid_in_bundle_identifier_when_string_contains_white_spaces() {
         // Given
         let subject = "test  bundle  identifier"
 
         // When
-        let got = subject.toValidBundleIdentifierSuffix()
+        let got = subject.toValidInBundleIdentifier()
 
         // Then
         XCTAssertEqual(got, "test--bundle--identifier")
