@@ -104,6 +104,35 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         )
     }
 
+    func test_binaryPath_when_dynamicLibraryIsPresentForiOSThrowError() throws {
+        // Given
+        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
+        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
+
+        // When / Then
+        XCTAssertThrowsError(
+            try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
+        ) { error in
+            XCTAssertEqual(error as? XCFrameworkMetadataProviderError, .supportedArchitectureReferencesNotFound(frameworkPath))
+        }
+    }
+
+    func test_binaryPath_when_dynamicLibraryIsPresentForMacOS() throws {
+        // Given
+        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
+        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
+
+        // When
+        // FIXME: use platform after https://github.com/tuist/XcodeGraph/pull/12 merged
+        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: [infoPlist.libraries[2]])
+
+        // Then
+        XCTAssertEqual(
+            binaryPath,
+            frameworkPath.appending(try RelativePath(validating: "macos-arm64_x86_64/libmymath_macos.dylib"))
+        )
+    }
+
     func test_loadMetadata_dynamicLibrary() throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
@@ -271,5 +300,50 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)
+    }
+
+    func test_loadMetadataXCFrameworkDylibBinary() throws {
+        // Given
+        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
+
+        // When
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+
+        // Then
+        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+            .init(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "libmymath_ios.dylib"),
+                mergeable: false,
+                architectures: [.arm64]
+            ),
+
+            .init(
+                identifier: "ios-arm64_x86_64-simulator",
+                path: try RelativePath(validating: "libmymath_ios_sim.dylib"),
+                mergeable: false,
+                architectures: [.arm64, .x8664]
+            ),
+
+            .init(
+                identifier: "macos-arm64_x86_64",
+                path: try RelativePath(validating: "libmymath_macos.dylib"),
+                mergeable: false,
+                architectures: [.arm64, .x8664]
+            ),
+        ])
+
+        // FIXME: not sure the primaryBinary here is expected?
+        let expectedBinaryPath = frameworkPath
+            .appending(try RelativePath(validating: "ios-arm64/libmymath_ios.dylib"))
+        XCTAssertEqual(metadata, XCFrameworkMetadata(
+            path: frameworkPath,
+            infoPlist: expectedInfoPlist,
+            primaryBinaryPath: expectedBinaryPath,
+            linking: .dynamic,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
+        ))
     }
 }
