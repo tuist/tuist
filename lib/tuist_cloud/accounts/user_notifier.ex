@@ -6,7 +6,7 @@ defmodule TuistCloud.Accounts.UserNotifier do
 
   alias TuistCloud.Environment
   alias TuistCloud.Mailer
-  alias TuistCloud.Accounts.{User, OrganizationAccount}
+  alias TuistCloud.Accounts.User
   import TuistCloudWeb.Gettext
 
   # Delivers the email using the application mailer.
@@ -126,7 +126,7 @@ defmodule TuistCloud.Accounts.UserNotifier do
   """
   def deliver_invitation(invitee_email, %{
         inviter: %User{email: inviter_email},
-        to: %OrganizationAccount{account: %{name: organization_name}},
+        to: %{account: %{name: organization_name}},
         url: url
       }) do
     deliver(

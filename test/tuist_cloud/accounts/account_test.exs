@@ -97,7 +97,7 @@ defmodule TuistCloud.AccountTest do
     end
 
     test "when the plan is valid" do
-      for plan <- [:none, :enterprise, :indie, :pro] do
+      for plan <- [:none, :enterprise, :air, :pro] do
         changeset =
           Account.create_changeset(%Account{}, %{plan: plan})
 

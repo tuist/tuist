@@ -64,6 +64,10 @@ defmodule TuistCloud.Environment do
     Date.diff(license_expiration_date(), Date.utc_today())
   end
 
+  def new_pricing_model?() do
+    false
+  end
+
   def version() do
     version = get([:version])
 
@@ -168,6 +172,10 @@ defmodule TuistCloud.Environment do
   def stripe_configured?(secrets \\ secrets()) do
     stripe_api_key(secrets) != nil and stripe_publishable_key(secrets) != nil and
       stripe_endpoint_secret(secrets) != nil
+  end
+
+  def stripe_prices(secrets \\ secrets()) do
+    get_in(secrets, [:stripe, :prices])
   end
 
   def github_oauth_id(secrets \\ secrets()) do

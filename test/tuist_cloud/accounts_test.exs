@@ -4,7 +4,6 @@ defmodule TuistCloud.AccountsTest do
   alias TuistCloud.Projects
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.Accounts
-  alias TuistCloud.Accounts.OrganizationAccount
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Environment
   use TuistCloud.DataCase
@@ -748,7 +747,7 @@ defmodule TuistCloud.AccountsTest do
       got = Accounts.get_organization_account_by_name("TUIST")
 
       # Then
-      assert %OrganizationAccount{
+      assert %{
                account: account,
                organization: organization
              } == got
@@ -1173,36 +1172,6 @@ defmodule TuistCloud.AccountsTest do
     end
   end
 
-  describe "update_plan/2" do
-    test "sets plan to :enterprise" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      # When
-      Accounts.update_plan(account, :enterprise)
-
-      # Then
-      assert account.plan == :none
-      assert Accounts.get_account_by_id(account.id).plan == :enterprise
-    end
-
-    test "sets plan to nil" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      Accounts.update_plan(account, :enterprise)
-      account_with_enterprise = Accounts.get_account_by_id(account.id)
-
-      # When
-      Accounts.update_plan(account_with_enterprise, :none)
-
-      # Then
-      assert account_with_enterprise.plan == :enterprise
-      assert Accounts.get_account_by_id(account.id).plan == :none
-    end
-  end
-
   describe "remove_user_from_organization/1" do
     test "removes a user from an organization" do
       # Given
@@ -1386,6 +1355,49 @@ defmodule TuistCloud.AccountsTest do
 
       # Then
       assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+    end
+  end
+
+  describe "get_current_month_remote_cache_hits_count" do
+    test "returns only the events from the current month when it's an account" do
+      # Given
+      TuistCloud.Time |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      %{account: account} =
+        project = ProjectsFixtures.project_fixture() |> TuistCloud.Repo.preload(:account)
+
+      # Binary hit in current month
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-01 03:00:00],
+        remote_cache_target_hits: ["target1", "target2"]
+      )
+
+      # Test hit in current month
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-01 03:00:00],
+        remote_test_target_hits: ["target1", "target2"]
+      )
+
+      # Past months
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-01-02 03:00:00],
+        remote_cache_target_hits: ["target1", "target2"]
+      )
+
+      # When
+      got = Accounts.get_current_month_remote_cache_hits_count(account)
+
+      # Then
+      assert got == 2
     end
   end
 end

@@ -2,6 +2,8 @@ defmodule TuistCloudWeb.API.OrganizationsControllerTest do
   alias TuistCloud.Environment
   alias TuistCloudWeb.Authentication
   alias TuistCloud.AccountsFixtures
+  alias TuistCloud.CommandEventsFixtures
+  alias TuistCloud.ProjectsFixtures
   alias TuistCloud.Accounts
   use TuistCloudWeb.ConnCase, async: true
   use Mimic
@@ -135,6 +137,85 @@ defmodule TuistCloudWeb.API.OrganizationsControllerTest do
       conn =
         conn
         |> get(~p"/api/organizations/tuist-org")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "The authenticated subject is not authorized to perform this action"
+    end
+  end
+
+  describe "GET /api/organizations/{id}/usage" do
+    setup do
+      Environment
+      |> stub(:mail_configured?, fn -> false end)
+
+      :ok
+    end
+
+    test "returns an organization usage", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      TuistCloud.Time |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      # Binary hit in current month
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        duration: 1500,
+        created_at: ~N[2024-04-01 03:00:00],
+        remote_cache_target_hits: ["target1", "target2"]
+      )
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/organizations/tuist-org/usage")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["current_month_remote_cache_hits"] == 1
+    end
+
+    test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/organizations/tuist-org/usage")
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["message"] == "Organization not found"
+    end
+
+    test "returns :fobidden when user is not authorized to read an organization", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      AccountsFixtures.organization_fixture(name: "tuist-org")
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/organizations/tuist-org/usage")
 
       # Then
       response = json_response(conn, :forbidden)

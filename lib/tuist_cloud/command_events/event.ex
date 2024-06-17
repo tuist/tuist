@@ -3,7 +3,7 @@ defmodule TuistCloud.CommandEvents.Event do
   A module that represents the projects table.
   """
   use Ecto.Schema
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query
   import Ecto.Changeset
   alias TuistCloud.Accounts.User
   alias TuistCloud.Projects.Project
@@ -97,45 +97,19 @@ defmodule TuistCloud.CommandEvents.Event do
     end
   end
 
-  def current_month_remote_binary_cache_hits_query(%Project{id: project_id}) do
-    from c in __MODULE__,
-      where: c.project_id == ^project_id,
-      where: this_month_fragment(),
-      where: fragment("array_length(?, 1) > 0", c.remote_cache_target_hits)
-  end
-
-  def current_month_remote_binary_cache_hits_query(%Account{id: account_id}) do
+  def get_current_month_remote_cache_hits_count_query(%Account{id: account_id}) do
     from c in __MODULE__,
       join: p in Project,
       on: p.id == c.project_id,
       where: p.account_id == ^account_id,
       where: this_month_fragment(),
-      where: fragment("array_length(?, 1) > 0", c.remote_cache_target_hits)
-  end
-
-  def current_month_tested_target_hits_query(%Project{id: project_id}) do
-    from c in __MODULE__,
-      where: c.project_id == ^project_id,
-      where:
-        fragment(
-          "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
-          c.created_at,
-          ^TuistCloud.Time.utc_now()
-        ),
-      where: fragment("array_length(?, 1) > 0", c.remote_test_target_hits)
-  end
-
-  def current_month_tested_target_hits_query(%Account{id: account_id}) do
-    from c in __MODULE__,
-      join: p in Project,
-      on: p.id == c.project_id,
-      where: p.account_id == ^account_id,
-      where:
-        fragment(
-          "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
-          c.created_at,
-          ^TuistCloud.Time.utc_now()
-        ),
-      where: fragment("array_length(?, 1) > 0", c.remote_test_target_hits)
+      select:
+        count(
+          fragment(
+            "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
+            c.remote_cache_target_hits,
+            c.remote_test_target_hits
+          )
+        )
   end
 end

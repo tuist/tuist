@@ -8,7 +8,7 @@ defmodule TuistCloud.Accounts.Account do
   alias TuistCloud.Billing
 
   schema "accounts" do
-    field :plan, Ecto.Enum, values: [none: 0, enterprise: 1, indie: 2, pro: 3]
+    field :plan, Ecto.Enum, values: [none: 0, enterprise: 1, air: 2, pro: 3]
     field :name, :string
     field :user_id, :integer
     field :organization_id, :integer
@@ -52,10 +52,20 @@ defmodule TuistCloud.Accounts.Account do
         []
       end
     end)
-    |> validate_inclusion(:plan, [:none, :enterprise, :indie, :pro])
+    |> validate_plan()
     |> update_change(:name, &String.downcase/1)
     |> unique_constraint(:name, name: "index_accounts_on_name")
     |> unique_constraint([:user_id])
     |> unique_constraint([:organization_id])
+  end
+
+  defp validate_plan(changeset) do
+    changeset |> validate_inclusion(:plan, [:none, :enterprise, :air, :pro])
+  end
+
+  def update_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:plan, :customer_id])
+    |> validate_plan()
   end
 end

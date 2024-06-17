@@ -1,13 +1,12 @@
 defmodule TuistCloudWeb.API.OrganizationsController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
-  alias TuistCloud.Accounts.OrganizationAccount
   alias TuistCloudWeb.API.Schemas.OrganizationMember
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Authorization
   alias TuistCloud.Accounts
   alias OpenApiSpex.Schema
-  alias TuistCloudWeb.API.Schemas.{Error, Organization}
+  alias TuistCloudWeb.API.Schemas.{Error, Organization, OrganizationUsage}
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -282,6 +281,62 @@ defmodule TuistCloudWeb.API.OrganizationsController do
     end
   end
 
+  operation(:usage,
+    summary: "Shows the usage of an organization",
+    description:
+      "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    operation_id: "showOrganizationUsage",
+    parameters: [
+      organization_name: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the organization to show."
+      ]
+    ],
+    responses: %{
+      ok: {"The organization usage", "application/json", OrganizationUsage},
+      not_found:
+        {"The organization with the given name was not found", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def usage(
+        %{
+          path_params: %{
+            "organization_name" => organization_name
+          }
+        } = conn,
+        _params
+      ) do
+    organization_account =
+      Accounts.get_organization_account_by_name(organization_name)
+
+    user = Authentication.current_user(conn)
+
+    cond do
+      is_nil(organization_account) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Organization not found"})
+
+      !Authorization.can(user, :read, organization_account.account, :organization_usage) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
+      !is_nil(organization_account) ->
+        conn
+        |> json(%{
+          current_month_remote_cache_hits:
+            Accounts.get_current_month_remote_cache_hits_count(organization_account.account)
+        })
+    end
+  end
+
   operation(:update,
     summary: "Updates an organization",
     description: "Updates an organization with given parameters.",
@@ -393,7 +448,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
   end
 
   defp update_organization(%{
-         organization_account: %OrganizationAccount{} = organization_account,
+         organization_account: organization_account,
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
          conn: %Plug.Conn{} = conn

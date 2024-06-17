@@ -486,6 +486,38 @@ defmodule TuistCloud.AuthorizationTest do
     assert Authorization.can(user, :read, account, :organization) == false
   end
 
+  test "can.read.account.oragnization_usage when the subject is a user that is admin of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :read, account, :organization_usage) == true
+  end
+
+  test "can.read.account.oragnization_usage when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :read, account, :organization_usage) == true
+  end
+
+  test "can.read.account.oragnization_usage when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :read, account, :organization_usage) == false
+  end
+
   test "can.update.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

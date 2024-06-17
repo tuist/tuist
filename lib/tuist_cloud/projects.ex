@@ -36,7 +36,7 @@ defmodule TuistCloud.Projects do
     end
   end
 
-  def get_project_by_account_and_project_name(account_name, project_name) do
+  def get_project_by_account_and_project_name(account_name, project_name, opts \\ []) do
     with {:account, %{id: account_id}} <-
            {:account,
             Repo.one(
@@ -46,9 +46,11 @@ defmodule TuistCloud.Projects do
          {:project, project} <-
            {:project,
             Repo.one(
-              from p in Project,
+              from(p in Project,
                 where: fragment("lower(?)", p.name) == ^String.downcase(project_name),
                 where: p.account_id == ^account_id
+              ),
+              preloads: Keyword.get(opts, :preloads, [])
             )} do
       project
     else
@@ -57,11 +59,11 @@ defmodule TuistCloud.Projects do
     end
   end
 
-  def get_project_by_slug(slug) do
+  def get_project_by_slug(slug, opts \\ []) do
     if String.contains?(slug, "/") do
       [account_name, project_name] = String.split(slug, "/")
 
-      project = get_project_by_account_and_project_name(account_name, project_name)
+      project = get_project_by_account_and_project_name(account_name, project_name, opts)
 
       if is_nil(project) do
         {:error, :not_found}
@@ -95,10 +97,10 @@ defmodule TuistCloud.Projects do
         join: a in Account,
         on: p.account_id == a.id,
         where: p.account_id in ^account_ids,
-        select: {p, a}
+        select: %{project: p, account: a}
 
     Repo.all(query)
-    |> Enum.map(fn {project, account} ->
+    |> Enum.map(fn %{project: project, account: account} ->
       %ProjectAccount{
         handle: "#{account.name}/#{project.name}",
         project: project,

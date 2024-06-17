@@ -58,6 +58,10 @@ defmodule TuistCloud.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
+  def can(%User{} = user, :read, %Account{} = account, :organization_usage) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
+  end
+
   def can(%User{} = user, :update, %Account{} = account, :organization) do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
