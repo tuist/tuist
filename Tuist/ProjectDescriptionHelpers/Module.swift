@@ -557,6 +557,7 @@ public enum Module: String, CaseIterable {
             ]
         case .generator:
             [
+                .target(name: Module.loader.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeProj"),
