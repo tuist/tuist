@@ -80,6 +80,8 @@ defmodule TuistCloudWeb.Router do
       param: "organization_name",
       only: [:index, :create, :delete, :show, :update]
 
+    get "/organizations/:organization_name/usage", OrganizationsController, :usage
+
     resources "/organizations/:organization_name/invitations", InvitationsController,
       only: [:create]
 

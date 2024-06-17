@@ -13,7 +13,6 @@ defmodule TuistCloud.Accounts do
     Account,
     Organization,
     Role,
-    OrganizationAccount,
     UserRole,
     Oauth2Identity,
     DeviceCode,
@@ -25,11 +24,6 @@ defmodule TuistCloud.Accounts do
 
   def update_account_cache_upload_event_count(%Account{} = account, count) do
     {:ok, _} = Repo.update(account |> Ecto.Changeset.change(cache_upload_event_count: count))
-    Repo.reload(account)
-  end
-
-  def upgrade_to_enterprise(%Account{} = account) do
-    {:ok, _} = Repo.update(account |> Ecto.Changeset.change(plan: :enterprise))
     Repo.reload(account)
   end
 
@@ -59,7 +53,10 @@ defmodule TuistCloud.Accounts do
         join: o in Organization,
         on: a.organization_id == o.id,
         where: fragment("lower(?)", a.name) == ^String.downcase(name),
-        select: %OrganizationAccount{organization: o, account: a}
+        select: %{
+          organization: o,
+          account: a
+        }
 
     Repo.one(query)
   end
@@ -181,13 +178,11 @@ defmodule TuistCloud.Accounts do
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
-        customer_id = create_customer_when_billing_enabled(%{name: name, email: user_email})
-
         repo.insert(
           Account.create_changeset(%Account{}, %{
             organization_id: organization_id,
             name: name,
-            customer_id: customer_id
+            customer_id: Billing.create_customer(%{name: name, email: user_email})
           })
         )
       end)
@@ -322,13 +317,11 @@ defmodule TuistCloud.Accounts do
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
-        customer_id = create_customer_when_billing_enabled(%{name: name, email: email})
-
         repo.insert(
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: name,
-            customer_id: customer_id
+            customer_id: Billing.create_customer(%{name: name, email: email})
           })
         )
       end)
@@ -374,6 +367,37 @@ defmodule TuistCloud.Accounts do
       {:under_limit, false} ->
         user_account
     end
+  end
+
+  def get_current_month_remote_cache_hits_count(%Account{} = account) do
+    TuistCloud.CommandEvents.Event.get_current_month_remote_cache_hits_count_query(account)
+    |> Repo.one()
+  end
+
+  def get_customer_ids_with_remote_cache_hits_stream() do
+    now = TuistCloud.Time.utc_now()
+    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
+    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+
+    query =
+      from e in Event,
+        join: p in Project,
+        on: e.project_id == p.id,
+        join: a in Account,
+        on: p.account_id == a.id,
+        where: e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday,
+        group_by: a.customer_id,
+        select:
+          {a.customer_id,
+           count(
+             fragment(
+               "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
+               e.remote_cache_target_hits,
+               e.remote_test_target_hits
+             )
+           )}
+
+    query |> Repo.stream()
   end
 
   defp create_oauth2_identity(%{
@@ -595,7 +619,10 @@ defmodule TuistCloud.Accounts do
         join: a in Account,
         on: a.organization_id == o.id,
         where: u.user_id == ^user_id and r.resource_type == "Organization",
-        select: {o, a}
+        select: %{
+          organization: o,
+          account: a
+        }
       )
 
     oauth_query =
@@ -609,13 +636,10 @@ defmodule TuistCloud.Accounts do
         join: a in Account,
         on: a.organization_id == org.id,
         where: oauth.user_id == ^user_id,
-        select: {org, a}
+        select: %{organization: org, account: a}
       )
 
-    (Repo.all(query) ++ Repo.all(oauth_query))
-    |> Enum.map(fn {organization, account} ->
-      %OrganizationAccount{organization: organization, account: account}
-    end)
+    Repo.all(query) ++ Repo.all(oauth_query)
   end
 
   def invite_user_to_organization(
@@ -643,7 +667,7 @@ defmodule TuistCloud.Accounts do
     if Environment.mail_configured?() do
       UserNotifier.deliver_invitation(email, %{
         inviter: inviter,
-        to: %OrganizationAccount{organization: organization, account: account},
+        to: %{organization: organization, account: account},
         url: url_fun.(token)
       })
     end
@@ -746,24 +770,11 @@ defmodule TuistCloud.Accounts do
     Repo.get(Role, id)
   end
 
-  defp create_customer_when_billing_enabled(%{name: name, email: email}) do
-    if Billing.enabled?() do
-      Billing.create_customer(%{name: name, email: email})
-    else
-      nil
-    end
-  end
-
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
     {:ok, user} =
       Repo.update(user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id))
 
     user
-  end
-
-  def update_plan(%Account{} = account, plan) do
-    {:ok, _} = Repo.update(account |> Ecto.Changeset.change(plan: plan))
-    Repo.reload(account)
   end
 
   alias TuistCloud.Accounts.{User, UserToken, UserNotifier}

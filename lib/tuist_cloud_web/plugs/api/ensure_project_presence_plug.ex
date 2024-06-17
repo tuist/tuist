@@ -76,7 +76,7 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
   end
 
   defp assign_request_project_to_conn(project_slug, conn) do
-    case Projects.get_project_by_slug(project_slug) do
+    case Projects.get_project_by_slug(project_slug, preloads: [:account]) do
       {:ok, project} ->
         conn |> assign(@project_key, project)
 

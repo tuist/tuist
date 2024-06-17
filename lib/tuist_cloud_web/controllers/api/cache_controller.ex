@@ -16,7 +16,7 @@ defmodule TuistCloudWeb.API.CacheController do
 
   plug(TuistCloudWeb.API.EnsureProjectPresencePlug)
   plug(TuistCloudWeb.API.Authorization.AuthorizationPlug, :cache)
-  plug(TuistCloudWeb.EnsureValidAccountPlanPlug)
+  plug(TuistCloudWeb.API.Authorization.BillingPlug)
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
