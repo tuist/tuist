@@ -1,5 +1,5 @@
 {
-  "originHash" : "be656e1285b67cd89206d2e44ae693ca74086bd97ce1788a21d0533b6a6b6f62",
+  "originHash" : "99adbc11a85398bfb5a122e70f3eae05647f395e69824666334c300d621ee363",
   "pins" : [
     {
       "identity" : "aexml",
@@ -40,10 +40,10 @@
     {
       "identity" : "graphviz",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftDocOrg/GraphViz.git",
+      "location" : "https://github.com/tuist/GraphViz.git",
       "state" : {
-        "revision" : "70bebcf4597b9ce33e19816d6bbd4ba9b7bdf038",
-        "version" : "0.2.0"
+        "branch" : "0.2.1",
+        "revision" : "e4e0796a8fa74b000aba54b0256601abf75d0307"
       }
     },
     {
@@ -276,8 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/weichsel/ZIPFoundation.git",
       "state" : {
-        "revision" : "a3f5c2bae0f04b0bce9ef3c4ba6bd1031a0564c4",
-        "version" : "0.9.17"
+        "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
+        "version" : "0.9.19"
       }
     }
   ],
