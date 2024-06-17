@@ -15,6 +15,10 @@
   width: 195px;
 }
 
+.sidebar__sign-in-button {
+  width: 100%;
+}
+
 .nav-logo {
   flex-direction: row;
   gap: var(--spacing-lg);

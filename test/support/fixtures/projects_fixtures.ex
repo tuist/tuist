@@ -23,7 +23,8 @@ defmodule TuistCloud.ProjectsFixtures do
         name: name,
         account: %{id: account_id}
       },
-      created_at: created_at
+      created_at: created_at,
+      visibility: Keyword.get(opts, :visibility, :private)
     )
   end
 end

@@ -7,12 +7,12 @@ defmodule TuistCloud.Authentication do
 
   def authenticated_subject(token) do
     project = Projects.get_project_by_token(token)
-    account = Accounts.get_user_by_token(token)
+    user = Accounts.get_user_by_token(token)
 
-    case {project, account} do
+    case {project, user} do
       {nil, nil} -> nil
       {project, nil} -> {:project, project}
-      {nil, account} -> {:user, account}
+      {nil, user} -> {:user, user}
     end
   end
 end

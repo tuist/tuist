@@ -4,13 +4,12 @@ defmodule TuistCloudWeb.GetStartedLive do
   alias TuistCloud.Accounts
 
   def mount(_params, session, socket) do
-    user = Accounts.get_user_by_session_token(session["user_token"])
-    account = Accounts.get_account_from_user(user)
+    user = Accounts.get_user_by_session_token(session["user_token"], preloads: [:account])
 
     {
       :ok,
       socket
-      |> assign(:selected_account, account)
+      |> assign(:current_user, user)
     }
   end
 

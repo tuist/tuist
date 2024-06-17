@@ -83,7 +83,8 @@ defmodule TuistCloud.MixProject do
       {:flop, "~> 0.25.0"},
       {:timex, "~> 3.7"},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
-      {:ranch, "~> 2.1.0", override: true}
+      {:ranch, "~> 2.1.0", override: true},
+      {:hammer, "~> 6.0"}
     ]
   end
 

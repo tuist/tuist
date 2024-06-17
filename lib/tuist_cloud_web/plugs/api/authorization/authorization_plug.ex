@@ -5,7 +5,6 @@ defmodule TuistCloudWeb.API.Authorization.AuthorizationPlug do
   use TuistCloudWeb, :controller
   use TuistCloudWeb, :verified_routes
 
-  alias TuistCloud.Repo
   alias TuistCloud.Authorization
   alias TuistCloudWeb.Authentication
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
@@ -23,7 +22,6 @@ defmodule TuistCloudWeb.API.Authorization.AuthorizationPlug do
 
     subject =
       Authentication.authenticated_subject(conn)
-      |> Repo.preload(:account)
 
     cond do
       not is_nil(is_ci) and Authorization.can(subject, action, project, category, is_ci: is_ci) ->

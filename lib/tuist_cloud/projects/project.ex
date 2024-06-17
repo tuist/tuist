@@ -10,6 +10,7 @@ defmodule TuistCloud.Projects.Project do
   schema "projects" do
     field :token, :string
     field :name, :string
+    field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     belongs_to :account, Account
 
     has_many :users_with_last_visited_projects, User,
@@ -23,7 +24,8 @@ defmodule TuistCloud.Projects.Project do
 
   def create_changeset(project, attrs) do
     project
-    |> cast(attrs, [:token, :account_id, :name, :created_at])
+    |> cast(attrs, [:token, :account_id, :name, :created_at, :visibility])
+    |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do

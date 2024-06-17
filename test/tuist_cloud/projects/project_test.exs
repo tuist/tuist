@@ -26,4 +26,41 @@ defmodule TuistCloud.ProjectTest do
     Repo.delete!(project)
     assert TuistCloud.Repo.reload(user).last_visited_project_id == nil
   end
+
+  test "visibility must be either :private or :public" do
+    # When
+    changeset =
+      Project.create_changeset(
+        %Project{},
+        %{token: "token", name: "project", account_id: 0, visibility: :invalid_visibility}
+      )
+
+    # Then
+    assert changeset.valid? == false
+    assert "is invalid" in errors_on(changeset).visibility
+  end
+
+  test "changeset is valid when visibility is :private" do
+    # When
+    changeset =
+      Project.create_changeset(
+        %Project{},
+        %{token: "token", name: "project", account_id: 0, visibility: :private}
+      )
+
+    # Then
+    assert changeset.valid? == true
+  end
+
+  test "changeset is valid when visibility is :public" do
+    # When
+    changeset =
+      Project.create_changeset(
+        %Project{},
+        %{token: "token", name: "project", account_id: 0, visibility: :public}
+      )
+
+    # Then
+    assert changeset.valid? == true
+  end
 end

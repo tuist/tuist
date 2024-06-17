@@ -6,9 +6,12 @@ defmodule TuistCloudWeb.HomeLive do
   alias TuistCloud.Accounts
 
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
-    user = Accounts.get_user_by_session_token(session["user_token"])
+    user_token = session["user_token"]
 
-    Accounts.update_last_visited_project(user, project.id)
+    if not is_nil(user_token) do
+      user = Accounts.get_user_by_session_token(session["user_token"])
+      Accounts.update_last_visited_project(user, project.id)
+    end
 
     slug = Projects.get_project_slug_from_id(project.id)
 

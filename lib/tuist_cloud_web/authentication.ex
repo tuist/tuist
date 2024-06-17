@@ -4,6 +4,8 @@ defmodule TuistCloudWeb.Authentication do
   """
   import Plug.Conn
   import Phoenix.Controller
+  alias TuistCloud.Repo
+  alias TuistCloud.Projects
   alias Phoenix.LiveView
   alias TuistCloud.Analytics
   alias TuistCloud.Accounts
@@ -48,11 +50,11 @@ defmodule TuistCloudWeb.Authentication do
   end
 
   def put_current_user(conn, user) do
-    assign(conn, @current_user_key, user)
+    assign(conn, @current_user_key, user |> Repo.preload(:account))
   end
 
   def put_current_project(conn, project) do
-    assign(conn, @current_project_key, project)
+    assign(conn, @current_project_key, project |> Repo.preload(:account))
   end
 
   def get_token(conn) do
@@ -261,6 +263,22 @@ defmodule TuistCloudWeb.Authentication do
       |> redirect(to: ~p"/users/log_in")
       |> halt()
     end
+  end
+
+  def require_authenticated_user_for_private_projects(
+        %{
+          path_params: %{
+            "owner" => owner,
+            "project" => project
+          }
+        } = conn,
+        opts
+      ) do
+    project = Projects.get_project_by_account_and_project_name(owner, project)
+
+    if is_nil(project) or project.visibility == :private,
+      do: require_authenticated_user(conn, opts),
+      else: conn
   end
 
   defp put_token_in_session(conn, token) do

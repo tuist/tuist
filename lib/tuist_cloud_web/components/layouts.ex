@@ -7,7 +7,7 @@ defmodule TuistCloudWeb.Layouts do
     if TuistCloud.Environment.on_premise?() do
       TuistCloud.Repo.timescale_available?()
     else
-      false
+      true
     end
   end
 end

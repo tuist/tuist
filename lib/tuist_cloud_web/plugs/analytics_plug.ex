@@ -12,7 +12,7 @@ defmodule TuistCloudWeb.AnalyticsPlug do
   def call(%{request_path: request_path} = conn, :track_page_view) do
     current_user = Authentication.current_user(conn)
 
-    if current_user != nil do
+    if not is_nil(current_user) do
       Analytics.page_view(request_path, current_user)
     end
 

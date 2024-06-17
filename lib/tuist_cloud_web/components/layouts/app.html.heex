@@ -11,17 +11,19 @@
           />
           <h6 class="bold">Tuist</h6>
         </div>
-        <.dropdown_picker id="projects-dropdown">
-          <%= "#{@selected_owner}/#{@selected_project.name}" %>
-          <:content>
-            <%= for project <- @projects do %>
-              <% [owner_handle, project_handle] = project.handle |> String.split("/") %>
-              <a href={~p"/#{owner_handle}/#{project_handle}"}>
-                <%= project.handle %>
-              </a>
-            <% end %>
-          </:content>
-        </.dropdown_picker>
+        <%= if length(@projects) > 0 do %>
+          <.dropdown_picker id="projects-dropdown">
+            <%= "#{@selected_owner}/#{@selected_project.name}" %>
+            <:content>
+              <%= for project <- @projects do %>
+                <% [owner_handle, project_handle] = project.handle |> String.split("/") %>
+                <a href={~p"/#{owner_handle}/#{project_handle}"}>
+                  <%= project.handle %>
+                </a>
+              <% end %>
+            </:content>
+          </.dropdown_picker>
+        <% end %>
         <ul class="sidebar__navigation-list">
           <li>
             <% dashboard_href =
@@ -48,19 +50,27 @@
             </li>
           <% end %>
         </ul>
-        <footer class="sidebar__footer">
-          <div class="stack sidebar__footer__user-info">
-            <p class="text--small font--semibold color--text-secondary">
-              <%= @selected_account.name %>
-            </p>
-            <p class="text--extraSmall font--semibold color--text-tertiary">
-              <%= @current_user.email %>
-            </p>
-          </div>
-          <button class="button--small button--tertiary button--icon-only">
-            <.link href={~p"/users/log_out"} method="delete"><.log_out /></.link>
-          </button>
-        </footer>
+        <%= if is_nil(@current_user) do %>
+          <.link href={~p"/users/log_in"}>
+            <.button variant="primary" class="sidebar__sign-in-button">
+              <%= gettext("Sign in") %>
+            </.button>
+          </.link>
+        <% else %>
+          <footer class="sidebar__footer">
+            <div class="stack sidebar__footer__user-info">
+              <p class="text--small font--semibold color--text-secondary">
+                <%= @current_user.account.name %>
+              </p>
+              <p class="text--extraSmall font--semibold color--text-tertiary">
+                <%= @current_user.email %>
+              </p>
+            </div>
+            <button class="button--small button--tertiary button--icon-only">
+              <.link href={~p"/users/log_out"} method="delete"><.log_out /></.link>
+            </button>
+          </footer>
+        <% end %>
       </nav>
     <% end %>
     <%= @inner_content %>
