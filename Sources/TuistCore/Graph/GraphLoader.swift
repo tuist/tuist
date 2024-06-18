@@ -263,7 +263,6 @@ public final class GraphLoader: GraphLoading {
         let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
             path: metadata.path,
             infoPlist: metadata.infoPlist,
-            primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,

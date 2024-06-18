@@ -1179,7 +1179,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/c.xcframework/c",
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
@@ -1194,7 +1193,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/d.xcframework/d",
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
@@ -1210,7 +1208,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     mergeable: true,
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/e.xcframework/e",
                 linking: .dynamic,
                 mergeable: true,
                 status: .required,
@@ -1259,7 +1256,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "c.framework"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/c.xcframework/c",
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
@@ -1274,7 +1270,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "d.framework"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/d.xcframework/d",
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
@@ -1290,7 +1285,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     mergeable: true,
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/e.xcframework/e",
                 linking: .dynamic,
                 mergeable: true,
                 status: .required,
@@ -3664,7 +3658,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
                 linking: .static,
                 mergeable: false,
                 status: .required,
@@ -3689,7 +3682,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/transitive-framework-target-xcframework.xcframework/transitive",
                 linking: .static,
                 mergeable: false,
                 status: .required,
@@ -3704,7 +3696,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 linking: .static,
                 mergeable: false,
                 status: .required,
@@ -3719,7 +3710,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 linking: .static,
                 mergeable: false,
                 status: .required,
@@ -3758,8 +3748,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
-                binaryPath: "/xcframeworks/direct.xcframework/direct",
                 status: .required
             ),
             .xcframework(
@@ -3769,8 +3757,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
-                binaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 status: .required
             ),
             .xcframework(
@@ -3780,8 +3766,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-                binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 status: .required
             ),
         ].sorted())

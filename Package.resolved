@@ -238,10 +238,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/Binlogo/XcodeGraph.git",
       "state" : {
-        "revision" : "0e44220403553ce7f20a79e49873b492302b4650",
-        "version" : "0.5.0"
+        "branch" : "feat/xcframework-platforms",
+        "revision" : "0f6fa6f2039a4cd0fe7a18d74934caa288ef9c37"
       }
     },
     {
