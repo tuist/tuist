@@ -19,17 +19,21 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
         case let .xcframeworkNotFound(path):
             return "Couldn't find xcframework at \(path.pathString)"
         case let .missingRequiredFile(path):
-            return "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
+            return
+                "The .xcframework at path \(path.pathString) doesn't contain an Info.plist. It's possible that the .xcframework was not generated properly or that got corrupted. Please, double check with the author of the framework."
         case let .supportedArchitectureReferencesNotFound(path):
-            return "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
+            return
+                "Couldn't find any supported architecture references at \(path.pathString). It's possible that the .xcframework was not generated properly or that it got corrupted. Please, double check with the author of the framework."
         case let .fileTypeNotRecognised(file, frameworkName):
-            return "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
+            return
+                "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound, .fileTypeNotRecognised:
+        case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound,
+            .fileTypeNotRecognised:
             return .abort
         }
     }
@@ -40,21 +44,19 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
 public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with an XCFramework at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws -> XCFrameworkMetadata
+    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws
+        -> XCFrameworkMetadata
 
     /// Returns the info.plist of the xcframework at the given path.
     /// - Parameter xcframeworkPath: Path to the xcframework.
     func infoPlist(xcframeworkPath: AbsolutePath) async throws -> XCFrameworkInfoPlist
-
-    /// Given a framework path and libraries it returns the path to its binary.
-    /// - Parameter xcframeworkPath: Path to the .xcframework
-    /// - Parameter libraries: Framework available libraries
-    func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) async throws -> AbsolutePath
 }
 
 // MARK: - Default Implementation
 
-public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCFrameworkMetadataProviding {
+public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
+    XCFrameworkMetadataProviding
+{
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
 
@@ -75,15 +77,13 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
         let infoPlist = try await infoPlist(xcframeworkPath: path)
-        let primaryBinaryPath = try await binaryPath(
+        let linking = try linking(
             xcframeworkPath: path,
             libraries: infoPlist.libraries
         )
-        let linking = try linking(binaryPath: primaryBinaryPath)
         return XCFrameworkMetadata(
             path: path,
             infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
             linking: linking,
             mergeable: infoPlist.libraries.allSatisfy(\.mergeable),
             status: status,
@@ -97,8 +97,13 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
      x86_64 and arm64.
      */
     public func macroPath(xcframeworkPath: AbsolutePath) throws -> AbsolutePath? {
-        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted().first else { return nil }
-        guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else { return nil }
+        guard
+            let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted()
+                .first
+        else { return nil }
+        guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else {
+            return nil
+        }
         return try AbsolutePath(validating: macroPath.pathString)
     }
 
@@ -111,60 +116,71 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         return try fileHandler.readPlistFile(infoPlist)
     }
 
-    public func binaryPath(
-        xcframeworkPath: AbsolutePath,
-        libraries: [XCFrameworkInfoPlist.Library]
-    ) async throws -> AbsolutePath {
+    private func linking(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library])
+        throws -> BinaryLinking
+    {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
 
-        guard let library = try await libraries.concurrentFilter({ [weak self] in
-            guard let self else { return false }
-            let hasValidArchitectures = !$0.architectures.filter(archs.contains).isEmpty
-            guard hasValidArchitectures, let binaryPath = try? path(
-                for: $0,
-                xcframeworkPath: xcframeworkPath
-            ) else {
-                return false
+        for library in libraries {
+            let hasValidArchitectures = !library.architectures.filter(archs.contains).isEmpty
+            guard hasValidArchitectures,
+                let linking = try? linking(for: library, xcframeworkPath: xcframeworkPath)
+            else {
+                continue
             }
-            guard try await fileSystem.exists(binaryPath) else {
-                // The missing slice relative to the XCFramework folder. e.g ios-x86_64-simulator/Alamofire.framework/Alamofire
-                let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(separator: "/")
-                logger
-                    .warning(
-                        "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
-                    )
-                return false
-            }
-            return true
-        }).first else {
-            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(xcframeworkPath)
+
+            return linking
         }
 
-        return try path(for: library, xcframeworkPath: xcframeworkPath)
+        throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(
+            xcframeworkPath)
     }
 
-    private func path(
+    private func linking(
         for library: XCFrameworkInfoPlist.Library,
         xcframeworkPath: AbsolutePath
-    ) throws -> AbsolutePath {
-        let binaryPath: AbsolutePath
+    ) throws -> BinaryLinking {
+        let (binaryPath, linking): (AbsolutePath, BinaryLinking?)
 
-        // FIXME: detect platform, "an XCFramework can include dynamic library files" for macOS
-        // https://github.com/tuist/XcodeGraph/pull/12
         switch library.path.extension {
         case "framework":
-            binaryPath = try AbsolutePath(validating: library.identifier, relativeTo: xcframeworkPath)
-                .appending(try RelativePath(validating: library.path.pathString))
-                .appending(component: library.path.basenameWithoutExt)
-        case "a", "dylib":
-            binaryPath = try AbsolutePath(validating: library.identifier, relativeTo: xcframeworkPath)
-                .appending(try RelativePath(validating: library.path.pathString))
+            binaryPath = try AbsolutePath(
+                validating: library.identifier, relativeTo: xcframeworkPath
+            )
+            .appending(try RelativePath(validating: library.path.pathString))
+            .appending(component: library.path.basenameWithoutExt)
+            linking = try? self.linking(binaryPath: binaryPath)
+        case "a":
+            binaryPath = try AbsolutePath(
+                validating: library.identifier, relativeTo: xcframeworkPath
+            )
+            .appending(try RelativePath(validating: library.path.pathString))
+            linking = .static
+        case "dylib":
+            binaryPath = try AbsolutePath(
+                validating: library.identifier, relativeTo: xcframeworkPath
+            )
+            .appending(try RelativePath(validating: library.path.pathString))
+            linking = .dynamic
         default:
             throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(
                 file: library.path,
                 frameworkName: xcframeworkPath.basename
             )
         }
-        return binaryPath
+
+        guard fileHandler.exists(binaryPath), let linking else {
+            // The missing slice relative to the XCFramework folder. e.g ios-x86_64-simulator/Alamofire.framework/Alamofire
+            let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(
+                separator: "/")
+            logger
+                .warning(
+                    "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
+                )
+            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(
+                binaryPath)
+        }
+
+        return linking
     }
 }

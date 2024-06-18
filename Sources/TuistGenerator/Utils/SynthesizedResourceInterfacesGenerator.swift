@@ -68,6 +68,8 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             return try Yaml.Parser(options: options)
         case .files:
             return try Files.Parser(options: options)
+        case .stringsCatalog:
+            fatalError("WIP on: https://github.com/tuist/tuist/pull/6296")
         }
     }
 

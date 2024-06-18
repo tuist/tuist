@@ -354,7 +354,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
             metadata: .init(
                 path: "/XCFrameworks/XF1.xcframework",
                 infoPlist: .test(),
-                primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
@@ -379,7 +378,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     GraphDependency.XCFramework(
                         path: "/XCFrameworks/XF1.xcframework",
                         infoPlist: .test(),
-                        primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                         linking: .dynamic,
                         mergeable: false,
                         status: .required,
@@ -403,7 +401,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
             metadata: .init(
                 path: "/XCFrameworks/XF1.xcframework",
                 infoPlist: .test(),
-                primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                 linking: .dynamic,
                 mergeable: true,
                 status: .required,
@@ -428,7 +425,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     GraphDependency.XCFramework(
                         path: "/XCFrameworks/XF1.xcframework",
                         infoPlist: .test(),
-                        primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                         linking: .dynamic,
                         mergeable: true,
                         status: .required,

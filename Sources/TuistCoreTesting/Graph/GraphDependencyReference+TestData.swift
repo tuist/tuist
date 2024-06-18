@@ -38,8 +38,6 @@ extension GraphDependencyReference {
     public static func testXCFramework(
         path: AbsolutePath = "/frameworks/tuist.xcframework",
         infoPlist: XCFrameworkInfoPlist = .test(),
-        primaryBinaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
-        binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic,
         status: LinkingStatus = .required,
         condition: PlatformCondition? = nil
@@ -47,8 +45,6 @@ extension GraphDependencyReference {
         GraphDependencyReference.xcframework(
             path: path,
             infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
-            binaryPath: binaryPath,
             status: status,
             condition: condition
         )
