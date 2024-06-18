@@ -16,7 +16,7 @@ public struct CleanCommand: ParsableCommand {
         help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.",
         envKey: .cleanCleanCategories
     )
-    var cleanCategories: [TuistCleanCategory] = TuistCleanCategory.allCases.map { $0 }
+    var cleanCategories: [TuistCleanCategory]
 
     @Option(
         name: .shortAndLong,
@@ -28,7 +28,7 @@ public struct CleanCommand: ParsableCommand {
 
     public func run() throws {
         try CleanService().run(
-            categories: cleanCategories,
+            categories: cleanCategories.isEmpty ? TuistCleanCategory.allCases : cleanCategories,
             path: path
         )
     }
