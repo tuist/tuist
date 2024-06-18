@@ -3304,6 +3304,251 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenSwiftPackageHavingTestTarget() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        try fileHandler.createFolder(sourcesPath)
+        let testsPath = basePath.appending(try RelativePath(validating: "Package/Tests/TargetTests"))
+        try fileHandler.createFolder(testsPath)
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .test(
+                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                settings: .settings(),
+                targets: [
+                    .test("Target", basePath: basePath),
+                    .test(
+                        "TargetTests",
+                        basePath: basePath,
+                        product: .unitTests,
+                        customSources: .custom(.sourceFilesList(globs: [
+                            "\(testsPath.pathString)/**",
+                        ])),
+                        dependencies: [.target(name: "Target")]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSwiftPackageHavingTestTargetWithExplicitProductDestinations() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        try fileHandler.createFolder(sourcesPath)
+        let testsPath = basePath.appending(try RelativePath(validating: "Package/Tests/TargetTests"))
+        try fileHandler.createFolder(testsPath)
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios, .macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productDestinations: ["Product": [.iPhone, .iPad]]
+            )
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .test(
+                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                settings: .settings(),
+                targets: [
+                    .test(
+                        "Target",
+                        basePath: basePath,
+                        destinations: [.iPhone, .iPad],
+                        deploymentTargets: .iOS("12.0")
+                    ),
+                    .test(
+                        "TargetTests",
+                        basePath: basePath,
+                        destinations: [.iPhone, .iPad],
+                        product: .unitTests,
+                        deploymentTargets: .iOS("12.0"),
+                        customSources: .custom(.sourceFilesList(globs: [
+                            "\(testsPath.pathString)/**",
+                        ])),
+                        dependencies: [.target(name: "Target")]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSwiftPackageHavingMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/MacTarget")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/CommonTarget")))
+        let productTestsPath = basePath.appending(try RelativePath(validating: "Package/Tests/ProductTests"))
+        try fileHandler.createFolder(productTestsPath)
+        let macProductTestsPath = basePath.appending(try RelativePath(validating: "Package/Tests/MacProductTests"))
+        try fileHandler.createFolder(macProductTestsPath)
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(
+                            name: "Product",
+                            type: .library(.automatic),
+                            targets: ["Target", "CommonTarget"]
+                        ),
+                        .init(
+                            name: "MacProduct",
+                            type: .library(.automatic),
+                            targets: ["MacTarget", "CommonTarget"]
+                        ),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(name: "MacTarget"),
+                        .test(name: "CommonTarget"),
+                        .test(
+                            name: "ProductTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "Target", condition: nil),
+                                .target(name: "CommonTarget", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "MacProductTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "MacTarget", condition: nil),
+                                .target(name: "CommonTarget", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios, .macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productDestinations: ["MacProduct": [.mac]]
+            )
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .test(
+                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                settings: .settings(),
+                targets: [
+                    .test("Target", basePath: basePath),
+                    .test(
+                        "MacTarget",
+                        basePath: basePath,
+                        destinations: [.mac],
+                        deploymentTargets: .macOS("10.13")
+                    ),
+                    .test("CommonTarget", basePath: basePath),
+                    .test(
+                        "ProductTests",
+                        basePath: basePath,
+                        product: .unitTests,
+                        customSources: .custom(.sourceFilesList(globs: [
+                            "\(productTestsPath.pathString)/**",
+                        ])),
+                        dependencies: [
+                            .target(name: "Target"),
+                            .target(name: "CommonTarget"),
+                        ]
+                    ),
+                    .test(
+                        "MacProductTests",
+                        basePath: basePath,
+                        destinations: [.mac],
+                        product: .unitTests,
+                        deploymentTargets: .macOS("10.13"),
+                        customSources: .custom(.sourceFilesList(globs: [
+                            "\(macProductTestsPath.pathString)/**",
+                        ])),
+                        dependencies: [
+                            .target(name: "MacTarget"),
+                            .target(name: "CommonTarget"),
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {

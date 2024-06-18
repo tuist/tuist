@@ -327,11 +327,9 @@ extension XcodeGraph.SettingValue {
 }
 
 extension PackageInfo.Platform {
-    static var ios = PackageInfo.Platform(platformName: "ios", version: "11.0", options: [])
-    static var macos = PackageInfo.Platform(platformName: "macos", version: "11.0", options: [])
-    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "11.0", options: [])
-    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "11.0", options: [])
-    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "11.0", options: [])
-    static var linux = PackageInfo.Platform(platformName: "linux", version: "11.0", options: [])
-    static var windows = PackageInfo.Platform(platformName: "windows", version: "11.0", options: [])
+    static var ios = PackageInfo.Platform(platformName: "ios", version: "12.0", options: [])
+    static var macos = PackageInfo.Platform(platformName: "macos", version: "10.13", options: [])
+    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "4.0", options: [])
+    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "12.0", options: [])
+    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "1.0", options: [])
 }
