@@ -559,6 +559,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ajkolean"><img src="https://avatars.githubusercontent.com/u/5394701?v=4" width="100px;" alt=""/><br /><sub><b>Andy Kolean</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Binlogo"><img src="https://avatars.githubusercontent.com/u/7845507?v=4" width="100px;" alt=""/><br /><sub><b>Binlogo</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/DevilDimon"><img src="https://avatars.githubusercontent.com/u/10220441?v=4" width="100px;" alt=""/><br /><sub><b>Dmitry Serov</b></sub></a></td>
     </tr>
   </tbody>
 </table>
