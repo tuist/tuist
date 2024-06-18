@@ -334,6 +334,10 @@ let package = Package(
             targets: ["ProjectAutomation"]
         ),
         .library(
+            name: "ProjectAutomation-auto",
+            targets: ["ProjectAutomation"]
+        ),
+        .library(
             name: "TuistKit",
             targets: ["TuistKit"]
         ),
