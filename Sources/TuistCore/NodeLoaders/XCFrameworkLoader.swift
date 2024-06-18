@@ -61,7 +61,6 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         let xcframework = GraphDependency.XCFramework(
             path: path,
             infoPlist: metadata.infoPlist,
-            primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,

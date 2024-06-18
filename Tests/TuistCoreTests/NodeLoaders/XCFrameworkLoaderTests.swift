@@ -67,7 +67,6 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
             XCFrameworkMetadata(
                 path: $0,
                 infoPlist: infoPlist,
-                primaryBinaryPath: binaryPath,
                 linking: linking,
                 mergeable: false,
                 status: .required,
@@ -85,7 +84,6 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 GraphDependency.XCFramework(
                     path: xcframeworkPath,
                     infoPlist: infoPlist,
-                    primaryBinaryPath: binaryPath,
                     linking: linking,
                     mergeable: false,
                     status: .required,
