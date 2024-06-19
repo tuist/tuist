@@ -232,10 +232,7 @@ extension EnvKey {
         return T(argument: envValueString)
     }
 
-    func envValue<T: ExpressibleByArgument>() -> [T] {
-        guard let envValueString else {
-            return []
-        }
-        return envValueString.split(separator: ",").compactMap { T(argument: String($0)) }
+    func envValue<T: ExpressibleByArgument>() -> [T]? {
+        return envValueString?.split(separator: ",").compactMap { T(argument: String($0)) }
     }
 }
