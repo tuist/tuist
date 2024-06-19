@@ -187,32 +187,6 @@ defmodule TuistCloudWeb.Router do
     get "/cli/:device_code", AuthController, :authenticate
   end
 
-  # Project routes
-  scope "/", TuistCloudWeb do
-    pipe_through [
-      :open_api,
-      :browser,
-      :rate_limit,
-      :require_authenticated_user_for_private_projects,
-      :analytics,
-      :require_user_can_read_project,
-      TuistCloudWeb.RedirectToRunsPlug
-    ]
-
-    live_session :project,
-      on_mount: [
-        {TuistCloudWeb.App, :mount_app},
-        {TuistCloudWeb.Authentication, :mount_current_user}
-      ] do
-      live "/:owner/:project", HomeLive
-      live "/:owner/:project/runs", RunsLive
-      get "/:owner/:project/runs/:id/download", RunsController, :download
-      live "/:owner/:project/runs/:id", RunDetailLive
-      # Used in tuist analytics command
-      live "/:owner/:project/analytics", HomeLive
-    end
-  end
-
   # Authenticated routes
   scope "/", TuistCloudWeb do
     pipe_through [
@@ -231,6 +205,32 @@ defmodule TuistCloudWeb.Router do
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/get-started", GetStartedLive
+    end
+  end
+
+  # Project routes
+  scope "/:owner/:project", TuistCloudWeb do
+    pipe_through [
+      :open_api,
+      :browser,
+      :rate_limit,
+      :require_authenticated_user_for_private_projects,
+      :analytics,
+      :require_user_can_read_project,
+      TuistCloudWeb.RedirectToRunsPlug
+    ]
+
+    live_session :project,
+      on_mount: [
+        {TuistCloudWeb.App, :mount_app},
+        {TuistCloudWeb.Authentication, :mount_current_user}
+      ] do
+      live "/", HomeLive
+      live "/runs", RunsLive
+      get "/runs/:id/download", RunsController, :download
+      live "/runs/:id", RunDetailLive
+      # Used in tuist analytics command
+      live "/analytics", HomeLive
     end
   end
 end

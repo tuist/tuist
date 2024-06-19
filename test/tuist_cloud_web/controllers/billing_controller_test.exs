@@ -4,7 +4,6 @@ defmodule TuistCloudWeb.BillingControllerTest do
   alias TuistCloud.Billing
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Accounts
-  alias TuistCloudWeb.BillingController
   use Mimic
 
   test "redirects to Stripe when user has permission", %{conn: conn} do
@@ -15,9 +14,9 @@ defmodule TuistCloudWeb.BillingControllerTest do
     |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)
 
     conn =
-      BillingController.billing_plan(conn |> assign(:current_user, user), %{
-        "account_name" => account.name
-      })
+      conn
+      |> log_in_user(user)
+      |> get("/#{account.name}/billing")
 
     assert redirected_to(conn) == "https://stripe.com"
   end
@@ -28,9 +27,9 @@ defmodule TuistCloudWeb.BillingControllerTest do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
 
     assert_raise TuistCloudWeb.Errors.UnauthorizedError, fn ->
-      BillingController.billing_plan(conn |> assign(:current_user, user), %{
-        "account_name" => organization_account.name
-      })
+      conn
+      |> log_in_user(user)
+      |> get("/#{organization_account.name}/billing")
     end
   end
 end
