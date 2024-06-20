@@ -1604,6 +1604,78 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    public func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws
+        -> Operations.showOrganizationUsage.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.showOrganizationUsage.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/organizations/{}/usage",
+                    parameters: [input.path.organization_name]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.showOrganizationUsage.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.OrganizationUsage.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.showOrganizationUsage.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.showOrganizationUsage.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// List projects the authenticated user has access to.
     ///
     /// - Remark: HTTP `GET /api/projects`.

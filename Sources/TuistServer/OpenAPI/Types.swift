@@ -145,6 +145,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
         -> Operations.removeOrganizationMember.Output
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws
+        -> Operations.showOrganizationUsage.Output
     /// List projects the authenticated user has access to.
     ///
     /// - Remark: HTTP `GET /api/projects`.
@@ -1070,6 +1078,23 @@ public enum Components {
                 case name
                 case role
             }
+        }
+        /// The usage of an organization.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
+        public struct OrganizationUsage: Codable, Equatable, Hashable, Sendable {
+            /// The number of remote cache hits in the current month
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
+            public var current_month_remote_cache_hits: Swift.Double
+            /// Creates a new `OrganizationUsage`.
+            ///
+            /// - Parameters:
+            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
+            public init(current_month_remote_cache_hits: Swift.Double) {
+                self.current_month_remote_cache_hits = current_month_remote_cache_hits
+            }
+            public enum CodingKeys: String, CodingKey { case current_month_remote_cache_hits }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Equatable, Hashable, Sendable {
@@ -4813,6 +4838,165 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.removeOrganizationMember.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    public enum showOrganizationUsage {
+        public static let id: String = "showOrganizationUsage"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.showOrganizationUsage.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.showOrganizationUsage.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.showOrganizationUsage.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.showOrganizationUsage.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.showOrganizationUsage.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.showOrganizationUsage.Input.Path,
+                query: Operations.showOrganizationUsage.Input.Query = .init(),
+                headers: Operations.showOrganizationUsage.Input.Headers = .init(),
+                cookies: Operations.showOrganizationUsage.Input.Cookies = .init(),
+                body: Operations.showOrganizationUsage.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.OrganizationUsage)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Ok.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization usage
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.showOrganizationUsage.Output.Ok)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Forbidden.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.showOrganizationUsage.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.NotFound.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization with the given name was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.showOrganizationUsage.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
