@@ -34,7 +34,7 @@ jobs:
         uses: pozetroninc/github-action-get-latest-release@master
         with:
           owner: tuist
-          repo: app
+          repo: server
           token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
       - name: "Generate Changelog"
         id: changelog
@@ -43,7 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           owner: "tuist"
-          repo: "app"
+          repo: "server"
           configuration: ".github/changelog-configuration.json"
           fromTag: ${{ steps.last-release.outputs.release }}
           toTag: "main"
@@ -84,11 +84,11 @@ jobs:
           tagging_message: ${{ steps.version.outputs.version }}
           commit_options: "--allow-empty"
           commit_message: Release ${{ steps.version.outputs.version }}
-      - name: Create GitHub Release on tuist/app
+      - name: Create GitHub Release on tuist/server
         uses: softprops/action-gh-release@v1
         with:
           draft: false
-          repository: tuist/app
+          repository: tuist/server
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
