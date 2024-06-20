@@ -18,14 +18,15 @@ defmodule TuistCloud.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
-  def can(nil, :read, %Project{} = project, :dashboard) do
-    case project.visibility do
-      :public -> true
-      :private -> false
-    end
+  def can(_, :read, %Project{visibility: :public}, :dashboard) do
+    true
   end
 
-  def can(%User{} = user, :read, %Project{} = project, :dashboard) do
+  def can(nil, :read, %Project{visibility: :private}, :dashboard) do
+    false
+  end
+
+  def can(%User{} = user, :read, %Project{visibility: :private} = project, :dashboard) do
     account = Accounts.get_account_by_id(project.account_id)
     can(user, :read, account, :project)
   end
@@ -124,7 +125,15 @@ defmodule TuistCloud.Authorization do
     is_ci and current_project.id == project.id
   end
 
-  def can(%User{} = user, :read, %Project{} = project, :command_event, _opts) do
+  def can(%User{} = user, :read, %Project{visibility: :private} = project, :command_event, _opts) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def can(nil, :read, %Project{visibility: :private}, :command_event, _opts) do
+    false
+  end
+
+  def can(_, :read, %Project{visibility: :public}, :command_event, _opts) do
+    true
   end
 end
