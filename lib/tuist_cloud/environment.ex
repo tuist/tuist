@@ -26,6 +26,10 @@ defmodule TuistCloud.Environment do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0"))
   end
 
+  def log_level() do
+    System.get_env("TUIST_LOG_LEVEL", "info") |> String.to_atom()
+  end
+
   def use_ssl_for_database?() do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end

@@ -29,6 +29,8 @@ if env != :test do
 end
 
 if [:prod, :stag, :can] |> Enum.member?(env) do
+  config :logger, level: TuistCloud.Environment.log_level()
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
