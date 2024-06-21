@@ -3308,9 +3308,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenSwiftPackageHasTestTarget() throws {
         // Given
         let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
         try fileHandler.createFolder(sourcesPath)
-        let testsPath = basePath.appending(try RelativePath(validating: "Package/Tests/TargetTests"))
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
         try fileHandler.createFolder(testsPath)
 
         // When
@@ -3366,12 +3366,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHavingTestTargetWithExplicitProductDestinations() throws {
+    func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() throws {
         // Given
         let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
         try fileHandler.createFolder(sourcesPath)
-        let testsPath = basePath.appending(try RelativePath(validating: "Package/Tests/TargetTests"))
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
         try fileHandler.createFolder(testsPath)
 
         // When
@@ -3437,15 +3437,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHavingMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
+    func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
         // Given
         let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/MacTarget")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/CommonTarget")))
-        let productTestsPath = basePath.appending(try RelativePath(validating: "Package/Tests/ProductTests"))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target"]))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "MacTarget"]))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "CommonTarget"]))
+        let productTestsPath = basePath.appending(components: ["Package", "Tests", "ProductTests"])
         try fileHandler.createFolder(productTestsPath)
-        let macProductTestsPath = basePath.appending(try RelativePath(validating: "Package/Tests/MacProductTests"))
+        let macProductTestsPath = basePath.appending(components: ["Package", "Tests", "MacProductTests"])
         try fileHandler.createFolder(macProductTestsPath)
 
         // When
