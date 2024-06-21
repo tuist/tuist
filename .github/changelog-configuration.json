@@ -17,5 +17,5 @@
       "labels": ["changelog:updated-dependencies"]
     }
   ],
-  "pr_template": "- ${{TITLE}} [#${{NUMBER}}](https://github.com/tuist/tuist/pull/${{NUMBER}}) by [@${{AUTHOR}}](https://github.com/${{AUTHOR}})"
+  "pr_template": "- ${{TITLE}} [#${{NUMBER}}](https://github.com/tuist/server/pull/${{NUMBER}}) by [@${{AUTHOR}}](https://github.com/${{AUTHOR}})"
 }
