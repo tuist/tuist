@@ -13,8 +13,8 @@ Tuist supports using `Package.swift` as a DSL for your projects–It converts yo
 > [!WARNING]
 > The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist and [Tuist Cloud](/cloud/what-is-cloud) in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like [project description helpers](/guide/project/code-sharing) to the packages world.
 
-> [!NOTE]
-> For `tuist generate` to work with a Swift Package, either a `.git` or a `Tuist` directory need to be present in your project.
+> [!NOTE] ROOT DIRECTORY
+> Tuist commands expect a certain [directory structure](/guide/project/directory-structure.html#standard-tuist-projects) whose root is identified by a `Tuist` or a `.git` directory.
 
 ## Using Tuist with a Swift Package
 
