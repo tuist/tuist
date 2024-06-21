@@ -13,6 +13,9 @@ Tuist supports using `Package.swift` as a DSL for your projects–It converts yo
 > [!WARNING]
 > The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist and [Tuist Cloud](/cloud/what-is-cloud) in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like [project description helpers](/guide/project/code-sharing) to the packages world.
 
+> [!NOTE]
+> For `tuist generate` to work with a Swift Package, either a `.git` or a `Tuist` directory need to be present in your project.
+
 ## Using Tuist with a Swift Package
 
 We are going to use Tuist with the [Swift Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture) repository, which contains a Swift Package. The first thing that we need to do is to clone the repository:
