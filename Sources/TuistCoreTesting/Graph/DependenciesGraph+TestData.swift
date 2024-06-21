@@ -290,7 +290,7 @@ extension TuistCore.DependenciesGraph {
         spmFolder: Path,
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
+        let packageFolder = Self.externalPackageFolder(spmFolder: spmFolder, packageName: "Alamofire")
 
         let externalDependencies: [String: [TargetDependency]] = [
             "Alamofire": [
@@ -349,7 +349,7 @@ extension TuistCore.DependenciesGraph {
         spmFolder: Path,
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
+        let packageFolder = Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
         let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
 
         let externalDependencies = [
@@ -383,23 +383,23 @@ extension TuistCore.DependenciesGraph {
                     .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
                     .project(
                         target: "GULAppDelegateSwizzler",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULMethodSwizzler",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULNSData",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULNetwork",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "nanopb",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "nanopb")
                     ),
                     .sdk(name: "sqlite3", type: .library, status: .required),
                     .sdk(name: "c++", type: .library, status: .required),
@@ -425,23 +425,23 @@ extension TuistCore.DependenciesGraph {
                     ),
                     .project(
                         target: "GULAppDelegateSwizzler",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULMethodSwizzler",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULNSData",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "GULNetwork",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                     ),
                     .project(
                         target: "nanopb",
-                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+                        path: Self.externalPackageFolder(spmFolder: spmFolder, packageName: "nanopb")
                     ),
                     .sdk(name: "sqlite3", type: .library, status: .required),
                     .sdk(name: "c++", type: .library, status: .required),
@@ -486,7 +486,7 @@ extension TuistCore.DependenciesGraph {
         customProductTypes: [String: Product] = [:],
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+        let packageFolder = Self.externalPackageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
 
         let externalDependencies: [String: [TargetDependency]] = [
             "GULAppDelegateSwizzler": [
@@ -599,7 +599,7 @@ extension TuistCore.DependenciesGraph {
         spmFolder: Path,
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+        let packageFolder = Self.externalPackageFolder(spmFolder: spmFolder, packageName: "nanopb")
 
         let externalDependencies = [
             "nanopb": [
@@ -657,6 +657,10 @@ extension DependenciesGraph {
     }
 
     fileprivate static func packageFolder(spmFolder: Path, packageName: String) -> Path {
+        Path("\(spmFolder.pathString)/\(packageName)")
+    }
+
+    fileprivate static func externalPackageFolder(spmFolder: Path, packageName: String) -> Path {
         Path("\(spmFolder.pathString)/checkouts/\(packageName)")
     }
 

@@ -98,12 +98,18 @@ public final class ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: manifest.externalProjects
                 .map { project in
                     let projectPath = try AbsolutePath(validating: project.key.pathString)
+                    let isExternal: Bool
+                    if projectPath.components.contains(Constants.SwiftPackageManager.packageCheckoutDirectoryName) {
+                        isExternal = true
+                    } else {
+                        isExternal = false
+                    }
                     var project = try convert(
                         manifest: project.value,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
-                        isExternal: true
+                        isExternal: isExternal
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)

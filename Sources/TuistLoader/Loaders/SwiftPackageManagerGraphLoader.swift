@@ -44,8 +44,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 /// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-    /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
-    /// dependencies.
+    /// - Parameter packagePath: The path to the `Package.swift` file where external dependencies are declared. If project is SPM
+    /// package, it is the path to the root `Package.swift`.
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
@@ -53,18 +53,15 @@ public protocol SwiftPackageManagerGraphLoading {
 }
 
 public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
-    private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared
     ) {
-        self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
@@ -78,7 +75,9 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        let checkoutsFolder = path.appending(component: "checkouts")
+        let checkoutsFolder = path.appending(
+            component: Constants.SwiftPackageManager.packageCheckoutDirectoryName
+        )
         let workspacePath = path.appending(component: "workspace-state.json")
 
         if !fileHandler.exists(workspacePath) {
@@ -147,14 +146,21 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         )
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            let path = packageInfo.folder
+            let packageType: PackageType
+            if path.components.contains(Constants.SwiftPackageManager.packageCheckoutDirectoryName) {
+                packageType = .remote(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:])
+            } else {
+                packageType = .local
+            }
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
-                path: packageInfo.folder,
-                packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                path: path,
+                packageType: packageType,
                 packageSettings: packageSettings,
                 packageToProject: packageToProject
             )
-            result[.path(packageInfo.folder.pathString)] = manifest
+            result[.path(path.pathString)] = manifest
         }
 
         return DependenciesGraph(

@@ -6,6 +6,15 @@ import PackageDescription
     import ProjectDescriptionHelpers
 
     let packageSettings = PackageSettings(
+        productDestinations: [
+            "Styles": [
+                .iPad,
+                .iPhone,
+                .macCatalyst,
+                .macWithiPadDesign,
+                .appleVisionWithiPadDesign,
+            ],
+        ],
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),

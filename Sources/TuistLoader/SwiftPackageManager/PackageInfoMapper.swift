@@ -87,9 +87,12 @@ enum PackageInfoMapperError: FatalError, Equatable {
     }
 }
 
+/// The type of a Swift Package described by `PackageInfo`.
 public enum PackageType {
+    /// The type of a local Swift Package. It means that the `Package.swift` file is in the local.
     case local
-    case external(artifactPaths: [String: AbsolutePath])
+    /// The type of a remote Swift Package.
+    case remote(artifactPaths: [String: AbsolutePath])
 }
 
 // MARK: - PackageInfo Mapper
@@ -360,7 +363,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         } else {
             let automaticSchemesOptions: ProjectDescription.Project.Options.AutomaticSchemesOptions
             switch packageType {
-            case .external:
+            case .remote:
                 automaticSchemesOptions = .disabled
             case .local:
                 automaticSchemesOptions = .enabled()
@@ -408,7 +411,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             break
         case .test, .executable:
             switch packageType {
-            case .external:
+            case .remote:
                 logger.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             case .local:
@@ -479,7 +482,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             case .local:
                 let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
                 destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
-            case .external:
+            case .remote:
                 destinations = Set(Destination.allCases)
             }
         }
@@ -558,7 +561,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         return nil
                     }
                     if let target = packageInfo.targets.first(where: { $0.name == name }) {
-                        if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
+                        if target.type == .binary, case let .remote(artifactPaths: artifactPaths) = packageType {
                             guard let artifactPath = artifactPaths[target.name] else {
                                 throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                             }
