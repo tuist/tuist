@@ -3305,7 +3305,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHavingTestTarget() throws {
+    func testMap_whenSwiftPackageHasTestTarget() throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target"))
