@@ -28,14 +28,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(
             infoPlist.libraries,
             [
-                .init(
+                XCFrameworkInfoPlist.Library(
                     identifier: "ios-x86_64-simulator",
                     path: try RelativePath(validating: "MyFramework.framework"),
                     mergeable: false,
                     platform: .iOS,
                     architectures: [.x8664]
                 ),
-                .init(
+                XCFrameworkInfoPlist.Library(
                     identifier: "ios-arm64",
                     path: try RelativePath(validating: "MyFramework.framework"),
                     mergeable: false,
@@ -60,14 +60,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(
             infoPlist.libraries,
             [
-                .init(
+                XCFrameworkInfoPlist.Library(
                     identifier: "ios-x86_64-simulator",
                     path: try RelativePath(validating: "libMyStaticLibrary.a"),
                     mergeable: false,
                     platform: .iOS,
                     architectures: [.x8664]
                 ),
-                .init(
+                XCFrameworkInfoPlist.Library(
                     identifier: "ios-arm64",
                     path: try RelativePath(validating: "libMyStaticLibrary.a"),
                     mergeable: false,
@@ -88,14 +88,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
@@ -131,14 +131,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "MyMergeableFramework.framework"),
                 mergeable: true,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyMergeableFramework.framework"),
                 mergeable: true,
@@ -173,14 +173,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
@@ -213,14 +213,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",  // Not present on disk
                 path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
                 mergeable: false,
@@ -283,7 +283,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "libmymath_ios.dylib"),
                 mergeable: false,
@@ -291,7 +291,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 architectures: [.arm64]
             ),
 
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64_x86_64-simulator",
                 path: try RelativePath(validating: "libmymath_ios_sim.dylib"),
                 mergeable: false,
@@ -299,7 +299,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 architectures: [.arm64, .x8664]
             ),
 
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "macos-arm64_x86_64",
                 path: try RelativePath(validating: "libmymath_macos.dylib"),
                 mergeable: false,
