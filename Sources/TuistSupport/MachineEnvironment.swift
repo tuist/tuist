@@ -1,6 +1,8 @@
 import CryptoKit
 import Foundation
+import Mockable
 
+@Mockable
 public protocol MachineEnvironmentRetrieving: Sendable {
     var clientId: String { get }
     var macOSVersion: String { get }
