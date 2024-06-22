@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 import XCTest
@@ -7,6 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ManifestLoaderFactoryTests: TuistUnitTestCase {
+    override func setUp() {
+        super.setUp()
+
+        system.succeedCommand(["/usr/bin/xcrun", "swift", "-version"], output: "Swift Version 5.2.1")
+    }
+
     func test_create_default_cached_manifest_loader() {
         // Given
         let sut = ManifestLoaderFactory()
