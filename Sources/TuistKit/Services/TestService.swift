@@ -250,7 +250,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         if let schemeName {
-            guard  let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
+            guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
                 let schemes = automationStorage.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
                 if schemes.first(where: { $0.name == schemeName }) != nil {
