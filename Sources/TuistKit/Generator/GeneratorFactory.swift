@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistAutomation
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -19,6 +20,7 @@ public protocol GeneratorFactorying {
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
+    /// - Parameter automationStorage: The storage for automation.
     /// - Returns: A Generator instance.
     func testing(
         config: Config,
@@ -30,7 +32,8 @@ public protocol GeneratorFactorying {
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        automationStorage: AutomationStoring
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -84,7 +87,8 @@ public class GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        automationStorage _: AutomationStoring
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
