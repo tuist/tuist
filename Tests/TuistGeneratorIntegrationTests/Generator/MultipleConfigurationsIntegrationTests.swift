@@ -411,6 +411,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             xcodeProjPath: path.appending(component: "App.xcodeproj"),
             name: "App",
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .test(),

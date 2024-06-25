@@ -25,6 +25,7 @@ extension XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
+        let classPrefix = manifest.classPrefix
         let defaultKnownRegions = manifest.options.defaultKnownRegions
         let developmentRegion = manifest.options.developmentRegion
         let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
@@ -58,6 +59,7 @@ extension XcodeGraph.Project {
             xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
+            classPrefix: classPrefix,
             defaultKnownRegions: defaultKnownRegions,
             developmentRegion: developmentRegion,
             options: options,

@@ -332,6 +332,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             xcodeProjPath: destinationDirectory.appending(component: "\(projectName).xcodeproj"),
             name: projectName,
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .init(
@@ -423,6 +424,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             xcodeProjPath: destinationDirectory.appending(component: "\(projectName).xcodeproj"),
             name: projectName,
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .init(
