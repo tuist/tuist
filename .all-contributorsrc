@@ -1428,6 +1428,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "darrarski",
+      "name": "Dariusz Rybicki",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1384684?v=4",
+      "profile": "http://darrarski.pl",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
