@@ -15,9 +15,9 @@ private enum TuistServer {
 
         let machineReadableCommands = [DumpCommand.self]
         // swiftformat:disable all
-        let isCommandMachineRedable = CommandLine.arguments.count > 1 && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
+        let isCommandMachineReadable = CommandLine.arguments.count > 1 && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
         // swiftformat:enable all
-        if isCommandMachineRedable || CommandLine.arguments.contains("--json") {
+        if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
             TuistSupport.LogOutput.bootstrap(config: LoggingConfig(loggerType: .json, verbose: false))
         } else {
             TuistSupport.LogOutput.bootstrap()
