@@ -55,7 +55,7 @@ struct CloudClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
-        json.forEach { logger.warning(Logger.Message(stringLiteral: $0)) }
+        json.forEach { logger.warning("\($0)") }
 
         return response
     }

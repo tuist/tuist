@@ -13,8 +13,9 @@ private enum TuistServer {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
         }
 
-        if (CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "dump") || CommandLine.arguments
-            .contains("--json")
+        let machineReadableCommands = [DumpCommand.self]
+        if (CommandLine.arguments.count > 1 && machineReadableCommands.map(\._commandName).contains(CommandLine.arguments[1])) ||
+            CommandLine.arguments.contains("--json")
         {
             TuistSupport.LogOutput.bootstrap(config: LoggingConfig(loggerType: .json, verbose: false))
         } else {
