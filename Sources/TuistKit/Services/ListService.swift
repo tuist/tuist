@@ -42,8 +42,7 @@ class ListService {
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 
-        let output = try string(for: templates, in: format)
-        logger.notice("\(output)")
+        try output(for: templates, in: format)
     }
 
     // MARK: - Helpers
@@ -56,21 +55,21 @@ class ListService {
         }
     }
 
-    private func string(
+    private func output(
         for templates: [PrintableTemplate],
         in format: ListService.OutputFormat
-    ) throws -> String {
+    ) throws {
         switch format {
         case .table:
             let textTable = TextTable<PrintableTemplate> { [
                 TextTable.Column(title: "Name", value: $0.name),
                 TextTable.Column(title: "Description", value: $0.description),
             ] }
-            return textTable.render(templates)
+            logger.notice("\(textTable.render(templates))")
 
         case .json:
             let json = try templates.toJSON()
-            return json.toString(prettyPrint: true)
+            logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
     }
 

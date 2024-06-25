@@ -13,7 +13,13 @@ private enum TuistServer {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
         }
 
-        TuistSupport.LogOutput.bootstrap()
+        if (CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "dump") || CommandLine.arguments
+            .contains("--json")
+        {
+            TuistSupport.LogOutput.bootstrap(config: LoggingConfig(loggerType: .json, verbose: false))
+        } else {
+            TuistSupport.LogOutput.bootstrap()
+        }
 
         try TuistSupport.Environment.shared.bootstrap()
 
