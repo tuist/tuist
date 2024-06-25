@@ -65,6 +65,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
     private let contentHasher: ContentHashing
+    private let automationStorage: AutomationStoring
 
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let configLoader: ConfigLoading
@@ -79,7 +80,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
-            configLoader: configLoader
+            configLoader: configLoader,
+            automationStorage: AutomationStorage()
         )
     }
 
@@ -91,7 +93,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
-        configLoader: ConfigLoading
+        configLoader: ConfigLoading,
+        automationStorage: AutomationStoring
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -101,6 +104,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.contentHasher = contentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.configLoader = configLoader
+        self.automationStorage = automationStorage
     }
 
     static func validateParameters(
@@ -199,7 +203,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            automationStorage: automationStorage
         )
 
         logger.notice("Generating project for testing", metadata: .section)
@@ -245,12 +250,18 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         if let schemeName {
-            guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
+            guard  let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
-                throw TestServiceError.schemeNotFound(
-                    scheme: schemeName,
-                    existing: testableSchemes.map(\.name)
-                )
+                let schemes = automationStorage.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
+                if schemes.first(where: { $0.name == schemeName }) != nil {
+                    logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                    return
+                } else {
+                    throw TestServiceError.schemeNotFound(
+                        scheme: schemeName,
+                        existing: Set(schemes.map(\.name)).map { $0 }
+                    )
+                }
             }
 
             switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
