@@ -71,7 +71,7 @@ public protocol ManifestLoading {
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
-    /// -  path: Path to the directory that contains Package.swift
+    /// - Parameter path: Path to the directory that contains Package.swift
     func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
 
     /// Loads `Package.swift`

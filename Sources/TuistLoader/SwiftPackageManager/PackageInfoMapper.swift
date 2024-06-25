@@ -115,7 +115,8 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject: [String: AbsolutePath]
+        packageToProject: [String: AbsolutePath],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Project?
 }
 
@@ -261,7 +262,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject _: [String: AbsolutePath]
+        packageToProject _: [String: AbsolutePath],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -347,9 +349,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     path: path,
                     packageFolder: path,
                     productTypes: productTypes,
-                    productDestinations: packageSettings.productDestinations,
+                    packageSettings: packageSettings,
                     baseSettings: baseSettings,
-                    targetSettings: targetSettings
+                    targetSettings: targetSettings,
+                    onlySPMProject: onlySPMProject
                 )
             }
 
@@ -400,25 +403,38 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
-        productDestinations: [String: XcodeGraph.Destinations],
+        packageSettings: TuistCore.PackageSettings,
         baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary]
+        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
         case .regular, .system, .macro:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
             case .remote:
-                logger.debug("Target \(target.name) of type \(target.type) ignored")
+                logger.debug("Target \(target.name) of type \(target.type) is ignored.")
                 return nil
             case .local:
                 break
             }
+        case .test:
+            switch packageType {
+            case .remote:
+                logger.debug("Target \(target.name) of type \(target.type) is ignored.")
+                return nil
+            case .local:
+                if onlySPMProject { break }
+                guard packageSettings.includeLocalPackageTestTargets else {
+                    logger.debug("Target \(target.name) of type \(target.type) is ignored")
+                    return nil
+                }
+            }
         default:
-            logger.debug("Target \(target.name) of type \(target.type) ignored")
+            logger.debug("Target \(target.name) of type \(target.type) is ignored.")
             return nil
         }
 
@@ -473,14 +489,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let dependencyNames = target.dependencies.map(\.name)
             for dependencyName in dependencyNames {
                 let dependencyProducts = targetToProducts[dependencyName] ?? Set()
-                let destinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                let destinations = unionDestinationsOfProducts(dependencyProducts, in: packageSettings.productDestinations)
                 testDestinations.formIntersection(destinations)
             }
             destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:
             switch packageType {
             case .local:
-                let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
+                let productDestinations = unionDestinationsOfProducts(products, in: packageSettings.productDestinations)
                 destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
             case .remote:
                 destinations = Set(Destination.allCases)

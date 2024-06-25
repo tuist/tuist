@@ -46,9 +46,13 @@ public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter packagePath: The path to the `Package.swift` file where external dependencies are declared. If project is SPM
     /// package, it is the path to the root `Package.swift`.
+    /// - Parameter packageSettings: The `PackageSettings` with descriptions of custom SPM settings.
+    /// - Parameter onlySPMProject: Whether it is only SPM project.
+    /// - Returns: The loaded `DependenciesGraph`.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        onlySPMProject: Bool
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -70,7 +74,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        onlySPMProject: Bool
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -158,7 +163,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 path: path,
                 packageType: packageType,
                 packageSettings: packageSettings,
-                packageToProject: packageToProject
+                packageToProject: packageToProject,
+                onlySPMProject: onlySPMProject
             )
             result[.path(path.pathString)] = manifest
         }

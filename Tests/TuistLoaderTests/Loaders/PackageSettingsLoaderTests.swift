@@ -70,6 +70,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
+            includeLocalPackageTestTargets: false,
             swiftToolsVersion: Version(stringLiteral: "5.4.9")
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)

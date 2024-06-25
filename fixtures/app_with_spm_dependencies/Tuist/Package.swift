@@ -18,7 +18,8 @@ import PackageDescription
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
-        ]
+        ],
+        includeLocalPackageTestTargets: true
     )
 
 #endif
