@@ -45,7 +45,7 @@ final class CloudOrganizationListService: CloudOrganizationListServicing {
 
         if json {
             let json = organizations.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)))
+            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 

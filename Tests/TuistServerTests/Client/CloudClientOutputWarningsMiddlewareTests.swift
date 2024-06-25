@@ -50,7 +50,9 @@ final class CloudClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(warningController.warnings, warnings)
+        for warning in warnings {
+            XCTAssertStandardOutput(pattern: warning)
+        }
     }
 
     func test_doesntOutputAnyWarning_whenTheHeaderIsAbsent() async throws {
@@ -66,6 +68,6 @@ final class CloudClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(warningController.warnings, [])
+        XCTAssertEqual(TestingLogHandler.collected[.warning, <=], "")
     }
 }

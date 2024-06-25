@@ -20,4 +20,9 @@ extension Logger.Metadata {
     public static var pretty: Logger.Metadata {
         [tuist: .string(prettyKey)]
     }
+
+    public static let jsonKey: String = "json"
+    public static var json: Logger.Metadata {
+        [tuist: .string(jsonKey)]
+    }
 }

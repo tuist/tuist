@@ -45,7 +45,7 @@ final class CloudProjectListService: CloudProjectListServicing {
 
         if json {
             let json = try projects.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)))
+            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
