@@ -70,6 +70,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "TuistServer",
+            .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),

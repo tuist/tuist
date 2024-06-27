@@ -2,20 +2,20 @@ import Foundation
 import OpenAPIRuntime
 import TuistSupport
 
-enum CloudClientAuthenticationError: FatalError {
+public enum CloudClientAuthenticationError: FatalError {
     case notAuthenticated
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .notAuthenticated:
             return .abort
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case .notAuthenticated:
-            return "No cloud authentication token found. Authenticate by running `tuist cloud auth`."
+            return "No Tuist authentication token found. Authenticate by running `tuist cloud auth`."
         }
     }
 }
