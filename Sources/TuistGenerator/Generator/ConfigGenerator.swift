@@ -285,6 +285,17 @@ final class ConfigGenerator: ConfigGenerating {
 
         settings["PRODUCT_NAME"] = .string(target.productName)
 
+        settings["MERGEABLE_LIBRARY"] = .string(target.mergeable.xmlString)
+
+        switch target.mergedBinaryType {
+        case .disabled:
+            settings["MERGED_BINARY_TYPE"] = .string("none")
+        case .automatic:
+            settings["MERGED_BINARY_TYPE"] = .string("automatic")
+        case .manual:
+            settings["MERGED_BINARY_TYPE"] = .string("manual")
+        }
+
         return settings
     }
 
