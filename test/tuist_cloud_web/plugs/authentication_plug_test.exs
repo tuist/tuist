@@ -73,7 +73,7 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     assert conn.halted == true
 
     assert json_response(conn, :unauthorized) == %{
-             "message" => "You need to be authenticated to access this resource"
+             "message" => "You need to be authenticated to access this resource."
            }
   end
 end
