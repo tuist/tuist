@@ -9,7 +9,12 @@ defmodule TuistCloud.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      releases: [
+        tuist_cloud: [
+          applications: [opentelemetry: :temporary]
+        ]
+      ]
     ]
   end
 
@@ -84,7 +89,18 @@ defmodule TuistCloud.MixProject do
       {:timex, "~> 3.7"},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.1.0", override: true},
-      {:hammer, "~> 6.0"}
+      {:hammer, "~> 6.0"},
+      # OpenTelemetry
+      {:opentelemetry, "~> 1.4"},
+      {:opentelemetry_telemetry, "~> 1.1"},
+      {:opentelemetry_api, "~> 1.3"},
+      {:opentelemetry_exporter, "~> 1.7"},
+      {:opentelemetry_phoenix, "~> 1.2"},
+      {:opentelemetry_bandit, "~> 0.1.4"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_oban, "~> 1.1"},
+      {:opentelemetry_req, "~> 0.2.0"},
+      {:opentelemetry_finch, "~> 0.2.0"}
     ]
   end
 
