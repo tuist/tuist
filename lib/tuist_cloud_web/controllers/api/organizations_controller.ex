@@ -33,6 +33,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
            },
            required: [:organizations]
          }},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -139,6 +141,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       no_content: {"The organization was deleted", "application/json", nil},
       not_found:
         {"The organization with the given name was not found", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -194,6 +198,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       ok: {"The organization", "application/json", Organization},
       not_found:
         {"The organization with the given name was not found", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -298,6 +304,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       ok: {"The organization usage", "application/json", OrganizationUsage},
       not_found:
         {"The organization with the given name was not found", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -373,6 +381,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       bad_request:
         {"The organization could not be updated due to a validation error", "application/json",
          Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -506,6 +516,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       not_found:
         {"The organization or the user with the given name was not found", "application/json",
          Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -609,6 +621,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       not_found:
         {"The organization or the user with the given name was not found", "application/json",
          Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},

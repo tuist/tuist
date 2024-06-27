@@ -62,7 +62,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       |> Keyword.put(:ssl, true)
       |> Keyword.put(:ssl_opts,
         # TODO: Add proper certificate verification
-        server_name_indication: to_char_list(parsed_url.host),
+        server_name_indication: to_charlist(parsed_url.host),
         verify: :verify_none
       )
     else

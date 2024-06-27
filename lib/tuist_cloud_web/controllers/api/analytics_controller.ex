@@ -148,6 +148,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
        }},
     responses: %{
       ok: {"The command event was created", "application/json", CommandEvent},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"You don't have permission to create command events for the project.",
          "application/json", Error}
@@ -224,6 +226,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -276,6 +280,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
        }},
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -339,6 +345,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The upload has been completed",
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -410,6 +418,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
        }},
     responses: %{
       no_content: "The command event artifact uploads were successfully finished",
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},

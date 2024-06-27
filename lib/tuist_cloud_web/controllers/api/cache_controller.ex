@@ -49,6 +49,8 @@ defmodule TuistCloudWeb.API.CacheController do
     responses: %{
       ok:
         {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -150,6 +152,8 @@ defmodule TuistCloudWeb.API.CacheController do
              }
            }
          }},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -242,6 +246,8 @@ defmodule TuistCloudWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -323,6 +329,8 @@ defmodule TuistCloudWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -436,6 +444,8 @@ defmodule TuistCloudWeb.API.CacheController do
              }
            }
          }},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -514,6 +524,8 @@ defmodule TuistCloudWeb.API.CacheController do
     ],
     responses: %{
       no_content: "The cache has been successfully cleaned",
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
