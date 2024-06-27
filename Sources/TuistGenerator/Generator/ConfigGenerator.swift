@@ -285,11 +285,15 @@ final class ConfigGenerator: ConfigGenerating {
 
         settings["PRODUCT_NAME"] = .string(target.productName)
 
-        settings["MERGEABLE_LIBRARY"] = .string(target.mergeable.xmlString)
+        // Actually, when `MERGEABLE_LIBRARY` is NO and project is generated, Xcode doesn't include the line of setting in `project.pbxproj` file.
+        if target.mergeable {
+            settings["MERGEABLE_LIBRARY"] = .string("YES")
+        }
 
         switch target.mergedBinaryType {
         case .disabled:
-            settings["MERGED_BINARY_TYPE"] = .string("none")
+            // Actually, when `MERGED_BINARY_TYPE` is disabled and project is generated, Xcode doesn't include the line of setting in `project.pbxproj` file.
+            break
         case .automatic:
             settings["MERGED_BINARY_TYPE"] = .string("automatic")
         case .manual:
