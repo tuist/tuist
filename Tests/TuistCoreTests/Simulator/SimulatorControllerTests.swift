@@ -11,7 +11,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = SimulatorController(system: system, devEnvironment: DeveloperEnvironment.shared)
+        subject = SimulatorController(system: system)
     }
 
     override func tearDown() {

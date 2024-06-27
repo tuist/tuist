@@ -90,10 +90,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        simulatorController: SimulatorControlling = SimulatorController(
-            system: System.shared,
-            devEnvironment: DeveloperEnvironment.shared
-        ),
+        simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         configLoader: ConfigLoading,

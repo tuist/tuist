@@ -30,7 +30,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     ) {
         self.formatter = formatter
         self.environment = environment
-        self.simulatorController = SimulatorController(system: System.shared, devEnvironment: DeveloperEnvironment.shared)
+        self.simulatorController = SimulatorController()
         self.system = System.shared
     }
 

@@ -102,8 +102,8 @@ public final class SimulatorController: SimulatorControlling {
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
-        system: Systeming,
-        devEnvironment: DeveloperEnvironmenting
+        system: Systeming = System.shared,
+        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
