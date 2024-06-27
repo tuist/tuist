@@ -182,7 +182,12 @@ defmodule TuistCloud.Accounts do
           Account.create_changeset(%Account{}, %{
             organization_id: organization_id,
             name: name,
-            customer_id: Billing.create_customer(%{name: name, email: user_email})
+            customer_id:
+              Keyword.get(
+                opts,
+                :customer_id,
+                Billing.create_customer(%{name: name, email: user_email})
+              )
           })
         )
       end)
@@ -321,7 +326,12 @@ defmodule TuistCloud.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: name,
-            customer_id: Billing.create_customer(%{name: name, email: email})
+            customer_id:
+              Keyword.get(
+                opts,
+                :customer_id,
+                Billing.create_customer(%{name: name, email: email})
+              )
           })
         )
       end)

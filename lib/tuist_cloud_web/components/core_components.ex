@@ -26,11 +26,17 @@ defmodule TuistCloudWeb.CoreComponents do
 
   attr(:class, :string, default: "")
   attr(:title, :string, required: true)
+  attr(:subtitle, :string, default: nil)
 
   def section_header(assigns) do
     ~H"""
     <div class="section-header">
-      <p class="text--large color--text-primary font--semibold"><%= @title %></p>
+      <.stack gap="xs">
+        <p class="text--large color--text-primary font--semibold"><%= @title %></p>
+        <%= if @subtitle != nil do %>
+          <p class="text--small color--text-tertiary font--regular"><%= @subtitle %></p>
+        <% end %>
+      </.stack>
     </div>
     """
   end
@@ -56,12 +62,16 @@ defmodule TuistCloudWeb.CoreComponents do
 
   attr(:direction, :string, default: "vertical")
   attr(:gap, :string, default: "xs")
+  attr(:align, :string, default: nil)
   attr(:class, :string, default: "")
   slot(:inner_block, required: true)
 
   def stack(assigns) do
     ~H"""
-    <div class={"stack stack--#{@direction} stack--#{@direction}--#{@gap} #{@class}"}>
+    <div
+      class={"stack stack--#{@direction} stack--#{@direction}--#{@gap} #{@class}"}
+      style={if not is_nil(@align), do: "align-items: #{@align};"}
+    >
       <%= render_slot(@inner_block) %>
     </div>
     """
@@ -127,6 +137,7 @@ defmodule TuistCloudWeb.CoreComponents do
   attr(:size, :string, default: "medium")
   attr(:rest, :global, include: ~w(disabled form name value))
   attr(:class, :string, default: "")
+  attr(:loading, :boolean, default: false)
 
   slot(:inner_block, required: false)
   slot(:icon_start, doc: "the slot for an icon to present at the start of the button")
@@ -134,9 +145,15 @@ defmodule TuistCloudWeb.CoreComponents do
 
   def button(assigns) do
     ~H"""
-    <button class={"button--#{@variant} button--#{@size} #{@class}"} {@rest}>
-      <%= render_slot(@icon_start) %>
-      <span class={"text--#{case @size do
+    <button
+      class={"button--#{@variant} button--#{@size} #{@class} #{if @loading == [], do: "button--icon-only"}"}
+      {@rest}
+    >
+      <%= if @loading do %>
+        <span class="loader"></span>
+      <% else %>
+        <%= render_slot(@icon_start) %>
+        <span class={"text--#{case @size do
         "small" -> "small"
         "medium" -> "small"
         "large" -> "medium"
@@ -144,9 +161,10 @@ defmodule TuistCloudWeb.CoreComponents do
         "extraExtraLarge" -> "large"
       end
       } font--semibold"}>
-        <%= render_slot(@inner_block) %>
-      </span>
-      <%= render_slot(@icon) %>
+          <%= render_slot(@inner_block) %>
+        </span>
+        <%= render_slot(@icon) %>
+      <% end %>
     </button>
     """
   end
@@ -235,42 +253,35 @@ defmodule TuistCloudWeb.CoreComponents do
       phx-mounted={@show && show_modal(@id)}
       phx-remove={hide_modal(@id)}
       data-cancel={JS.exec(@on_cancel, "phx-remove")}
-      class="relative z-50 hidden"
+      class="modal"
     >
-      <div id={"#{@id}-bg"} class="bg-zinc-50/90 fixed inset-0 transition-opacity" aria-hidden="true" />
+      <div id={"#{@id}-bg"} class="modal__background" aria-hidden="true" />
       <div
-        class="fixed inset-0 overflow-y-auto"
+        class="modal__dialog"
         aria-labelledby={"#{@id}-title"}
         aria-describedby={"#{@id}-description"}
         role="dialog"
         aria-modal="true"
         tabindex="0"
       >
-        <div class="flex min-h-full items-center justify-center">
-          <div class="w-full max-w-3xl p-4 sm:p-6 lg:py-8">
-            <.focus_wrap
-              id={"#{@id}-container"}
-              phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
-              phx-key="escape"
-              phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="shadow-zinc-700/10 ring-zinc-700/10 relative hidden rounded-2xl bg-white p-14 shadow-lg ring-1 transition"
-            >
-              <div class="absolute top-6 right-5">
-                <button
-                  phx-click={JS.exec("data-cancel", to: "##{@id}")}
-                  type="button"
-                  class="-m-3 flex-none p-3 opacity-20 hover:opacity-40"
-                  aria-label={gettext("close")}
-                >
-                  <.icon name="hero-x-mark-solid" class="h-5 w-5" />
-                </button>
-              </div>
-              <div id={"#{@id}-content"}>
-                <%= render_slot(@inner_block) %>
-              </div>
-            </.focus_wrap>
+        <.focus_wrap
+          id={"#{@id}-container"}
+          phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
+          phx-key="escape"
+          phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
+          class="modal__dialog__container"
+        >
+          <button
+            phx-click={JS.exec("data-cancel", to: "##{@id}")}
+            aria-label={gettext("close")}
+            class="modal__dialog__container__close-button button--small button--tertiary button--icon-only"
+          >
+            <.close />
+          </button>
+          <div id={"#{@id}-content"} class="modal__dialog__container__content">
+            <%= render_slot(@inner_block) %>
           </div>
-        </div>
+        </.focus_wrap>
       </div>
     </div>
     """
@@ -470,6 +481,22 @@ defmodule TuistCloudWeb.CoreComponents do
         <% end %>
       </label>
       <.error :for={msg <- @errors}><%= msg %></.error>
+    </div>
+    """
+  end
+
+  def input(%{type: "switch"} = assigns) do
+    assigns =
+      assign_new(assigns, :checked, fn ->
+        Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
+      end)
+
+    ~H"""
+    <div phx-feedback-for={@name}>
+      <label class="switch">
+        <input type="checkbox" id={@id} name={@name} value="true" checked={@checked} {@rest} />
+        <span class="slider"></span>
+      </label>
     </div>
     """
   end

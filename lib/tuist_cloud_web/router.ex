@@ -202,6 +202,7 @@ defmodule TuistCloudWeb.Router do
         {TuistCloudWeb.Authentication, :mount_current_user}
       ] do
       live "/", HomeLive
+      live "/:owner_handle/settings/billing", BillingLive
       get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
       get "/:account_name/billing", BillingController, :billing_plan
       live "/get-started", GetStartedLive

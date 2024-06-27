@@ -478,7 +478,7 @@ defmodule TuistCloud.AccountsTest do
     got = Accounts.get_user_organization_accounts(user)
 
     # Then
-    assert organization == hd(got).organization
+    assert organization.id == hd(got).organization.id
   end
 
   import TuistCloud.AccountsFixtures

@@ -10,12 +10,14 @@ defmodule TuistCloud.AccountsFixtures do
     confirmed_at = Keyword.get(opts, :confirmed_at, DateTime.utc_now())
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     preloads = Keyword.get(opts, :preloads, [])
+    customer_id = Keyword.get(opts, :customer_id, "#{TestUtilities.unique_integer()}")
 
     user =
       Accounts.create_user(email,
         password: password,
         confirmed_at: confirmed_at,
-        created_at: created_at
+        created_at: created_at,
+        customer_id: customer_id
       )
 
     user |> TuistCloud.Repo.preload(preloads)
@@ -27,12 +29,16 @@ defmodule TuistCloud.AccountsFixtures do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    customer_id = Keyword.get(opts, :customer_id, "#{TestUtilities.unique_integer()}")
+    preloads = Keyword.get(opts, :preloads, [:account])
 
     Accounts.create_organization(%{name: name, creator: creator},
       sso_provider: sso_provider,
       sso_organization_id: sso_organization_id,
-      created_at: created_at
+      created_at: created_at,
+      customer_id: customer_id
     )
+    |> TuistCloud.Repo.preload(preloads)
   end
 
   def unique_user_email, do: "#{TestUtilities.unique_integer()}@cloud.tuist.io"
