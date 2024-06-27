@@ -35,7 +35,7 @@ function generateNestedSidebarItems(items) {
   const nestedItems = {};
 
   items.forEach((item) => {
-    const category = item.category
+    const category = item.category;
     if (!nestedItems[category]) {
       nestedItems[category] = {
         text: capitalize(category),
@@ -43,7 +43,10 @@ function generateNestedSidebarItems(items) {
         items: [],
       };
     }
-    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
+    nestedItems[category].items.push({
+      text: item.title,
+      link: `/reference/cli/${item.command}`,
+    });
   });
 
   function isLinkItem(item) {
@@ -68,7 +71,6 @@ function generateNestedSidebarItems(items) {
   return convertToArray(nestedItems);
 }
 
-  
 const cliData = cliDataLoader.load();
 
 const cliSidebar = {
@@ -202,6 +204,12 @@ const guideSidebar = [
       {
         text: "On-premise",
         link: "/cloud/on-premise",
+        items: [
+          {
+            text: "Metrics",
+            link: "/cloud/on-premise/metrics",
+          },
+        ],
       },
     ],
   },
