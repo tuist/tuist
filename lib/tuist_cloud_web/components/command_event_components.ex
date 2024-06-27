@@ -42,4 +42,18 @@ defmodule TuistCloudWeb.CommandEventComponents do
     />
     """
   end
+
+  def test_case_run_status_badge(assigns) do
+    ~H"""
+    <.badge
+      title={Atom.to_string(@test_case_run.status)}
+      kind={
+        case @test_case_run.status do
+          :success -> :success
+          :failure -> :error
+        end
+      }
+    />
+    """
+  end
 end

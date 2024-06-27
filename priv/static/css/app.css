@@ -1,5 +1,12 @@
 @import './navigation_bar.css';
 
+/* Pages */
+@import './pages/flaky_tests.css';
+@import './pages/get_started.css';
+@import './pages/analytics.css';
+@import './pages/run_detail.css';
+@import './pages/runs.css';
+
  :root {  
   /* Colors */
 
@@ -543,6 +550,18 @@ svg {
   flex-shrink: 0;
 }
 
+.featured-icon {
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg-primary);
+  display: flex;
+
+  & svg {
+    stroke: var(--fg-secondary);
+  }
+}
+
 /* Stack */
 
 .stack {
@@ -1066,6 +1085,19 @@ input[type="checkbox"] {
   gap: var(--spacing-none);
 }
 
+.table-container__empty-state {
+  padding: var(--spacing-5xl);
+  align-items: center;
+
+  & p {
+    text-align: center;
+  }
+}
+
+.table-container__empty-state__labels {
+  align-items: center;
+}
+
 table {
   width: 100%;
   border-spacing: 0;
@@ -1081,7 +1113,6 @@ table {
   }
 
   & td {
-    padding: var(--spacing-lg) var(--spacing-3xl);
     border-top: 1px solid var(--border-secondary);
     color: var(--text-primary);
   }
@@ -1091,6 +1122,10 @@ table {
       background-color: var(--bg-primary-hover);
     }
   }
+}
+
+.table-container__data-container {
+  padding: var(--spacing-lg) var(--spacing-3xl);
 }
 
 /* Pagination */

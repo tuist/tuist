@@ -444,60 +444,27 @@ defmodule TuistCloudWeb.API.AnalyticsController do
       end)
 
     command_event =
-      CommandEvents.get_command_event_by_id(run_id)
+      CommandEvents.get_command_event_by_id(run_id, preloads: :project)
 
     test_summary =
       CommandEvents.get_test_summary(command_event)
 
     if not is_nil(test_summary) do
-      create_test_case_runs(%{
-        project_tests: test_summary.project_tests,
+      CommandEvents.create_test_cases(%{
+        test_summary: test_summary,
+        command_event: command_event
+      })
+
+      CommandEvents.create_test_case_runs(%{
+        test_summary: test_summary,
         modules: modules,
-        run_id: run_id
+        command_event: command_event
       })
     end
 
     conn
     |> put_status(:no_content)
     |> json(%{})
-  end
-
-  defp create_test_case_runs(%{
-         project_tests: project_tests,
-         modules: modules,
-         run_id: run_id
-       }) do
-    Enum.each(project_tests, fn {project_identifier, module_tests} ->
-      Enum.each(module_tests, fn {module_name, target_test_summary} ->
-        create_test_case_runs(%{
-          tests: target_test_summary.tests,
-          modules: modules,
-          module_name: module_name,
-          project_identifier: project_identifier,
-          run_id: run_id
-        })
-      end)
-    end)
-  end
-
-  defp create_test_case_runs(%{
-         tests: tests,
-         modules: modules,
-         module_name: module_name,
-         project_identifier: project_identifier,
-         run_id: run_id
-       }) do
-    Enum.each(tests, fn test ->
-      CommandEvents.create_test_case_run(%{
-        name: test.name,
-        module_name: module_name,
-        identifier: test.identifier_url,
-        module_hash: modules[project_identifier][module_name],
-        project_identifier: project_identifier,
-        command_event_id: run_id,
-        status: test.test_status
-      })
-    end)
   end
 
   defp get_object_key(%{type: type, run_id: run_id, name: name}) do

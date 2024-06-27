@@ -2,6 +2,7 @@ defmodule TuistCloud.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
+  alias TuistCloud.CommandEvents.TestCase
   alias TuistCloud.CommandEvents.TestCaseRun
   alias TuistCloud.CommandEvents.TargetTestSummary
   alias TuistCloud.CommandEvents.TestSummary
@@ -212,21 +213,31 @@ defmodule TuistCloud.CommandEvents do
     }
   end
 
-  def get_flaky_tests(%Project{} = project) do
-    query =
-      from(
-        t1 in TestCaseRun,
-        join: t2 in TestCaseRun,
-        on: t1.identifier == t2.identifier,
-        join: e in Event,
-        on: t1.command_event_id == e.id,
-        where: e.project_id == ^project.id,
-        where: t1.status == ^:failure,
-        where: t2.status == ^:success,
-        distinct: t1.identifier
-      )
+  def list_flaky_test_cases(%Project{} = project, attrs) do
+    from(t in TestCase,
+      where: t.project_id == ^project.id,
+      where: t.flaky == true,
+      join: t_case_run_1 in TestCaseRun,
+      as: :last_flaky_test_case_run,
+      on: t_case_run_1.test_case_id == t.id and t_case_run_1.flaky == true,
+      preload: [last_flaky_test_case_run: t_case_run_1],
+      left_join: t_case_run_2 in TestCaseRun,
+      on:
+        t_case_run_2.test_case_id == t.id and t_case_run_2.flaky == true and
+          t_case_run_1.inserted_at < t_case_run_2.inserted_at,
+      select: t
+    )
+    |> Flop.validate_and_run!(attrs, for: TestCase)
+  end
 
-    Repo.all(query)
+  def list_test_case_runs(attrs) do
+    TestCaseRun
+    |> preload(command_event: [user: :account])
+    |> Flop.validate_and_run!(attrs, for: TestCaseRun)
+  end
+
+  def get_test_case_by_identifier(identifier) do
+    Repo.get_by(TestCase, identifier: identifier)
   end
 
   def get_command_runs_analytics(name, opts) do
@@ -655,28 +666,54 @@ defmodule TuistCloud.CommandEvents do
     end
   end
 
-  def create_test_case_run(
+  def create_test_case(
         %{
           name: name,
           module_name: module_name,
           identifier: identifier,
-          module_hash: module_hash,
           project_identifier: project_identifier,
+          project_id: project_id
+        },
+        attrs \\ []
+      ) do
+    %TestCase{}
+    |> TestCase.create_changeset(%{
+      name: name,
+      module_name: module_name,
+      identifier: identifier,
+      project_identifier: project_identifier,
+      project_id: project_id,
+      flaky: Keyword.get(attrs, :flaky, false),
+      inserted_at: Keyword.get(attrs, :inserted_at, Time.utc_now())
+    })
+    |> Repo.insert!()
+  end
+
+  def create_test_case_run(
+        %{
           command_event_id: command_event_id,
+          module_hash: module_hash,
+          test_case_id: test_case_id,
           status: status
         },
         attrs \\ []
       ) do
+    query =
+      from(
+        t1 in TestCaseRun,
+        join: t2 in TestCaseRun,
+        on: t1.test_case_id == t2.test_case_id,
+        where: t1.status != t2.status and t1.module_hash == ^module_hash
+      )
+
     %TestCaseRun{}
     |> TestCaseRun.create_changeset(%{
-      identifier: identifier,
       module_hash: module_hash,
-      module_name: module_name,
-      project_identifier: project_identifier,
-      name: name,
       command_event_id: command_event_id,
+      test_case_id: test_case_id,
       status: status,
-      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+      flaky: Keyword.get(attrs, :flaky, Repo.exists?(query)),
+      inserted_at: Keyword.get(attrs, :inserted_at, Time.utc_now())
     })
     |> Repo.insert!()
   end
@@ -732,6 +769,114 @@ defmodule TuistCloud.CommandEvents do
     else
       nil
     end
+  end
+
+  def create_test_cases(%{
+        test_summary: %TestSummary{} = test_summary,
+        command_event: command_event
+      }) do
+    map_project_tests(test_summary.project_tests, fn %{
+                                                       project_identifier: project_identifier,
+                                                       module_name: module_name,
+                                                       target_test_summary: target_test_summary
+                                                     } ->
+      tests = target_test_summary.tests
+      identifiers = Enum.map(tests, & &1.identifier_url)
+
+      existing_test_case_identifiers =
+        from(
+          t in TestCase,
+          where: t.identifier in ^identifiers
+        )
+        |> Repo.all()
+        |> Enum.map(& &1.identifier)
+        |> MapSet.new()
+
+      missing_test_cases =
+        Enum.reject(tests, fn test ->
+          MapSet.member?(existing_test_case_identifiers, test.identifier_url)
+        end)
+        |> Enum.map(fn test ->
+          %{
+            name: test.name,
+            module_name: module_name,
+            identifier: test.identifier_url,
+            project_identifier: project_identifier,
+            project_id: command_event.project_id,
+            inserted_at:
+              NaiveDateTime.truncate(DateTime.to_naive(TuistCloud.Time.utc_now()), :second)
+          }
+        end)
+
+      Repo.insert_all(TestCase, missing_test_cases)
+    end)
+  end
+
+  def create_test_case_runs(%{
+        test_summary: test_summary,
+        modules: modules,
+        command_event: command_event
+      }) do
+    map_project_tests(test_summary.project_tests, fn %{
+                                                       project_identifier: project_identifier,
+                                                       module_name: module_name,
+                                                       target_test_summary: target_test_summary
+                                                     } ->
+      tests = target_test_summary.tests
+
+      identifiers = Enum.map(tests, & &1.identifier_url)
+
+      test_case_ids =
+        from(
+          t in TestCase,
+          where: t.identifier in ^identifiers
+        )
+        |> Repo.all()
+        |> Map.new(&{&1.identifier, &1.id})
+
+      test_case_runs =
+        Enum.map(tests, fn test ->
+          %{
+            module_hash: modules[project_identifier][module_name],
+            command_event_id: command_event.id,
+            status: test.test_status,
+            test_case_id: test_case_ids[test.identifier_url],
+            inserted_at:
+              NaiveDateTime.truncate(DateTime.to_naive(TuistCloud.Time.utc_now()), :second)
+          }
+        end)
+
+      Repo.insert_all(TestCaseRun, test_case_runs)
+
+      from(
+        t1 in TestCaseRun,
+        join: t2 in TestCaseRun,
+        on: t1.test_case_id == t2.test_case_id,
+        where: t1.module_hash == t2.module_hash and t1.status != t2.status
+      )
+      |> Repo.update_all(set: [flaky: true])
+
+      from(
+        t in TestCase,
+        join: test_case_run in TestCaseRun,
+        on: t.id == test_case_run.test_case_id,
+        where: test_case_run.flaky == true,
+        select: t
+      )
+      |> Repo.update_all(set: [flaky: true])
+    end)
+  end
+
+  defp map_project_tests(project_tests, map_f) do
+    Enum.each(project_tests, fn {project_identifier, module_tests} ->
+      Enum.each(module_tests, fn {module_name, target_test_summary} ->
+        map_f.(%{
+          project_identifier: project_identifier,
+          module_name: module_name,
+          target_test_summary: target_test_summary
+        })
+      end)
+    end)
   end
 
   defp get_project_tests_map(testable_summaries) do

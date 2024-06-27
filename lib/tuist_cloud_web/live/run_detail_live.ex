@@ -94,7 +94,12 @@ defmodule TuistCloudWeb.RunDetailLive do
         <.stack direction="horizontal" class="run-detail__target-breakdown__content">
           <chart-l class="target-breakdown-chart" id={@id <> "-breakdown-chart"} type="donut">
           </chart-l>
-          <.table class="run-detail__target-breakdown__table" id={@id} rows={@targets}>
+          <.table
+            class="run-detail__target-breakdown__table"
+            id={@id}
+            rows={@targets}
+            empty_state_title={gettext("No targets")}
+          >
             <:col :let={target} label={gettext("Name")}>
               <%= target.name %>
             </:col>

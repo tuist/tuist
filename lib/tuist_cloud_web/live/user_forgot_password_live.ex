@@ -13,9 +13,9 @@ defmodule TuistCloudWeb.UserForgotPasswordLive do
         subtitle={gettext("We'll send a password reset link to your inbox")}
       >
         <:icon>
-          <div class="auth-header-icon">
+          <.featured_icon>
             <.key />
-          </div>
+          </.featured_icon>
         </:icon>
       </.auth_header>
 

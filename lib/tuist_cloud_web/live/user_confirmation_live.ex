@@ -13,9 +13,9 @@ defmodule TuistCloudWeb.UserConfirmationLive do
         subtitle={gettext("Confirm your account to access Tuist.")}
       >
         <:icon>
-          <div class="auth-header-icon">
+          <.featured_icon>
             <.mail />
-          </div>
+          </.featured_icon>
         </:icon>
       </.auth_header>
 

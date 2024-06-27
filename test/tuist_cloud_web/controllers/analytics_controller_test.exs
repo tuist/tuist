@@ -498,7 +498,8 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
           where: t.command_event_id == ^command_event.id
         )
         |> Repo.all()
-        |> Enum.map(& &1.identifier)
+        |> Repo.preload(:test_case)
+        |> Enum.map(& &1.test_case.identifier)
         |> Enum.sort()
 
       assert length(test_case_runs) == 5
