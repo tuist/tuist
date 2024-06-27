@@ -97,6 +97,10 @@ defmodule TuistCloud.Environment do
     end
   end
 
+  def open_telemetry_enabled?(secrets \\ secrets()) do
+    get([:open_telemetry, :enabled], secrets) |> truthy?()
+  end
+
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end
