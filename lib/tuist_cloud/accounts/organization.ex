@@ -1,4 +1,5 @@
 defmodule TuistCloud.Accounts.Organization do
+  alias TuistCloud.Accounts.Account
   alias TuistCloud.Accounts.Invitation
 
   @moduledoc ~S"""
@@ -11,6 +12,7 @@ defmodule TuistCloud.Accounts.Organization do
     field :sso_provider, Ecto.Enum, values: [google: 2]
     field :sso_organization_id, :string
 
+    has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
     has_many(:invitations, Invitation)
     timestamps(inserted_at: :created_at)
   end

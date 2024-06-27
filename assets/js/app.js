@@ -16,40 +16,36 @@
 //
 
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
-import 'phoenix_html';
+import "phoenix_html";
 // Establish Phoenix Socket and LiveView configuration.
-import { Socket } from 'phoenix';
-import { LiveSocket } from 'phoenix_live_view';
-import topbar from '../vendor/topbar';
+import { Socket } from "phoenix";
+import { LiveSocket } from "phoenix_live_view";
+import topbar from "../vendor/topbar";
 
 let csrfToken = document
   .querySelector("meta[name='csrf-token']")
-  .getAttribute('content');
-let liveSocket = new LiveSocket('/live', Socket, {
+  .getAttribute("content");
+let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
 });
 
 // Show progress bar on live navigation and form submits
 topbar.config({
-  barColors: { 0: '#29d' },
-  shadowColor: 'rgba(0, 0, 0, .3)',
+  barColors: { 0: "#29d" },
+  shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener('phx:page-loading-start', (_info) =>
-  topbar.show(300),
-);
-window.addEventListener('phx:page-loading-stop', (_info) =>
-  topbar.hide(),
-);
+window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();
 
 // Analytics
-window.addEventListener('phx:navigate', (info) => {
+window.addEventListener("phx:navigate", (info) => {
   if (globalThis.analyticsEnabled) {
     // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture('$pageview');
+    posthog.capture("$pageview");
   }
 });
 
@@ -58,3 +54,11 @@ window.addEventListener('phx:navigate', (info) => {
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket;
+
+// Server-triggered `js-exec` events allow executing a server-declared
+// %Phoenix.LiveView.JS{} action declared on a given element attribute.
+window.addEventListener("phx:js-exec", ({ detail }) => {
+  document.querySelectorAll(detail.to).forEach((el) => {
+    liveSocket.execJS(el, el.getAttribute(detail.attr));
+  });
+});

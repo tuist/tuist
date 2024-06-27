@@ -9,6 +9,9 @@
   "[json]": {
     "editor.formatOnSave": true
   },
+  "[css]": {
+    "editor.formatOnSave": true
+  },
   "[elixir]": {
     "editor.defaultFormatter": "JakeBecker.elixir-ls",
     "editor.formatOnSave": true
@@ -31,6 +34,7 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
   "[phoenix-heex]": {
-    "editor.defaultFormatter": "JakeBecker.elixir-ls"
+    "editor.defaultFormatter": "JakeBecker.elixir-ls",
+    "editor.formatOnSave": true
   }
 }

@@ -40,5 +40,7 @@ defmodule TuistCloudWeb.Webhooks.BillingController do
 
   # Return HTTP 200 for unhandled events
   @impl true
-  def handle_event(_event), do: :ok
+  def handle_event(_event) do
+    :ok
+  end
 end

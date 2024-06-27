@@ -86,6 +86,19 @@ defmodule TuistCloudWeb.Components.Icons do
     """
   end
 
+  def credit_card_missing(assigns) do
+    ~H"""
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M16.5 16L21.5 21M21.5 16L16.5 21M22 10H2M22 12V8.2C22 7.0799 22 6.51984 21.782 6.09202C21.5903 5.7157 21.2843 5.40974 20.908 5.21799C20.4802 5 19.9201 5 18.8 5H5.2C4.0799 5 3.51984 5 3.09202 5.21799C2.7157 5.40973 2.40973 5.71569 2.21799 6.09202C2 6.51984 2 7.0799 2 8.2V15.8C2 16.9201 2 17.4802 2.21799 17.908C2.40973 18.2843 2.71569 18.5903 3.09202 18.782C3.51984 19 4.0799 19 5.2 19H12"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
   def check_done(assigns) do
     ~H"""
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -111,6 +124,29 @@ defmodule TuistCloudWeb.Components.Icons do
     ~H"""
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M18 15L12 9L6 15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    """
+  end
+
+  def check(assigns) do
+    ~H"""
+    <div class="icon__check">
+      <.check_circle />
+    </div>
+    """
+  end
+
+  attr(:stroke, :string)
+
+  defp check_circle(assigns) do
+    ~H"""
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M7.5 12L10.5 15L16.5 9M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
     </svg>
     """
   end
@@ -197,9 +233,18 @@ defmodule TuistCloudWeb.Components.Icons do
     """
   end
 
+  attr(:class, :string, default: "")
+
   def mail(assigns) do
     ~H"""
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      class={@class}
+    >
       <path
         d="M2.3335 8.16663L11.8592 14.8346C12.6306 15.3746 13.0163 15.6446 13.4358 15.7492C13.8064 15.8415 14.194 15.8415 14.5645 15.7492C14.984 15.6446 15.3697 15.3746 16.1411 14.8346L25.6668 8.16663M7.9335 23.3333H20.0668C22.027 23.3333 23.0071 23.3333 23.7558 22.9518C24.4144 22.6163 24.9498 22.0808 25.2854 21.4223C25.6668 20.6736 25.6668 19.6935 25.6668 17.7333V10.2666C25.6668 8.30644 25.6668 7.32635 25.2854 6.57766C24.9498 5.91909 24.4144 5.38366 23.7558 5.0481C23.0071 4.66663 22.027 4.66663 20.0668 4.66663H7.9335C5.97331 4.66663 4.99322 4.66663 4.24453 5.0481C3.58596 5.38366 3.05053 5.91909 2.71497 6.57766C2.3335 7.32635 2.3335 8.30644 2.3335 10.2666V17.7333C2.3335 19.6935 2.3335 20.6736 2.71497 21.4223C3.05053 22.0808 3.58596 22.6163 4.24453 22.9518C4.99322 23.3333 5.97331 23.3333 7.9335 23.3333Z"
         stroke-width="2"
