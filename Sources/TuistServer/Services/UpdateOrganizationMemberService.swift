@@ -16,12 +16,13 @@ enum UpdateOrganizationMemberServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .badRequest:
+        case .notFound, .forbidden, .unauthorized, .badRequest:
             return .abort
         }
     }
@@ -30,7 +31,7 @@ enum UpdateOrganizationMemberServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The member could not be updated due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -71,6 +72,11 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
             switch forbiddenResponse.body {
             case let .json(error):
                 throw UpdateOrganizationMemberServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateOrganizationMemberServiceError.unknownError(statusCode)

@@ -16,12 +16,13 @@ enum CreateProjectServiceError: FatalError {
     case unknownError(Int)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .badRequest:
+        case .forbidden, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -30,7 +31,7 @@ enum CreateProjectServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be created due to an unknown Cloud response of \(statusCode)."
-        case let .forbidden(message), let .badRequest(message):
+        case let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -73,6 +74,11 @@ public final class CreateProjectService: CreateProjectServicing {
             switch badRequestResponse.body {
             case let .json(error):
                 throw CreateProjectServiceError.badRequest(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

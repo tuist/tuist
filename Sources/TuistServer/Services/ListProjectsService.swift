@@ -18,11 +18,14 @@ public protocol ListProjectsServicing {
 
 enum ListProjectsServiceError: FatalError {
     case unknownError(Int)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
+        case .unauthorized:
+            return .abort
         }
     }
 
@@ -30,6 +33,8 @@ enum ListProjectsServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be listed due to an unknown cloud response of \(statusCode)."
+        case let .unauthorized(message):
+            return message
         }
     }
 }
@@ -65,6 +70,11 @@ public final class ListProjectsService: ListProjectsServicing {
             }
         case let .undocumented(statusCode: statusCode, _):
             throw ListProjectsServiceError.unknownError(statusCode)
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
+            }
         }
     }
 }
