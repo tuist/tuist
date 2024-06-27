@@ -132,7 +132,9 @@ defmodule TuistCloudWeb.API.ProjectsController do
              }
            },
            required: [:projects]
-         }}
+         }},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error}
     }
   )
 
