@@ -1297,7 +1297,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path in
                 (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
             }
-        var testedSchemes: [String] = []
         given(xcodebuildController)
             .test(
                 .any,

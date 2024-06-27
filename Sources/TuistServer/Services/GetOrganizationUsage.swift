@@ -15,12 +15,13 @@ enum GetOrganizationUsageServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -29,7 +30,7 @@ enum GetOrganizationUsageServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not get the OrganizationUsage due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
@@ -66,6 +67,11 @@ public final class GetOrganizationUsageService: GetOrganizationUsageServicing {
             switch forbidden.body {
             case let .json(error):
                 throw GetOrganizationUsageServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetOrganizationUsageServiceError.unknownError(statusCode)

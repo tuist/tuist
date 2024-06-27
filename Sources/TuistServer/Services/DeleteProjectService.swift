@@ -15,12 +15,13 @@ enum DeleteProjectServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -29,7 +30,7 @@ enum DeleteProjectServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be deleted due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message):
+        case let .forbidden(message), let .unauthorized(message), let .notFound(message):
             return message
         }
     }
@@ -62,6 +63,11 @@ public final class DeleteProjectService: DeleteProjectServicing {
             switch forbidden.body {
             case let .json(error):
                 throw DeleteProjectServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw DeleteProjectServiceError.unknownError(statusCode)

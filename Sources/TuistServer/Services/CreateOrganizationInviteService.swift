@@ -17,12 +17,13 @@ enum CreateOrganizationInviteServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .badRequest:
+        case .notFound, .forbidden, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -31,7 +32,7 @@ enum CreateOrganizationInviteServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The user could not be invited due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message):
+        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -76,6 +77,11 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateOrganizationInviteServiceError.unknownError(statusCode)
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
+            }
         }
     }
 }

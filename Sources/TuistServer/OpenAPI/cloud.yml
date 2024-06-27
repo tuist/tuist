@@ -504,6 +504,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommandEvent'
           description: The command event was created
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -588,6 +594,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
           description: The artifact exists and is downloadable
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -657,6 +669,12 @@ paths:
                 title: CacheArtifactExistence
                 type: object
           description: The artifact exists
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -762,6 +780,12 @@ paths:
                 title: CacheArtifactMultipartUploadCompletion
                 type: object
           description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -831,6 +855,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -888,6 +918,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -930,6 +966,12 @@ paths:
                 title: OrganizationList
                 type: object
           description: The list of organizations
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -988,6 +1030,12 @@ paths:
           content:
             application/json: {}
           description: The organization was deleted
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1020,6 +1068,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1076,6 +1130,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1132,6 +1192,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1176,6 +1242,12 @@ paths:
           content:
             application/json: {}
           description: The invitation was cancelled
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1227,6 +1299,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The user could not be invited due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1270,6 +1348,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be removed due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1330,6 +1414,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1363,6 +1453,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrganizationUsage'
           description: The organization usage
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1396,6 +1492,12 @@ paths:
                   - projects
                 type: object
           description: List of projects
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
       summary: List projects the authenticated user has access to.
       tags: []
     post:
@@ -1431,6 +1533,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account was not found
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1463,6 +1571,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The project to show
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1497,6 +1611,12 @@ paths:
       responses:
         204:
           description: The cache has been successfully cleaned
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1525,6 +1645,12 @@ paths:
       responses:
         204:
           description: The project was successfully deleted.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1569,6 +1695,12 @@ paths:
       responses:
         204:
           description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1613,6 +1745,12 @@ paths:
       responses:
         204:
           description: The command event artifact uploads were successfully finished
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1661,6 +1799,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1701,6 +1845,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
