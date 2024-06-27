@@ -1,5 +1,5 @@
 defmodule TuistCloudWeb.AuthenticationPlugTest do
-  use TuistCloud.DataCase
+  use TuistCloudWeb.ConnCase
   use Plug.Test
   alias TuistCloudWeb.AuthenticationPlug
   alias TuistCloud.AccountsFixtures
@@ -59,5 +59,21 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     assert TuistCloudWeb.Authentication.current_project(got) == nil
     assert TuistCloudWeb.Authentication.current_user(got) == nil
     assert TuistCloudWeb.Authentication.authenticated?(got) == false
+  end
+
+  test "returns :unauthorized if the user is not authenticated" do
+    # Given
+    opts = AuthenticationPlug.init({:require_authentication, response_type: :open_api})
+    conn = build_conn(:get, "/")
+
+    # # When
+    conn = conn |> AuthenticationPlug.call(opts)
+
+    # # Then
+    assert conn.halted == true
+
+    assert json_response(conn, :unauthorized) == %{
+             "message" => "You need to be authenticated to access this resource"
+           }
   end
 end

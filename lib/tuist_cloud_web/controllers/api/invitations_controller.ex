@@ -41,6 +41,8 @@ defmodule TuistCloudWeb.API.InvitationsController do
       bad_request:
         {"The user could not be invited due to a validation error", "application/json", Error},
       not_found: {"The organization was not found", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -146,6 +148,8 @@ defmodule TuistCloudWeb.API.InvitationsController do
       not_found:
         {"The invitation with the given invitee email and organization name was not found",
          "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}

@@ -36,7 +36,7 @@ defmodule TuistCloudWeb.AuthenticationPlug do
       case response_type do
         :open_api ->
           conn
-          |> put_status(401)
+          |> put_status(:unauthorized)
           |> json(%{message: "You need to be authenticated to access this resource"})
           |> halt()
       end

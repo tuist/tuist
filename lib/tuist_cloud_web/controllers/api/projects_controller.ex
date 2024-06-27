@@ -36,6 +36,8 @@ defmodule TuistCloudWeb.API.ProjectsController do
     responses: %{
       ok: {"The project was created", "application/json", Project},
       bad_request: {"The account was not found", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error}
@@ -171,6 +173,8 @@ defmodule TuistCloudWeb.API.ProjectsController do
     ],
     responses: %{
       ok: {"The project to show", "application/json", Project},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
@@ -237,6 +241,8 @@ defmodule TuistCloudWeb.API.ProjectsController do
     ],
     responses: %{
       no_content: "The project was successfully deleted.",
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},

@@ -119,7 +119,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlugTest do
     # Then
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
-             The account '#{project.account.name}' has reached the limit of remote cache hits #{BillingPlug.remote_cache_hits_threshold()} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/organizations/#{project.account.name}/billing")}.
+             The account '#{project.account.name}' has reached the limit of remote cache hits #{BillingPlug.remote_cache_hits_threshold()} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{project.account.name}/billing")}.
              """
            }
   end

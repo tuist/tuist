@@ -35,7 +35,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
           # credo:disable-for-next-line
           # TODO: Add a link to the billing page
           message: ~s"""
-          The account '#{account_handle}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/organizations/#{account_handle}/billing")}.
+          The account '#{account_handle}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account_handle}/billing")}.
           """
         })
         |> halt()
