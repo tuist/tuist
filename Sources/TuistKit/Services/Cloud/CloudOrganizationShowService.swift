@@ -14,15 +14,18 @@ protocol CloudOrganizationShowServicing {
 
 final class CloudOrganizationShowService: CloudOrganizationShowServicing {
     private let getOrganizationService: GetOrganizationServicing
+    private let getOrganizationUsageService: GetOrganizationUsageServicing
     private let cloudURLService: CloudURLServicing
     private let configLoader: ConfigLoading
 
     init(
         getOrganizationService: GetOrganizationServicing = GetOrganizationService(),
+        getOrganizationUsageService: GetOrganizationUsageServicing = GetOrganizationUsageService(),
         cloudURLService: CloudURLServicing = CloudURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.getOrganizationService = getOrganizationService
+        self.getOrganizationUsageService = getOrganizationUsageService
         self.cloudURLService = cloudURLService
         self.configLoader = configLoader
     }
@@ -46,9 +49,14 @@ final class CloudOrganizationShowService: CloudOrganizationShowServicing {
             serverURL: cloudURL
         )
 
+        let organizationUsage = try await getOrganizationUsageService.getOrganizationUsage(
+            organizationName: organizationName,
+            serverURL: cloudURL
+        )
+
         if json {
             let json = try organization.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)))
+            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
@@ -86,6 +94,9 @@ final class CloudOrganizationShowService: CloudOrganizationShowServicing {
 
         logger.info("""
         \(baseInfo.joined(separator: "\n"))
+
+        \("Usage".bold()) (current calendar month)
+        Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
 
         \("Organization members".bold()) (total number: \(organization.members.count))
         \(membersTable)

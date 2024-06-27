@@ -483,6 +483,11 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             "App.app",
             destination: "Debug-iphonesimulator"
         )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "WidgetExtension.appex",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
+        )
     }
 }
 
@@ -849,6 +854,7 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "MyUIKitPackage", "--platform", "ios")
         try await run(BuildCommand.self, "MyCLI")
         try await run(TestCommand.self, "--platform", "ios")
+        try await run(TestCommand.self, "MyPackage", "--platform", "macos")
     }
 }
 

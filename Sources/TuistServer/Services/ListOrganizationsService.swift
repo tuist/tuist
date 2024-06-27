@@ -13,12 +13,13 @@ public protocol ListOrganizationsServicing {
 enum ListOrganizationsServiceError: FatalError {
     case unknownError(Int)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden:
+        case .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -27,7 +28,7 @@ enum ListOrganizationsServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The organizations could not be listed due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message):
+        case let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -56,6 +57,11 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw ListOrganizationsServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw ListOrganizationsServiceError.unknownError(statusCode)

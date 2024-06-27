@@ -1,5 +1,44 @@
 # Changelog
 
+## 4.19.0 - 2024-06-25
+
+### Tuist
+
+#### Changed
+
+- Surface current organization usage in cloud organization show [#6421](https://github.com/tuist/tuist/pull/6421) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add test targets to project when generating from `Package.swift` file. [#6424](https://github.com/tuist/tuist/pull/6424) by [@woin2ee](https://github.com/woin2ee)
+
+#### Fixed
+
+- Fix tuist clean when no category is provided [#6422](https://github.com/tuist/tuist/pull/6422) by [@fortmarek](https://github.com/fortmarek)
+- Fix caching ProjectDescriptionHelpers across macOS versions [#6429](https://github.com/tuist/tuist/pull/6429) by [@fortmarek](https://github.com/fortmarek)
+- Skip tests for schemes removed by selective testing [#6435](https://github.com/tuist/tuist/pull/6435) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.18.0 - 2024-06-18
+
+### Tuist
+
+#### Changed
+
+- Finish early instead of failing when testing a scheme with no tests [#6398](https://github.com/tuist/tuist/pull/6398) by [@fortmarek](https://github.com/fortmarek)
+- Allow iOS app extensions to depend on bundles [#6415](https://github.com/tuist/tuist/pull/6415) by [@DevilDimon](https://github.com/DevilDimon)
+
+#### Fixed
+
+- Fix sporadic errors when Tuist tries to preserve the SPM lockfile across project generations [#6394](https://github.com/tuist/tuist/pull/6394) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.17.0 - 2024-06-11
 
 ### Tuist

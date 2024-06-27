@@ -87,6 +87,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.createCommandEvent.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createCommandEvent.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.createCommandEvent.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -235,6 +248,20 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.downloadCacheArtifact.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.downloadCacheArtifact.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 402:
                     let headers: Operations.downloadCacheArtifact.Output.PaymentRequired.Headers =
                         .init()
@@ -341,6 +368,20 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.cacheArtifactExists.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cacheArtifactExists.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 402:
                     let headers: Operations.cacheArtifactExists.Output.PaymentRequired.Headers =
                         .init()
@@ -467,6 +508,22 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 402:
                     let headers:
                         Operations.completeCacheArtifactMultipartUpload.Output.PaymentRequired
@@ -592,6 +649,22 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+                            .Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 402:
                     let headers:
                         Operations.generateCacheArtifactMultipartUploadURL.Output.PaymentRequired
@@ -707,6 +780,22 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 402:
                     let headers:
                         Operations.startCacheArtifactMultipartUpload.Output.PaymentRequired.Headers =
@@ -799,6 +888,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.listOrganizations.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listOrganizations.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.listOrganizations.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -930,6 +1032,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.showOrganization.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganization.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.showOrganization.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1029,6 +1144,20 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.updateOrganization__2_.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganization__2_.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.updateOrganization__2_.Output.Forbidden.Headers =
                         .init()
@@ -1128,6 +1257,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.updateOrganization.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganization.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.updateOrganization.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1200,6 +1342,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .noContent(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.deleteOrganization.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.deleteOrganization.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1298,6 +1453,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.createInvitation.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createInvitation.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.createInvitation.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1383,6 +1551,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .noContent(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.cancelInvitation.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cancelInvitation.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.cancelInvitation.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1482,6 +1663,20 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganizationMember.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.updateOrganizationMember.Output.Forbidden.Headers =
                         .init()
@@ -1571,6 +1766,20 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.removeOrganizationMember.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.removeOrganizationMember.Output.Forbidden.Headers =
                         .init()
@@ -1593,6 +1802,92 @@ public struct Client: APIProtocol {
                         substring: "application/json"
                     )
                     let body: Operations.removeOrganizationMember.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    public func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws
+        -> Operations.showOrganizationUsage.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.showOrganizationUsage.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/organizations/{}/usage",
+                    parameters: [input.path.organization_name]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.showOrganizationUsage.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.OrganizationUsage.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.showOrganizationUsage.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.showOrganizationUsage.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.showOrganizationUsage.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showOrganizationUsage.Output.NotFound.Body =
                         try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
@@ -1643,6 +1938,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.listProjects.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjects.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -1713,6 +2021,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.createProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.createProject.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1770,6 +2091,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.showProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.showProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.showProject.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1830,6 +2164,19 @@ public struct Client: APIProtocol {
                 case 204:
                     let headers: Operations.cleanCache.Output.NoContent.Headers = .init()
                     return .noContent(.init(headers: headers, body: nil))
+                case 401:
+                    let headers: Operations.cleanCache.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cleanCache.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.cleanCache.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1890,6 +2237,19 @@ public struct Client: APIProtocol {
                 case 204:
                     let headers: Operations.deleteProject.Output.NoContent.Headers = .init()
                     return .noContent(.init(headers: headers, body: nil))
+                case 401:
+                    let headers: Operations.deleteProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.deleteProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers: Operations.deleteProject.Output.Forbidden.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -1967,6 +2327,22 @@ public struct Client: APIProtocol {
                         Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent.Headers =
                             .init()
                     return .noContent(.init(headers: headers, body: nil))
+                case 401:
+                    let headers:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                            .Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers:
                         Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers =
@@ -2050,6 +2426,22 @@ public struct Client: APIProtocol {
                         Operations.completeAnalyticsArtifactsUploads.Output.NoContent.Headers =
                             .init()
                     return .noContent(.init(headers: headers, body: nil))
+                case 401:
+                    let headers:
+                        Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers:
                         Operations.completeAnalyticsArtifactsUploads.Output.Forbidden.Headers =
@@ -2142,6 +2534,22 @@ public struct Client: APIProtocol {
                                 transforming: { value in .json(value) }
                             )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                            .Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                            .Body = try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers:
                         Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden
@@ -2234,6 +2642,22 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
                 case 403:
                     let headers:
                         Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Headers =

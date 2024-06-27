@@ -7,12 +7,19 @@ let project = Project(
             name: "{{ name }}",
             destinations: .{{ platform }},
             product: .app,
-            bundleId: "io.tuist.{{ name }}",
+            bundleId: "io.tuist.{{ bundle_identifier }}",
+{% if platform == "iOS" or platform == "tvOS" %}
             infoPlist: .extendingDefault(
                 with: [
-                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "UILaunchScreen": [
+                        "UIColorName": "",
+                        "UIImageName": "",
+                    ],
                 ]
             ),
+{% elif platform == "macOS" %}
+            infoPlist: .default,
+{% endif %}
             sources: ["{{ name }}/Sources/**"],
             resources: ["{{ name }}/Resources/**"],
             dependencies: []
@@ -21,7 +28,7 @@ let project = Project(
             name: "{{ name }}Tests",
             destinations: .{{ platform }},
             product: .unitTests,
-            bundleId: "io.tuist.{{ name }}Tests",
+            bundleId: "io.tuist.{{ bundle_identifier }}Tests",
             infoPlist: .default,
             sources: ["{{ name }}/Tests/**"],
             resources: [],

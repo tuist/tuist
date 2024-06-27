@@ -10,6 +10,7 @@ import XCTest
 
 final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
     private var getOrganizationService: MockGetOrganizationServicing!
+    private var getOrganizationUsageService: MockGetOrganizationUsageServicing!
     private var subject: CloudOrganizationShowService!
     private var configLoader: MockConfigLoading!
     private var cloudURL: URL!
@@ -17,17 +18,20 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         getOrganizationService = .init()
+        getOrganizationUsageService = .init()
         configLoader = MockConfigLoading()
         cloudURL = URL(string: "https://test.cloud.tuist.io")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
         subject = CloudOrganizationShowService(
             getOrganizationService: getOrganizationService,
+            getOrganizationUsageService: getOrganizationUsageService,
             configLoader: configLoader
         )
     }
 
     override func tearDown() {
         getOrganizationService = nil
+        getOrganizationUsageService = nil
         configLoader = nil
         cloudURL = nil
         subject = nil
@@ -64,6 +68,10 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
                 )
             )
 
+        given(getOrganizationUsageService)
+            .getOrganizationUsage(organizationName: .any, serverURL: .any)
+            .willReturn(.test(currentMonthRemoteCacheHits: 210))
+
         // When
         try await subject.run(
             organizationName: "tuist",
@@ -76,6 +84,9 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
         \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
         Name: test-one
         Plan: Team
+
+        \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
+        Remote cache hits: 210
 
         \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
         username  email              role
@@ -99,6 +110,9 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
                     ssoOrganization: .google("tuist.io")
                 )
             )
+        given(getOrganizationUsageService)
+            .getOrganizationUsage(organizationName: .any, serverURL: .any)
+            .willReturn(.test())
 
         // When
         try await subject.run(

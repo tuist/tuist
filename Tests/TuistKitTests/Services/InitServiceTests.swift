@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import TuistKit
@@ -72,6 +71,8 @@ final class InitServiceTests: TuistUnitTestCase {
             "name": .string("Name"),
             "platform": .string("macOS"),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string("Name"),
+            "bundle_identifier": .string("Name"),
         ]
         var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -99,6 +100,8 @@ final class InitServiceTests: TuistUnitTestCase {
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string("Name"),
+            "bundle_identifier": .string("Name"),
         ]
         var generatorAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -107,6 +110,34 @@ final class InitServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(name: "Name")
+
+        // Then
+        XCTAssertEqual(expectedAttributes, generatorAttributes)
+    }
+
+    func test_init_default_with_unusual_name() throws {
+        // Given
+        let defaultTemplatePath = try temporaryPath().appending(component: "default")
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [defaultTemplatePath]
+        }
+        let tuistVersion = "4.0.3"
+        tuistVersionLoader.getVersionStub = tuistVersion
+
+        let expectedAttributes: [String: TuistCore.Template.Attribute.Value] = [
+            "name": .string("unusual name"),
+            "platform": .string("iOS"),
+            "tuist_version": .string(tuistVersion),
+            "class_name": .string("UnusualName"),
+            "bundle_identifier": .string("unusual-name"),
+        ]
+        var generatorAttributes: [String: TuistCore.Template.Attribute.Value] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generatorAttributes = attributes
+        }
+
+        // When
+        try subject.testRun(name: "unusual name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
@@ -132,6 +163,8 @@ final class InitServiceTests: TuistUnitTestCase {
             "name": .string("Name"),
             "platform": .string("macOS"),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string("Name"),
+            "bundle_identifier": .string("Name"),
             "required": .string("requiredValue"),
             "optional": .string("optionalValue"),
         ]
@@ -179,6 +212,8 @@ final class InitServiceTests: TuistUnitTestCase {
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string("Name"),
+            "bundle_identifier": .string("Name"),
             "optional": context,
         ]
 
@@ -216,6 +251,8 @@ final class InitServiceTests: TuistUnitTestCase {
             "name": .string("Name"),
             "platform": .string("iOS"),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string("Name"),
+            "bundle_identifier": .string("Name"),
             "optional": defaultIntegerValue,
         ]
 

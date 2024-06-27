@@ -1,5 +1,5 @@
 {
-  "originHash" : "be656e1285b67cd89206d2e44ae693ca74086bd97ce1788a21d0533b6a6b6f62",
+  "originHash" : "4080d161ed0c091cdaef55ea652849f51665b8794ae236477b94e919ff68eb09",
   "pins" : [
     {
       "identity" : "aexml",
@@ -40,10 +40,10 @@
     {
       "identity" : "graphviz",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftDocOrg/GraphViz.git",
+      "location" : "https://github.com/tuist/GraphViz.git",
       "state" : {
-        "revision" : "70bebcf4597b9ce33e19816d6bbd4ba9b7bdf038",
-        "version" : "0.2.0"
+        "branch" : "0.2.1",
+        "revision" : "e4e0796a8fa74b000aba54b0256601abf75d0307"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "c8ed701b513cf5177118a175d85fbbbcd707ab41",
-        "version" : "1.3.0"
+        "revision" : "0fbc8848e389af3bb55c182bc19ca9d5dc2f255b",
+        "version" : "1.4.0"
       }
     },
     {
@@ -231,8 +231,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "3140aa2d58063dbe30426cce118f8ba8feb37e60",
-        "version" : "2.0.1"
+        "revision" : "d9e8acfd22aa3133d95a4b998d31e0f77895c755",
+        "version" : "2.4.0"
       }
     },
     {
@@ -276,8 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/weichsel/ZIPFoundation.git",
       "state" : {
-        "revision" : "a3f5c2bae0f04b0bce9ef3c4ba6bd1031a0564c4",
-        "version" : "0.9.17"
+        "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
+        "version" : "0.9.19"
       }
     }
   ],

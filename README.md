@@ -290,6 +290,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/smlab.svg" alt="smlab_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://izi.me/kz" target="_blank">
+          <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -319,7 +324,7 @@ Great companies support the project by giving us access to their service through
 
 ## 🧑‍💻 Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
+You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://console.algora.io/org/tuist) for some highly-valued issues.
 
 ## ✨ Core Team
 
@@ -558,6 +563,9 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ajkolean"><img src="https://avatars.githubusercontent.com/u/5394701?v=4" width="100px;" alt=""/><br /><sub><b>Andy Kolean</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Binlogo"><img src="https://avatars.githubusercontent.com/u/7845507?v=4" width="100px;" alt=""/><br /><sub><b>Binlogo</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/DevilDimon"><img src="https://avatars.githubusercontent.com/u/10220441?v=4" width="100px;" alt=""/><br /><sub><b>Dmitry Serov</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://darrarski.pl"><img src="https://avatars.githubusercontent.com/u/1384684?v=4" width="100px;" alt=""/><br /><sub><b>Dariusz Rybicki</b></sub></a></td>
     </tr>
   </tbody>
 </table>

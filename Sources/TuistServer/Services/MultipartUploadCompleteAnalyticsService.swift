@@ -18,12 +18,13 @@ public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable 
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden:
+        case .notFound, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -32,7 +33,7 @@ public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable 
         switch self {
         case let .unknownError(statusCode):
             return "The multi-part upload could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -78,6 +79,11 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadCompleteAnalyticsServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }
