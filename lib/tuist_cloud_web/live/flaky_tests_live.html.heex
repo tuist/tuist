@@ -1,0 +1,45 @@
+<div class="flaky-tests page">
+  <.stack gap="xl">
+    <.stack gap="xs">
+      <h5><%= gettext("Flaky tests") %></h5>
+      <p class="text--small font--regular color--text-tertiary">
+        <%= gettext("A list of tests that Tuist has identified as flaky.") %>
+      </p>
+    </.stack>
+
+    <.table
+      id="flaky_tests"
+      rows={@flaky_tests}
+      row_link={
+        fn flaky_test ->
+          "/#{@selected_owner}/#{@selected_project.name}/tests/cases/#{Base.encode64(flaky_test.identifier)}"
+        end
+      }
+      empty_state_title={gettext("No flaky tests")}
+      empty_state_subtitle={gettext("We haven't uncovered any flaky tests – keep it up!")}
+    >
+      <:empty_state_icon><.check_done /></:empty_state_icon>
+      <:col :let={flaky_test} label={gettext("Test case")}>
+        <%= flaky_test.name %>
+      </:col>
+      <:col :let={flaky_test} label={gettext("Module")}>
+        <%= flaky_test.module_name %>
+      </:col>
+      <:col :let={flaky_test} label={gettext("Project")}>
+        <%= String.split(flaky_test.project_identifier, "/") |> hd() %>
+      </:col>
+      <:col :let={flaky_test} label={gettext("Last flaky run")}>
+        <%= Timex.from_now(flaky_test.last_flaky_test_case_run.inserted_at) %>
+      </:col>
+      <:footer>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@flaky_tests_meta.has_previous_page?}
+          has_next_page={@flaky_tests_meta.has_next_page?}
+          start_cursor={@flaky_tests_meta.start_cursor}
+          end_cursor={@flaky_tests_meta.end_cursor}
+        />
+      </:footer>
+    </.table>
+  </.stack>
+</div>

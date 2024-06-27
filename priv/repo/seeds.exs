@@ -1,6 +1,7 @@
 alias TuistCloud.Accounts
 alias TuistCloud.Projects
 alias TuistCloud.CommandEvents
+import Ecto.Query, only: [from: 2]
 
 email = "tuist@tuist.io"
 password = "tuistrocks"
@@ -142,3 +143,46 @@ for _event <- 1..10000 do
       )
   )
 end
+
+test_command_events =
+  from(c in CommandEvents.Event, where: c.name == "test") |> TuistCloud.Repo.all()
+
+test_cases =
+  1..100
+  |> Enum.map(fn index ->
+    name = "test#{index}"
+
+    module_name =
+      Enum.random(["ModuleOne", "ModuleTwo", "ModuleThree", "ModuleFour", "ModuleFive"])
+
+    identifier = "#{module_name}/#{name}"
+    test_case = CommandEvents.get_test_case_by_identifier(identifier)
+
+    test_case =
+      if is_nil(test_case) do
+        CommandEvents.create_test_case(
+          %{
+            name: name,
+            module_name: module_name,
+            identifier: identifier,
+            project_identifier: "AppTests/AppTests.xcodeproj",
+            project_id: tuist_cloud_acceptance_tests_project.id
+          },
+          flaky: Enum.random([true, false, false, false, false])
+        )
+      else
+        test_case
+      end
+
+    for test_case_run_index <- 1..100 do
+      CommandEvents.create_test_case_run(
+        %{
+          module_hash: "module-hash-#{test_case_run_index}",
+          status: Enum.random([:success, :failure]),
+          test_case_id: test_case.id,
+          command_event_id: Enum.random(test_command_events).id
+        },
+        flaky: Enum.random([test_case.flaky, false, false, false])
+      )
+    end
+  end)

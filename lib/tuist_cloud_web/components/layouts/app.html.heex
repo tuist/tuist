@@ -39,6 +39,12 @@
               <p class="text-md semibold"><%= gettext("Runs") %></p>
             </a>
           </li>
+          <li>
+            <a href={~p"/#{@selected_owner}/#{@selected_project.name}/tests"}>
+              <.slash_octagon />
+              <p class="text-md semibold"><%= gettext("Flaky tests") %></p>
+            </a>
+          </li>
           <%= if @can_update_billing do %>
             <li>
               <a href={~p"/#{@selected_owner}/billing"} target="_blank">

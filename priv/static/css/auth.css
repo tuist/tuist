@@ -32,16 +32,3 @@
 .auth-form__primary-action {
   width: 100%;
 }
-
-
-.auth-header-icon {
-  padding: var(--spacing-lg);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-xl);
-  background-color: var(--bg-primary);
-  display: flex;
-
-  & svg {
-    stroke: var(--fg-secondary);
-  }
-}

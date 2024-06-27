@@ -685,26 +685,30 @@ defmodule TuistCloudWeb.CoreComponents do
         <:col :let={user} label="username"><%= user.username %></:col>
       </.table>
   """
-  attr :id, :string, required: true
-  attr :rows, :list, required: true
-  attr :row_id, :any, default: nil, doc: "the function for generating the row id"
-  attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
+  attr(:id, :string, required: true)
+  attr(:rows, :list, required: true)
+  attr(:row_id, :any, default: nil, doc: "the function for generating the row id")
+  attr(:row_click, :any, default: nil, doc: "the function for handling phx-click on each row")
+  attr(:empty_state_title, :string, required: true)
+  attr(:empty_state_subtitle, :string, default: nil)
 
-  attr :row_clickable, :boolean,
-    default: false,
-    doc: "the flag for making the row clickable. Defaults to true if row_click is set"
+  attr(:row_link, :any, default: nil, doc: "the function for generating the row link")
 
-  attr :class, :string, default: nil
+  attr(:class, :string, default: nil)
 
-  attr :row_item, :any,
+  attr(
+    :row_item,
+    :any,
     default: &Function.identity/1,
     doc: "the function for mapping each row before calling the :col and :action slots"
+  )
 
-  slot :col, required: true do
+  slot(:col, required: true) do
     attr :label, :string
   end
 
-  slot :footer, doc: "the slot for a table footer with extra actions, such as pagination"
+  slot(:footer, doc: "the slot for a table footer with extra actions, such as pagination")
+  slot(:empty_state_icon, doc: "the slot for an icon to present in the empty state")
 
   def table(assigns) do
     assigns =
@@ -714,28 +718,60 @@ defmodule TuistCloudWeb.CoreComponents do
 
     ~H"""
     <div class={["table-container", @class]}>
-      <table>
-        <thead>
-          <tr>
-            <th :for={col <- @col}><%= col[:label] %></th>
-          </tr>
-        </thead>
-        <tbody id={@id} phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}>
-          <tr
-            :for={row <- @rows}
-            id={@row_id && @row_id.(row)}
-            class={[(@row_clickable or @row_click) && "clickable"]}
-          >
-            <td :for={col <- @col} phx-click={@row_click && @row_click.(row)} class={["text--small"]}>
-              <%= render_slot(col, @row_item.(row)) %>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <%= if @footer != [] do %>
-        <div class="table-container__footer">
-          <%= render_slot(@footer) %>
-        </div>
+      <%= if length(@rows) == 0 do %>
+        <.stack gap="xl" class="table-container__empty-state">
+          <.featured_icon>
+            <%= if @empty_state_icon != [] do %>
+              <%= render_slot(@empty_state_icon) %>
+            <% else %>
+              <.search />
+            <% end %>
+          </.featured_icon>
+          <.stack gap="xs" class="table-container__empty-state__labels">
+            <p class="text--medium font--semibold color--text-primary">
+              <%= @empty_state_title %>
+            </p>
+            <p class="text--small font--regular color--text-tertiary">
+              <%= @empty_state_subtitle %>
+            </p>
+          </.stack>
+        </.stack>
+      <% else %>
+        <table>
+          <thead>
+            <tr>
+              <th :for={col <- @col}><%= col[:label] %></th>
+            </tr>
+          </thead>
+          <tbody id={@id} phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}>
+            <tr
+              :for={row <- @rows}
+              id={@row_id && @row_id.(row)}
+              class={[(not is_nil(@row_link) or @row_click) && "clickable"]}
+            >
+              <td
+                :for={col <- @col}
+                phx-click={@row_click && @row_click.(row)}
+                class={["text--small"]}
+              >
+                <%= if not is_nil(@row_link) do %>
+                  <.link href={@row_link.(row)} class="table-container__data-container">
+                    <%= render_slot(col, @row_item.(row)) %>
+                  </.link>
+                <% else %>
+                  <div class="table-container__data-container">
+                    <%= render_slot(col, @row_item.(row)) %>
+                  </div>
+                <% end %>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <%= if @footer != [] do %>
+          <div class="table-container__footer">
+            <%= render_slot(@footer) %>
+          </div>
+        <% end %>
       <% end %>
     </div>
     """

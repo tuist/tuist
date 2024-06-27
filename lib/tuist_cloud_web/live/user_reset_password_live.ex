@@ -13,9 +13,9 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
         subtitle={gettext("Your new password must be different to previously used passwords.")}
       >
         <:icon>
-          <div class="auth-header-icon">
+          <.featured_icon>
             <.lock />
-          </div>
+          </.featured_icon>
         </:icon>
       </.auth_header>
 

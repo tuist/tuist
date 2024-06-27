@@ -1,4 +1,6 @@
 defmodule TuistCloud.CommandEventsTest do
+  alias TuistCloud.CommandEvents.TestCaseRun
+  alias TuistCloud.CommandEvents.TestCase
   alias TuistCloud.CommandEvents.TargetTestSummary
   alias TuistCloud.CommandEvents.ResultBundle.ActionTestMetadata
   alias TuistCloud.CommandEvents.TestSummary
@@ -979,64 +981,245 @@ defmodule TuistCloud.CommandEventsTest do
     end
   end
 
-  describe "get_flaky_tests/1" do
-    test "returns flaky tests" do
+  describe "list_flaky_test_cases/1" do
+    test "lists flaky test cases" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      test_case_one =
+        CommandEventsFixtures.test_case_fixture(
+          project_id: project.id,
+          identifier: "test0",
+          flaky: true
+        )
+
+      _test_case_two =
+        CommandEventsFixtures.test_case_fixture(
+          project_id: project.id,
+          identifier: "test1",
+          flaky: false
+        )
+
+      test_case_three =
+        CommandEventsFixtures.test_case_fixture(
+          project_id: project.id,
+          identifier: "test2",
+          flaky: true
+        )
+
+      command_event_one = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      _command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      command_event_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      CommandEventsFixtures.test_case_run_fixture(
+        test_case_id: test_case_one.id,
+        identifier: "test0",
+        command_event_id: command_event_one.id,
+        status: :failure,
+        flaky: true,
+        inserted_at: ~N[2024-03-04 01:00:00]
+      )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        test_case_id: test_case_three.id,
+        identifier: "test2",
+        command_event_id: command_event_three.id,
+        status: :failure,
+        flaky: true,
+        inserted_at: ~N[2024-03-04 03:00:00]
+      )
+
+      # When
+      {got_flaky_tests_first_page, got_meta} =
+        CommandEvents.list_flaky_test_cases(project, %{
+          order_by: [:last_flaky_test_case_run_inserted_at],
+          order_directions: [:desc],
+          first: 1
+        })
+
+      {got_flaky_tests_second_page, got_second_page_meta} =
+        CommandEvents.list_flaky_test_cases(project, Flop.to_next_cursor(got_meta))
+
+      # Then
+      assert Enum.map(got_flaky_tests_first_page, & &1.identifier) == [
+               "test2"
+             ]
+
+      assert Enum.map(got_flaky_tests_second_page, & &1.identifier) == [
+               "test0"
+             ]
+
+      assert got_second_page_meta.has_next_page? == false
+    end
+  end
+
+  describe "list_test_case_runs/1" do
+    test "lists test case runs" do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       command_event_one = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      _command_event_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       command_event_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      command_event_four = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      test_case_one = CommandEventsFixtures.test_case_fixture(project_id: project.id)
+      test_case_two = CommandEventsFixtures.test_case_fixture(project_id: project.id)
+
+      test_case_run_one =
+        CommandEventsFixtures.test_case_run_fixture(
+          test_case_id: test_case_one.id,
+          command_event_id: command_event_one.id,
+          status: :success,
+          created_at: ~N[2024-03-04 01:00:00]
+        )
 
       CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test0",
+        test_case_id: test_case_two.id,
         command_event_id: command_event_one.id,
         status: :failure
       )
 
-      CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test0",
-        command_event_id: command_event_two.id,
-        status: :success
-      )
+      test_case_run_two =
+        CommandEventsFixtures.test_case_run_fixture(
+          test_case_id: test_case_one.id,
+          command_event_id: command_event_three.id,
+          status: :success,
+          created_at: ~N[2024-03-04 02:00:00]
+        )
 
       CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test0",
-        command_event_id: command_event_three.id,
-        status: :success
-      )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test1",
-        command_event_id: command_event_three.id,
-        status: :success
-      )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test1",
-        command_event_id: command_event_two.id,
-        status: :success
-      )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test2",
-        command_event_id: command_event_one.id,
-        status: :failure
-      )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        identifier: "test2",
-        command_event_id: command_event_two.id,
-        status: :success
+        test_case_id: test_case_one.id,
+        command_event_id: command_event_four.id,
+        status: :success,
+        created_at: ~N[2024-03-04 03:00:00]
       )
 
       # When
-      got = CommandEvents.get_flaky_tests(project)
+      {got_test_case_runs, _meta} =
+        CommandEvents.list_test_case_runs(%{
+          first: 2,
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          filters: [%{field: :test_case_id, op: :==, value: test_case_one.id}]
+        })
 
       # Then
-      assert Enum.map(got, & &1.identifier) |> Enum.sort() == ["test0", "test2"]
+      assert got_test_case_runs |> Enum.map(& &1.id) ==
+               [
+                 test_case_run_one,
+                 test_case_run_two
+               ]
+               |> Enum.map(& &1.id)
+    end
+  end
+
+  describe "get_test_case_by_identifier/1" do
+    test "gets test case" do
+      # Given
+      test_case = CommandEventsFixtures.test_case_fixture(identifier: "test-case-identifier")
+
+      # When
+      got = CommandEvents.get_test_case_by_identifier("test-case-identifier")
+
+      # Then
+      assert got == test_case
+    end
+  end
+
+  describe "create_test_cases/1" do
+    test "creates missing test cases" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      CommandEventsFixtures.test_case_fixture(
+        identifier: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
+      )
+
+      # When
+      CommandEvents.create_test_cases(%{
+        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        command_event: command_event
+      })
+
+      # Then
+      assert Repo.all(TestCase) |> Enum.map(& &1.identifier) |> Enum.sort() == [
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+             ]
+    end
+  end
+
+  describe "create_test_case_runs/1" do
+    test "creates test case runs" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      CommandEvents.create_test_cases(%{
+        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        command_event: command_event
+      })
+
+      test_case =
+        CommandEvents.get_test_case_by_identifier(
+          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+        )
+
+      test_case_run =
+        CommandEventsFixtures.test_case_run_fixture(
+          test_case_id: test_case.id,
+          status: :failure,
+          module_hash: "app-module_hash",
+          flaky: false
+        )
+
+      # When
+      CommandEvents.create_test_case_runs(%{
+        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        command_event: command_event,
+        modules: %{
+          "App/MainApp.xcodeproj" => %{"AppTests" => "app-module_hash"},
+          "Framework1/Framework1.xcodeproj" => %{
+            "Framework1Tests" => "framework1-module_hash"
+          },
+          "Framework2/Framework2.xcodeproj" => %{
+            "Framework2Tests" => "framework2-module_hash"
+          }
+        }
+      })
+
+      # The
+      test_case_runs =
+        from(t in TestCaseRun, where: t.command_event_id == ^command_event.id)
+        |> Repo.all()
+        |> Enum.sort_by(& &1.module_hash)
+
+      assert test_case_runs |> Enum.map(& &1.module_hash) == [
+               "app-module_hash",
+               "framework1-module_hash",
+               "framework1-module_hash",
+               "framework2-module_hash",
+               "framework2-module_hash"
+             ]
+
+      assert test_case_runs |> Enum.map(& &1.flaky) == [
+               true,
+               false,
+               false,
+               false,
+               false
+             ]
+
+      assert Repo.get(TestCase, test_case.id).flaky == true
+
+      assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
     end
   end
 end
