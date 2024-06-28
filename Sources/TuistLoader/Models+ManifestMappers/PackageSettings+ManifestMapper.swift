@@ -28,6 +28,7 @@ extension TuistCore.PackageSettings {
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
+            includeLocalPackageTestTargets: manifest.includeLocalPackageTestTargets,
             swiftToolsVersion: .init(stringLiteral: swiftToolsVersion.description)
         )
     }

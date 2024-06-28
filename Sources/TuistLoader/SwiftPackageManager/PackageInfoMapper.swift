@@ -87,9 +87,12 @@ enum PackageInfoMapperError: FatalError, Equatable {
     }
 }
 
+/// The type of a Swift Package described by `PackageInfo`.
 public enum PackageType {
+    /// The type of a local Swift Package. It means that the `Package.swift` file is in the local.
     case local
-    case external(artifactPaths: [String: AbsolutePath])
+    /// The type of a remote Swift Package.
+    case remote(artifactPaths: [String: AbsolutePath])
 }
 
 // MARK: - PackageInfo Mapper
@@ -112,7 +115,8 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject: [String: AbsolutePath]
+        packageToProject: [String: AbsolutePath],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Project?
 }
 
@@ -258,7 +262,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject _: [String: AbsolutePath]
+        packageToProject _: [String: AbsolutePath],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -345,9 +350,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     path: path,
                     packageFolder: path,
                     productTypes: productTypes,
-                    productDestinations: packageSettings.productDestinations,
+                    packageSettings: packageSettings,
                     baseSettings: baseSettings,
-                    targetSettings: targetSettings
+                    targetSettings: targetSettings,
+                    onlySPMProject: onlySPMProject
                 )
             }
 
@@ -361,7 +367,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         } else {
             let automaticSchemesOptions: ProjectDescription.Project.Options.AutomaticSchemesOptions
             switch packageType {
-            case .external:
+            case .remote:
                 automaticSchemesOptions = .disabled
             case .local:
                 automaticSchemesOptions = .enabled()
@@ -398,25 +404,38 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
-        productDestinations: [String: XcodeGraph.Destinations],
+        packageSettings: TuistCore.PackageSettings,
         baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary]
+        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        onlySPMProject: Bool
     ) throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
         case .regular, .system, .macro:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
-            case .external:
-                logger.debug("Target \(target.name) of type \(target.type) ignored")
+            case .remote:
+                logger.debug("Target \(target.name) of type \(target.type) is ignored.")
                 return nil
             case .local:
                 break
             }
+        case .test:
+            switch packageType {
+            case .remote:
+                logger.debug("Target \(target.name) of type \(target.type) is ignored.")
+                return nil
+            case .local:
+                if onlySPMProject { break }
+                guard packageSettings.includeLocalPackageTestTargets else {
+                    logger.debug("Target \(target.name) of type \(target.type) is ignored")
+                    return nil
+                }
+            }
         default:
-            logger.debug("Target \(target.name) of type \(target.type) ignored")
+            logger.debug("Target \(target.name) of type \(target.type) is ignored.")
             return nil
         }
 
@@ -471,16 +490,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let dependencyNames = target.dependencies.map(\.name)
             for dependencyName in dependencyNames {
                 let dependencyProducts = targetToProducts[dependencyName] ?? Set()
-                let destinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                let destinations = unionDestinationsOfProducts(dependencyProducts, in: packageSettings.productDestinations)
                 testDestinations.formIntersection(destinations)
             }
             destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:
             switch packageType {
             case .local:
-                let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
+                let productDestinations = unionDestinationsOfProducts(products, in: packageSettings.productDestinations)
                 destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
-            case .external:
+            case .remote:
                 destinations = Set(Destination.allCases)
             }
         }
@@ -559,7 +578,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         return nil
                     }
                     if let target = packageInfo.targets.first(where: { $0.name == name }) {
-                        if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
+                        if target.type == .binary, case let .remote(artifactPaths: artifactPaths) = packageType {
                             guard let artifactPath = artifactPaths[target.name] else {
                                 throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                             }

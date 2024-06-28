@@ -20,7 +20,8 @@ public protocol RecursiveManifestLoading {
     /// - Returns: Loaded manifest
     func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        onlySPMProject: Bool
     ) throws -> LoadedWorkspace
 }
 
@@ -85,9 +86,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         )
     }
 
-    public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistCore.PackageSettings)
-        throws -> LoadedWorkspace
-    {
+    public func loadAndMergePackageProjects(
+        in loadedWorkspace: LoadedWorkspace,
+        packageSettings: TuistCore.PackageSettings,
+        onlySPMProject: Bool
+    ) throws -> LoadedWorkspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
         let packagePaths = try projectSearchPaths.map {
@@ -102,7 +105,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 .pathString.contains(".build/checkouts")
         }
 
-        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
+        let packageProjects = try loadPackageProjects(
+            paths: packagePaths,
+            packageSettings: packageSettings,
+            onlySPMProject: onlySPMProject
+        )
 
         let projects = loadedWorkspace.projects.merging(
             packageProjects.projects,
@@ -120,7 +127,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     private func loadPackageProjects(
         paths: [AbsolutePath],
-        packageSettings: TuistCore.PackageSettings?
+        packageSettings: TuistCore.PackageSettings?,
+        onlySPMProject: Bool
     ) throws -> LoadedProjects {
         guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()
@@ -135,7 +143,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     path: $0,
                     packageType: .local,
                     packageSettings: packageSettings,
-                    packageToProject: [:]
+                    packageToProject: [:],
+                    onlySPMProject: onlySPMProject
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

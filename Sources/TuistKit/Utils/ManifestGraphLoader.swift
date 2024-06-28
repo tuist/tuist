@@ -101,7 +101,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load Workspace
         var allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
-        let isSPMProjectOnly = allManifests.projects.isEmpty
+        let onlySPMProject = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
         // Load DependenciesGraph
@@ -111,7 +111,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
-           isSPMProjectOnly || hasExternalDependencies
+           onlySPMProject || hasExternalDependencies
         {
             let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
@@ -120,7 +120,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
             let manifest = try swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
-                packageSettings: loadedPackageSettings
+                packageSettings: loadedPackageSettings,
+                onlySPMProject: onlySPMProject
             )
             dependenciesGraph = try converter.convert(manifest: manifest, path: path)
             packageSettings = loadedPackageSettings
@@ -133,7 +134,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packageSettings {
             allManifests = try recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
-                packageSettings: packageSettings
+                packageSettings: packageSettings,
+                onlySPMProject: onlySPMProject
             )
         }
 
