@@ -138,7 +138,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       ]
     ],
     responses: %{
-      no_content: {"The organization was deleted", "application/json", nil},
+      no_content: "The organization was deleted",
       not_found:
         {"The organization with the given name was not found", "application/json", Error},
       unauthorized:
