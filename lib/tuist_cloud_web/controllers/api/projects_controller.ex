@@ -236,7 +236,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
     parameters: [
       id: [
         in: :path,
-        type: :number,
+        type: :integer,
         required: true,
         description: "The id of the project to delete."
       ]
