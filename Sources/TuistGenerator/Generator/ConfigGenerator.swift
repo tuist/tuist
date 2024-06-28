@@ -285,8 +285,6 @@ final class ConfigGenerator: ConfigGenerating {
 
         settings["PRODUCT_NAME"] = .string(target.productName)
 
-        // Actually, when `MERGEABLE_LIBRARY` is NO and project is generated, Xcode doesn't include the line of setting in
-        // `project.pbxproj` file.
         if target.mergeable {
             settings["MERGEABLE_LIBRARY"] = .string("YES")
         }
