@@ -4257,11 +4257,9 @@ public enum Operations {
                 }
                 /// Received HTTP response headers
                 public var headers: Operations.deleteOrganization.Output.NoContent.Headers
-                @frozen public enum Body: Sendable, Equatable, Hashable {
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                }
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
                 /// Received HTTP response body
-                public var body: Operations.deleteOrganization.Output.NoContent.Body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
                 ///
                 /// - Parameters:
@@ -4269,7 +4267,7 @@ public enum Operations {
                 ///   - body: Received HTTP response body
                 public init(
                     headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
-                    body: Operations.deleteOrganization.Output.NoContent.Body
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
                 ) {
                     self.headers = headers
                     self.body = body
@@ -6245,12 +6243,12 @@ public enum Operations {
         public static let id: String = "deleteProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var id: Swift.Double
+                public var id: Swift.Int
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - id:
-                public init(id: Swift.Double) { self.id = id }
+                public init(id: Swift.Int) { self.id = id }
             }
             public var path: Operations.deleteProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
