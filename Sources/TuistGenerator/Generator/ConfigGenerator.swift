@@ -291,8 +291,7 @@ final class ConfigGenerator: ConfigGenerating {
 
         switch target.mergedBinaryType {
         case .disabled:
-            // Actually, when `MERGED_BINARY_TYPE` is disabled and project is generated, Xcode doesn't include the line of setting
-            // in `project.pbxproj` file.
+            // When `MERGED_BINARY_TYPE` is disabled, `MERGED_BINARY_TYPE` value should be left empty
             break
         case .automatic:
             settings["MERGED_BINARY_TYPE"] = .string("automatic")
