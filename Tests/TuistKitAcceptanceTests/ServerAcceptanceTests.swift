@@ -2,8 +2,8 @@ import Foundation
 import TuistAcceptanceTesting
 import XCTest
 
-@testable import TuistServer
 @testable import TuistKit
+@testable import TuistServer
 
 final class ServerAcceptanceTestProjects: TuistAcceptanceTestCase {
     func test_create_and_delete_organization_with_project() async throws {
