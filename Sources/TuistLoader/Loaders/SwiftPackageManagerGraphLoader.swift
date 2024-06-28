@@ -59,7 +59,10 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let fileHandler: FileHandling
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        ),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared
