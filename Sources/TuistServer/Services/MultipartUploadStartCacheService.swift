@@ -19,12 +19,13 @@ public enum MultipartUploadStartCacheServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -33,7 +34,7 @@ public enum MultipartUploadStartCacheServiceError: FatalError, Equatable {
         switch self {
         case let .unknownError(statusCode):
             return "The remote cache artifact could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -78,6 +79,11 @@ public final class MultipartUploadStartCacheService: MultipartUploadStartCacheSe
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadStartCacheServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

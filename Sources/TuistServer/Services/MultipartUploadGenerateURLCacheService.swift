@@ -21,12 +21,13 @@ public enum MultipartUploadGenerateURLCacheServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -35,7 +36,7 @@ public enum MultipartUploadGenerateURLCacheServiceError: FatalError, Equatable {
         switch self {
         case let .unknownError(statusCode):
             return "The generation of a multi-part upload URL failed due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -84,6 +85,11 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLCacheServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }
