@@ -26,6 +26,10 @@ defmodule TuistCloud.BillingTest do
           usage: ["pro.usage"],
           flat_monthly: ["pro.flat.monthly"],
           flat_yearly: ["pro.flat.yearly"]
+        },
+        enterprise: %{
+          flat_monthly: ["enterprise.flat.monthly"],
+          flat_yearly: ["enterprise.flat.yearly"]
         }
       }
     end)
@@ -126,6 +130,42 @@ defmodule TuistCloud.BillingTest do
 
       # Then
       assert Billing.get_current_active_subscription(account).plan == :pro
+    end
+
+    test "when it's a new enterprise monthly subscription" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
+      })
+
+      # Then
+      assert Billing.get_current_active_subscription(account).plan == :enterprise
+    end
+
+    test "when it's a new enterprise yearly subscription" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
+      })
+
+      # Then
+      assert Billing.get_current_active_subscription(account).plan == :enterprise
     end
 
     test "when a user cancels a subscription" do

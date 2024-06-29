@@ -95,32 +95,8 @@ defmodule TuistCloud.Billing do
 
   def on_subscription_change(subscription) do
     account = Accounts.get_account_from_customer_id(subscription.customer)
-    active = subscription.status in ["active", "trialing"]
-    subscription_prices = subscription.items.data |> Enum.map(& &1.price.id)
-    available_prices = TuistCloud.Environment.stripe_prices()
 
-    plan =
-      if active do
-        plan =
-          available_prices
-          |> Enum.filter(fn {_, plan_prices} ->
-            usage = plan_prices[:usage]
-            flat = plan_prices[:flat_monthly]
-
-            # The subscription must:
-            #   - Include all the usage-based prices
-            #   - Include at least one flat-based price (monthly or yearly)
-            Enum.all?(usage, &Enum.member?(subscription_prices, &1)) and
-              Enum.any?(flat, &Enum.member?(subscription_prices, &1))
-          end)
-          |> Enum.map(&elem(&1, 0))
-          |> List.first()
-
-        if plan == nil, do: :none, else: plan
-      else
-        :none
-      end
-
+    plan = get_plan(subscription)
     current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
     cond do
@@ -134,7 +110,7 @@ defmodule TuistCloud.Billing do
         })
         |> Repo.insert!()
 
-      active ->
+      plan != :none ->
         Subscription.update_changeset(current_subscription, %{
           plan: plan,
           status: subscription.status,
@@ -142,7 +118,7 @@ defmodule TuistCloud.Billing do
         })
         |> Repo.update!()
 
-      not active ->
+      plan == :none ->
         Subscription.update_changeset(current_subscription, %{
           status: subscription.status,
           default_payment_method: subscription.default_payment_method
@@ -151,6 +127,40 @@ defmodule TuistCloud.Billing do
     end
 
     :ok
+  end
+
+  defp get_plan(subscription) do
+    active = subscription.status in ["active", "trialing"]
+    subscription_prices = subscription.items.data |> Enum.map(& &1.price.id)
+    available_prices = TuistCloud.Environment.stripe_prices()
+
+    if active do
+      plan =
+        available_prices
+        |> Enum.filter(&plan_valid?(&1, subscription_prices))
+        |> Enum.map(&elem(&1, 0))
+        |> List.first()
+
+      if plan == nil, do: :none, else: plan
+    else
+      :none
+    end
+  end
+
+  defp plan_valid?({plan, plan_prices}, subscription_prices) do
+    if plan == :enterprise do
+      flat = plan_prices[:flat_monthly] ++ plan_prices[:flat_yearly]
+      Enum.any?(flat, &Enum.member?(subscription_prices, &1))
+    else
+      usage = plan_prices[:usage]
+      flat = plan_prices[:flat_monthly]
+
+      # The subscription must:
+      #   - Include all the usage-based prices
+      #   - Include at least one flat-based price (monthly or yearly)
+      Enum.all?(usage, &Enum.member?(subscription_prices, &1)) and
+        Enum.any?(flat, &Enum.member?(subscription_prices, &1))
+    end
   end
 
   def get_customer_by_id(customer_id) do
