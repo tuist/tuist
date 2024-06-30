@@ -115,7 +115,6 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject: [String: AbsolutePath],
         onlySPMProject: Bool
     ) throws -> ProjectDescription.Project?
 }
@@ -262,7 +261,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject _: [String: AbsolutePath],
         onlySPMProject: Bool
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly

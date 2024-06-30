@@ -137,7 +137,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             )
         }
 
-        let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
@@ -163,7 +162,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 path: path,
                 packageType: packageType,
                 packageSettings: packageSettings,
-                packageToProject: packageToProject,
                 onlySPMProject: onlySPMProject
             )
             result[.path(path.pathString)] = manifest
