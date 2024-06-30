@@ -97,40 +97,47 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 name: String,
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
+                packageType: PackageType,
                 info: PackageInfo
             )
         ]
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
-            switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
-                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-            case "local", "fileSystem", "localSourceControl":
-                // Depending on the swift version, the information is available either in `path` or in `location`
-                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                }
-                packageFolder = try AbsolutePath(validating: path)
-            case "registry":
-                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
-            default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
-            }
-
-            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
+            let packageType: PackageType
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
                     result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
                 }
 
+            switch dependency.packageRef.kind {
+            case "remote", "remoteSourceControl":
+                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                packageType = .remote(artifactPaths: targetToArtifactPaths)
+            case "local", "fileSystem", "localSourceControl":
+                // Depending on the swift version, the information is available either in `path` or in `location`
+                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                }
+                packageFolder = try AbsolutePath(validating: path)
+                packageType = .local
+            case "registry":
+                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                packageType = .remote(artifactPaths: targetToArtifactPaths)
+            default:
+                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+            }
+
+            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
+
             return (
                 id: dependency.packageRef.identity.lowercased(),
                 name: name,
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
+                packageType: packageType,
                 info: packageInfo
             )
         }
@@ -149,16 +156,10 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let path = packageInfo.folder
-            let packageType: PackageType
-            if path.components.contains(Constants.SwiftPackageManager.packageCheckoutDirectoryName) {
-                packageType = .remote(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:])
-            } else {
-                packageType = .local
-            }
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 path: path,
-                packageType: packageType,
+                packageType: packageInfo.packageType,
                 packageSettings: packageSettings
             )
             result[.path(path.pathString)] = manifest
