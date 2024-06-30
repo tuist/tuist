@@ -48,6 +48,7 @@ public struct PackageSettings: Codable, Equatable {
     public var projectOptions: [String: Project.Options]
 
     /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
+    /// The default value is false.
     public var includeLocalPackageTestTargets: Bool
 
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
@@ -58,7 +59,7 @@ public struct PackageSettings: Codable, Equatable {
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     ///     - includeLocalPackageTestTargets: A Boolean value that indicates whether the test targets of
-    ///     local swift packages are included in generated project.
+    ///     local swift packages are included in generated project. The default value is false.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
