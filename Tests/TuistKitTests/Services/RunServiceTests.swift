@@ -161,7 +161,8 @@ final class RunServiceTests: TuistUnitTestCase {
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
         targetRunner
-            .runTargetStub = { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _, _arguments in
+            .runTargetStub =
+            { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _, _arguments in
                 // Then
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_schemeName, schemeName)

@@ -22,7 +22,17 @@ public final class MockTargetRunner: TargetRunning {
         derivedDataPath: AbsolutePath?,
         arguments: [String]
     ) throws {
-        try runTargetStub?(target, workspacePath, schemeName, configuration, minVersion, version, deviceName, derivedDataPath, arguments)
+        try runTargetStub?(
+            target,
+            workspacePath,
+            schemeName,
+            configuration,
+            minVersion,
+            version,
+            deviceName,
+            derivedDataPath,
+            arguments
+        )
     }
 
     public var assertCanRunTargetStub: ((Target) throws -> Void)?
