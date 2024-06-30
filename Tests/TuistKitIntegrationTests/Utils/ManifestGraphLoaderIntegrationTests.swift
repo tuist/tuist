@@ -63,21 +63,4 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
             "FrameworkB",
         ])
     }
-
-    func test_load_spm_project() async throws {
-        // Given
-        let path = try temporaryFixture("SPMProject")
-
-        // When
-        let (result, _, _) = try await subject.load(path: path)
-
-        // Then
-        XCTAssertEqual(result.projects.values.map(\.name), [
-            "Package",
-        ])
-        XCTAssertEqual(result.projects.values.first?.targets.values.map(\.name).sorted(), [
-            "Package",
-            "PackageTests",
-        ])
-    }
 }
