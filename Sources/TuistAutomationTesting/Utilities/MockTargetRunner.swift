@@ -7,7 +7,7 @@ public final class MockTargetRunner: TargetRunning {
     public init() {}
 
     public var runTargetStub: (
-        (GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String]) throws
+        (GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, AbsolutePath?, [String]) throws
             -> Void
     )?
     public func runTarget(
@@ -19,9 +19,10 @@ public final class MockTargetRunner: TargetRunning {
         minVersion: Version?,
         version: Version?,
         deviceName: String?,
+        derivedDataPath: AbsolutePath?,
         arguments: [String]
     ) throws {
-        try runTargetStub?(target, workspacePath, schemeName, configuration, minVersion, version, deviceName, arguments)
+        try runTargetStub?(target, workspacePath, schemeName, configuration, minVersion, version, deviceName, derivedDataPath, arguments)
     }
 
     public var assertCanRunTargetStub: ((Target) throws -> Void)?
