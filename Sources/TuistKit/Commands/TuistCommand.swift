@@ -1,8 +1,10 @@
 @_exported import ArgumentParser
 import Foundation
+import OpenAPIRuntime
 import Path
 import TuistAnalytics
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -86,6 +88,11 @@ public struct TuistCommand: AsyncParsableCommand {
         } catch let error as FatalError {
             WarningController.shared.flush()
             errorHandler.fatal(error: error)
+            _exit(exitCode(for: error).rawValue)
+        } catch let error as ClientError where error.underlyingError is CloudClientAuthenticationError {
+            WarningController.shared.flush()
+            // swiftlint:disable:next force_cast
+            logger.error("\((error.underlyingError as! CloudClientAuthenticationError).description)")
             _exit(exitCode(for: error).rawValue)
         } catch {
             WarningController.shared.flush()

@@ -256,6 +256,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
+                .external(name: "OpenAPIRuntime"),
             ]
         case .core:
             [
