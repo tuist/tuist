@@ -113,15 +113,18 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
            onlySPMProject || hasExternalDependencies
         {
-            let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
+            var loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
 
+            if onlySPMProject {
+                loadedPackageSettings.includeLocalPackageTestTargets = true
+            }
+
             let manifest = try swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
-                packageSettings: loadedPackageSettings,
-                onlySPMProject: onlySPMProject
+                packageSettings: loadedPackageSettings
             )
             dependenciesGraph = try converter.convert(manifest: manifest, path: path)
             packageSettings = loadedPackageSettings
@@ -134,8 +137,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packageSettings {
             allManifests = try recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
-                packageSettings: packageSettings,
-                onlySPMProject: onlySPMProject
+                packageSettings: packageSettings
             )
         }
 

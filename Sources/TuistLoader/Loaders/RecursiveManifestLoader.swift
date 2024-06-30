@@ -20,8 +20,7 @@ public protocol RecursiveManifestLoading {
     /// - Returns: Loaded manifest
     func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> LoadedWorkspace
 }
 
@@ -88,8 +87,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     public func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> LoadedWorkspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
@@ -107,8 +105,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
         let packageProjects = try loadPackageProjects(
             paths: packagePaths,
-            packageSettings: packageSettings,
-            onlySPMProject: onlySPMProject
+            packageSettings: packageSettings
         )
 
         let projects = loadedWorkspace.projects.merging(
@@ -127,8 +124,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     private func loadPackageProjects(
         paths: [AbsolutePath],
-        packageSettings: TuistCore.PackageSettings?,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings?
     ) throws -> LoadedProjects {
         guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()
@@ -142,8 +138,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,
-                    packageSettings: packageSettings,
-                    onlySPMProject: onlySPMProject
+                    packageSettings: packageSettings
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

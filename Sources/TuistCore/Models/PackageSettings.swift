@@ -19,6 +19,8 @@ public struct PackageSettings: Equatable, Codable {
     public let projectOptions: [String: XcodeGraph.Project.Options]
 
     /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
+    ///
+    /// If only SPM project, test targets are always included regardless of the value of this property.
     public var includeLocalPackageTestTargets: Bool
 
     /// Swift tools version of the parsed `Package.swift`

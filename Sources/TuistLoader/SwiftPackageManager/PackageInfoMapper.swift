@@ -114,8 +114,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> ProjectDescription.Project?
 }
 
@@ -260,8 +259,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -349,8 +347,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     packageSettings: packageSettings,
                     baseSettings: baseSettings,
-                    targetSettings: targetSettings,
-                    onlySPMProject: onlySPMProject
+                    targetSettings: targetSettings
                 )
             }
 
@@ -403,8 +400,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         packageSettings: TuistCore.PackageSettings,
         baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary],
-        onlySPMProject: Bool
+        targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -425,8 +421,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 logger.debug("Target \(target.name) of type \(target.type) is ignored.")
                 return nil
             case .local:
-                if onlySPMProject { break }
-                guard packageSettings.includeLocalPackageTestTargets else {
+                if !packageSettings.includeLocalPackageTestTargets {
                     logger.debug("Target \(target.name) of type \(target.type) is ignored")
                     return nil
                 }

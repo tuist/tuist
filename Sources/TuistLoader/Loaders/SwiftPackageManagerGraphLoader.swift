@@ -51,8 +51,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// - Returns: The loaded `DependenciesGraph`.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -74,8 +73,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings,
-        onlySPMProject: Bool
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -161,8 +159,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageInfo: packageInfo.info,
                 path: path,
                 packageType: packageType,
-                packageSettings: packageSettings,
-                onlySPMProject: onlySPMProject
+                packageSettings: packageSettings
             )
             result[.path(path.pathString)] = manifest
         }
