@@ -1027,8 +1027,6 @@ paths:
             type: string
       responses:
         204:
-          content:
-            application/json: {}
           description: The organization was deleted
         401:
           content:
@@ -1641,7 +1639,7 @@ paths:
           name: id
           required: true
           schema:
-            type: number
+            type: integer
       responses:
         204:
           description: The project was successfully deleted.

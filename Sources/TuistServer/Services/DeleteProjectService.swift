@@ -47,7 +47,7 @@ public final class DeleteProjectService: DeleteProjectServicing {
 
         let response = try await client.deleteProject(
             .init(
-                path: .init(id: Double(projectId))
+                path: .init(id: projectId)
             )
         )
         switch response {

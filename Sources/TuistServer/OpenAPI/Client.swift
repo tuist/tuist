@@ -1331,17 +1331,7 @@ public struct Client: APIProtocol {
                 switch response.statusCode {
                 case 204:
                     let headers: Operations.deleteOrganization.Output.NoContent.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.deleteOrganization.Output.NoContent.Body =
-                        try converter.getResponseBodyAsJSON(
-                            OpenAPIRuntime.OpenAPIValueContainer.self,
-                            from: response.body,
-                            transforming: { value in .json(value) }
-                        )
-                    return .noContent(.init(headers: headers, body: body))
+                    return .noContent(.init(headers: headers, body: nil))
                 case 401:
                     let headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init()
                     try converter.validateContentTypeIfPresent(

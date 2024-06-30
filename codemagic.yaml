@@ -234,8 +234,8 @@ workflows:
     triggering:
       << : *branch_triggering
 
-  tuist_acceptance_tests:
-    name: Tuist acceptance tests
+  tuist_kit_acceptance_tests:
+    name: TuistKit acceptance tests
     max_build_duration: 60
     environment:
       xcode: 15.3
@@ -259,6 +259,6 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test tuistAcceptanceTests
+        script: mise x -- tuist test TuistKitAcceptanceTests
     triggering:
       << : *branch_triggering
