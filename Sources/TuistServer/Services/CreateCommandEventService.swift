@@ -16,12 +16,13 @@ public protocol CreateCommandEventServicing {
 enum CreateCommandEventServiceError: FatalError {
     case unknownError(Int)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden:
+        case .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -30,7 +31,7 @@ enum CreateCommandEventServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The organization could not be created due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message):
+        case let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -98,6 +99,11 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw CreateCommandEventServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

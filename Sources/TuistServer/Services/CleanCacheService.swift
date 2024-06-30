@@ -14,12 +14,13 @@ enum CleanCacheServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden:
+        case .notFound, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -28,7 +29,7 @@ enum CleanCacheServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The project clean failed due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -61,6 +62,11 @@ public final class CleanCacheService: CleanCacheServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw CleanCacheServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CleanCacheServiceError.unknownError(statusCode)
