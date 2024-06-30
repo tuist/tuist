@@ -3629,62 +3629,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-
-    func testMap_whenOnlySwiftPackageWithNotIncludeLocalPackageTestTargets() throws {
-        // Given
-        let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
-        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
-
-        // When
-        let project = try subject.map(
-            package: "Package",
-            basePath: basePath,
-            packageType: .local,
-            packageInfos: [
-                "Package": .test(
-                    products: [
-                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
-                    ],
-                    targets: [
-                        .test(name: "Target"),
-                        .test(
-                            name: "TargetTests",
-                            type: .test,
-                            dependencies: [.target(name: "Target", condition: nil)]
-                        ),
-                    ]
-                ),
-            ],
-            onlySPMProject: true
-        )
-
-        // Then
-        XCTAssertBetterEqual(
-            project,
-            .test(
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                settings: .settings(),
-                targets: [
-                    .test("Target", basePath: basePath),
-                    .test(
-                        "TargetTests",
-                        basePath: basePath,
-                        product: .unitTests,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(testsPath.pathString)/**",
-                        ])),
-                        dependencies: [.target(name: "Target")]
-                    ),
-                ]
-            )
-        )
-    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -3712,8 +3656,7 @@ extension PackageInfoMapping {
         packageInfos: [String: PackageInfo] = [:],
         packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
-        ),
-        onlySPMProject: Bool = false
+        )
     ) throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
             .reduce(into: [:]) { packagesResult, element in
@@ -3739,11 +3682,7 @@ extension PackageInfoMapping {
             packageInfo: packageInfos[package]!,
             path: basePath.appending(component: package),
             packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
-            packageSettings: packageSettings,
-            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
-                ($0, basePath.appending(component: $0))
-            }),
-            onlySPMProject: onlySPMProject
+            packageSettings: packageSettings
         )
     }
 }

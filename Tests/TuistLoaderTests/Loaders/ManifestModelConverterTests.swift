@@ -349,12 +349,8 @@ extension ManifestModelConverterTests {
         )
     }
 
-    func makeManifestLoader() -> ManifestLoading {
-        return MockManifestLoader()
-    }
-
     func makeManifestLoader(
-        with projects: [AbsolutePath: ProjectDescription.Project],
+        with projects: [AbsolutePath: ProjectDescription.Project] = [:],
         configs: [AbsolutePath: ProjectDescription.Config] = [:]
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoader()
