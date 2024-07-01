@@ -12,7 +12,7 @@ defmodule TuistCloud.AccountsFixtures do
     preloads = Keyword.get(opts, :preloads, [])
     customer_id = Keyword.get(opts, :customer_id, "#{TestUtilities.unique_integer()}")
 
-    user =
+    {:ok, user} =
       Accounts.create_user(email,
         password: password,
         confirmed_at: confirmed_at,

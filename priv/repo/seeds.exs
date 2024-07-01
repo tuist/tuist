@@ -7,8 +7,17 @@ email = "tuist@tuist.io"
 password = "tuistrocks"
 
 account =
-  Accounts.get_user_by_email(email) ||
-    Accounts.create_user(email, password: password, confirmed_at: NaiveDateTime.utc_now())
+  Accounts.get_user_by_email(email)
+
+account =
+  if is_nil(account) do
+    {:ok, account} =
+      Accounts.create_user(email, password: password, confirmed_at: NaiveDateTime.utc_now())
+
+    account
+  else
+    account
+  end
 
 user = Accounts.get_user_by_email(email)
 

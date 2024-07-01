@@ -2,6 +2,7 @@ defmodule TuistCloud.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
+  alias Ecto.Changeset
   alias TuistCloud.Projects.Project
   alias TuistCloud.CommandEvents.Event
   alias TuistCloud.Environment
@@ -299,7 +300,6 @@ defmodule TuistCloud.Accounts do
     confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
     suffix = opts |> Keyword.get(:suffix, "")
-    attempt = opts |> Keyword.get(:attempt, 0)
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
 
     name =
@@ -354,10 +354,29 @@ defmodule TuistCloud.Accounts do
         |> Repo.transaction()
       end
 
-    with {:account, {:error, :account, changeset, _}} <- {:account, user_account},
-         {:unique_name_error, true} <-
-           {:unique_name_error, TuistCloud.Ecto.Utils.unique_error?(changeset, :name)},
-         {:under_limit, true} <- {:under_limit, attempt < 5} do
+    case user_account do
+      {:ok, %{user: user}} ->
+        TuistCloud.Analytics.user_create(user)
+
+        {:ok, user}
+
+      {:error, :account, %Changeset{} = changeset, _} ->
+        parse_account_changeset_error(changeset, email, opts)
+
+      {:error, :user, %Changeset{} = changeset, _} ->
+        if TuistCloud.Ecto.Utils.unique_error?(changeset, :email) do
+          {:error, :email_taken}
+        else
+          {:error, changeset}
+        end
+    end
+  end
+
+  defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
+    attempt = opts |> Keyword.get(:attempt, 0)
+    suffix = opts |> Keyword.get(:suffix, "")
+
+    if TuistCloud.Ecto.Utils.unique_error?(changeset, :name) and attempt < 5 do
       next_suffix = if suffix == "", do: 1, else: (suffix |> String.to_integer()) + 1
 
       opts =
@@ -367,15 +386,7 @@ defmodule TuistCloud.Accounts do
 
       create_user(email, opts)
     else
-      {:account, {:ok, %{user: user}}} ->
-        TuistCloud.Analytics.user_create(user)
-        user
-
-      {:unique_name_error, false} ->
-        user_account
-
-      {:under_limit, false} ->
-        user_account
+      {:error, :account_name_taken}
     end
   end
 
@@ -431,7 +442,7 @@ defmodule TuistCloud.Accounts do
 
       oauth2_identity
     else
-      user =
+      {:ok, user} =
         create_user(email,
           password: generate_random_string(16),
           oauth2_identity: %{

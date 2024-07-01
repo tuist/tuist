@@ -770,7 +770,7 @@ defmodule TuistCloud.AccountsTest do
   describe "create_user/1" do
     test "create a user with a password" do
       email = unique_user_email()
-      user = Accounts.create_user(email, password: valid_user_password())
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
@@ -778,13 +778,13 @@ defmodule TuistCloud.AccountsTest do
 
     test "create a user lowercasing the email" do
       email = "#{TuistCloud.TestUtilities.unique_integer()}@TUIST.io"
-      user = Accounts.create_user(email, password: valid_user_password())
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
       assert user.email == String.downcase(email)
     end
 
     test "create a user with a password when email has a dot in the username" do
       email = "username.with.dot@tuist.io"
-      user = Accounts.create_user(email, password: valid_user_password())
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
       account = Accounts.get_account_from_user(user)
       assert user.email == email
       assert account.name == "username-with-dot"
@@ -798,7 +798,9 @@ defmodule TuistCloud.AccountsTest do
 
       # When
       assert %{name: "test1"} =
-               Accounts.create_user("test@tuist.test") |> Accounts.get_account_from_user()
+               Accounts.create_user("test@tuist.test")
+               |> elem(1)
+               |> Accounts.get_account_from_user()
     end
 
     test "errors after attempting finding a unique account handle using suffixes" do
@@ -811,8 +813,15 @@ defmodule TuistCloud.AccountsTest do
       Accounts.create_user("test5@tuist.io")
 
       # When
-      {:error, :account, changeset, _} = Accounts.create_user("test@tuist.test")
-      assert %{name: ["has already been taken"]} == errors_on(changeset)
+      {:error, :account_name_taken} = Accounts.create_user("test@tuist.test")
+    end
+
+    test "errors after creating user with an email that already exists" do
+      # Given
+      Accounts.create_user("test@tuist.io")
+
+      # When
+      assert {:error, :email_taken} = Accounts.create_user("test@tuist.io")
     end
   end
 
