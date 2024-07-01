@@ -12,6 +12,9 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlugTest do
   use Mimic
 
   setup do
+    Billing
+    |> stub(:start_trial, fn _ -> {:ok, %{}} end)
+
     project = ProjectsFixtures.project_fixture() |> Repo.preload(:account)
 
     TuistCloud.Environment

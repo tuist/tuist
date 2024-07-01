@@ -1,4 +1,6 @@
 defmodule TuistCloud.AccountsTest do
+  alias TuistCloud.Accounts.Account
+  alias TuistCloud.Billing
   alias TuistCloud.CommandEvents
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Projects
@@ -552,6 +554,24 @@ defmodule TuistCloud.AccountsTest do
       assert Accounts.organization_admin?(user, organization) == true
     end
 
+    test "creates an organization when new pricing model is enabled" do
+      # Given
+      Environment
+      |> expect(:new_pricing_model?, fn -> true end)
+
+      Billing
+      |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
+
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
     test "creates an organization with SSO provider" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -771,6 +791,25 @@ defmodule TuistCloud.AccountsTest do
     test "create a user with a password" do
       email = unique_user_email()
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+      assert user.email == email
+      assert is_binary(user.encrypted_password)
+      assert is_nil(user.confirmed_at)
+    end
+
+    test "create a user with a password when new pricing model is enabled" do
+      # Given
+      Environment
+      |> expect(:new_pricing_model?, fn -> true end)
+
+      Billing
+      |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
+
+      email = unique_user_email()
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)

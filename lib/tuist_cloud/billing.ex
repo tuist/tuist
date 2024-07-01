@@ -49,30 +49,32 @@ defmodule TuistCloud.Billing do
       |> Stripe.Request.make_request()
   end
 
+  def start_trial(%{plan: plan, account: %Account{customer_id: customer_id}}) do
+    subscription_items = get_subscription_items(plan)
+
+    Stripe.Subscription.create(%{
+      customer: customer_id,
+      items: subscription_items,
+      trial_period_days: 30
+    })
+  end
+
   def update_plan(%{
         plan: plan,
         account: %Account{} = account,
         success_url: success_url
       }) do
     customer_id = account.customer_id
-    available_prices = TuistCloud.Environment.stripe_prices()
-
-    usage_prices =
-      available_prices[plan][:usage]
-      |> Enum.map(&%{price: &1})
-
-    flat_prices =
-      available_prices[plan][:flat_monthly]
-      |> Enum.map(&%{price: &1, quantity: 1})
-      |> Enum.take(1)
 
     current_subscription = get_current_active_subscription(account)
+
+    subscription_items = get_subscription_items(plan)
 
     if is_nil(current_subscription) do
       {:ok, session} =
         Stripe.Checkout.Session.create(%{
           success_url: success_url,
-          line_items: usage_prices ++ flat_prices,
+          line_items: subscription_items,
           mode: "subscription",
           customer: customer_id
         })
@@ -86,11 +88,26 @@ defmodule TuistCloud.Billing do
 
       {:ok, _} =
         Stripe.Subscription.update(current_subscription.subscription_id, %{
-          items: item_to_delete ++ usage_prices ++ flat_prices
+          items: item_to_delete ++ subscription_items
         })
 
       nil
     end
+  end
+
+  defp get_subscription_items(plan) do
+    available_prices = TuistCloud.Environment.stripe_prices()
+
+    usage_prices =
+      available_prices[plan][:usage]
+      |> Enum.map(&%{price: &1})
+
+    flat_prices =
+      available_prices[plan][:flat_monthly]
+      |> Enum.map(&%{price: &1, quantity: 1})
+      |> Enum.take(1)
+
+    usage_prices ++ flat_prices
   end
 
   def on_subscription_change(subscription) do

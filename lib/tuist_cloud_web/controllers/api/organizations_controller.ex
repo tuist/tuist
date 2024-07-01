@@ -105,7 +105,9 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         })
 
       is_nil(existing_organization) ->
-        organization = Accounts.create_organization(%{name: organization_name, creator: user})
+        organization =
+          Accounts.create_organization(%{name: organization_name, creator: user})
+
         organization_account = Accounts.get_account_from_organization(organization)
 
         conn
