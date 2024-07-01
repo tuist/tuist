@@ -75,7 +75,8 @@ defmodule TuistCloudWeb.BillingLiveTest do
       %{
         plan: :air,
         status: "active",
-        default_payment_method: "payment_method_id"
+        default_payment_method: "payment_method_id",
+        trial_end: nil
       }
     end)
 
@@ -92,6 +93,42 @@ defmodule TuistCloudWeb.BillingLiveTest do
     assert has_element?(lv, "p", "167 of 200 remote cache hits")
   end
 
+  test "renders billing when a user has the air plan with trial", %{conn: conn} do
+    # Given
+    Billing
+    |> stub(:get_current_active_subscription, fn _ ->
+      %{
+        plan: :air,
+        status: "trialing",
+        default_payment_method: "payment_method_id",
+        trial_end: ~U[2024-07-31 13:42:09Z]
+      }
+    end)
+
+    TuistCloud.Time
+    |> stub(:utc_now, fn -> ~U[2024-07-28 13:42:09Z] end)
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/tuist-org/settings/billing")
+
+    # Then
+    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Air plan")
+    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info .badge", "Trial")
+
+    assert has_element?(
+             lv,
+             ".billing__overview__plan-card__plan-summary__info .badge",
+             "3 days left"
+           )
+
+    refute has_element?(lv, "button", "Downgrade")
+    assert has_element?(lv, "button", "Upgrade")
+    assert has_element?(lv, "button", "Current plan")
+    assert has_element?(lv, "p", "167 of 200 remote cache hits")
+  end
+
   test "renders billing when a user has the pro plan", %{conn: conn} do
     # Given
     Billing
@@ -99,7 +136,8 @@ defmodule TuistCloudWeb.BillingLiveTest do
       %{
         plan: :pro,
         status: "active",
-        default_payment_method: "payment_method_id"
+        default_payment_method: "payment_method_id",
+        trial_end: nil
       }
     end)
 
@@ -123,7 +161,8 @@ defmodule TuistCloudWeb.BillingLiveTest do
       %{
         plan: :enterprise,
         status: "active",
-        default_payment_method: "payment_method_id"
+        default_payment_method: "payment_method_id",
+        trial_end: nil
       }
     end)
 

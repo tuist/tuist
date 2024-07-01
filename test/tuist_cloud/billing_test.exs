@@ -41,6 +41,28 @@ defmodule TuistCloud.BillingTest do
   end
 
   describe "on_subscription_change/1" do
+    test "when it's a new trial air subscription" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "trialing",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]},
+        trial_end: 1_722_433_329
+      })
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.plan == :air
+      assert subscription.status == "trialing"
+      assert subscription.trial_end == ~U[2024-07-31 13:42:09Z]
+    end
+
     test "when it's a new air subscription" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
