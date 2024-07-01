@@ -116,6 +116,13 @@ defmodule TuistCloud.Billing do
     plan = get_plan(subscription)
     current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
+    trial_end =
+      if is_nil(Map.get(subscription, :trial_end)) do
+        nil
+      else
+        subscription.trial_end |> DateTime.from_unix!()
+      end
+
     cond do
       is_nil(current_subscription) ->
         Subscription.create_changeset(%Subscription{}, %{
@@ -123,7 +130,8 @@ defmodule TuistCloud.Billing do
           subscription_id: subscription.id,
           status: subscription.status,
           account_id: account.id,
-          default_payment_method: subscription.default_payment_method
+          default_payment_method: subscription.default_payment_method,
+          trial_end: trial_end
         })
         |> Repo.insert!()
 
@@ -131,14 +139,16 @@ defmodule TuistCloud.Billing do
         Subscription.update_changeset(current_subscription, %{
           plan: plan,
           status: subscription.status,
-          default_payment_method: subscription.default_payment_method
+          default_payment_method: subscription.default_payment_method,
+          trial_end: trial_end
         })
         |> Repo.update!()
 
       plan == :none ->
         Subscription.update_changeset(current_subscription, %{
           status: subscription.status,
-          default_payment_method: subscription.default_payment_method
+          default_payment_method: subscription.default_payment_method,
+          trial_end: trial_end
         })
         |> Repo.update!()
     end

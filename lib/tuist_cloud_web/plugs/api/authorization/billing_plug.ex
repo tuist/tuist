@@ -5,6 +5,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
   use TuistCloudWeb, :controller
   use TuistCloudWeb, :verified_routes
 
+  alias TuistCloudWeb.WarningsHeaderPlug
   alias TuistCloud.Billing
   alias TuistCloud.Accounts
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
@@ -33,7 +34,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
-          The account '#{account_handle}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account_handle}/settings/billing")}.
+          The account '#{account_handle}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account_handle}/billing")}.
           """
         })
         |> halt()
@@ -42,7 +43,29 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
         conn
 
       {_, _} ->
-        conn
+        days_until_end_of_trial =
+          if is_nil(subscription.trial_end) do
+            nil
+          else
+            DateTime.diff(subscription.trial_end, TuistCloud.Time.utc_now(), :day)
+          end
+
+        cond do
+          is_nil(days_until_end_of_trial) ->
+            conn
+
+          days_until_end_of_trial == 0 ->
+            conn
+            |> WarningsHeaderPlug.put_warning(
+              "Your trial period ends today. Please update your billing information to avoid service interruption: #{url(~p"/#{account_handle}/billing")}"
+            )
+
+          days_until_end_of_trial < 3 ->
+            conn
+            |> WarningsHeaderPlug.put_warning(
+              "Your trial period ends in #{days_until_end_of_trial} days. Please update your billing information to avoid service interruption: #{url(~p"/#{account_handle}/billing")}"
+            )
+        end
     end
   end
 

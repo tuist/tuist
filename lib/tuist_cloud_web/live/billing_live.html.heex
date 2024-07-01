@@ -30,8 +30,16 @@
                     ) %>
                   <% end %>
                 </p>
-                <%= if @is_trialing do %>
+                <%= if not is_nil(@trial_days_left) do %>
                   <.badge kind={:neutral} title={gettext("Trial")} />
+                  <.badge
+                    kind={:neutral}
+                    title={
+                      gettext("%{trial_days_left} days left",
+                        trial_days_left: @trial_days_left
+                      )
+                    }
+                  />
                 <% end %>
               </.stack>
               <p class="text--small font--regular color--text-tertiary">

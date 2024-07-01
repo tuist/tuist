@@ -11,6 +11,7 @@ defmodule TuistCloud.Billing.Subscription do
     field :subscription_id, :string
     field :status, :string
     field :default_payment_method, :string
+    field :trial_end, :utc_datetime
 
     belongs_to :account, Account
 
@@ -25,6 +26,7 @@ defmodule TuistCloud.Billing.Subscription do
       :account_id,
       :status,
       :default_payment_method,
+      :trial_end,
       :inserted_at
     ])
     |> validate_required([:plan, :subscription_id, :account_id, :status])
@@ -38,7 +40,7 @@ defmodule TuistCloud.Billing.Subscription do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:plan, :status, :default_payment_method])
+    |> cast(attrs, [:plan, :status, :default_payment_method, :trial_end])
     |> validate_plan()
   end
 end

@@ -39,6 +39,13 @@ defmodule TuistCloudWeb.BillingLive do
         Billing.get_payment_method_by_id(subscription.default_payment_method)
       end
 
+    trial_days_left =
+      if is_nil(subscription) or is_nil(subscription.trial_end) do
+        nil
+      else
+        DateTime.diff(subscription.trial_end, TuistCloud.Time.utc_now(), :day)
+      end
+
     {
       :ok,
       socket
@@ -52,7 +59,7 @@ defmodule TuistCloudWeb.BillingLive do
         Accounts.get_current_month_remote_cache_hits_count(owner)
       )
       |> assign(:new_plan_period, :monthly)
-      |> assign(:is_trialing, not is_nil(subscription) and subscription.status == "trialing")
+      |> assign(:trial_days_left, trial_days_left)
     }
   end
 

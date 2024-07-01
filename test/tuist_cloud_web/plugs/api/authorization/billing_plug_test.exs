@@ -106,6 +106,74 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
+  test "returns connection with a warning if the plan is air and the trial ends in less than 3 days",
+       %{
+         conn: conn,
+         project: project
+       } do
+    # Given
+    account = project.account
+
+    Billing
+    |> stub(:get_current_active_subscription, fn ^account ->
+      %Subscription{plan: :air, trial_end: ~U[2021-01-01 00:00:00Z]}
+    end)
+
+    TuistCloud.Time
+    |> stub(:utc_now, fn -> ~U[2020-12-30 00:00:00Z] end)
+
+    project = project |> Repo.reload() |> Repo.preload(:account)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    got = conn |> BillingPlug.call(plug_opts)
+
+    # Then
+    assert TuistCloudWeb.WarningsHeaderPlug.get_warnings(got) ==
+             [
+               "Your trial period ends in 2 days. Please update your billing information to avoid service interruption: #{url(~p"/#{project.account.name}/billing")}"
+             ]
+  end
+
+  test "returns connection with a warning if the plan is air and the trial ends today",
+       %{
+         conn: conn,
+         project: project
+       } do
+    # Given
+    account = project.account
+
+    Billing
+    |> stub(:get_current_active_subscription, fn ^account ->
+      %Subscription{plan: :air, trial_end: ~U[2021-01-01 01:00:00Z]}
+    end)
+
+    TuistCloud.Time
+    |> stub(:utc_now, fn -> ~U[2021-01-01 00:00:00Z] end)
+
+    project = project |> Repo.reload() |> Repo.preload(:account)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    got = conn |> BillingPlug.call(plug_opts)
+
+    # Then
+    assert TuistCloudWeb.WarningsHeaderPlug.get_warnings(got) ==
+             [
+               "Your trial period ends today. Please update your billing information to avoid service interruption: #{url(~p"/#{project.account.name}/billing")}"
+             ]
+  end
+
   test "returns an error if the account has no active subscription and the current month remote cache hits count is over the threshold",
        %{
          conn: conn,
@@ -136,7 +204,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlugTest do
     # Then
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
-             The account '#{project.account.name}' has reached the limit of remote cache hits #{BillingPlug.remote_cache_hits_threshold()} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{project.account.name}/settings/billing")}.
+             The account '#{project.account.name}' has reached the limit of remote cache hits #{BillingPlug.remote_cache_hits_threshold()} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{project.account.name}/billing")}.
              """
            }
   end
