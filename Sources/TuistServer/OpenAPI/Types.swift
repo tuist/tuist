@@ -902,22 +902,31 @@ public enum Components {
             public enum planPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
                 _AutoLosslessStringConvertible, CaseIterable
             {
-                case team
+                case air
+                case pro
+                case enterprise
+                case none
                 /// Parsed a raw value that was not defined in the OpenAPI document.
                 case undocumented(String)
                 public init?(rawValue: String) {
                     switch rawValue {
-                    case "team": self = .team
+                    case "air": self = .air
+                    case "pro": self = .pro
+                    case "enterprise": self = .enterprise
+                    case "none": self = .none
                     default: self = .undocumented(rawValue)
                     }
                 }
                 public var rawValue: String {
                     switch self {
                     case let .undocumented(string): return string
-                    case .team: return "team"
+                    case .air: return "air"
+                    case .pro: return "pro"
+                    case .enterprise: return "enterprise"
+                    case .none: return "none"
                     }
                 }
-                public static var allCases: [planPayload] { [.team] }
+                public static var allCases: [planPayload] { [.air, .pro, .enterprise, .none] }
             }
             /// The plan associated with the organization
             ///

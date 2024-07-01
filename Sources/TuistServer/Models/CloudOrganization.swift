@@ -2,24 +2,22 @@ import Foundation
 
 /// Cloud organization
 public struct CloudOrganization: Codable {
-    public enum Plan: Codable, RawRepresentable {
-        case team, none
+    public enum Plan: String, Codable {
+        case air
+        case pro
+        case enterprise
+        case none
 
-        public init(rawValue: String) {
-            switch rawValue {
-            case "team":
-                self = .team
-            default:
+        public init(_ organization: Components.Schemas.Organization.planPayload) {
+            switch organization {
+            case .air:
+                self = .air
+            case .pro:
+                self = .pro
+            case .enterprise:
+                self = .enterprise
+            case .none, .undocumented:
                 self = .none
-            }
-        }
-
-        public var rawValue: String {
-            switch self {
-            case .team:
-                return "team"
-            case .none:
-                return "none"
             }
         }
     }
@@ -95,7 +93,7 @@ extension CloudOrganization {
     init(_ organization: Components.Schemas.Organization) {
         id = Int(organization.id)
         name = organization.name
-        plan = Plan(rawValue: organization.plan.rawValue)
+        plan = Plan(organization.plan)
         members = organization.members.map(Member.init)
         invitations = organization.invitations.map(CloudInvitation.init)
         if let ssoProvider = organization.sso_provider,
@@ -132,7 +130,7 @@ extension CloudOrganization.Member {
         public static func test(
             id: Int = 0,
             name: String = "test",
-            plan: Plan = .team,
+            plan: Plan = .air,
             members: [Member] = [],
             invitations: [CloudInvitation] = [],
             ssoOrganization: SSOOrganization? = nil

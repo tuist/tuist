@@ -46,7 +46,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     name: "test-one",
-                    plan: .team,
+                    plan: .air,
                     members: [
                         .test(
                             name: "name-one",
@@ -83,7 +83,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("""
         \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
         Name: test-one
-        Plan: Team
+        Plan: Air
 
         \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
         Remote cache hits: 210
@@ -106,7 +106,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     name: "test-one",
-                    plan: .team,
+                    plan: .pro,
                     ssoOrganization: .google("tuist.io")
                 )
             )
@@ -126,7 +126,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
             """
             \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
             Name: test-one
-            Plan: Team
+            Plan: Pro
             SSO: Google (tuist.io)
             """
         )
