@@ -1,13 +1,5 @@
 @import "./navigation_bar.css";
 
-/* Pages */
-@import "./pages/billing.css";
-@import "./pages/flaky_tests.css";
-@import "./pages/get_started.css";
-@import "./pages/analytics.css";
-@import "./pages/run_detail.css";
-@import "./pages/runs.css";
-
 :root {
   /* Colors */
 
