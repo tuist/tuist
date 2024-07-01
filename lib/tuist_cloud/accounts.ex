@@ -2,6 +2,7 @@ defmodule TuistCloud.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
+  alias TuistCloud.Accounts
   alias Ecto.Changeset
   alias TuistCloud.Projects.Project
   alias TuistCloud.CommandEvents.Event
@@ -214,6 +215,11 @@ defmodule TuistCloud.Accounts do
       end)
       |> Repo.transaction()
 
+    if Environment.new_pricing_model?() do
+      account = Accounts.get_account_from_organization(organization)
+      Billing.start_trial(%{plan: :air, account: account})
+    end
+
     organization
   end
 
@@ -356,6 +362,11 @@ defmodule TuistCloud.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
+        if Environment.new_pricing_model?() do
+          account = Accounts.get_account_from_user(user)
+          Billing.start_trial(%{plan: :air, account: account})
+        end
+
         TuistCloud.Analytics.user_create(user)
 
         {:ok, user}
