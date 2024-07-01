@@ -285,7 +285,10 @@ components:
         plan:
           description: The plan associated with the organization
           enum:
-            - team
+            - air
+            - pro
+            - enterprise
+            - none
           type: string
         sso_organization_id:
           description: The organization ID associated with the SSO provider
