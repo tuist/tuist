@@ -2540,6 +2540,19 @@ public struct Client: APIProtocol {
                 case 204:
                     let headers: Operations.revokeProjectToken.Output.NoContent.Headers = .init()
                     return .noContent(.init(headers: headers, body: nil))
+                case 400:
+                    let headers: Operations.revokeProjectToken.Output.BadRequest.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.revokeProjectToken.Output.BadRequest.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .badRequest(.init(headers: headers, body: body))
                 case 401:
                     let headers: Operations.revokeProjectToken.Output.Unauthorized.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -3065,6 +3078,397 @@ public struct Client: APIProtocol {
                                 from: response.body,
                                 transforming: { value in .json(value) }
                             )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/complete`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)`.
+    public func completeAppBuildsMultipartUpload(
+        _ input: Operations.completeAppBuildsMultipartUpload.Input
+    ) async throws -> Operations.completeAppBuildsMultipartUpload.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.completeAppBuildsMultipartUpload.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/{}/{}/app-builds/complete",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.completeAppBuildsMultipartUpload.Output.Ok.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAppBuildsMultipartUpload.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.completeAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.completeAppBuildsMultipartUpload.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAppBuildsMultipartUpload.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers:
+                        Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.completeAppBuildsMultipartUpload.Output.NotFound.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.completeAppBuildsMultipartUpload.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/generate-url`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)`.
+    public func generateAppBuildsMultipartUploadURL(
+        _ input: Operations.generateAppBuildsMultipartUploadURL.Input
+    ) async throws -> Operations.generateAppBuildsMultipartUploadURL.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.generateAppBuildsMultipartUploadURL.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/{}/{}/app-builds/generate-url",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.ArtifactMultipartUploadURL.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized.Body =
+                            try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers:
+                        Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers:
+                        Operations.generateAppBuildsMultipartUploadURL.Output.NotFound.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.generateAppBuildsMultipartUploadURL.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// It initiates a multipart upload for an app build artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/start`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)`.
+    public func startAppBuildsMultipartUpload(
+        _ input: Operations.startAppBuildsMultipartUpload.Input
+    ) async throws -> Operations.startAppBuildsMultipartUpload.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.startAppBuildsMultipartUpload.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/{}/{}/app-builds/start",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.startAppBuildsMultipartUpload.Output.Ok.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.startAppBuildsMultipartUpload.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.startAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers:
+                        Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Headers =
+                            .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.startAppBuildsMultipartUpload.Output.Forbidden.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.startAppBuildsMultipartUpload.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.startAppBuildsMultipartUpload.Output.NotFound.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.startAppBuildsMultipartUpload.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// Downloads an app build.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an app build.
+    ///
+    /// - Remark: HTTP `GET /api/{account_handle}/{project_handle}/app-builds/{app_build_id}`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)`.
+    public func downloadAppBuild(_ input: Operations.downloadAppBuild.Input) async throws
+        -> Operations.downloadAppBuild.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.downloadAppBuild.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/{}/{}/app-builds/{}",
+                    parameters: [
+                        input.path.account_handle, input.path.project_handle,
+                        input.path.app_build_id,
+                    ]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.downloadAppBuild.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.downloadAppBuild.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.ArtifactDownloadURL.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.downloadAppBuild.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.downloadAppBuild.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.downloadAppBuild.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.downloadAppBuild.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.downloadAppBuild.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.downloadAppBuild.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
                     return .notFound(.init(headers: headers, body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }

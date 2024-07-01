@@ -4,6 +4,8 @@ import Path
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
+import TuistLoader
+import TuistServer
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -42,7 +44,14 @@ final class RunServiceTests: TuistUnitTestCase {
     private var buildGraphInspector: MockBuildGraphInspecting!
     private var targetBuilder: MockTargetBuilder!
     private var targetRunner: MockTargetRunner!
+    private var configLoader: MockConfigLoading!
+    private var downloadAppBuildService: MockDownloadAppBuildServicing!
+    private var serverURLService: MockServerURLServicing!
+    private var appRunner: MockAppRunning!
     private var subject: RunService!
+    private var remoteArtifactDownloader: MockRemoteArtifactDownloading!
+    private var appBundleService: MockAppBundleServicing!
+    private var fileArchiverFactory: MockFileArchivingFactorying!
 
     private struct TestError: Equatable, Error {}
 
@@ -56,12 +65,31 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector = .init()
         targetBuilder = MockTargetBuilder()
         targetRunner = MockTargetRunner()
+        configLoader = .init()
+        downloadAppBuildService = .init()
+        serverURLService = .init()
+        appRunner = .init()
+        remoteArtifactDownloader = .init()
+        appBundleService = .init()
+        fileArchiverFactory = .init()
         subject = RunService(
             generatorFactory: generatorFactory,
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder,
-            targetRunner: targetRunner
+            targetRunner: targetRunner,
+            configLoader: configLoader,
+            downloadAppBuildService: downloadAppBuildService,
+            serverURLService: serverURLService,
+            fileHandler: fileHandler,
+            appRunner: appRunner,
+            remoteArtifactDownloader: remoteArtifactDownloader,
+            appBundleService: appBundleService,
+            fileArchiverFactory: fileArchiverFactory
         )
+
+        given(serverURLService)
+            .url(configServerURL: .any)
+            .willReturn(Constants.URLs.production)
     }
 
     override func tearDown() {
@@ -76,6 +104,9 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_generates_when_generateIsTrue() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
         given(generator)
             .generateWithGraph(path: .any)
             .willReturn((try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test()))
@@ -98,6 +129,9 @@ final class RunServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willReturn((workspacePath, .test()))
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
         given(generator)
             .load(path: .any)
             .willReturn(.test())
@@ -132,6 +166,9 @@ final class RunServiceTests: TuistUnitTestCase {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
         targetRunner.assertCanRunTargetStub = { _ in }
         given(buildGraphInspector)
             .workspacePath(directory: .any)
@@ -145,7 +182,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
         // When
         try await subject.run(
-            schemeName: schemeName,
+            schemeOrShareLink: schemeName,
             clean: clean,
             configuration: configuration
         )
@@ -171,6 +208,9 @@ final class RunServiceTests: TuistUnitTestCase {
                 XCTAssertEqual(_deviceName, deviceName)
                 XCTAssertEqual(_arguments, arguments)
             }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
         given(generator)
             .load(path: .any)
             .willReturn(.test())
@@ -187,7 +227,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
         // When
         try await subject.run(
-            schemeName: schemeName,
+            schemeOrShareLink: schemeName,
             configuration: configuration,
             device: deviceName,
             version: version.description,
@@ -202,6 +242,9 @@ final class RunServiceTests: TuistUnitTestCase {
         expectation.isInverted = true
         given(generator)
             .load(path: .any)
+            .willReturn(.test())
+        given(configLoader)
+            .loadConfig(path: .any)
             .willReturn(.test())
         given(buildGraphInspector)
             .workspacePath(directory: .any)
@@ -223,11 +266,208 @@ final class RunServiceTests: TuistUnitTestCase {
         )
         await fulfillment(of: [expectation], timeout: 1)
     }
+
+    func test_run_share_link_when_full_handle_is_undefined() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: nil))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(schemeOrShareLink: "https://tuist.io/share/some-id"),
+            RunServiceError.fullHandleNotFound
+        )
+    }
+
+    func test_run_share_link_when_download_url_is_invalid() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(downloadAppBuildService)
+            .downloadAppBuild(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example com/page")
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(schemeOrShareLink: "https://tuist.io/share/some-id"),
+            RunServiceError.invalidDownloadBuildURL("https://example com/page")
+        )
+    }
+
+    func test_run_share_link_when_app_build_artifact_not_found() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(downloadAppBuildService)
+            .downloadAppBuild(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(nil)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(schemeOrShareLink: "https://tuist.io/share/some-id"),
+            RunServiceError.appNotFound("https://tuist.io/share/some-id")
+        )
+    }
+
+    func test_run_share_link_when_version_is_invalid() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                schemeOrShareLink: "https://tuist.io/share/some-id",
+                version: "invalid-version"
+            ),
+            RunServiceError.invalidVersion("invalid-version")
+        )
+    }
+
+    func test_run_share_link_runs_app() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(downloadAppBuildService)
+            .downloadAppBuild(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        let downloadedArchive = try temporaryPath()
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath()
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleService)
+            .read(.any)
+            .willReturn(appBundle)
+
+        // When
+        try await subject.run(schemeOrShareLink: "https://tuist.io/share/some-id")
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value(nil),
+                device: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_share_link_runs_with_destination_and_version() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(downloadAppBuildService)
+            .downloadAppBuild(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        let downloadedArchive = try temporaryPath()
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath()
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleService)
+            .read(.any)
+            .willReturn(appBundle)
+
+        // When
+        try await subject.run(
+            schemeOrShareLink: "https://tuist.io/share/some-id",
+            version: "18.0",
+            arguments: ["-destination", "iPhone 15 Pro"]
+        )
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value("18.0.0"),
+                device: .value("iPhone 15 Pro")
+            )
+            .called(1)
+    }
 }
 
 extension RunService {
     fileprivate func run(
-        schemeName: String = Scheme.test().name,
+        schemeOrShareLink: String = Scheme.test().name,
         generate: Bool = false,
         clean: Bool = false,
         configuration: String? = nil,
@@ -238,7 +478,7 @@ extension RunService {
     ) async throws {
         try await run(
             path: nil,
-            schemeName: schemeName,
+            schemeOrShareLink: schemeOrShareLink,
             generate: generate,
             clean: clean,
             configuration: configuration,

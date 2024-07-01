@@ -9,9 +9,8 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
     public var organizationHandle: String = ""
     public var projectHandle: String = ""
 
-    override open func setUp() async throws {
-        try await super.setUp()
-        try setUpFixture(.iosAppWithFrameworks)
+    override public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
+        try await super.setUpFixture(fixture)
         organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         projectHandle = String(UUID().uuidString.prefix(12).lowercased())
         fullHandle = "\(organizationHandle)/\(projectHandle)"

@@ -19,7 +19,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var generatorFactory: MockGeneratorFactorying!
     private var xcodebuildController: MockXcodeBuildControlling!
     private var buildGraphInspector: MockBuildGraphInspecting!
-    private var simulatorController: MockSimulatorController!
+    private var simulatorController: MockSimulatorControlling!
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
@@ -68,6 +68,15 @@ final class TestServiceTests: TuistUnitTestCase {
             configLoader: configLoader,
             automationStorage: automationStorage
         )
+
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
     }
 
     override func tearDown() {
@@ -1142,7 +1151,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
             .willReturn(.test())
 
-        var passedRetryCount = -1
         given(xcodebuildController)
             .test(
                 .any,
@@ -1159,9 +1167,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
-                passedRetryCount = retryCount
-            }
+            .willReturn()
 
         // When
         try await subject.testRun(
@@ -1170,7 +1176,23 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(passedRetryCount, 0)
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .value(0),
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_run_test_plan_success() async throws {

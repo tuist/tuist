@@ -1,9 +1,10 @@
 import Foundation
 import Path
+import TuistSupport
 @testable import TuistCore
 
 extension SimulatorDevice {
-    static func test(
+    public static func test(
         dataPath: AbsolutePath = "/Library/Developer/CoreSimulator/Devices/3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC/data",
         logPath: AbsolutePath = "/Library/Logs/CoreSimulator/3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC",
         udid: String = "3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC",

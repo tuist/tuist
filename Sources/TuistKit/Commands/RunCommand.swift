@@ -24,6 +24,12 @@ public struct RunCommand: AsyncParsableCommand {
         )
     }
 
+    @Argument(
+        help: "The Tuist Share link or scheme to be run.",
+        envKey: .runScheme
+    )
+    var schemeOrShareLink: String
+
     @Flag(
         help: "Force the generation of the project before running.",
         envKey: .runGenerate
@@ -66,12 +72,6 @@ public struct RunCommand: AsyncParsableCommand {
     var rosetta: Bool = false
 
     @Argument(
-        help: "The scheme to be run.",
-        envKey: .runScheme
-    )
-    var scheme: String
-
-    @Argument(
         parsing: .captureForPassthrough,
         help: "The arguments to pass to the runnable target during execution.",
         envKey: .runArguments
@@ -81,7 +81,7 @@ public struct RunCommand: AsyncParsableCommand {
     public func run() async throws {
         try await RunService().run(
             path: path,
-            schemeName: scheme,
+            schemeOrShareLink: schemeOrShareLink,
             generate: generate,
             clean: clean,
             configuration: configuration,

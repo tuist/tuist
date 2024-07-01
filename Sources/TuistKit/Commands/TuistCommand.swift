@@ -35,6 +35,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 ProjectCommand.self,
                 OrganizationCommand.self,
                 AnalyticsCommand.self,
+                ShareCommand.self,
             ]
         )
     }

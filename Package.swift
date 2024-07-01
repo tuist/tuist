@@ -300,7 +300,7 @@ var targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
-        exclude: ["OpenAPI/cloud.yml"],
+        exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

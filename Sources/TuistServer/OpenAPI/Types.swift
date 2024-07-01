@@ -257,6 +257,40 @@ public protocol APIProtocol: Sendable {
     func startAnalyticsArtifactMultipartUpload(
         _ input: Operations.startAnalyticsArtifactMultipartUpload.Input
     ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/complete`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)`.
+    func completeAppBuildsMultipartUpload(
+        _ input: Operations.completeAppBuildsMultipartUpload.Input
+    ) async throws -> Operations.completeAppBuildsMultipartUpload.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/generate-url`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)`.
+    func generateAppBuildsMultipartUploadURL(
+        _ input: Operations.generateAppBuildsMultipartUploadURL.Input
+    ) async throws -> Operations.generateAppBuildsMultipartUploadURL.Output
+    /// It initiates a multipart upload for an app build artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/start`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)`.
+    func startAppBuildsMultipartUpload(_ input: Operations.startAppBuildsMultipartUpload.Input)
+        async throws -> Operations.startAppBuildsMultipartUpload.Output
+    /// Downloads an app build.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an app build.
+    ///
+    /// - Remark: HTTP `GET /api/{account_handle}/{project_handle}/app-builds/{app_build_id}`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)`.
+    func downloadAppBuild(_ input: Operations.downloadAppBuild.Input) async throws
+        -> Operations.downloadAppBuild.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -303,6 +337,122 @@ public enum Components {
                 self.error = error
             }
             public enum CodingKeys: String, CodingKey { case error }
+        }
+        /// The upload has been initiated and an app build and upload unique identifier are returned to upload the various parts using multi-part uploads
+        ///
+        /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload`.
+        public struct AppBuildArtifactUpload: Codable, Equatable, Hashable, Sendable {
+            /// Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// The id of the app build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/data/app_build_id`.
+                public var app_build_id: Swift.String
+                /// The upload ID
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/data/upload_id`.
+                public var upload_id: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - app_build_id: The id of the app build.
+                ///   - upload_id: The upload ID
+                public init(app_build_id: Swift.String, upload_id: Swift.String) {
+                    self.app_build_id = app_build_id
+                    self.upload_id = upload_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case app_build_id
+                    case upload_id
+                }
+            }
+            /// Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/data`.
+            public var data: Components.Schemas.AppBuildArtifactUpload.dataPayload
+            /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/status`.
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/AppBuildArtifactUpload/status`.
+            public var status: Components.Schemas.AppBuildArtifactUpload.statusPayload
+            /// Creates a new `AppBuildArtifactUpload`.
+            ///
+            /// - Parameters:
+            ///   - data: Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///   - status:
+            public init(
+                data: Components.Schemas.AppBuildArtifactUpload.dataPayload,
+                status: Components.Schemas.AppBuildArtifactUpload.statusPayload
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// The app build upload has been completed
+        ///
+        /// - Remark: Generated from `#/components/schemas/AppBuildUploadCompletion`.
+        public struct AppBuildUploadCompletion: Codable, Equatable, Hashable, Sendable {
+            /// The URL to download the app build
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuildUploadCompletion/url`.
+            public var url: Swift.String
+            /// Creates a new `AppBuildUploadCompletion`.
+            ///
+            /// - Parameters:
+            ///   - url: The URL to download the app build
+            public init(url: Swift.String) { self.url = url }
+            public enum CodingKeys: String, CodingKey { case url }
+        }
+        /// The URL to download an artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL`.
+        public struct ArtifactDownloadURL: Codable, Equatable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/expires_at`.
+            public var expires_at: Swift.Int
+            /// The URL to download the artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/url`.
+            public var url: Swift.String
+            /// Creates a new `ArtifactDownloadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to download the artifact.
+            public init(expires_at: Swift.Int, url: Swift.String) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
         }
         /// Represents an multipart upload's part identified by the upload id and the part number
         ///
@@ -508,7 +658,7 @@ public enum Components {
                 case status
             }
         }
-        /// API tokens to authenticate with.
+        /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
         public struct AuthenticationTokens: Codable, Equatable, Hashable, Sendable {
@@ -516,7 +666,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
             public var access_token: Swift.String
-            /// API refresh token.
+            /// A token to generate new API access tokens when they expire.
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
             public var refresh_token: Swift.String
@@ -524,7 +674,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - access_token: API access token.
-            ///   - refresh_token: API refresh token.
+            ///   - refresh_token: A token to generate new API access tokens when they expire.
             public init(access_token: Swift.String, refresh_token: Swift.String) {
                 self.access_token = access_token
                 self.refresh_token = refresh_token
@@ -7219,6 +7369,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.revokeProjectToken.Output.NoContent)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.BadRequest.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The provided token ID is not valid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.revokeProjectToken.Output.BadRequest)
             public struct Unauthorized: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -8380,6 +8561,964 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/complete`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)`.
+    public enum completeAppBuildsMultipartUpload {
+        public static let id: String = "completeAppBuildsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.completeAppBuildsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.completeAppBuildsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.completeAppBuildsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.completeAppBuildsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// build artifact multipart upload completion
+                ///
+                /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/complete/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The id of the app build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/complete/POST/json/app_build_id`.
+                    public var app_build_id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/complete/POST/json/multipart_upload_parts`.
+                    public var multipart_upload_parts:
+                        Components.Schemas.ArtifactMultipartUploadParts
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - app_build_id: The id of the app build.
+                    ///   - multipart_upload_parts:
+                    public init(
+                        app_build_id: Swift.String,
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    ) {
+                        self.app_build_id = app_build_id
+                        self.multipart_upload_parts = multipart_upload_parts
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case app_build_id
+                        case multipart_upload_parts
+                    }
+                }
+                case json(Operations.completeAppBuildsMultipartUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completeAppBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.completeAppBuildsMultipartUpload.Input.Path,
+                query: Operations.completeAppBuildsMultipartUpload.Input.Query = .init(),
+                headers: Operations.completeAppBuildsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.completeAppBuildsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.completeAppBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.completeAppBuildsMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// The app build upload has been completed
+                    ///
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/complete/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// The URL to download the app build
+                        ///
+                        /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/complete/POST/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - url: The URL to download the app build
+                        public init(url: Swift.String) { self.url = url }
+                        public enum CodingKeys: String, CodingKey { case url }
+                    }
+                    case json(
+                        Operations.completeAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload
+                    )
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeAppBuildsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAppBuildsMultipartUpload.Output.Ok.Headers =
+                        .init(),
+                    body: Operations.completeAppBuildsMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeAppBuildsMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAppBuildsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAppBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAppBuildsMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeAppBuildsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeAppBuildsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.completeAppBuildsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeAppBuildsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAppBuildsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeAppBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAppBuildsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.completeAppBuildsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/complete/post(completeAppBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeAppBuildsMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/generate-url`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)`.
+    public enum generateAppBuildsMultipartUploadURL {
+        public static let id: String = "generateAppBuildsMultipartUploadURL"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.generateAppBuildsMultipartUploadURL.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.generateAppBuildsMultipartUploadURL.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.generateAppBuildsMultipartUploadURL.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.generateAppBuildsMultipartUploadURL.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Artifact to generate a signed URL for
+                ///
+                /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/generate-url/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The id of the app build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/generate-url/POST/json/app_build_id`.
+                    public var app_build_id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/generate-url/POST/json/multipart_upload_part`.
+                    public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - app_build_id: The id of the app build.
+                    ///   - multipart_upload_part:
+                    public init(
+                        app_build_id: Swift.String,
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    ) {
+                        self.app_build_id = app_build_id
+                        self.multipart_upload_part = multipart_upload_part
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case app_build_id
+                        case multipart_upload_part
+                    }
+                }
+                case json(Operations.generateAppBuildsMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            public var body: Operations.generateAppBuildsMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.generateAppBuildsMultipartUploadURL.Input.Path,
+                query: Operations.generateAppBuildsMultipartUploadURL.Input.Query = .init(),
+                headers: Operations.generateAppBuildsMultipartUploadURL.Input.Headers = .init(),
+                cookies: Operations.generateAppBuildsMultipartUploadURL.Input.Cookies = .init(),
+                body: Operations.generateAppBuildsMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Headers =
+                        .init(),
+                    body: Operations.generateAppBuildsMultipartUploadURL.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateAppBuildsMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generateAppBuildsMultipartUploadURL.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden
+                        .Headers = .init(),
+                    body: Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateAppBuildsMultipartUploadURL.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAppBuildsMultipartUploadURL.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateAppBuildsMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAppBuildsMultipartUploadURL.Output.NotFound
+                        .Headers = .init(),
+                    body: Operations.generateAppBuildsMultipartUploadURL.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/generate-url/post(generateAppBuildsMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generateAppBuildsMultipartUploadURL.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It initiates a multipart upload for an app build artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/{account_handle}/{project_handle}/app-builds/start`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)`.
+    public enum startAppBuildsMultipartUpload {
+        public static let id: String = "startAppBuildsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.startAppBuildsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.startAppBuildsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.startAppBuildsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.startAppBuildsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.startAppBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.startAppBuildsMultipartUpload.Input.Path,
+                query: Operations.startAppBuildsMultipartUpload.Input.Query = .init(),
+                headers: Operations.startAppBuildsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.startAppBuildsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.startAppBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startAppBuildsMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// The upload has been initiated and an app build and upload unique identifier are returned to upload the various parts using multi-part uploads
+                    ///
+                    /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/data`.
+                        public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                            /// The id of the app build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/data/app_build_id`.
+                            public var app_build_id: Swift.String
+                            /// The upload ID
+                            ///
+                            /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/data/upload_id`.
+                            public var upload_id: Swift.String
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - app_build_id: The id of the app build.
+                            ///   - upload_id: The upload ID
+                            public init(app_build_id: Swift.String, upload_id: Swift.String) {
+                                self.app_build_id = app_build_id
+                                self.upload_id = upload_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case app_build_id
+                                case upload_id
+                            }
+                        }
+                        /// Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/data`.
+                        public var data:
+                            Operations.startAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .dataPayload
+                        /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/status`.
+                        @frozen
+                        public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable,
+                            Sendable, _AutoLosslessStringConvertible, CaseIterable
+                        {
+                            case success
+                            /// Parsed a raw value that was not defined in the OpenAPI document.
+                            case undocumented(String)
+                            public init?(rawValue: String) {
+                                switch rawValue {
+                                case "success": self = .success
+                                default: self = .undocumented(rawValue)
+                                }
+                            }
+                            public var rawValue: String {
+                                switch self {
+                                case let .undocumented(string): return string
+                                case .success: return "success"
+                                }
+                            }
+                            public static var allCases: [statusPayload] { [.success] }
+                        }
+                        /// - Remark: Generated from `#/paths/api/{account_handle}/{project_handle}/app-builds/start/POST/json/status`.
+                        public var status:
+                            Operations.startAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .statusPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data: Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///   - status:
+                        public init(
+                            data: Operations.startAppBuildsMultipartUpload.Output.Ok.Body
+                                .jsonPayload.dataPayload,
+                            status: Operations.startAppBuildsMultipartUpload.Output.Ok.Body
+                                .jsonPayload.statusPayload
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    case json(Operations.startAppBuildsMultipartUpload.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startAppBuildsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAppBuildsMultipartUpload.Output.Ok.Headers = .init(),
+                    body: Operations.startAppBuildsMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startAppBuildsMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.startAppBuildsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startAppBuildsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAppBuildsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startAppBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAppBuildsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.startAppBuildsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startAppBuildsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startAppBuildsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startAppBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAppBuildsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.startAppBuildsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/start/post(startAppBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startAppBuildsMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Downloads an app build.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an app build.
+    ///
+    /// - Remark: HTTP `GET /api/{account_handle}/{project_handle}/app-builds/{app_build_id}`.
+    /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)`.
+    public enum downloadAppBuild {
+        public static let id: String = "downloadAppBuild"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                public var app_build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                ///   - app_build_id:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    app_build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.app_build_id = app_build_id
+                }
+            }
+            public var path: Operations.downloadAppBuild.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.downloadAppBuild.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.downloadAppBuild.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.downloadAppBuild.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.downloadAppBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.downloadAppBuild.Input.Path,
+                query: Operations.downloadAppBuild.Input.Query = .init(),
+                headers: Operations.downloadAppBuild.Input.Headers = .init(),
+                cookies: Operations.downloadAppBuild.Input.Cookies = .init(),
+                body: Operations.downloadAppBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadAppBuild.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactDownloadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadAppBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadAppBuild.Output.Ok.Headers = .init(),
+                    body: Operations.downloadAppBuild.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The app build exists and can be downloaded
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadAppBuild.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadAppBuild.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadAppBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadAppBuild.Output.Unauthorized.Headers = .init(),
+                    body: Operations.downloadAppBuild.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadAppBuild.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadAppBuild.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadAppBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadAppBuild.Output.Forbidden.Headers = .init(),
+                    body: Operations.downloadAppBuild.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadAppBuild.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadAppBuild.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadAppBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadAppBuild.Output.NotFound.Headers = .init(),
+                    body: Operations.downloadAppBuild.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The build doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/{account_handle}/{project_handle}/app-builds/{app_build_id}/get(downloadAppBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadAppBuild.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

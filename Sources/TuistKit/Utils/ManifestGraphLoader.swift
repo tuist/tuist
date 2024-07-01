@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -16,6 +17,7 @@ import XcodeGraph
 /// - A graph is loaded from the models
 ///
 /// - Note: This is a simplified implementation that loads a graph without applying any mappers or running any linters
+@Mockable
 public protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
