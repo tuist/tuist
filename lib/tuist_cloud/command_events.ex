@@ -118,7 +118,7 @@ defmodule TuistCloud.CommandEvents do
   end
 
   def has_result_bundle?(%Event{} = command_event) do
-    Storage.exists(get_result_bundle_key(command_event))
+    Storage.object_exists?(get_result_bundle_key(command_event))
   end
 
   def generate_result_bundle_url(%Event{} = command_event) do
@@ -626,13 +626,13 @@ defmodule TuistCloud.CommandEvents do
       |> Repo.insert!()
 
     :telemetry.execute(
-      [:tuist, :run, :command],
+      TuistCloud.Telemetry.event_name_run_command(),
       %{duration: duration},
       %{command_event: command_event}
     )
 
     :telemetry.execute(
-      [:tuist, :cache, :event],
+      TuistCloud.Telemetry.event_name_cache(),
       %{
         count:
           length(cacheable_targets) - length(local_cache_target_hits) -
@@ -642,13 +642,13 @@ defmodule TuistCloud.CommandEvents do
     )
 
     :telemetry.execute(
-      [:tuist, :cache, :event],
+      TuistCloud.Telemetry.event_name_cache(),
       %{count: length(local_cache_target_hits)},
       %{event_type: :local_hit}
     )
 
     :telemetry.execute(
-      [:tuist, :cache, :event],
+      TuistCloud.Telemetry.event_name_cache(),
       %{
         count: length(remote_cache_target_hits)
       },
@@ -721,9 +721,9 @@ defmodule TuistCloud.CommandEvents do
   def get_test_summary(%Event{} = command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
 
-    if Storage.exists(invocation_record_key) do
+    if Storage.object_exists?(invocation_record_key) do
       {:ok, invocation_record} =
-        Storage.get_object(invocation_record_key)
+        Storage.get_object_as_string(invocation_record_key)
         |> Jason.decode()
 
       invocation_record = get_actions_invocation_record(invocation_record)
@@ -733,7 +733,7 @@ defmodule TuistCloud.CommandEvents do
         |> Enum.filter(fn action -> action.scheme_command_name == "Test" end)
         |> Enum.map(fn action ->
           {:ok, test_plan_summaries} =
-            Storage.get_object(
+            Storage.get_object_as_string(
               get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
             )
             |> Jason.decode()

@@ -3,29 +3,27 @@ defmodule TuistCloud.CommandEvents.PromExPlugin do
   Defines custom Prometheus metrics for the Tuist command events.
   """
   use PromEx.Plugin
-
-  @run_create [:tuist, :run, :command]
-  @cache_event [:tuist, :cache, :event]
+  alias TuistCloud.Telemetry
 
   @impl true
   def event_metrics(_opts) do
     [
       Event.build(
-        :tuist_runs,
+        :tuist_runs_event_metrics,
         [
           counter(
             [:tuist, :runs, :total],
-            event_name: @run_create,
-            description: "A tuist run event",
+            event_name: Telemetry.event_name_run_command(),
+            description: "A Tuist run event",
             tags: [:name, :is_ci, :status],
             tag_values: &get_run_tag_values/1
           ),
           distribution(
             [:tuist, :runs, :duration, :milliseconds],
-            event_name: @run_create,
+            event_name: Telemetry.event_name_run_command(),
             measurement: :duration,
             unit: :millisecond,
-            description: "A tuist run event duration in milliseconds",
+            description: "A Tuist run event duration in milliseconds",
             tags: [:name, :is_ci, :status],
             tag_values: &get_run_tag_values/1,
             reporter_options: [
@@ -35,13 +33,13 @@ defmodule TuistCloud.CommandEvents.PromExPlugin do
         ]
       ),
       Event.build(
-        :tuist_cache,
+        :tuist_cache_event_metrics,
         [
           sum(
             [:tuist, :cache, :events, :total],
-            event_name: @cache_event,
+            event_name: Telemetry.event_name_cache(),
             measurement: :count,
-            description: "A tuist cache event",
+            description: "A Tuist cache event",
             tags: [:event_type],
             tag_values: &get_cache_tag_values/1
           )

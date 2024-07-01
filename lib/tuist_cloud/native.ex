@@ -2,7 +2,9 @@ defmodule TuistCloud.Native do
   @moduledoc """
   This module is an interface to the native code (Rust-based) that Tuist uses.
   """
-  use Rustler, otp_app: :tuist_cloud, crate: "tuistcloud_native"
+  if Mix.env() != :test do
+    use Rustler, otp_app: :tuist_cloud, crate: "tuistcloud_native"
+  end
 
   def license(), do: :erlang.nif_error(:nif_not_loaded)
   def s3_download_presigned_url(_options), do: :erlang.nif_error(:nif_not_loaded)

@@ -17,106 +17,209 @@ defmodule TuistCloud.Storage do
     S3GetObjectOptions
   }
 
+  require Logger
+
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
-    {:ok, url} =
-      Native.s3_multipart_generate_url(%S3MultipartGenerateURLOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        expires_in: opts |> Keyword.get(:expires_in, 3600),
-        part_number:
-          if is_integer(part_number) do
-            part_number
-          else
-            String.to_integer(part_number)
-          end,
-        upload_id: upload_id,
-        credentials: native_credentials()
-      })
+    {time, url} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, url} =
+          Native.s3_multipart_generate_url(%S3MultipartGenerateURLOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            expires_in: opts |> Keyword.get(:expires_in, 3600),
+            part_number:
+              if is_integer(part_number) do
+                part_number
+              else
+                String.to_integer(part_number)
+              end,
+            upload_id: upload_id,
+            credentials: native_credentials()
+          })
+
+        url
+      end)
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
+      %{duration: time},
+      %{object_key: object_key, upload_id: upload_id, part_number: part_number}
+    )
+
+    Logger.debug("Multi-part pre-signed URL generated in #{time} ms.")
 
     url
   end
 
   def multipart_complete_upload(object_key, upload_id, parts) do
-    :ok =
-      Native.s3_multipart_complete_upload(%S3MultipartCompleteUploadOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        upload_id: upload_id,
-        parts: parts,
-        credentials: native_credentials()
-      })
+    {time, :ok} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        Native.s3_multipart_complete_upload(%S3MultipartCompleteUploadOptions{
+          bucket_name: Environment.s3_bucket_name(),
+          region: native_region(),
+          object_key: object_key,
+          upload_id: upload_id,
+          parts: parts,
+          credentials: native_credentials()
+        })
+      end)
+
+    Logger.debug("Multi-part upload completed in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_multipart_complete_upload(),
+      %{duration: time, parts_count: Enum.count(parts)},
+      %{object_key: object_key, upload_id: upload_id}
+    )
 
     :ok
   end
 
   def generate_download_url(object_key, opts \\ []) do
-    {:ok, url} =
-      Native.s3_download_presigned_url(%S3DownloadPresignedURLOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        expires_in: opts |> Keyword.get(:expires_in, 3600),
-        credentials: native_credentials()
-      })
+    {time, url} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, url} =
+          Native.s3_download_presigned_url(%S3DownloadPresignedURLOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            expires_in: opts |> Keyword.get(:expires_in, 3600),
+            credentials: native_credentials()
+          })
+
+        url
+      end)
+
+    Logger.debug("Pre-signed URL generated in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_generate_download_presigned_url(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
 
     url
   end
 
-  def exists(object_key) do
-    {:ok, exists} =
-      Native.s3_exists(%S3ExistsOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        credentials: native_credentials()
-      })
+  def object_exists?(object_key) do
+    {time, exists} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, exists} =
+          Native.s3_exists(%S3ExistsOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            credentials: native_credentials()
+          })
+
+        exists
+      end)
+
+    Logger.debug("Object's existence checked in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_check_object_existence(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
 
     exists
   end
 
-  def get_object(object_key) do
-    {:ok, object} =
-      Native.s3_get_object_as_string(%S3GetObjectOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        credentials: native_credentials()
-      })
+  def get_object_as_string(object_key) do
+    {time, object} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, object} =
+          Native.s3_get_object_as_string(%S3GetObjectOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            credentials: native_credentials()
+          })
+
+        object
+      end)
+
+    Logger.debug("Object retrieved in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_get_object_as_string(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
 
     object
   end
 
   def multipart_start(object_key) do
-    {:ok, upload_id} =
-      Native.s3_multipart_start(%S3MultipartStartOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        credentials: native_credentials()
-      })
+    {time, upload_id} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, upload_id} =
+          Native.s3_multipart_start(%S3MultipartStartOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            credentials: native_credentials()
+          })
+
+        upload_id
+      end)
+
+    Logger.debug("Multi-part upload started in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_multipart_start_upload(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
 
     upload_id
   end
 
   def delete_all_objects(project_slug) do
-    Native.s3_delete_all_objects(%S3DeleteAllObjectsOptions{
-      bucket_name: Environment.s3_bucket_name(),
-      region: native_region(),
-      prefix: project_slug,
-      credentials: native_credentials()
-    })
+    {time, _} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        Native.s3_delete_all_objects(%S3DeleteAllObjectsOptions{
+          bucket_name: Environment.s3_bucket_name(),
+          region: native_region(),
+          prefix: project_slug,
+          credentials: native_credentials()
+        })
+      end)
+
+    Logger.debug("All objects deleted in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_delete_all_objects(),
+      %{duration: time},
+      %{project_slug: project_slug}
+    )
+
+    :ok
   end
 
-  def size(object_key) do
-    {:ok, size} =
-      Native.s3_size(%S3SizeOptions{
-        bucket_name: Environment.s3_bucket_name(),
-        region: native_region(),
-        object_key: object_key,
-        credentials: native_credentials()
-      })
+  def get_object_size(object_key) do
+    {time, size} =
+      TuistCloud.Performance.measure_time_in_milliseconds(fn ->
+        {:ok, size} =
+          Native.s3_size(%S3SizeOptions{
+            bucket_name: Environment.s3_bucket_name(),
+            region: native_region(),
+            object_key: object_key,
+            credentials: native_credentials()
+          })
+
+        size
+      end)
+
+    Logger.debug("Object size checked in #{time} ms.")
+
+    :telemetry.execute(
+      TuistCloud.Telemetry.event_name_storage_get_object_as_string_size(),
+      %{duration: time, size: size},
+      %{object_key: object_key}
+    )
 
     size
   end
