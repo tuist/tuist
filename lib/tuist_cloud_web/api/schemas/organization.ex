@@ -20,7 +20,7 @@ defmodule TuistCloudWeb.API.Schemas.Organization do
       },
       plan: %Schema{
         type: :string,
-        enum: ["team"],
+        enum: ["air", "pro", "enterprise", "none"],
         description: "The plan associated with the organization"
       },
       members: %Schema{

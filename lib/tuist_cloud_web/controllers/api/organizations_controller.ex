@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.API.OrganizationsController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloud.Billing
   alias TuistCloudWeb.API.Schemas.OrganizationMember
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Authorization
@@ -49,7 +50,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan: &1.account.plan,
+          plan: get_plan(&1.account),
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
@@ -58,6 +59,14 @@ defmodule TuistCloudWeb.API.OrganizationsController do
       )
 
     conn |> json(%{organizations: organizations})
+  end
+
+  defp get_plan(account) do
+    Billing.get_current_active_subscription(account)
+    |> case do
+      %Billing.Subscription{} = subscription -> subscription.plan
+      nil -> :none
+    end
   end
 
   operation(:create,
@@ -115,7 +124,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: organization_account.plan,
+          plan: get_plan(organization_account),
           members: [],
           invitations: []
         })
@@ -264,7 +273,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{
           id: organization_account.organization.id,
           name: organization_name,
-          plan: organization_account.account.plan,
+          plan: get_plan(organization_account.account),
           members: admins ++ users,
           sso_provider: organization_account.organization.sso_provider,
           sso_organization_id: organization_account.organization.sso_organization_id,
@@ -430,7 +439,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: organization_account.account.plan,
+          plan: get_plan(organization_account.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           members: [],
@@ -476,7 +485,7 @@ defmodule TuistCloudWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_account.account.name,
-          plan: organization_account.account.plan,
+          plan: get_plan(organization_account.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           members: [],
