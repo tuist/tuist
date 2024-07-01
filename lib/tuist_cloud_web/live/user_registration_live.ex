@@ -110,23 +110,39 @@ defmodule TuistCloudWeb.UserRegistrationLive do
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
-    user =
-      Accounts.create_user(user_params |> Map.get("email"),
-        password: user_params |> Map.get("password")
-      )
+    case Accounts.create_user(user_params |> Map.get("email"),
+           password: user_params |> Map.get("password")
+         ) do
+      {:ok, user} ->
+        Accounts.deliver_user_confirmation_instructions(
+          user,
+          &url(~p"/users/confirm/#{&1}")
+        )
 
-    Accounts.deliver_user_confirmation_instructions(
-      user,
-      &url(~p"/users/confirm/#{&1}")
-    )
+        {:noreply,
+         socket
+         |> assign(trigger_submit: true)
+         |> put_flash(
+           :info,
+           gettext("A confirmation email has been sent to you, check your inbox")
+         )
+         |> redirect(to: ~p"/")}
 
-    {:noreply,
-     socket
-     |> assign(trigger_submit: true)
-     |> put_flash(
-       :info,
-       gettext("A confirmation email has been sent to you, check your inbox.")
-     )
-     |> redirect(to: ~p"/")}
+      {:error, :account_name_taken} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           gettext("Account name is already taken")
+         )}
+
+      {:error, :email_taken} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           gettext("Email is already taken")
+         )}
+    end
   end
 end
