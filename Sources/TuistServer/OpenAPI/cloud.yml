@@ -109,6 +109,21 @@ components:
           type: string
       title: AuthenticationToken
       type: object
+    BuildDownloadURL:
+      description: The URL to download a build.
+      properties:
+        expires_at:
+          description: The UNIX timestamp when the URL expires.
+          type: integer
+        url:
+          description: The URL to download the artifact from the cache.
+          type: string
+      required:
+        - url
+        - expires_at
+      title: BuildDownloadURL
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.BuildDownloadURL
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
       properties:
@@ -556,6 +571,182 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The request was not accepted, e.g., when the device code is expired
       summary: Get a specific device code.
+      tags: []
+  /api/builds/{build_id}:
+    get:
+      callbacks: {}
+      description: This endpoint returns a signed URL that can be used to download a build.
+      operationId: downloadBuild
+      parameters:
+        - description: The id of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildDownloadURL'
+          description: The build exists and can be downloaded
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The build doesn't exist
+      summary: Downloads a build.
+      tags: []
+  /api/builds/{build_id}/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+      operationId: completeBuildsMultipartUpload
+      parameters:
+        - description: The id of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                multipart_upload_parts:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+              required:
+                - multipart_upload_parts
+              type: object
+        description: build artifact multipart upload completion
+        required: false
+      responses:
+        204:
+          description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It completes a multi-part upload.
+      tags: []
+  /api/builds/{build_id}/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generateBuildsMultipartUploadURL
+      parameters:
+        - description: The id of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+              required:
+                - multipart_upload_part
+              type: object
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part.
+      tags: []
+  /api/builds/{build_id}/start:
+    post:
+      callbacks: {}
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startBuildsMultipartUpload
+      parameters:
+        - description: The id of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The build doesn't exist
+      summary: It initiates a multipart upload for a build artifact.
       tags: []
   /api/cache:
     get:
@@ -1027,8 +1218,6 @@ paths:
             type: string
       responses:
         204:
-          content:
-            application/json: {}
           description: The organization was deleted
         401:
           content:
@@ -1641,7 +1830,7 @@ paths:
           name: id
           required: true
           schema:
-            type: number
+            type: integer
       responses:
         204:
           description: The project was successfully deleted.

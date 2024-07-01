@@ -65,6 +65,10 @@ public protocol SimulatorControlling {
 
     /// Returns the simulator destination for the macOS platform
     func macOSDestination() -> String
+    
+    func devices() async throws -> [SimulatorDevice]
+    
+    func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime]
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -111,7 +115,7 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     /// Returns the list of simulator devices that are available in the system.
-    func devices() async throws -> [SimulatorDevice] {
+    public func devices() async throws -> [SimulatorDevice] {
         let output = try await system.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
         let data = output.standardOutput.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data, options: [])
@@ -152,7 +156,7 @@ public final class SimulatorController: SimulatorControlling {
     ///     - platform: Optionally filter by platform
     ///     - deviceName: Optionally filter by device name
     /// - Returns: the list of simulator devices and runtimes.
-    func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime] {
+    public func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime] {
         async let runtimesTask = runtimes()
         async let devicesTask = devices()
         let (runtimes, devices) = try await (runtimesTask, devicesTask)

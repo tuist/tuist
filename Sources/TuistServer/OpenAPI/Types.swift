@@ -21,6 +21,39 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
     func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws
         -> Operations.getDeviceCode.Output
+    /// Downloads a build.
+    ///
+    /// This endpoint returns a signed URL that can be used to download a build.
+    ///
+    /// - Remark: HTTP `GET /api/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)`.
+    func downloadBuild(_ input: Operations.downloadBuild.Input) async throws
+        -> Operations.downloadBuild.Output
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)`.
+    func completeBuildsMultipartUpload(_ input: Operations.completeBuildsMultipartUpload.Input)
+        async throws -> Operations.completeBuildsMultipartUpload.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)`.
+    func generateBuildsMultipartUploadURL(
+        _ input: Operations.generateBuildsMultipartUploadURL.Input
+    ) async throws -> Operations.generateBuildsMultipartUploadURL.Output
+    /// It initiates a multipart upload for a build artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/start`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)`.
+    func startBuildsMultipartUpload(_ input: Operations.startBuildsMultipartUpload.Input)
+        async throws -> Operations.startBuildsMultipartUpload.Output
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -484,6 +517,32 @@ public enum Components {
             ///   - token: User authentication token
             public init(token: Swift.String? = nil) { self.token = token }
             public enum CodingKeys: String, CodingKey { case token }
+        }
+        /// The URL to download a build.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildDownloadURL`.
+        public struct BuildDownloadURL: Codable, Equatable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/expires_at`.
+            public var expires_at: Swift.Int
+            /// The URL to download the artifact from the cache.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/url`.
+            public var url: Swift.String
+            /// Creates a new `BuildDownloadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to download the artifact from the cache.
+            public init(expires_at: Swift.Int, url: Swift.String) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
         }
         /// The URL to download the artifact from the cache.
         ///
@@ -1696,6 +1755,810 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.getDeviceCode.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Downloads a build.
+    ///
+    /// This endpoint returns a signed URL that can be used to download a build.
+    ///
+    /// - Remark: HTTP `GET /api/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)`.
+    public enum downloadBuild {
+        public static let id: String = "downloadBuild"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - build_id:
+                public init(build_id: Swift.String) { self.build_id = build_id }
+            }
+            public var path: Operations.downloadBuild.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.downloadBuild.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.downloadBuild.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.downloadBuild.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.downloadBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.downloadBuild.Input.Path,
+                query: Operations.downloadBuild.Input.Query = .init(),
+                headers: Operations.downloadBuild.Input.Headers = .init(),
+                cookies: Operations.downloadBuild.Input.Cookies = .init(),
+                body: Operations.downloadBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadBuild.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.BuildDownloadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadBuild.Output.Ok.Headers = .init(),
+                    body: Operations.downloadBuild.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The build exists and can be downloaded
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadBuild.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadBuild.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadBuild.Output.Unauthorized.Headers = .init(),
+                    body: Operations.downloadBuild.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadBuild.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadBuild.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadBuild.Output.Forbidden.Headers = .init(),
+                    body: Operations.downloadBuild.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadBuild.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadBuild.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadBuild.Output.NotFound.Headers = .init(),
+                    body: Operations.downloadBuild.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The build doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/get(downloadBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadBuild.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)`.
+    public enum completeBuildsMultipartUpload {
+        public static let id: String = "completeBuildsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - build_id:
+                public init(build_id: Swift.String) { self.build_id = build_id }
+            }
+            public var path: Operations.completeBuildsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.completeBuildsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.completeBuildsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.completeBuildsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// build artifact multipart upload completion
+                ///
+                /// - Remark: Generated from `#/paths/api/builds/{build_id}/complete/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/builds/{build_id}/complete/POST/json/multipart_upload_parts`.
+                    public var multipart_upload_parts:
+                        Components.Schemas.ArtifactMultipartUploadParts
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - multipart_upload_parts:
+                    public init(
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    ) { self.multipart_upload_parts = multipart_upload_parts }
+                    public enum CodingKeys: String, CodingKey { case multipart_upload_parts }
+                }
+                case json(Operations.completeBuildsMultipartUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completeBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.completeBuildsMultipartUpload.Input.Path,
+                query: Operations.completeBuildsMultipartUpload.Input.Query = .init(),
+                headers: Operations.completeBuildsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.completeBuildsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.completeBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeBuildsMultipartUpload.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeBuildsMultipartUpload.Output.NoContent.Headers =
+                        .init(),
+                    body: Operations.completeBuildsMultipartUpload.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.completeBuildsMultipartUpload.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeBuildsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeBuildsMultipartUpload.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.completeBuildsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeBuildsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeBuildsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeBuildsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.completeBuildsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeBuildsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.completeBuildsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeBuildsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.completeBuildsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/complete/post(completeBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeBuildsMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)`.
+    public enum generateBuildsMultipartUploadURL {
+        public static let id: String = "generateBuildsMultipartUploadURL"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - build_id:
+                public init(build_id: Swift.String) { self.build_id = build_id }
+            }
+            public var path: Operations.generateBuildsMultipartUploadURL.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.generateBuildsMultipartUploadURL.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.generateBuildsMultipartUploadURL.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.generateBuildsMultipartUploadURL.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Artifact to generate a signed URL for
+                ///
+                /// - Remark: Generated from `#/paths/api/builds/{build_id}/generate-url/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/builds/{build_id}/generate-url/POST/json/multipart_upload_part`.
+                    public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - multipart_upload_part:
+                    public init(
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    ) { self.multipart_upload_part = multipart_upload_part }
+                    public enum CodingKeys: String, CodingKey { case multipart_upload_part }
+                }
+                case json(Operations.generateBuildsMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            public var body: Operations.generateBuildsMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.generateBuildsMultipartUploadURL.Input.Path,
+                query: Operations.generateBuildsMultipartUploadURL.Input.Query = .init(),
+                headers: Operations.generateBuildsMultipartUploadURL.Input.Headers = .init(),
+                cookies: Operations.generateBuildsMultipartUploadURL.Input.Cookies = .init(),
+                body: Operations.generateBuildsMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.generateBuildsMultipartUploadURL.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateBuildsMultipartUploadURL.Output.Ok.Headers =
+                        .init(),
+                    body: Operations.generateBuildsMultipartUploadURL.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateBuildsMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateBuildsMultipartUploadURL.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateBuildsMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateBuildsMultipartUploadURL.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.generateBuildsMultipartUploadURL.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generateBuildsMultipartUploadURL.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateBuildsMultipartUploadURL.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateBuildsMultipartUploadURL.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateBuildsMultipartUploadURL.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.generateBuildsMultipartUploadURL.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/generate-url/post(generateBuildsMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generateBuildsMultipartUploadURL.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It initiates a multipart upload for a build artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/builds/{build_id}/start`.
+    /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)`.
+    public enum startBuildsMultipartUpload {
+        public static let id: String = "startBuildsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - build_id:
+                public init(build_id: Swift.String) { self.build_id = build_id }
+            }
+            public var path: Operations.startBuildsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.startBuildsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.startBuildsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.startBuildsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.startBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.startBuildsMultipartUpload.Input.Path,
+                query: Operations.startBuildsMultipartUpload.Input.Query = .init(),
+                headers: Operations.startBuildsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.startBuildsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.startBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startBuildsMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactUploadID)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startBuildsMultipartUpload.Output.Ok.Headers = .init(),
+                    body: Operations.startBuildsMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startBuildsMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startBuildsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startBuildsMultipartUpload.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.startBuildsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startBuildsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startBuildsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startBuildsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.startBuildsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startBuildsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startBuildsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startBuildsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.startBuildsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The build doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/builds/{build_id}/start/post(startBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startBuildsMultipartUpload.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -4257,11 +5120,9 @@ public enum Operations {
                 }
                 /// Received HTTP response headers
                 public var headers: Operations.deleteOrganization.Output.NoContent.Headers
-                @frozen public enum Body: Sendable, Equatable, Hashable {
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                }
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
                 /// Received HTTP response body
-                public var body: Operations.deleteOrganization.Output.NoContent.Body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
                 ///
                 /// - Parameters:
@@ -4269,7 +5130,7 @@ public enum Operations {
                 ///   - body: Received HTTP response body
                 public init(
                     headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
-                    body: Operations.deleteOrganization.Output.NoContent.Body
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
                 ) {
                     self.headers = headers
                     self.body = body
@@ -6245,12 +7106,12 @@ public enum Operations {
         public static let id: String = "deleteProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var id: Swift.Double
+                public var id: Swift.Int
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - id:
-                public init(id: Swift.Double) { self.id = id }
+                public init(id: Swift.Int) { self.id = id }
             }
             public var path: Operations.deleteProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
