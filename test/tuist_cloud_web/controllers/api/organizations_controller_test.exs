@@ -1,4 +1,5 @@
 defmodule TuistCloudWeb.API.OrganizationsControllerTest do
+  alias TuistCloud.BillingFixtures
   alias TuistCloud.Environment
   alias TuistCloudWeb.Authentication
   alias TuistCloud.AccountsFixtures
@@ -104,6 +105,39 @@ defmodule TuistCloudWeb.API.OrganizationsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["name"] == "tuist-org"
+      assert response["plan"] == "none"
+    end
+
+    test "returns an organization with an active pro plan", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+
+      Accounts.invite_user_to_organization("tuist-inviter@tuist.io", %{
+        inviter: user,
+        to: organization,
+        url: fn token -> token end
+      })
+
+      BillingFixtures.subscription_fixture(
+        account_id: organization.account.id,
+        plan: :pro,
+        status: "active"
+      )
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/organizations/tuist-org")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["name"] == "tuist-org"
+      assert response["plan"] == "pro"
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do

@@ -6,7 +6,6 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlugTest do
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.AccountsFixtures
   alias TuistCloudWeb.API.EnsureProjectPresencePlug
-  alias TuistCloud.Accounts.Account
   use TuistCloudWeb.ConnCase
   alias TuistCloud.Repo
   use Mimic

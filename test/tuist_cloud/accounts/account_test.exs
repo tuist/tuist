@@ -86,23 +86,4 @@ defmodule TuistCloud.AccountTest do
       assert ["can't be blank"] == errors_on(changeset).organization_id
     end
   end
-
-  describe "plan validity" do
-    test "when the plan is invalid" do
-      changeset =
-        Account.create_changeset(%Account{}, %{plan: :invalid})
-
-      assert changeset.valid? == false
-      assert "is invalid" in errors_on(changeset).plan
-    end
-
-    test "when the plan is valid" do
-      for plan <- [:none, :enterprise, :air, :pro] do
-        changeset =
-          Account.create_changeset(%Account{}, %{plan: plan})
-
-        assert Map.get(errors_on(changeset), :plan) == nil
-      end
-    end
-  end
 end
