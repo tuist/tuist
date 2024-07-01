@@ -57,17 +57,16 @@ defmodule TuistCloud.PromEx do
   @impl true
   def plugins do
     [
-      # PromEx built in plugins
-      # Plugins.Application,
-      # Plugins.Beam,
-      # {Plugins.Phoenix, router: TuistCloudWeb.Router, endpoint: TuistCloudWeb.Endpoint},
-      # Plugins.Ecto,
-      # Plugins.Oban,
-      # Plugins.PhoenixLiveView,
+      Plugins.Application,
+      Plugins.Beam,
+      {Plugins.Phoenix, router: TuistCloudWeb.Router, endpoint: TuistCloudWeb.Endpoint},
+      Plugins.Ecto,
+      Plugins.Oban,
+      Plugins.PhoenixLiveView,
       # Plugins.Absinthe,
       # Plugins.Broadway,
 
-      # Add your own PromEx metrics plugins
+      TuistCloud.Storage.PromExPlugin,
       TuistCloud.CommandEvents.PromExPlugin
     ]
   end

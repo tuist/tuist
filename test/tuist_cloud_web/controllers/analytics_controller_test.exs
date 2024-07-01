@@ -438,7 +438,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
       Storage
-      |> stub(:exists, fn object_key ->
+      |> stub(:object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -449,7 +449,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
       end)
 
       Storage
-      |> stub(:get_object, fn object_key ->
+      |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -522,7 +522,7 @@ defmodule TuistCloudWeb.AnalyticsControllerTest do
         |> Repo.preload(project: :account)
 
       Storage
-      |> stub(:exists, fn _ -> false end)
+      |> stub(:object_exists?, fn _ -> false end)
 
       conn =
         conn

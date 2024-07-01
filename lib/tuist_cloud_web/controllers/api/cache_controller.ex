@@ -8,7 +8,6 @@ defmodule TuistCloudWeb.API.CacheController do
   alias TuistCloud.CommandEvents
   alias OpenApiSpex.Schema
   alias TuistCloudWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
-  require Logger
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -79,15 +78,11 @@ defmodule TuistCloudWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    {time, url} =
-      :timer.tc(fn ->
-        Storage.generate_download_url(
-          get_object_key(item),
-          expires_in: expires_in
-        )
-      end)
-
-    Logger.debug("Pre-signed download URL generated in #{time} usec.")
+    url =
+      Storage.generate_download_url(
+        get_object_key(item),
+        expires_in: expires_in
+      )
 
     upload_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
 
@@ -190,19 +185,15 @@ defmodule TuistCloudWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    {time, exists} =
-      :timer.tc(fn ->
-        Storage.exists(
-          get_object_key(%{
-            hash: hash,
-            name: name,
-            project_slug: project_slug,
-            cache_category: cache_category
-          })
-        )
-      end)
-
-    Logger.debug("Existence of artifact checked in #{time} usec.")
+    exists =
+      Storage.object_exists?(
+        get_object_key(%{
+          hash: hash,
+          name: name,
+          project_slug: project_slug,
+          cache_category: cache_category
+        })
+      )
 
     if exists do
       conn |> json(%{status: "success", data: %{}})
@@ -267,19 +258,15 @@ defmodule TuistCloudWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    {time, upload_id} =
-      :timer.tc(fn ->
-        Storage.multipart_start(
-          get_object_key(%{
-            hash: hash,
-            name: name,
-            project_slug: project_slug,
-            cache_category: cache_category
-          })
-        )
-      end)
-
-    Logger.debug("Multi-part upload started in #{time} usec.")
+    upload_id =
+      Storage.multipart_start(
+        get_object_key(%{
+          hash: hash,
+          name: name,
+          project_slug: project_slug,
+          cache_category: cache_category
+        })
+      )
 
     conn |> json(%{status: "success", data: %{upload_id: upload_id}})
   end
@@ -354,22 +341,18 @@ defmodule TuistCloudWeb.API.CacheController do
       ) do
     expires_in = 120
 
-    {time, url} =
-      :timer.tc(fn ->
-        Storage.multipart_generate_url(
-          get_object_key(%{
-            hash: hash,
-            name: name,
-            project_slug: project_slug,
-            cache_category: cache_category
-          }),
-          upload_id,
-          part_number,
-          expires_in: expires_in
-        )
-      end)
-
-    Logger.debug("Multi-part upload URL generated in #{time} usec.")
+    url =
+      Storage.multipart_generate_url(
+        get_object_key(%{
+          hash: hash,
+          name: name,
+          project_slug: project_slug,
+          cache_category: cache_category
+        }),
+        upload_id,
+        part_number,
+        expires_in: expires_in
+      )
 
     conn |> json(%{status: "success", data: %{url: url}})
   end
@@ -476,24 +459,20 @@ defmodule TuistCloudWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    {time, :ok} =
-      :timer.tc(fn ->
-        Storage.multipart_complete_upload(
-          get_object_key(item),
-          upload_id,
-          parts
-          |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-            {part_number, etag}
-          end)
-        )
-      end)
-
-    Logger.debug("Multi-part upload completed in #{time} usec.")
+    :ok =
+      Storage.multipart_complete_upload(
+        get_object_key(item),
+        upload_id,
+        parts
+        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end)
+      )
 
     CommandEvents.create_cache_event(%{
       name: name,
       event_type: :upload,
-      size: Storage.size(get_object_key(item)),
+      size: Storage.get_object_size(get_object_key(item)),
       project_id: EnsureProjectPresencePlug.get_project(conn).id,
       hash: hash
     })
@@ -544,13 +523,8 @@ defmodule TuistCloudWeb.API.CacheController do
       ) do
     project_slug = "#{account_name}/#{project_name}"
 
-    {time, _} =
-      :timer.tc(fn ->
-        Storage.delete_all_objects("#{project_slug}/builds")
-        Storage.delete_all_objects("#{project_slug}/tests")
-      end)
-
-    Logger.debug("Artifacts cleaned in #{time} usec.")
+    Storage.delete_all_objects("#{project_slug}/builds")
+    Storage.delete_all_objects("#{project_slug}/tests")
 
     conn
     |> send_resp(:no_content, "")

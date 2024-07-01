@@ -43,8 +43,13 @@ defmodule TuistCloud.CommandEventsTest do
 
     test "sends telemetry events" do
       # Given
-      run_create_ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :run, :command]])
-      cache_event_ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :cache, :event]])
+      run_create_ref =
+        :telemetry_test.attach_event_handlers(self(), [
+          TuistCloud.Telemetry.event_name_run_command()
+        ])
+
+      cache_event_ref =
+        :telemetry_test.attach_event_handlers(self(), [TuistCloud.Telemetry.event_name_cache()])
 
       # When
       command_event =
@@ -71,17 +76,19 @@ defmodule TuistCloud.CommandEventsTest do
         })
 
       # Then
-      assert_received {[:tuist, :run, :command], ^run_create_ref, %{duration: 100},
+      event_name_run_command = TuistCloud.Telemetry.event_name_run_command()
+      event_name_cache = TuistCloud.Telemetry.event_name_cache()
+
+      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100},
                        %{command_event: ^command_event}}
 
-      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 1},
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1},
                        %{event_type: :local_hit}}
 
-      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 2},
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2},
                        %{event_type: :remote_hit}}
 
-      assert_received {[:tuist, :cache, :event], ^cache_event_ref, %{count: 1},
-                       %{event_type: :miss}}
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
     end
   end
 
@@ -118,7 +125,7 @@ defmodule TuistCloud.CommandEventsTest do
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       Storage
-      |> stub(:exists, fn ^object_key -> true end)
+      |> stub(:object_exists?, fn ^object_key -> true end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -139,7 +146,7 @@ defmodule TuistCloud.CommandEventsTest do
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       Storage
-      |> stub(:exists, fn ^object_key -> false end)
+      |> stub(:object_exists?, fn ^object_key -> false end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -868,7 +875,7 @@ defmodule TuistCloud.CommandEventsTest do
         "#{base_path}/invocation_record.json"
 
       Storage
-      |> stub(:exists, fn ^invocation_record_object_key ->
+      |> stub(:object_exists?, fn ^invocation_record_object_key ->
         false
       end)
 
@@ -895,7 +902,7 @@ defmodule TuistCloud.CommandEventsTest do
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
       Storage
-      |> stub(:exists, fn object_key ->
+      |> stub(:object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -906,7 +913,7 @@ defmodule TuistCloud.CommandEventsTest do
       end)
 
       Storage
-      |> stub(:get_object, fn object_key ->
+      |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()

@@ -159,7 +159,7 @@ defmodule TuistCloudWeb.API.CacheControllerTest do
       end)
 
       Storage
-      |> expect(:size, fn ^object_key ->
+      |> expect(:get_object_size, fn ^object_key ->
         1024
       end)
 
@@ -205,7 +205,7 @@ defmodule TuistCloudWeb.API.CacheControllerTest do
       |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
 
       Storage
-      |> stub(:size, fn _ -> 1024 end)
+      |> stub(:get_object_size, fn _ -> 1024 end)
 
       conn =
         conn
