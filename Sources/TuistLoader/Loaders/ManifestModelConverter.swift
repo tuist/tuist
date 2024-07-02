@@ -96,11 +96,16 @@ public final class ManifestModelConverter: ManifestModelConverting {
 
         let externalProjects = try [AbsolutePath: XcodeGraph.Project](
             uniqueKeysWithValues: manifest.externalProjects
-                .map { project in
-                    let projectPath = try AbsolutePath(validating: project.key.pathString)
-                    let isExternal = projectPath.components.contains(Constants.SwiftPackageManager.packageCheckoutDirectoryName)
+                .map { externalProject in
+                    let projectPath = try AbsolutePath(validating: externalProject.key.pathString)
+                    let isExternal: Bool = switch externalProject.value.type {
+                    case .remote:
+                        true
+                    case .local:
+                        false
+                    }
                     var project = try convert(
-                        manifest: project.value,
+                        manifest: externalProject.value.project,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,

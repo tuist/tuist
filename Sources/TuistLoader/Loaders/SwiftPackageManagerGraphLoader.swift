@@ -154,15 +154,19 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            let path = packageInfo.folder
-            let manifest = try packageInfoMapper.map(
+        let externalProjects: [Path: TuistCore.DependenciesGraph.ExternalProject]
+        externalProjects = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            if let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 packageFolder: packageInfo.folder,
                 packageType: packageInfo.packageType,
                 packageSettings: packageSettings
-            )
-            result[.path(path.pathString)] = manifest
+            ) {
+                result[.path(packageInfo.folder.pathString)] = .init(
+                    project: manifest,
+                    type: packageInfo.packageType
+                )
+            }
         }
 
         return DependenciesGraph(
