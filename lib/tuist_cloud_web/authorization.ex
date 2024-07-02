@@ -29,7 +29,7 @@ defmodule TuistCloudWeb.Authorization do
         owner_handle: owner_handle,
         project_handle: project_handle
       }) do
-    project = Projects.get_project_by_account_and_project_name(owner_handle, project_handle)
+    project = Projects.get_project_by_account_and_project_handles(owner_handle, project_handle)
 
     if is_nil(project) or not TuistCloud.Authorization.can(user, :read, project, :dashboard) do
       raise TuistCloudWeb.Errors.NotFoundError,

@@ -36,7 +36,18 @@ defmodule TuistCloud.Projects do
     end
   end
 
-  def get_project_by_account_and_project_name(account_name, project_name, opts \\ []) do
+  def get_project_and_account_handles_from_full_handle(full_handle) do
+    components = String.split(full_handle, "/")
+
+    if length(components) == 2 do
+      [account_handle, project_handle] = components
+      {:ok, %{account_handle: account_handle, project_handle: project_handle}}
+    else
+      {:error, :invalid_full_handle}
+    end
+  end
+
+  def get_project_by_account_and_project_handles(account_name, project_name, opts \\ []) do
     with {:account, %{id: account_id}} <-
            {:account,
             Repo.one(
@@ -63,7 +74,7 @@ defmodule TuistCloud.Projects do
     if String.contains?(slug, "/") do
       [account_name, project_name] = String.split(slug, "/")
 
-      project = get_project_by_account_and_project_name(account_name, project_name, opts)
+      project = get_project_by_account_and_project_handles(account_name, project_name, opts)
 
       if is_nil(project) do
         {:error, :not_found}

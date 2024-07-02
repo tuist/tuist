@@ -8,12 +8,40 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
   use Mimic
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preloads: [:account])
     %{user: user}
   end
 
   describe "POST /api/projects" do
-    test "returns newly created personal project", %{conn: conn, user: user} do
+    test "returns newly created personal project", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", full_handle: "#{user.account.name}/my-project")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => response["id"],
+               "full_name" => "#{user.account.name}/my-project",
+               "token" => response["token"]
+             }
+    end
+
+    test "returns newly created personal project using just project_name", %{
+      conn: conn,
+      user: user
+    } do
       # Given
       conn =
         conn
@@ -35,7 +63,34 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
              }
     end
 
-    test "returns newly created project for a given organization", %{conn: conn, user: user} do
+    test "returns newly created project for a given organization",
+         %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = Accounts.create_organization(%{name: "tuist-org", creator: user})
+      Accounts.add_user_to_organization(user, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", full_handle: "tuist-org/my-project")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => response["id"],
+               "full_name" => "tuist-org/my-project",
+               "token" => response["token"]
+             }
+    end
+
+    test "returns newly created project for a given organization using project and organization names",
+         %{conn: conn, user: user} do
       # Given
       conn =
         conn
@@ -73,13 +128,13 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects", name: "my-project", organization: "non-existing-org")
+        |> post(~p"/api/projects", full_handle: "non-existing-org/my-project")
 
       # Then
       response = json_response(conn, :not_found)
 
       assert response == %{
-               "message" => "The organization non-existing-org was not found"
+               "message" => "The account non-existing-org was not found"
              }
     end
 
@@ -98,7 +153,7 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects", name: "my-project", organization: "tuist-org")
+        |> post(~p"/api/projects", full_handle: "tuist-org/my-project")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -122,7 +177,7 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects", name: "my.project", organization: "tuist-org")
+        |> post(~p"/api/projects", full_handle: "tuist-org/my.project")
 
       # Then
       response = json_response(conn, :bad_request)
@@ -130,6 +185,60 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
       assert response == %{
                "message" =>
                  "Project name can't contain a dot. Please use a different name, such as my-project."
+             }
+    end
+
+    test "returns bad request when the full handle contains only a project or an account name", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", full_handle: "tuist-org")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response == %{
+               "message" =>
+                 "The project full handle tuist-org is not in the format of account-handle/project-handle."
+             }
+    end
+
+    test "returns bad request when the full handle contains extra handles", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", full_handle: "tuist-org/my-project/extra-handle")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response == %{
+               "message" =>
+                 "The project full handle tuist-org/my-project/extra-handle is not in the format of account-handle/project-handle."
              }
     end
 
@@ -147,7 +256,7 @@ defmodule TuistCloudWeb.API.ProjectsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects", name: "my-project")
+        |> post(~p"/api/projects", full_handle: "#{account.name}/my-project")
 
       # Then
       response = json_response(conn, :bad_request)
