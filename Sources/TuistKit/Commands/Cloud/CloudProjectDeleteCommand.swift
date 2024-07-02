@@ -12,18 +12,11 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The project to delete.",
+        help: "The project to delete. Must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectDeleteProject
+        envKey: .projectDeleteFullHandle
     )
-    var project: String
-
-    @Option(
-        name: .shortAndLong,
-        help: "The organization that the project belongs to. By default, this is your personal Tuist Cloud account.",
-        envKey: .cloudProjectDeleteOrganization
-    )
-    var organization: String
+    var fullHandle: String
 
     @Option(
         name: .shortAndLong,
@@ -35,8 +28,7 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await CloudProjectDeleteService().run(
-            projectName: project,
-            organizationName: organization,
+            fullHandle: fullHandle,
             directory: path
         )
     }

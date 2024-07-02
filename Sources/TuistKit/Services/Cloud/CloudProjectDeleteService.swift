@@ -6,8 +6,7 @@ import TuistSupport
 
 protocol CloudProjectDeleteServicing {
     func run(
-        projectName: String,
-        organizationName: String,
+        fullHandle: String,
         directory: String?
     ) async throws
 }
@@ -34,8 +33,7 @@ final class CloudProjectDeleteService: CloudProjectDeleteServicing {
     }
 
     func run(
-        projectName: String,
-        organizationName: String,
+        fullHandle: String,
         directory: String?
     ) async throws {
         let directoryPath: AbsolutePath
@@ -47,11 +45,8 @@ final class CloudProjectDeleteService: CloudProjectDeleteServicing {
         let config = try configLoader.loadConfig(path: directoryPath)
         let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
-        let accountName: String = organizationName
-
         let project = try await getProjectService.getProject(
-            accountName: accountName,
-            projectName: projectName,
+            fullHandle: fullHandle,
             serverURL: cloudURL
         )
 

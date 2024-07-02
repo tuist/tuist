@@ -13,18 +13,11 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the project to create.",
+        help: "The project to create. The full handle must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectCreateName
+        envKey: .projectCreateFullHandle
     )
-    var name: String
-
-    @Option(
-        name: .shortAndLong,
-        help: "Organization to create the project with. If not specified, the project is created with your personal cloud account.",
-        envKey: .cloudProjectCreateOrganization
-    )
-    var organization: String?
+    var fullHandle: String
 
     @Option(
         name: .shortAndLong,
@@ -36,8 +29,7 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await CloudProjectCreateService().run(
-            name: name,
-            organization: organization,
+            fullHandle: fullHandle,
             directory: path
         )
     }

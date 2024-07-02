@@ -623,22 +623,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     }
 
     func testCloudProjectTokenCommandUsesEnvVars() throws {
-        setVariable(.cloudProjectTokenProjectName, value: "ProjectName")
-        setVariable(.cloudProjectTokenOrganizationName, value: "OrganizationName")
+        setVariable(.projectTokenFullHandle, value: "tuist-org/tuist")
         setVariable(.cloudProjectTokenPath, value: "/path/to/token")
 
         let commandWithEnvVars = try CloudProjectTokenCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.projectName, "ProjectName")
-        XCTAssertEqual(commandWithEnvVars.organizationName, "OrganizationName")
+        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/token")
 
         let commandWithArgs = try CloudProjectTokenCommand.parse([
-            "NewProjectName",
-            "--organization-name", "NewOrganizationName",
+            "new-org/new-project",
             "--path", "/new/token/path",
         ])
-        XCTAssertEqual(commandWithArgs.projectName, "NewProjectName")
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganizationName")
+        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
         XCTAssertEqual(commandWithArgs.path, "/new/token/path")
     }
 
@@ -739,63 +735,37 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     }
 
     func testCloudProjectDeleteCommandUsesEnvVars() throws {
-        setVariable(.cloudProjectDeleteProject, value: "MyProject")
+        setVariable(.projectDeleteFullHandle, value: "tuist-org/tuist")
         setVariable(.cloudProjectDeleteOrganization, value: "MyOrganization")
         setVariable(.cloudProjectDeletePath, value: "/path/to/delete")
 
         let commandWithEnvVars = try CloudProjectDeleteCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.project, "MyProject")
-        XCTAssertEqual(commandWithEnvVars.organization, "MyOrganization")
+        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/delete")
 
         let commandWithArgs = try CloudProjectDeleteCommand.parse([
-            "NewProject",
-            "--organization", "NewOrganization",
+            "new-org/new-project",
             "--path", "/new/delete/path",
         ])
-        XCTAssertEqual(commandWithArgs.project, "NewProject")
-        XCTAssertEqual(commandWithArgs.organization, "NewOrganization")
+        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
         XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
     }
 
     func testCloudProjectCreateCommandUsesEnvVars() throws {
-        setVariable(.cloudProjectCreateName, value: "MyProject")
+        setVariable(.projectCreateFullHandle, value: "tuist-org/tuist")
         setVariable(.cloudProjectCreateOrganization, value: "MyOrganization")
         setVariable(.cloudProjectCreatePath, value: "/path/to/create")
 
         let commandWithEnvVars = try CloudProjectCreateCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.name, "MyProject")
-        XCTAssertEqual(commandWithEnvVars.organization, "MyOrganization")
+        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/create")
 
         let commandWithArgs = try CloudProjectCreateCommand.parse([
-            "NewProject",
-            "--organization", "NewOrganization",
+            "new-org/new-project",
             "--path", "/new/create/path",
         ])
-        XCTAssertEqual(commandWithArgs.name, "NewProject")
-        XCTAssertEqual(commandWithArgs.organization, "NewOrganization")
+        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
         XCTAssertEqual(commandWithArgs.path, "/new/create/path")
-    }
-
-    func testCloudInitCommandUsesEnvVars() throws {
-        setVariable(.cloudInitName, value: "InitName")
-        setVariable(.cloudInitOrganization, value: "InitOrganization")
-        setVariable(.cloudInitPath, value: "/path/to/init")
-
-        let commandWithEnvVars = try CloudInitCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.name, "InitName")
-        XCTAssertEqual(commandWithEnvVars.organization, "InitOrganization")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/init")
-
-        let commandWithArgs = try CloudInitCommand.parse([
-            "NewInitName",
-            "--organization", "NewInitOrganization",
-            "--path", "/new/init/path",
-        ])
-        XCTAssertEqual(commandWithArgs.name, "NewInitName")
-        XCTAssertEqual(commandWithArgs.organization, "NewInitOrganization")
-        XCTAssertEqual(commandWithArgs.path, "/new/init/path")
     }
 
     func testCloudOrganizationInviteCommandUsesEnvVars() throws {

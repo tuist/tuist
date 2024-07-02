@@ -13,18 +13,11 @@ struct CloudProjectTokenCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the project to get the token for.",
+        help: "The project to get the token for. Must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectTokenProjectName
+        envKey: .projectTokenFullHandle
     )
-    var projectName: String
-
-    @Option(
-        name: .shortAndLong,
-        help: "Organization of the project. If not specified, it defaults to your user account.",
-        envKey: .cloudProjectTokenOrganizationName
-    )
-    var organizationName: String
+    var fullHandle: String
 
     @Option(
         name: .shortAndLong,
@@ -36,8 +29,7 @@ struct CloudProjectTokenCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await CloudProjectTokenService().run(
-            projectName: projectName,
-            organizationName: organizationName,
+            fullHandle: fullHandle,
             directory: path
         )
     }

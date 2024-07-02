@@ -141,9 +141,8 @@ public enum EnvKey: String, CaseIterable {
     case cloudOrganizationDeletePath = "TUIST_CLOUD_ORGANIZATION_DELETE_PATH"
 
     // CLOUD PROJECT TOKEN
-    case cloudProjectTokenProjectName = "TUIST_CLOUD_PROJECT_TOKEN_PROJECT_NAME"
-    case cloudProjectTokenOrganizationName = "TUIST_CLOUD_PROJECT_TOKEN_ORGANIZATION_NAME"
     case cloudProjectTokenPath = "TUIST_CLOUD_PROJECT_TOKEN_PATH"
+    case projectTokenFullHandle = "TUIST_PROJECT_TOKEN_FULL_HANDLE"
 
     // CLOUD ORGANIZATION LIST
     case cloudOrganizationListJson = "TUIST_CLOUD_ORGANIZATION_LIST_JSON"
@@ -170,12 +169,12 @@ public enum EnvKey: String, CaseIterable {
     case cloudOrganizationUpdateSSOPath = "TUIST_CLOUD_ORGANIZATION_UPDATE_SSO_PATH"
 
     // CLOUD PROJECT DELETE
-    case cloudProjectDeleteProject = "TUIST_CLOUD_PROJECT_DELETE_PROJECT"
+    case projectDeleteFullHandle = "TUIST_PROJECT_DELETE_FULL_HANDLE"
     case cloudProjectDeleteOrganization = "TUIST_CLOUD_PROJECT_DELETE_ORGANIZATION"
     case cloudProjectDeletePath = "TUIST_CLOUD_PROJECT_DELETE_PATH"
 
     // CLOUD PROJECT CREATE
-    case cloudProjectCreateName = "TUIST_CLOUD_PROJECT_CREATE_NAME"
+    case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case cloudProjectCreateOrganization = "TUIST_CLOUD_PROJECT_CREATE_ORGANIZATION"
     case cloudProjectCreatePath = "TUIST_CLOUD_PROJECT_CREATE_PATH"
 
