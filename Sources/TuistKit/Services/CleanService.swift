@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistLoader
 import TuistSupport
+import TuistServer
 import XcodeGraph
 
 protocol CleanCategory: ExpressibleByArgument & CaseIterable {
@@ -77,16 +78,25 @@ final class CleanService {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let manifestFilesLocator: ManifestFilesLocating
+    private let configLoader: ConfigLoading
+    private let cloudURLService: CloudURLServicing
+    private let cleanCacheService: CleanCacheServicing
     init(
         fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        configLoader: ConfigLoading,
+        cloudURLService: CloudURLServicing,
+        cleanCacheService: CleanCacheServicing
     ) {
         self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.manifestFilesLocator = manifestFilesLocator
+        self.configLoader = configLoader
+        self.cloudURLService = cloudURLService
+        self.cleanCacheService = cleanCacheService
     }
 
     public convenience init() {
@@ -94,14 +104,18 @@ final class CleanService {
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
-            manifestFilesLocator: ManifestFilesLocator()
+            manifestFilesLocator: ManifestFilesLocator(),
+            configLoader: ConfigLoader(),
+            cloudURLService: CloudURLService(),
+            cleanCacheService: CleanCacheService()
         )
     }
 
     func run(
         categories: [some CleanCategory],
+        remote: Bool,
         path: String?
-    ) throws {
+    ) async throws {
         let resolvedPath = if let path {
             try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
@@ -123,6 +137,15 @@ final class CleanService {
             } else {
                 logger.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
+        }
+        
+        let config = try configLoader.loadConfig(path: resolvedPath)
+        if remote, let cloud = config.cloud {
+            let cloudURL = try cloudURLService.url(configCloudURL: cloud.url)
+            try await cleanCacheService.cleanCache(
+                serverURL: cloudURL,
+                fullName: cloud.projectId
+            )
         }
     }
 }

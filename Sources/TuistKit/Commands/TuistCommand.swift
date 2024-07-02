@@ -28,7 +28,13 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
-                CloudCommand.self,
+                AuthCommand.self,
+                SessionCommand.self,
+                LogoutCommand.self,
+                CleanCommand.self,
+                ProjectCommand.self,
+                OrganizationCommand.self,
+                AnalyticsCommand.self,
             ]
         )
     }

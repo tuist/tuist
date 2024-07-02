@@ -574,15 +574,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertFalse(testCommandWithArgs.selectiveTesting)
     }
 
-    func testCloudOrganizationBillingCommandUsesEnvVars() throws {
+    func testOrganizationBillingCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationBillingOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationBillingPath, value: "/path/to/billing")
 
-        let commandWithEnvVars = try CloudOrganizationBillingCommand.parse([])
+        let commandWithEnvVars = try OrganizationBillingCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/billing")
 
-        let commandWithArgs = try CloudOrganizationBillingCommand.parse([
+        let commandWithArgs = try OrganizationBillingCommand.parse([
             "AnotherOrganization",
             "--path", "/new/billing/path",
         ])
@@ -590,15 +590,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/billing/path")
     }
 
-    func testCloudOrganizationCreateCommandUsesEnvVars() throws {
+    func testOrganizationCreateCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationCreateOrganizationName, value: "MyNewOrganization")
         setVariable(.cloudOrganizationCreatePath, value: "/path/to/create")
 
-        let commandWithEnvVars = try CloudOrganizationCreateCommand.parse([])
+        let commandWithEnvVars = try OrganizationCreateCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyNewOrganization")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/create")
 
-        let commandWithArgs = try CloudOrganizationCreateCommand.parse([
+        let commandWithArgs = try OrganizationCreateCommand.parse([
             "AnotherNewOrganization",
             "--path", "/new/create/path",
         ])
@@ -606,15 +606,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/create/path")
     }
 
-    func testCloudOrganizationDeleteCommandUsesEnvVars() throws {
+    func testOrganizationDeleteCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationDeleteOrganizationName, value: "OrganizationToDelete")
         setVariable(.cloudOrganizationDeletePath, value: "/path/to/delete")
 
-        let commandWithEnvVars = try CloudOrganizationDeleteCommand.parse([])
+        let commandWithEnvVars = try OrganizationDeleteCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "OrganizationToDelete")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/delete")
 
-        let commandWithArgs = try CloudOrganizationDeleteCommand.parse([
+        let commandWithArgs = try OrganizationDeleteCommand.parse([
             "AnotherOrganizationToDelete",
             "--path", "/new/delete/path",
         ])
@@ -622,17 +622,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
     }
 
-    func testCloudProjectTokenCommandUsesEnvVars() throws {
+    func testProjectTokenCommandUsesEnvVars() throws {
         setVariable(.cloudProjectTokenProjectName, value: "ProjectName")
         setVariable(.cloudProjectTokenOrganizationName, value: "OrganizationName")
         setVariable(.cloudProjectTokenPath, value: "/path/to/token")
 
-        let commandWithEnvVars = try CloudProjectTokenCommand.parse([])
+        let commandWithEnvVars = try ProjectTokenCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.projectName, "ProjectName")
         XCTAssertEqual(commandWithEnvVars.organizationName, "OrganizationName")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/token")
 
-        let commandWithArgs = try CloudProjectTokenCommand.parse([
+        let commandWithArgs = try ProjectTokenCommand.parse([
             "NewProjectName",
             "--organization-name", "NewOrganizationName",
             "--path", "/new/token/path",
@@ -642,15 +642,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/token/path")
     }
 
-    func testCloudOrganizationListCommandUsesEnvVars() throws {
+    func testOrganizationListCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationListJson, value: "true")
         setVariable(.cloudOrganizationListPath, value: "/path/to/list")
 
-        let commandWithEnvVars = try CloudOrganizationListCommand.parse([])
+        let commandWithEnvVars = try OrganizationListCommand.parse([])
         XCTAssertTrue(commandWithEnvVars.json)
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/list")
 
-        let commandWithArgs = try CloudOrganizationListCommand.parse([
+        let commandWithArgs = try OrganizationListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
@@ -658,17 +658,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/list/path")
     }
 
-    func testCloudOrganizationRemoveInviteCommandUsesEnvVars() throws {
+    func testOrganizationRemoveInviteCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationRemoveInviteOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationRemoveInviteEmail, value: "email@example.com")
         setVariable(.cloudOrganizationRemoveInvitePath, value: "/path/to/invite")
 
-        let commandWithEnvVars = try CloudOrganizationRemoveInviteCommand.parse([])
+        let commandWithEnvVars = try OrganizationRemoveInviteCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.email, "email@example.com")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/invite")
 
-        let commandWithArgs = try CloudOrganizationRemoveInviteCommand.parse([
+        let commandWithArgs = try OrganizationRemoveInviteCommand.parse([
             "NewOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
@@ -678,17 +678,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/invite/path")
     }
 
-    func testCloudOrganizationRemoveMemberCommandUsesEnvVars() throws {
+    func testOrganizationRemoveMemberCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationRemoveMemberOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationRemoveMemberUsername, value: "username")
         setVariable(.cloudOrganizationRemoveMemberPath, value: "/path/to/member")
 
-        let commandWithEnvVars = try CloudOrganizationRemoveMemberCommand.parse([])
+        let commandWithEnvVars = try OrganizationRemoveMemberCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.username, "username")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/member")
 
-        let commandWithArgs = try CloudOrganizationRemoveMemberCommand.parse([
+        let commandWithArgs = try OrganizationRemoveMemberCommand.parse([
             "NewOrganization",
             "newusername",
             "--path", "/new/member/path",
@@ -698,15 +698,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/member/path")
     }
 
-    func testCloudOrganizationRemoveSSOCommandUsesEnvVars() throws {
+    func testOrganizationRemoveSSOCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationRemoveSSOOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationRemoveSSOPath, value: "/path/to/sso")
 
-        let commandWithEnvVars = try CloudOrganizationRemoveSSOCommand.parse([])
+        let commandWithEnvVars = try OrganizationRemoveSSOCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/sso")
 
-        let commandWithArgs = try CloudOrganizationRemoveSSOCommand.parse([
+        let commandWithArgs = try OrganizationRemoveSSOCommand.parse([
             "NewOrganization",
             "--path", "/new/sso/path",
         ])
@@ -714,19 +714,19 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/sso/path")
     }
 
-    func testCloudOrganizationUpdateSSOCommandUsesEnvVars() throws {
+    func testOrganizationUpdateSSOCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationUpdateSSOOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationUpdateSSOProvider, value: "google")
         setVariable(.cloudOrganizationUpdateSSOOrganizationId, value: "1234")
         setVariable(.cloudOrganizationUpdateSSOPath, value: "/path/to/update/sso")
 
-        let commandWithEnvVars = try CloudOrganizationUpdateSSOCommand.parse([])
+        let commandWithEnvVars = try OrganizationUpdateSSOCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.provider, .google)
         XCTAssertEqual(commandWithEnvVars.organizationId, "1234")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/update/sso")
 
-        let commandWithArgs = try CloudOrganizationUpdateSSOCommand.parse([
+        let commandWithArgs = try OrganizationUpdateSSOCommand.parse([
             "NewOrganization",
             "--provider", "google",
             "--organization-id", "5678",
@@ -738,17 +738,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/update/sso/path")
     }
 
-    func testCloudProjectDeleteCommandUsesEnvVars() throws {
+    func testProjectDeleteCommandUsesEnvVars() throws {
         setVariable(.cloudProjectDeleteProject, value: "MyProject")
         setVariable(.cloudProjectDeleteOrganization, value: "MyOrganization")
         setVariable(.cloudProjectDeletePath, value: "/path/to/delete")
 
-        let commandWithEnvVars = try CloudProjectDeleteCommand.parse([])
+        let commandWithEnvVars = try ProjectDeleteCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.project, "MyProject")
         XCTAssertEqual(commandWithEnvVars.organization, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/delete")
 
-        let commandWithArgs = try CloudProjectDeleteCommand.parse([
+        let commandWithArgs = try ProjectDeleteCommand.parse([
             "NewProject",
             "--organization", "NewOrganization",
             "--path", "/new/delete/path",
@@ -758,17 +758,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
     }
 
-    func testCloudProjectCreateCommandUsesEnvVars() throws {
+    func testProjectCreateCommandUsesEnvVars() throws {
         setVariable(.cloudProjectCreateName, value: "MyProject")
         setVariable(.cloudProjectCreateOrganization, value: "MyOrganization")
         setVariable(.cloudProjectCreatePath, value: "/path/to/create")
 
-        let commandWithEnvVars = try CloudProjectCreateCommand.parse([])
+        let commandWithEnvVars = try ProjectCreateCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.name, "MyProject")
         XCTAssertEqual(commandWithEnvVars.organization, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/create")
 
-        let commandWithArgs = try CloudProjectCreateCommand.parse([
+        let commandWithArgs = try ProjectCreateCommand.parse([
             "NewProject",
             "--organization", "NewOrganization",
             "--path", "/new/create/path",
@@ -778,37 +778,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/create/path")
     }
 
-    func testCloudInitCommandUsesEnvVars() throws {
-        setVariable(.cloudInitName, value: "InitName")
-        setVariable(.cloudInitOrganization, value: "InitOrganization")
-        setVariable(.cloudInitPath, value: "/path/to/init")
-
-        let commandWithEnvVars = try CloudInitCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.name, "InitName")
-        XCTAssertEqual(commandWithEnvVars.organization, "InitOrganization")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/init")
-
-        let commandWithArgs = try CloudInitCommand.parse([
-            "NewInitName",
-            "--organization", "NewInitOrganization",
-            "--path", "/new/init/path",
-        ])
-        XCTAssertEqual(commandWithArgs.name, "NewInitName")
-        XCTAssertEqual(commandWithArgs.organization, "NewInitOrganization")
-        XCTAssertEqual(commandWithArgs.path, "/new/init/path")
-    }
-
-    func testCloudOrganizationInviteCommandUsesEnvVars() throws {
+    func testOrganizationInviteCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationInviteOrganizationName, value: "InviteOrganization")
         setVariable(.cloudOrganizationInviteEmail, value: "email@example.com")
         setVariable(.cloudOrganizationInvitePath, value: "/path/to/invite")
 
-        let commandWithEnvVars = try CloudOrganizationInviteCommand.parse([])
+        let commandWithEnvVars = try OrganizationInviteCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "InviteOrganization")
         XCTAssertEqual(commandWithEnvVars.email, "email@example.com")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/invite")
 
-        let commandWithArgs = try CloudOrganizationInviteCommand.parse([
+        let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
@@ -818,17 +798,17 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/invite/path")
     }
 
-    func testCloudOrganizationShowCommandUsesEnvVars() throws {
+    func testOrganizationShowCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationShowOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationShowJson, value: "true")
         setVariable(.cloudOrganizationShowPath, value: "/path/to/show")
 
-        let commandWithEnvVars = try CloudOrganizationShowCommand.parse([])
+        let commandWithEnvVars = try OrganizationShowCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertTrue(commandWithEnvVars.json)
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/show")
 
-        let commandWithArgs = try CloudOrganizationShowCommand.parse([
+        let commandWithArgs = try OrganizationShowCommand.parse([
             "NewOrganization",
             "--no-json",
             "--path", "/new/show/path",
@@ -838,15 +818,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/show/path")
     }
 
-    func testCloudProjectListCommandUsesEnvVars() throws {
+    func testProjectListCommandUsesEnvVars() throws {
         setVariable(.cloudProjectListJson, value: "true")
         setVariable(.cloudProjectListPath, value: "/path/to/list")
 
-        let commandWithEnvVars = try CloudProjectListCommand.parse([])
+        let commandWithEnvVars = try ProjectListCommand.parse([])
         XCTAssertTrue(commandWithEnvVars.json)
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/list")
 
-        let commandWithArgs = try CloudProjectListCommand.parse([
+        let commandWithArgs = try ProjectListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
@@ -854,19 +834,19 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/list/path")
     }
 
-    func testCloudOrganizationUpdateMemberCommandUsesEnvVars() throws {
+    func testOrganizationUpdateMemberCommandUsesEnvVars() throws {
         setVariable(.cloudOrganizationUpdateMemberOrganizationName, value: "MyOrganization")
         setVariable(.cloudOrganizationUpdateMemberUsername, value: "username")
         setVariable(.cloudOrganizationUpdateMemberRole, value: "admin")
         setVariable(.cloudOrganizationUpdateMemberPath, value: "/path/to/member")
 
-        let commandWithEnvVars = try CloudOrganizationUpdateMemberCommand.parse([])
+        let commandWithEnvVars = try OrganizationUpdateMemberCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
         XCTAssertEqual(commandWithEnvVars.username, "username")
         XCTAssertEqual(commandWithEnvVars.role, "admin")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/member")
 
-        let commandWithArgs = try CloudOrganizationUpdateMemberCommand.parse([
+        let commandWithArgs = try OrganizationUpdateMemberCommand.parse([
             "NewOrganization",
             "newusername",
             "--role", "user",
@@ -878,63 +858,51 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/member/path")
     }
 
-    func testCloudAuthCommandUsesEnvVars() throws {
+    func testAuthCommandUsesEnvVars() throws {
         setVariable(.cloudAuthPath, value: "/path/to/auth")
 
-        let commandWithEnvVars = try CloudAuthCommand.parse([])
+        let commandWithEnvVars = try AuthCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/auth")
 
-        let commandWithArgs = try CloudAuthCommand.parse([
+        let commandWithArgs = try AuthCommand.parse([
             "--path", "/new/auth/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/auth/path")
     }
 
-    func testCloudSessionCommandUsesEnvVars() throws {
+    func testSessionCommandUsesEnvVars() throws {
         setVariable(.cloudSessionPath, value: "/path/to/session")
 
-        let commandWithEnvVars = try CloudSessionCommand.parse([])
+        let commandWithEnvVars = try SessionCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/session")
 
-        let commandWithArgs = try CloudSessionCommand.parse([
+        let commandWithArgs = try SessionCommand.parse([
             "--path", "/new/session/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/session/path")
     }
 
-    func testCloudLogoutCommandUsesEnvVars() throws {
+    func testLogoutCommandUsesEnvVars() throws {
         setVariable(.cloudLogoutPath, value: "/path/to/logout")
 
-        let commandWithEnvVars = try CloudLogoutCommand.parse([])
+        let commandWithEnvVars = try LogoutCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/logout")
 
-        let commandWithArgs = try CloudLogoutCommand.parse([
+        let commandWithArgs = try LogoutCommand.parse([
             "--path", "/new/logout/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
     }
 
-    func testCloudAnalyticsCommandUsesEnvVars() throws {
+    func testAnalyticsCommandUsesEnvVars() throws {
         setVariable(.cloudAnalyticsPath, value: "/path/to/analytics")
 
-        let commandWithEnvVars = try CloudAnalyticsCommand.parse([])
+        let commandWithEnvVars = try AnalyticsCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/analytics")
 
-        let commandWithArgs = try CloudAnalyticsCommand.parse([
+        let commandWithArgs = try AnalyticsCommand.parse([
             "--path", "/new/analytics/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/analytics/path")
-    }
-
-    func testCloudCleanCommandUsesEnvVars() throws {
-        setVariable(.cloudCleanPath, value: "/path/to/clean")
-
-        let commandWithEnvVars = try CloudCleanCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/clean")
-
-        let commandWithArgs = try CloudCleanCommand.parse([
-            "--path", "/new/clean/path",
-        ])
-        XCTAssertEqual(commandWithArgs.path, "/new/clean/path")
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import TuistSupport
+import Mockable
 
 enum CloudURLServiceError: FatalError {
     case invalidCloudURL
@@ -21,6 +22,7 @@ enum CloudURLServiceError: FatalError {
     }
 }
 
+@Mockable
 public protocol CloudURLServicing {
     func url(configCloudURL: URL?) throws -> URL
 }

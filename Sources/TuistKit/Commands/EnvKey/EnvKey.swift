@@ -24,6 +24,7 @@ public enum EnvKey: String, CaseIterable {
     // CLEAN
     case cleanCleanCategories = "TUIST_CLEAN_CLEAN_CATEGORIES"
     case cleanPath = "TUIST_CLEAN_PATH"
+    case cleanRemote = "TUIST_CLEAN_REMOTE"
 
     // DUMP
     case dumpPath = "TUIST_DUMP_PATH"
