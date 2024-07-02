@@ -53,6 +53,27 @@
 
 .billing__overview {
   width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: var(--spacing-4xl);
+  flex-direction: row;
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+  }
+}
+
+.billing__pricing__plans {
+  display: flex;
+  gap: var(--spacing-4xl);
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+  }
 }
 
 .billing__overview > * {
