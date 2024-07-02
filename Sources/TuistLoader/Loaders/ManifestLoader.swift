@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -50,6 +51,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
     }
 }
 
+@Mockable
 public protocol ManifestLoading {
     /// Loads the Config.swift in the given directory.
     ///

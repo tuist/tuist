@@ -14,7 +14,7 @@ import XCTest
 
 final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var cacheDirectory: AbsolutePath!
-    private var manifestLoader = MockManifestLoader()
+    private var manifestLoader = MockManifestLoading()
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
@@ -49,37 +49,45 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         subject = createSubject()
 
-        manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = workspaceManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadWorkspace(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = workspaceManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                recordedLoadWorkspaceCalls += 1
+                return manifest
             }
-            recordedLoadWorkspaceCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = projectManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.project, path)
+        given(manifestLoader)
+            .loadProject(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = projectManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.project, path)
+                }
+                recordedLoadProjectCalls += 1
+                return manifest
             }
-            recordedLoadProjectCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadConfigStub = { [unowned self] path in
-            guard let manifest = configManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.config, path)
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = configManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.config, path)
+                }
+                recordedLoadConfigCalls += 1
+                return manifest
             }
-            recordedLoadConfigCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadPluginStub = { [unowned self] path in
-            guard let manifest = pluginManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.plugin, path)
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = pluginManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.plugin, path)
+                }
+                recordedLoadPluginCalls += 1
+                return manifest
             }
-            recordedLoadPluginCalls += 1
-            return manifest
-        }
     }
 
     override func tearDown() {
@@ -161,6 +169,9 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn()
         try stubPlugins(withHash: "hash")
 
         _ = try subject.loadProject(at: path)
@@ -270,28 +281,37 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     func test_validate_projectExists() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willReturn([.project])
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willReturn()
 
-        // When
-        manifestLoader.manifestsAtStub = { _ in [.project] }
-
-        // Then
+        // When / Then
         try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_workspaceExists() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willReturn()
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willReturn([.workspace])
 
-        // When
-        manifestLoader.manifestsAtStub = { _ in [.workspace] }
-
-        // Then
+        // When / Then
         try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_manifestDoesNotExist() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willThrow(ManifestLoaderError.manifestNotFound(path))
 
         // When / Then
         XCTAssertThrowsSpecific(
