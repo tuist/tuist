@@ -274,7 +274,7 @@ defmodule TuistCloudWeb.Authentication do
         } = conn,
         opts
       ) do
-    project = Projects.get_project_by_account_and_project_name(owner, project)
+    project = Projects.get_project_by_account_and_project_handles(owner, project)
 
     if is_nil(project) or project.visibility == :private,
       do: require_authenticated_user(conn, opts),

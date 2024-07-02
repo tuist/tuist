@@ -33,7 +33,7 @@ defmodule TuistCloudWeb.App do
     })
 
     project =
-      Projects.get_project_by_account_and_project_name(owner_handle, project_handle)
+      Projects.get_project_by_account_and_project_handles(owner_handle, project_handle)
 
     owner_account = Accounts.get_account_by_handle(owner_handle)
 

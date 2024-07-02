@@ -21,17 +21,23 @@ defmodule TuistCloudWeb.API.ProjectsController do
        %Schema{
          type: :object,
          properties: %{
+           full_handle: %Schema{
+             type: :string,
+             description: "The full handle of the project that should be created.",
+             example: "tuist/tuist"
+           },
            name: %Schema{
              type: :string,
-             description: "The name of the project that should be created."
+             description: "The name of the project that should be created.",
+             deprecated: true
            },
            organization: %Schema{
              type: :string,
              description:
-               "Organization to create the project with. If not specified, the project will be created with the current user's personal account."
+               "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
+             deprecated: true
            }
-         },
-         required: [:name]
+         }
        }},
     responses: %{
       ok: {"The project was created", "application/json", Project},
@@ -46,27 +52,52 @@ defmodule TuistCloudWeb.API.ProjectsController do
 
   def create(
         %{
-          body_params:
-            %{
-              name: name
-            } = body_params
+          body_params: body_params
         } = conn,
         _params
       ) do
     user = Authentication.current_user(conn)
-    organization_param = Map.get(body_params, :organization, nil)
+    organization_handle = Map.get(body_params, :organization, nil)
+    project_handle = Map.get(body_params, :name, nil)
+    full_handle = Map.get(body_params, :full_handle, nil)
 
-    account =
-      case organization_param do
-        nil -> Accounts.get_account_from_user(user)
-        organization -> Accounts.get_account_by_handle(organization)
+    handles =
+      if is_nil(project_handle) do
+        Projects.get_project_and_account_handles_from_full_handle(full_handle)
+      else
+        if is_nil(organization_handle) do
+          {:ok, %{project_handle: project_handle, account_handle: user.account.name}}
+        else
+          {:ok, %{project_handle: project_handle, account_handle: organization_handle}}
+        end
       end
 
+    case handles do
+      {:error, :invalid_full_handle} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%Error{
+          message:
+            "The project full handle #{full_handle} is not in the format of account-handle/project-handle."
+        })
+
+      {:ok, handles} ->
+        conn |> create_project_with_project_and_account_handles(handles)
+    end
+  end
+
+  defp create_project_with_project_and_account_handles(conn, %{
+         project_handle: project_handle,
+         account_handle: account_handle
+       }) do
+    user = Authentication.current_user(conn)
+    account = Accounts.get_account_by_handle(account_handle)
+
     cond do
-      not is_nil(organization_param) and is_nil(account) ->
+      is_nil(account) ->
         conn
         |> put_status(:not_found)
-        |> json(%Error{message: "The organization #{organization_param} was not found"})
+        |> json(%Error{message: "The account #{account_handle} was not found"})
 
       !Authorization.can(user, :create, account, :project) ->
         conn
@@ -75,15 +106,10 @@ defmodule TuistCloudWeb.API.ProjectsController do
           message: "You don't have permission to create projects for the #{account.name} account."
         })
 
-      # String.contains?(name, ".") ->
-      #   conn
-      #   |> put_status(:bad_request)
-      #   |> json(%Error{
-      #     message:
-      #       "Project name can't contain a dot. Please use a different name, such as #{String.replace(name, ".", "-")}."
-      #   })
-
-      Projects.get_project_by_account_and_project_name(account.name, name) ->
+      Projects.get_project_by_account_and_project_handles(
+        account_handle,
+        project_handle
+      ) ->
         conn
         |> put_status(:bad_request)
         |> json(%Error{message: "Project already exists."})
@@ -92,7 +118,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
         try do
           project =
             Projects.create_project(%{
-              name: name,
+              name: project_handle,
               account: account
             })
 
@@ -199,7 +225,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
     project =
       if is_nil(account),
         do: nil,
-        else: Projects.get_project_by_account_and_project_name(account.name, project_name)
+        else: Projects.get_project_by_account_and_project_handles(account.name, project_name)
 
     cond do
       is_nil(account) ->

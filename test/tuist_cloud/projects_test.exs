@@ -104,6 +104,23 @@ defmodule TuistCloud.ProjectsTest do
     end
   end
 
+  describe "get_project_and_account_handles_from_full_handle/1" do
+    test "returns :invalid_full_handle error if full handle contains only one handle" do
+      assert {:error, :invalid_full_handle} ==
+               Projects.get_project_and_account_handles_from_full_handle("tuist")
+    end
+
+    test "returns :invalid_full_handle error if full handle contains only more than two handles" do
+      assert {:error, :invalid_full_handle} ==
+               Projects.get_project_and_account_handles_from_full_handle("tuist-org/tuist/tuist")
+    end
+
+    test "returns project and account handles" do
+      assert {:ok, %{account_handle: "tuist-org", project_handle: "tuist"}} ==
+               Projects.get_project_and_account_handles_from_full_handle("tuist-org/tuist")
+    end
+  end
+
   describe "delete_project/1" do
     test "deletes a project" do
       # Given
@@ -176,7 +193,7 @@ defmodule TuistCloud.ProjectsTest do
     end
   end
 
-  describe "get_project_by_account_and_project_name/2" do
+  describe "get_project_by_account_and_project_handles/2" do
     test "returns the project if it exists doing a case-insensitive search" do
       # Given
       organization = AccountsFixtures.organization_fixture()
@@ -185,7 +202,7 @@ defmodule TuistCloud.ProjectsTest do
 
       # When
       got =
-        Projects.get_project_by_account_and_project_name(
+        Projects.get_project_by_account_and_project_handles(
           String.upcase(account.name),
           String.upcase(project.name)
         )
