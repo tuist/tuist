@@ -1,6 +1,6 @@
 import MockableTest
 import Path
-import TuistLoaderTesting
+import TuistLoader
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -9,13 +9,13 @@ import XCTest
 final class PluginArchiveServiceTests: TuistUnitTestCase {
     private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var fileArchiverFactory: MockFileArchivingFactorying!
 
     override func setUp() {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
-        manifestLoader = MockManifestLoader()
+        manifestLoader = .init()
         fileArchiverFactory = MockFileArchivingFactorying()
         subject = PluginArchiveService(
             swiftPackageManagerController: swiftPackageManagerController,
@@ -88,9 +88,9 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
                 ]
             )
         }
-        manifestLoader.loadPluginStub = { _ in
-            .test(name: "TestPlugin")
-        }
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(.test(name: "TestPlugin"))
 
         var builtProducts: [String] = []
         swiftPackageManagerController.loadBuildFatReleaseBinaryStub = { _, product, _, _ in
@@ -100,6 +100,9 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         given(fileArchiverFactory).makeFileArchiver(for: .any).willReturn(fileArchiver)
         let zipPath = path.appending(components: "test-zip")
         given(fileArchiver).zip(name: .any).willReturn(zipPath)
+        given(fileArchiver)
+            .delete()
+            .willReturn()
         try fileHandler.createFolder(zipPath)
 
         // When

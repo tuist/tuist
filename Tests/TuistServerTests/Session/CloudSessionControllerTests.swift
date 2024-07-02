@@ -55,6 +55,9 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         given(credentialsStore)
             .read(serverURL: .value(serverURL))
             .willReturn(CloudCredentials(token: "token"))
+        given(credentialsStore)
+            .store(credentials: .any, serverURL: .value(serverURL))
+            .willReturn()
 
         // When
         try await subject.authenticate(serverURL: serverURL)
@@ -107,7 +110,14 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
     func test_logout_deletesTheCredentials() throws {
         // Given
         let credentials = CloudCredentials(token: "token")
+        given(credentialsStore)
+            .store(credentials: .value(credentials), serverURL: .value(serverURL))
+            .willReturn()
         try credentialsStore.store(credentials: credentials, serverURL: serverURL)
+
+        given(credentialsStore)
+            .delete(serverURL: .value(serverURL))
+            .willReturn()
 
         // When
         try subject.logout(serverURL: serverURL)
