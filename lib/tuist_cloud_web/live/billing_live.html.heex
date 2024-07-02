@@ -11,7 +11,7 @@
         <%= gettext("Manage your billing and payment details") %>
       </p>
     </.stack>
-    <.stack direction="horizontal" align="stretch" gap="3xl" class="billing__overview">
+    <div class="billing__overview">
       <.card class="billing__overview__plan-card">
         <.stack gap="3xl" align="stretch">
           <.stack
@@ -169,12 +169,12 @@
           </.card>
         </.stack>
       </.card>
-    </.stack>
+    </div>
     <.section_header
       title={gettext("Account plans")}
       subtitle={gettext("Pick an account plan that fits your workflow.")}
     />
-    <.stack direction="horizontal" gap="4xl" align="stretch">
+    <div class="billing__pricing__plans">
       <.pricing_tier_card
         price={gettext("$0")}
         title={gettext("Air")}
@@ -261,6 +261,6 @@
           </.button>
         </.link>
       </.pricing_tier_card>
-    </.stack>
+    </div>
   </.stack>
 </div>
