@@ -20,7 +20,8 @@ public struct PackageSettings: Equatable, Codable {
 
     /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
     ///
-    /// If only SPM project, test targets are always included regardless of the value of this property.
+    /// - Note: When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
+    /// test targets are always included regardless of the value of this property.
     public var includeLocalPackageTestTargets: Bool
 
     /// Swift tools version of the parsed `Package.swift`
@@ -34,7 +35,7 @@ public struct PackageSettings: Equatable, Codable {
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - projectOptions: The custom project options for each project generated from a swift package
     ///    - includeLocalPackageTestTargets: A Boolean value that indicates whether the test targets of
-    ///    local swift packages are included in generated project.
+    ///    local swift packages are included in the generated project.
     ///    - swiftToolsVersion: Swift tools version of the parsed `Package.swift`
     public init(
         productTypes: [String: Product],
