@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: timescale/timescaledb-ha:pg16.3-ts2.15.1
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: timescale/timescaledb-ha:pg16.3-ts2.15.1
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
