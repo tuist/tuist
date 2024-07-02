@@ -15,7 +15,7 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
     @Argument(
         help: "The project to create. The full handle must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectCreateName
+        envKey: .projectCreateFullHandle
     )
     var fullHandle: String
 

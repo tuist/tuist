@@ -15,7 +15,7 @@ struct CloudProjectTokenCommand: AsyncParsableCommand {
     @Argument(
         help: "The project to get the token for. Must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectTokenProjectName
+        envKey: .projectTokenFullHandle
     )
     var fullHandle: String
 

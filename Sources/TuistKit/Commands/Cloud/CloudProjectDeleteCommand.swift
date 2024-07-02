@@ -14,7 +14,7 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
     @Argument(
         help: "The project to delete. Must be in the format of account-handle/project-handle.",
         completion: .directory,
-        envKey: .cloudProjectDeleteProject
+        envKey: .projectDeleteFullHandle
     )
     var fullHandle: String
 

@@ -49,12 +49,11 @@ final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
         // Given
         given(getProjectService)
             .getProject(
-                accountName: .value("tuist"),
-                projectName: .value("project"),
+                fullHandle: .value("tuist-org/tuist"),
                 serverURL: .value(cloudURL)
             )
             .willReturn(
-                .test(id: 0, fullName: "tuist/tuist")
+                .test(id: 0, fullName: "tuist-org/tuist")
             )
         given(deleteProjectService)
             .deleteProject(
@@ -68,6 +67,6 @@ final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
             .willReturn(.init(token: "token"))
 
         // When / Then
-        try await subject.run(projectName: "project", organizationName: "tuist", directory: nil)
+        try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
     }
 }

@@ -42,11 +42,10 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         // Given
         given(createProjectService)
             .createProject(
-                name: .value("tuist"),
-                organization: .value("tuist-org"),
+                fullHandle: .value("tuist-org/tuist"),
                 serverURL: .value(URL(string: Constants.URLs.production)!)
             )
-            .willReturn(.test(fullName: "tuist/test"))
+            .willReturn(.test(fullName: "tuist-org/tuist"))
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(Config.test(cloud: nil))
@@ -56,8 +55,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
 
         // When
         try await subject.createProject(
-            name: "tuist",
-            organization: "tuist-org",
+            fullHandle: "tuist-org/tuist",
             directory: nil
         )
 
@@ -80,16 +78,14 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         fileHandler.stubWrite = { stubContent, _, _ in content = stubContent }
         given(createProjectService)
             .createProject(
-                name: .value("tuist"),
-                organization: .value("tuist-org"),
+                fullHandle: .value("tuist-org/tuist"),
                 serverURL: .value(URL(string: Constants.URLs.production)!)
             )
-            .willReturn(.test(fullName: "tuist/test"))
+            .willReturn(.test(fullName: "tuist-org/tuist"))
 
         // When
         try await subject.createProject(
-            name: "tuist",
-            organization: "tuist-org",
+            fullHandle: "tuist-org/tuist",
             directory: nil
         )
 
@@ -116,8 +112,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.createProject(
-                name: "tuist",
-                organization: "tuist-org",
+                fullHandle: "tuist-org/tuist",
                 directory: nil
             ),
             CloudInitServiceError.cloudAlreadySetUp
