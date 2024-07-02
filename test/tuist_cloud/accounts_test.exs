@@ -8,8 +8,15 @@ defmodule TuistCloud.AccountsTest do
   alias TuistCloud.Accounts
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Environment
-  use TuistCloud.DataCase
+  use TuistCloud.DataCase, async: true
   use Mimic
+
+  setup do
+    Billing
+    |> stub(:start_trial, fn _ -> {:ok, %{}} end)
+
+    :ok
+  end
 
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do

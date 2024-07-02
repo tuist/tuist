@@ -168,6 +168,7 @@ defmodule TuistCloud.Accounts do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
+    start_trial = opts |> Keyword.get(:start_trial, true)
 
     {:ok, %{organization: organization}} =
       Ecto.Multi.new()
@@ -215,7 +216,7 @@ defmodule TuistCloud.Accounts do
       end)
       |> Repo.transaction()
 
-    if Environment.new_pricing_model?() do
+    if start_trial and Environment.new_pricing_model?() do
       account = Accounts.get_account_from_organization(organization)
       Billing.start_trial(%{plan: :air, account: account})
     end
@@ -307,6 +308,7 @@ defmodule TuistCloud.Accounts do
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
     suffix = opts |> Keyword.get(:suffix, "")
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
+    start_trial = opts |> Keyword.get(:start_trial, true)
 
     name =
       (email
@@ -362,7 +364,7 @@ defmodule TuistCloud.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
-        if Environment.new_pricing_model?() do
+        if start_trial and Environment.new_pricing_model?() do
           account = Accounts.get_account_from_user(user)
           Billing.start_trial(%{plan: :air, account: account})
         end
