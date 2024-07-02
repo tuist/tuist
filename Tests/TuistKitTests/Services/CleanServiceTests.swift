@@ -5,6 +5,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -16,18 +17,27 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private var configLoader: MockConfigLoading!
+    private var serverURLService: MockServerURLServicing!
+    private var cleanCacheService: MockCleanCacheServicing!
 
     override func setUpWithError() throws {
         super.setUp()
         rootDirectoryLocator = .init()
         cacheDirectoriesProvider = .init()
         manifestFilesLocator = MockManifestFilesLocating()
+        configLoader = .init()
+        serverURLService = .init()
+        cleanCacheService = .init()
 
         subject = CleanService(
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: rootDirectoryLocator,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
-            manifestFilesLocator: manifestFilesLocator
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader,
+            serverURLService: serverURLService,
+            cleanCacheService: cleanCacheService
         )
     }
 
@@ -35,11 +45,14 @@ final class CleanServiceTests: TuistUnitTestCase {
         rootDirectoryLocator = nil
         cacheDirectoriesProvider = nil
         manifestFilesLocator = nil
+        configLoader = nil
+        serverURLService = nil
+        cleanCacheService = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_run_with_category_cleans_category() throws {
+    func test_run_with_category_cleans_category() async throws {
         // Given
         let cachePaths = try createFolders(["tuist/Manifests", "tuist/ProjectDescriptionHelpers"])
 
@@ -55,14 +68,18 @@ final class CleanServiceTests: TuistUnitTestCase {
             .willReturn(nil)
 
         // When
-        try subject.run(categories: [TuistCleanCategory.global(.manifests)], path: nil)
+        try await subject.run(
+            categories: [TuistCleanCategory.global(.manifests)],
+            remote: false,
+            path: nil
+        )
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
         XCTAssertTrue(FileHandler.shared.exists(cachePaths[1]))
     }
 
-    func test_run_with_dependencies_cleans_dependencies() throws {
+    func test_run_with_dependencies_cleans_dependencies() async throws {
         // Given
         let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
 
@@ -82,14 +99,18 @@ final class CleanServiceTests: TuistUnitTestCase {
             .willReturn(cachePath)
 
         // When
-        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+        try await subject.run(
+            categories: [TuistCleanCategory.dependencies],
+            remote: false,
+            path: nil
+        )
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
         XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
     }
 
-    func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() throws {
+    func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
         let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
 
@@ -109,14 +130,18 @@ final class CleanServiceTests: TuistUnitTestCase {
             .willReturn(cachePath)
 
         // When
-        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+        try await subject.run(
+            categories: [TuistCleanCategory.dependencies],
+            remote: false,
+            path: nil
+        )
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
         XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
     }
 
-    func test_run_without_category_cleans_all() throws {
+    func test_run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try createFolders(["tuist/Manifests"])
         let cachePath = cachePaths[0].parentDirectory.parentDirectory
@@ -141,10 +166,66 @@ final class CleanServiceTests: TuistUnitTestCase {
         try fileHandler.createFolder(swiftPackageManagerBuildPath)
 
         // When
-        try subject.run(categories: TuistCleanCategory.allCases, path: nil)
+        try await subject.run(
+            categories: TuistCleanCategory.allCases,
+            remote: false,
+            path: nil
+        )
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
         XCTAssertFalse(FileHandler.shared.exists(swiftPackageManagerBuildPath))
+    }
+
+    func test_run_with_remote() async throws {
+        // Given
+        let url = URL(string: "https://cloud.com")!
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(
+                    cloud: Cloud.test(
+                        url: url,
+                        projectId: "tuist/tuist"
+                    )
+                )
+            )
+
+        given(serverURLService)
+            .url(configServerURL: .any)
+            .willReturn(url)
+
+        given(cleanCacheService)
+            .cleanCache(
+                serverURL: .value(url),
+                fullName: .value("tuist/tuist")
+            )
+            .willReturn(())
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try temporaryPath())
+
+        let projectPath = try temporaryPath()
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+
+        // When
+        try await subject.run(
+            categories: TuistCleanCategory.allCases,
+            remote: true,
+            path: nil
+        )
+
+        // Then
+        verify(cleanCacheService)
+            .cleanCache(serverURL: .any, fullName: .any)
+            .called(1)
+        XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
     }
 }

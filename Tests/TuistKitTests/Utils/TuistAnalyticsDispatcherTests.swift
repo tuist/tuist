@@ -39,7 +39,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         let projectID = "project"
         let cloudURL = URL.test()
         let cloud = Cloud(url: cloudURL, projectId: projectID, options: [])
-        let backend = TuistAnalyticsCloudBackend(
+        let backend = TuistAnalyticsServerBackend(
             config: cloud,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,

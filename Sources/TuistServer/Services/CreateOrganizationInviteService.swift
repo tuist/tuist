@@ -9,7 +9,7 @@ public protocol CreateOrganizationInviteServicing {
         organizationName: String,
         email: String,
         serverURL: URL
-    ) async throws -> CloudInvitation
+    ) async throws -> ServerInvitation
 }
 
 enum CreateOrganizationInviteServiceError: FatalError {
@@ -31,7 +31,7 @@ enum CreateOrganizationInviteServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The user could not be invited due to an unknown cloud response of \(statusCode)."
+            return "The user could not be invited due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
@@ -45,8 +45,8 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         organizationName: String,
         email: String,
         serverURL: URL
-    ) async throws -> CloudInvitation {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerInvitation {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createInvitation(
             .init(
@@ -58,7 +58,7 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(invitation):
-                return CloudInvitation(invitation)
+                return ServerInvitation(invitation)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {

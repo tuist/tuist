@@ -28,7 +28,7 @@ enum CleanCacheServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project clean failed due to an unknown cloud response of \(statusCode)."
+            return "The project clean failed due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -42,7 +42,7 @@ public final class CleanCacheService: CleanCacheServicing {
         serverURL: URL,
         fullName: String
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let components = fullName.components(separatedBy: "/")
 
         let response = try await client.cleanCache(

@@ -7,20 +7,20 @@ import XcodeGraph
 
 enum CloudManifestMapperError: FatalError {
     /// Thrown when the cloud URL is invalid.
-    case invalidCloudURL(String)
+    case invalidServerURL(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL: return .abort
+        case .invalidServerURL: return .abort
         }
     }
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL '\(url)' is not a valid URL"
+        case let .invalidServerURL(url):
+            return "The server URL '\(url)' is not a valid URL"
         }
     }
 }
@@ -28,10 +28,10 @@ enum CloudManifestMapperError: FatalError {
 extension TuistCore.Cloud {
     static func from(manifest: ProjectDescription.Cloud) throws -> TuistCore.Cloud {
         var cloudURL: URL!
-        if let manifestCloudURL = URL(string: manifest.url.dropSuffix("/")) {
-            cloudURL = manifestCloudURL
+        if let manifestServerURL = URL(string: manifest.url.dropSuffix("/")) {
+            cloudURL = manifestServerURL
         } else {
-            throw CloudManifestMapperError.invalidCloudURL(manifest.url)
+            throw CloudManifestMapperError.invalidServerURL(manifest.url)
         }
         let options = manifest.options.compactMap(TuistCore.Cloud.Option.from)
         return TuistCore.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)

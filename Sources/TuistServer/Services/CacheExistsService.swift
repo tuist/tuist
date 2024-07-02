@@ -33,7 +33,7 @@ public enum CacheExistsServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache could not be used due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -50,7 +50,7 @@ public final class CacheExistsService: CacheExistsServicing {
         name: String,
         cacheCategory: CacheCategory.App
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.cacheArtifactExists(
             .init(query: .init(cache_category: .init(cacheCategory), project_id: projectId, hash: hash, name: name))

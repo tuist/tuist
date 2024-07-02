@@ -10,7 +10,7 @@ public protocol CreateCommandEventServicing {
         commandEvent: CommandEvent,
         projectId: String,
         serverURL: URL
-    ) async throws -> CloudCommandEvent
+    ) async throws -> ServerCommandEvent
 }
 
 enum CreateCommandEventServiceError: FatalError {
@@ -30,7 +30,7 @@ enum CreateCommandEventServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The organization could not be created due to an unknown cloud response of \(statusCode)."
+            return "The organization could not be created due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -44,8 +44,8 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
         commandEvent: CommandEvent,
         projectId: String,
         serverURL: URL
-    ) async throws -> CloudCommandEvent {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerCommandEvent {
+        let client = Client.authenticated(serverURL: serverURL)
         let errorMessage: String?
         let status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload?
         switch commandEvent.status {
@@ -91,7 +91,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(commandEvent):
-                return CloudCommandEvent(commandEvent)
+                return ServerCommandEvent(commandEvent)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateCommandEventServiceError.unknownError(statusCode)

@@ -8,7 +8,7 @@ public protocol GetProjectServicing {
     func getProject(
         fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject
+    ) async throws -> ServerProject
 }
 
 enum GetProjectServiceError: FatalError {
@@ -30,7 +30,7 @@ enum GetProjectServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the project due to an unknown cloud response of \(statusCode)."
+            return "We could not get the project due to an unknown Tuist response of \(statusCode)."
         case let .invalidHandle(fullHandle):
             return "The project full handle \(fullHandle) is not in the format of account-handle/project-handle."
         case let .forbidden(message), let .notFound(message), let .unauthorized(message):
@@ -45,8 +45,8 @@ public final class GetProjectService: GetProjectServicing {
     public func getProject(
         fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerProject {
+        let client = Client.authenticated(serverURL: serverURL)
         let components = fullHandle.components(separatedBy: "/")
         guard components.count == 2
         else {
@@ -68,7 +68,7 @@ public final class GetProjectService: GetProjectServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudProject(project)
+                return ServerProject(project)
             }
         case let .notFound(notFound):
             switch notFound.body {

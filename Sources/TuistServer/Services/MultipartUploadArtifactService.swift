@@ -48,7 +48,7 @@ public protocol MultipartUploadArtifactServicing {
 public final class MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     private let urlSession: URLSession
 
-    public init(urlSession: URLSession = .sharedCloud) {
+    public init(urlSession: URLSession = .shared) {
         self.urlSession = urlSession
     }
 

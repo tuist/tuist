@@ -27,7 +27,7 @@ enum ListOrganizationsServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The organizations could not be listed due to an unknown cloud response of \(statusCode)."
+            return "The organizations could not be listed due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -40,7 +40,7 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
     public func listOrganizations(
         serverURL: URL
     ) async throws -> [String] {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.listOrganizations(
             .init(

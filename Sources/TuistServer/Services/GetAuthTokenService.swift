@@ -27,7 +27,7 @@ public enum GetAuthTokenServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The CLI authentication failed due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The CLI authentication failed due to an unknown Tuist response of \(statusCode)."
         case let .badRequest(message):
             return message
         }
@@ -41,7 +41,7 @@ public final class GetAuthTokenService: GetAuthTokenServicing {
         serverURL: URL,
         deviceCode: String
     ) async throws -> String? {
-        let client = Client.unauthenticatedCloud(serverURL: serverURL)
+        let client = Client.unauthenticated(serverURL: serverURL)
 
         let response = try await client.getDeviceCode(
             .init(path: .init(device_code: deviceCode))
