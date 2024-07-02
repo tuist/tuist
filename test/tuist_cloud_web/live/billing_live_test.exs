@@ -9,9 +9,6 @@ defmodule TuistCloudWeb.BillingLiveTest do
   alias TuistCloud.AccountsFixtures
 
   setup %{conn: conn} do
-    Billing
-    |> stub(:start_trial, fn _ -> {:ok, %{}} end)
-
     Environment
     |> stub(:new_pricing_model?, fn -> true end)
 

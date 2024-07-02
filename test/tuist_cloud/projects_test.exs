@@ -1,4 +1,5 @@
 defmodule TuistCloud.ProjectsTest do
+  alias TuistCloud.Billing
   alias TuistCloud.CommandEvents
   alias TuistCloud.CommandEventsFixtures
   alias TuistCloud.Accounts.ProjectAccount
@@ -6,7 +7,15 @@ defmodule TuistCloud.ProjectsTest do
   alias TuistCloud.ProjectsFixtures
   alias TuistCloud.Projects
   alias TuistCloud.Accounts
-  use TuistCloud.DataCase
+  use TuistCloud.DataCase, async: true
+  use Mimic
+
+  setup do
+    Billing
+    |> stub(:start_trial, fn _ -> {:ok, %{}} end)
+
+    :ok
+  end
 
   test "returns command average duration" do
     # Given

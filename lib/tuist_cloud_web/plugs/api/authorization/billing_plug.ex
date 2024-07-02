@@ -23,8 +23,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
   end
 
   def call(conn, _, true) do
-    %{account: %{name: account_handle} = account} =
-      EnsureProjectPresencePlug.get_project(conn)
+    account = Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
 
     subscription = Billing.get_current_active_subscription(account)
 
@@ -34,7 +33,7 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
-          The account '#{account_handle}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account_handle}/billing")}.
+          The account '#{account.name}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account.name}/billing")}.
           """
         })
         |> halt()
@@ -57,13 +56,13 @@ defmodule TuistCloudWeb.API.Authorization.BillingPlug do
           days_until_end_of_trial == 0 ->
             conn
             |> WarningsHeaderPlug.put_warning(
-              "Your trial period ends today. Please update your billing information to avoid service interruption: #{url(~p"/#{account_handle}/billing")}"
+              "Your trial period ends today. Please update your billing information to avoid service interruption: #{url(~p"/#{account.name}/billing")}"
             )
 
           days_until_end_of_trial < 3 ->
             conn
             |> WarningsHeaderPlug.put_warning(
-              "Your trial period ends in #{days_until_end_of_trial} days. Please update your billing information to avoid service interruption: #{url(~p"/#{account_handle}/billing")}"
+              "Your trial period ends in #{days_until_end_of_trial} days. Please update your billing information to avoid service interruption: #{url(~p"/#{account.name}/billing")}"
             )
         end
     end
