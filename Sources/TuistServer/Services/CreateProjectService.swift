@@ -6,8 +6,7 @@ import TuistSupport
 @Mockable
 public protocol CreateProjectServicing {
     func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         serverURL: URL
     ) async throws -> CloudProject
 }
@@ -41,8 +40,7 @@ public final class CreateProjectService: CreateProjectServicing {
     public init() {}
 
     public func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         serverURL: URL
     ) async throws -> CloudProject {
         let client = Client.cloud(serverURL: serverURL)
@@ -51,8 +49,7 @@ public final class CreateProjectService: CreateProjectServicing {
             .init(
                 body: .json(
                     .init(
-                        name: name,
-                        organization: organization
+                        full_handle: fullHandle
                     )
                 )
             )

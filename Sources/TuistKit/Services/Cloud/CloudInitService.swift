@@ -6,8 +6,7 @@ import TuistSupport
 
 protocol CloudInitServicing {
     func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         directory: String?
     ) async throws
 }
@@ -51,8 +50,7 @@ final class CloudInitService: CloudInitServicing {
     }
 
     func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         directory: String?
     ) async throws {
         let directoryPath: AbsolutePath
@@ -69,8 +67,7 @@ final class CloudInitService: CloudInitServicing {
         }
 
         let project = try await createProjectService.createProject(
-            name: name,
-            organization: organization,
+            fullHandle: fullHandle,
             serverURL: cloudURL
         )
 

@@ -13,18 +13,11 @@ struct CloudInitCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the project to create.",
+        help: "The project to initialize the Tuist project with. Must be in the format of account-handle/project-handle.",
         completion: .directory,
         envKey: .cloudInitName
     )
-    var name: String
-
-    @Option(
-        name: .shortAndLong,
-        help: "Organization to initialize the Cloud project with. If not specified, the project is created with your personal Cloud account.",
-        envKey: .cloudInitOrganization
-    )
-    var organization: String?
+    var fullHandle: String
 
     @Option(
         name: .shortAndLong,
@@ -36,8 +29,7 @@ struct CloudInitCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await CloudInitService().createProject(
-            name: name,
-            organization: organization,
+            fullHandle: fullHandle,
             directory: path
         )
     }

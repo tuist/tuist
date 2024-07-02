@@ -1510,14 +1510,18 @@ paths:
           application/json:
             schema:
               properties:
+                full_handle:
+                  description: The full handle of the project that should be created.
+                  example: tuist/tuist
+                  type: string
                 name:
+                  deprecated: true
                   description: The name of the project that should be created.
                   type: string
                 organization:
+                  deprecated: true
                   description: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                   type: string
-              required:
-                - name
               type: object
         description: Projects params
         required: false

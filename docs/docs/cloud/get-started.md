@@ -60,10 +60,10 @@ The next step is to create a project. You can easily do that with the following 
 
 ::: code-group
 ```bash [Project under user account]
-tuist cloud project create my-project
+tuist cloud project create my-account/my-project
 ```
 ```bash [Project under organization]
-tuist cloud project create my-project -o my-organization
+tuist cloud project create my-organization/my-project
 ```
 :::
 
@@ -89,7 +89,7 @@ For CI environments, authentication is managed differently; it's done using **pr
 
 
 ```bash
-tuist cloud project token my-project -o my-organization
+tuist cloud project token my-organization/my-project
 ```
 
 You will then need to set the token as an environment variable named `TUIST_CONFIG_CLOUD_TOKEN` to make it accessible.
