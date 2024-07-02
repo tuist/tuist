@@ -5686,24 +5686,35 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/POST/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The full handle of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/full_handle`.
+                    public var full_handle: Swift.String?
                     /// The name of the project that should be created.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/name`.
-                    public var name: Swift.String
+                    @available(*, deprecated) public var name: Swift.String?
                     /// Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/organization`.
-                    public var organization: Swift.String?
+                    @available(*, deprecated) public var organization: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                    public init(name: Swift.String, organization: Swift.String? = nil) {
+                    public init(
+                        full_handle: Swift.String? = nil,
+                        name: Swift.String? = nil,
+                        organization: Swift.String? = nil
+                    ) {
+                        self.full_handle = full_handle
                         self.name = name
                         self.organization = organization
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case full_handle
                         case name
                         case organization
                     }
