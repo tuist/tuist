@@ -75,13 +75,13 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
-        let path = packagePath.parentDirectory.appending(
+        let buildFolder = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        let checkoutsFolder = path.appending(
+        let checkoutsFolder = buildFolder.appending(
             component: Constants.SwiftPackageManager.packageCheckoutDirectoryName
         )
-        let workspacePath = path.appending(component: "workspace-state.json")
+        let workspacePath = buildFolder.appending(component: "workspace-state.json")
 
         if !fileHandler.exists(workspacePath) {
             throw SwiftPackageManagerGraphGeneratorError.installRequired
@@ -123,7 +123,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageFolder = try AbsolutePath(validating: path)
                 packageType = .local
             case "registry":
-                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                let registryFolder = buildFolder.appending(try RelativePath(validating: "registry/downloads"))
                 packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
                 packageType = .remote(artifactPaths: targetToArtifactPaths)
             default:
@@ -158,7 +158,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             let path = packageInfo.folder
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
-                path: path,
+                packageFolder: packageInfo.folder,
                 packageType: packageInfo.packageType,
                 packageSettings: packageSettings
             )

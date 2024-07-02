@@ -112,7 +112,7 @@ public protocol PackageInfoMapping {
     /// - Returns: Mapped project
     func map(
         packageInfo: PackageInfo,
-        path: AbsolutePath,
+        packageFolder: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings
     ) throws -> ProjectDescription.Project?
@@ -257,7 +257,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
-        path: AbsolutePath,
+        packageFolder: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings
     ) throws -> ProjectDescription.Project? {
@@ -342,8 +342,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
                     packageType: packageType,
-                    path: path,
-                    packageFolder: path,
+                    packageFolder: packageFolder,
                     productTypes: productTypes,
                     packageSettings: packageSettings,
                     baseSettings: baseSettings,
@@ -395,7 +394,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         packageInfo: PackageInfo,
         packageType: PackageType,
-        path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
         packageSettings: TuistCore.PackageSettings,
@@ -451,7 +449,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .system:
             /// System library targets assume the module map is located at the source directory root
             /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
-            let packagePath = try target.basePath(packageFolder: path)
+            let packagePath = try target.basePath(packageFolder: packageFolder)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
             guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
@@ -465,9 +463,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
             moduleMap = try moduleMapGenerator.generate(
-                packageDirectory: path,
+                packageDirectory: packageFolder,
                 moduleName: target.name,
-                publicHeadersPath: target.publicHeadersPath(packageFolder: path)
+                publicHeadersPath: target.publicHeadersPath(packageFolder: packageFolder)
             )
         default:
             moduleMap = nil

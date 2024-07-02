@@ -303,7 +303,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
         given(packageInfoMapper).map(
             packageInfo: .value(packageA),
-            path: .any,
+            packageFolder: .any,
             packageType: .any,
             packageSettings: .any
         )

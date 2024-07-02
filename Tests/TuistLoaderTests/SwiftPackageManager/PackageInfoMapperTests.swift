@@ -3680,7 +3680,7 @@ extension PackageInfoMapping {
 
         return try map(
             packageInfo: packageInfos[package]!,
-            path: basePath.appending(component: package),
+            packageFolder: basePath.appending(component: package),
             packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings
         )

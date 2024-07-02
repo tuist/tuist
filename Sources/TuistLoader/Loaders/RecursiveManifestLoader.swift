@@ -136,7 +136,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 let packageInfo = try manifestLoader.loadPackage(at: $0)
                 return try packageInfoMapper.map(
                     packageInfo: packageInfo,
-                    path: $0,
+                    packageFolder: $0,
                     packageType: .local,
                     packageSettings: packageSettings
                 )
