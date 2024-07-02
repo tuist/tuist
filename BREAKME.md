@@ -6,7 +6,7 @@ This document lists breaking changes to introduce in the next major version of t
 
 ### Change the default behavior to include test targets of local package dependencies. 
 
-When generating a project with local swift package dependencies, it is common to include test targets of local swift packages by default.
+Tuist has historically generated only SPM targets directly used by downstream targets defined in the `Project.swift` without any unit tests, regardless whether the respective SPM packages were local or not. In [this](https://github.com/tuist/tuist/pull/6436) PR, we introduced a new `includeLocalPackageTestTargets` option in the `PackageSettings`, so that developers can opt-in to generating unit tests target of local SPM packages. Since local SPM packages are typically iterated on with the project that imports them, we believe the `includeLocalPacakgeTestTargets` should be turned on by default with an opt-out option, instead of being opt-in.
 
 #### What needs to be changed
 - Set the default value of `includeLocalPackageTestTargets` to `true` and update associated documentation comments.
