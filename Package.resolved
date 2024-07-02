@@ -1,5 +1,5 @@
 {
-  "originHash" : "4080d161ed0c091cdaef55ea652849f51665b8794ae236477b94e919ff68eb09",
+  "originHash" : "dc4a35b9ed535c9d2a720826820ddba97515ea7aae953fc69429768c6acc657a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "7af00c08880d375f2742ca55705abd69837fe6c3",
-        "version" : "0.0.2"
+        "revision" : "81ccaead99a3c038c09345caa2888ae74b644ee9",
+        "version" : "0.0.9"
       }
     },
     {

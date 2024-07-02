@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 
+@Mockable
 public protocol RootDirectoryLocating {
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     ///

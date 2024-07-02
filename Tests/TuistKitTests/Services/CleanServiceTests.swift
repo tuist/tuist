@@ -13,13 +13,13 @@ import XCTest
 
 final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!
-    private var rootDirectoryLocator: MockRootDirectoryLocator!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
     override func setUpWithError() throws {
         super.setUp()
-        rootDirectoryLocator = MockRootDirectoryLocator()
+        rootDirectoryLocator = .init()
         cacheDirectoriesProvider = .init()
         manifestFilesLocator = MockManifestFilesLocating()
 
@@ -47,7 +47,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         given(cacheDirectoriesProvider)
             .cacheDirectory()
             .willReturn(cachePath)
-        rootDirectoryLocator.locateStub = cachePath
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(cachePath)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(nil)
@@ -64,7 +66,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         // Given
         let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
 
-        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(localPaths[0].parentDirectory)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(
@@ -89,7 +93,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         // Given
         let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
 
-        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(localPaths[0].parentDirectory)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(
@@ -120,7 +126,9 @@ final class CleanServiceTests: TuistUnitTestCase {
             .willReturn(cachePath)
 
         let projectPath = try temporaryPath()
-        rootDirectoryLocator.locateStub = projectPath
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(

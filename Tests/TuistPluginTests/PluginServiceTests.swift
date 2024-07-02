@@ -6,7 +6,6 @@ import TSCBasic
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistScaffold
 import TuistScaffoldTesting
 import TuistSupport
@@ -16,7 +15,7 @@ import XCTest
 @testable import TuistPlugin
 
 final class PluginServiceTests: TuistUnitTestCase {
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var gitHandler: MockGitHandler!
     private var subject: PluginService!
@@ -27,7 +26,7 @@ final class PluginServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        manifestLoader = MockManifestLoader()
+        manifestLoader = .init()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         gitHandler = MockGitHandler()
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
@@ -245,13 +244,17 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginPath = try temporaryPath().appending(component: "Plugin")
         let pluginName = "TestPlugin"
 
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
+            )
 
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
@@ -283,13 +286,17 @@ final class PluginServiceTests: TuistUnitTestCase {
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
 
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
+            )
 
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
@@ -323,13 +330,17 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         try makeDirectories(.init(validating: resourceTemplatesPath.pathString))
 
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
+            )
 
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
@@ -358,13 +369,16 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         try makeDirectories(.init(validating: resourceTemplatesPath.pathString))
 
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
-        }
-
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
+            )
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         let config =
             mockConfig(plugins: [
@@ -400,13 +414,16 @@ final class PluginServiceTests: TuistUnitTestCase {
         try makeDirectories(.init(validating: templatePath.pathString))
 
         // When
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
-        }
-
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
+            )
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
@@ -437,13 +454,17 @@ final class PluginServiceTests: TuistUnitTestCase {
         try makeDirectories(.init(validating: templatePath.pathString))
 
         // When
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
-        }
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willReturn(
+                .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
+            )
 
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willReturn(
+                ProjectDescription.Plugin(name: pluginName)
+            )
 
         let config =
             mockConfig(plugins: [

@@ -74,7 +74,7 @@ final class EditServiceTests: XCTestCase {
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(projectDirectory), onlyCurrentDirectory: .value(false), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 
     func test_edit_permanent_does_not_open_workspace() async throws {
@@ -96,6 +96,6 @@ final class EditServiceTests: XCTestCase {
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(path), onlyCurrentDirectory: .value(true), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 }
