@@ -220,10 +220,10 @@
     {
       "identity" : "swiftgen",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftGen/SwiftGen",
+      "location" : "https://github.com/leszko11/SwiftGen",
       "state" : {
-        "revision" : "1cf6d7eebd70c2157f69d5a991bc57c1ef182ed1",
-        "version" : "6.6.2"
+        "branch" : "feature/xcstrings-support",
+        "revision" : "dfaed71560c82429ca6683e420ad88dccc57af76"
       }
     },
     {

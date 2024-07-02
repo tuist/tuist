@@ -50,6 +50,8 @@ extension XcodeGraph.ResourceSynthesizer.Parser {
         switch manifest {
         case .strings:
             return .strings
+        case .stringsCatalog:
+            return .stringsCatalog
         case .assets:
             return .assets
         case .plists:
