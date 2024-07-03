@@ -92,7 +92,7 @@ For CI environments, authentication is managed differently; it's done using **pr
 tuist project token my-organization/my-project
 ```
 
-You will then need to set the token as an environment variable named `TUIST_CONFIG_CLOUD_TOKEN` to make it accessible.
+You will then need to set the token as an environment variable named `TUIST_CONFIG_TOKEN` to make it accessible.
 
 > [!NOTE] EXPOSING SECRET ENVIRONMENT VARIABLES IN CI ENVIRONMENTS
 > How environment secret environment variables are exposed in CI environments varies depending on the CI provider. Ensure you follow the guidelines provided by your CI provider to securely manage these tokens. 
