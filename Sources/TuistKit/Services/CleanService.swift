@@ -6,26 +6,16 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 
-protocol CleanCategory: ExpressibleByArgument & CaseIterable {
-    func directory(
-        packageDirectory: AbsolutePath?,
-        cacheDirectory: AbsolutePath
-    ) throws -> AbsolutePath?
-}
-
-enum TuistCleanCategory: CleanCategory, Equatable {
-    static let allCases = CacheCategory.App.allCases.map { .cloud($0) } + CacheCategory.allCases
+enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
+    static let allCases = CacheCategory.allCases
         .map { .global($0) } + [Self.dependencies]
 
     static var allValueStrings: [String] {
         TuistCleanCategory.allCases.map(\.defaultValueDescription)
     }
 
-    /// The global cache
+    /// The local global cache
     case global(CacheCategory)
-
-    /// The global cloud cache
-    case cloud(CacheCategory.App)
 
     /// The local dependencies cache
     case dependencies
@@ -33,8 +23,6 @@ enum TuistCleanCategory: CleanCategory, Equatable {
     var defaultValueDescription: String {
         switch self {
         case let .global(cacheCategory):
-            return cacheCategory.rawValue
-        case let .cloud(cacheCategory):
             return cacheCategory.rawValue
         case .dependencies:
             return "dependencies"
@@ -44,8 +32,6 @@ enum TuistCleanCategory: CleanCategory, Equatable {
     init?(argument: String) {
         if let cacheCategory = CacheCategory(rawValue: argument) {
             self = .global(cacheCategory)
-        } else if let cacheCategory = CacheCategory.App(rawValue: argument) {
-            self = .cloud(cacheCategory)
         } else if argument == "dependencies" {
             self = .dependencies
         } else {
@@ -54,17 +40,11 @@ enum TuistCleanCategory: CleanCategory, Equatable {
     }
 
     func directory(
-        packageDirectory: AbsolutePath?,
-        cacheDirectory: AbsolutePath
+        packageDirectory: AbsolutePath?
     ) throws -> Path.AbsolutePath? {
         switch self {
         case let .global(category):
-            return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)
-        case let .cloud(category):
-            return CacheDirectoriesProvider.tuistCloudCacheDirectory(
-                for: category,
-                cacheDirectory: cacheDirectory
-            )
+            return try CacheDirectoriesProvider().cacheDirectory(for: category)
         case .dependencies:
             return packageDirectory?.appending(
                 component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -112,7 +92,7 @@ final class CleanService {
     }
 
     func run(
-        categories: [some CleanCategory],
+        categories: [TuistCleanCategory],
         remote: Bool,
         path: String?
     ) async throws {
@@ -122,15 +102,20 @@ final class CleanService {
             FileHandler.shared.currentPath
         }
 
-        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
         let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
-            if let directory = try category.directory(
-                packageDirectory: packageDirectory,
-                cacheDirectory: cacheDirectory
-            ),
-                fileHandler.exists(directory)
+            let directory: AbsolutePath?
+            switch category {
+            case let .global(category):
+                directory = try cacheDirectoriesProvider.cacheDirectory(for: category)
+            case .dependencies:
+                directory = packageDirectory?.appending(
+                    component: Constants.SwiftPackageManager.packageBuildDirectoryName
+                )
+            }
+            if let directory,
+               fileHandler.exists(directory)
             {
                 try FileHandler.shared.delete(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)

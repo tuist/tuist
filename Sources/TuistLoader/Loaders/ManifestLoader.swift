@@ -360,7 +360,7 @@ public class ManifestLoader: ManifestLoading {
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories()
-            .tuistCacheDirectory(for: .projectDescriptionHelpers)
+            .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {

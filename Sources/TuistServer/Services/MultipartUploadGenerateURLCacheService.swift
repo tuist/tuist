@@ -10,7 +10,7 @@ public protocol MultipartUploadGenerateURLCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
         partNumber: Int
     ) async throws -> String
@@ -50,7 +50,7 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
         partNumber: Int
     ) async throws -> String {

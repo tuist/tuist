@@ -54,7 +54,7 @@ public class CachedManifestLoader: ManifestLoading {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.tuistVersion = tuistVersion
         cacheDirectory = ThrowableCaching {
-            try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
+            try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
         }
     }
 

@@ -50,7 +50,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         )
 
         let runDirectory = try cacheDirectoriesProviderFactory.cacheDirectories()
-            .tuistCacheDirectory(for: .runs)
+            .cacheDirectory(for: .runs)
             .appending(component: commandEvent.runId)
 
         let resultBundle = runDirectory

@@ -10,7 +10,7 @@ public protocol MultipartUploadStartCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> String
 }
 
@@ -48,7 +48,7 @@ public final class MultipartUploadStartCacheService: MultipartUploadStartCacheSe
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.startCacheArtifactMultipartUpload(.init(query: .init(
