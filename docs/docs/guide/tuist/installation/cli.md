@@ -1,11 +1,11 @@
 ---
-title: Installation
+title: CLI
 description: Learn how to install Tuist in local and CI environments.
 ---
 
-# Installation
+# CLI
 
-Tuist is a [command-line application](https://en.wikipedia.org/wiki/Command-line_interface) that you need to install in your environment before you can use it. The installation consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from the sources, **we recommend using one of the following installation methods to ensure a valid installation.**
+The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 
 ### Recommended: [Mise](https://github.com/jdx/mise)
 
@@ -153,17 +153,3 @@ Without bash-completion, you'll need to source the completion script directly. C
 ```bash
 source ~/.bash_completions/example.bash
 ```
-
-## Next steps
-
-Once the installation is complete, you can start using Tuist to manage your projects. Here are some paths you might want to explore:
-
-- [**Create a new project**](/guide/introduction/adopting-tuist/new-project): If you are new to Tuist and don't have a project to migrate, you can start by creating a new project. We recommend introducing Tuist as early as possible in your project's lifecycle to be prepared for future growth and avoid laborious migrations.
-- [**Use it with an existing Swift Package**](/guide/introduction/adopting-tuist/swift-package): If you have a project already declared using the Swift Package Manager, you might consider this option to explore how Tuist optimizations such as [binary caching](/cloud/binary-caching) or [selective testing](/cloud/binary-caching) might impact your workflows.
-
-<!-- ## Creating a new project
-
-
-> I have a package
-> I have a project
-> I have a workspace -->

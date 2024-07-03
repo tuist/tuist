@@ -16,6 +16,10 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 }
 
+function requiresProjectBadge() {
+  return `<div style="background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>`;
+}
+
 function appleIcon(size = 15) {
   return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>`;
 }
@@ -91,15 +95,22 @@ const cliSidebar = {
 
 const guideSidebar = [
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${cliIcon()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tuist ${cliIcon()}</div>`,
+    link: "/",
     items: [
       {
-        text: "What is Tuist?",
-        link: "/",
-      },
-      {
         text: "Installation",
-        link: "/guide/tuist/installation",
+        collapsed: true,
+        items: [
+          {
+            text: "CLI",
+            link: "/guide/tuist/installation/cli",
+          },
+          {
+            text: "Server (on-premise)",
+            link: "/guide/tuist/installation/server",
+          },
+        ],
       },
       {
         text: "From v3 to v4",
@@ -109,11 +120,9 @@ const guideSidebar = [
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${appleIcon()}</div>`,
+    collapsed: true,
+    link: "/guide/project",
     items: [
-      {
-        text: "The cost of convenience",
-        link: "/guide/project/cost-of-convenience",
-      },
       {
         text: "Adoption",
         collapsed: true,
@@ -184,46 +193,77 @@ const guideSidebar = [
         ],
       },
       {
-        text: "The Modular Architecture",
+        text: "The modular architecture",
         link: "/guide/scale/tma-architecture",
+      },
+      {
+        text: "The cost of convenience",
+        link: "/guide/project/cost-of-convenience",
       },
     ],
   },
   {
-    text: "Tuist Cloud",
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
     items: [
       {
-        text: "What is Tuist Cloud?",
-        link: "/cloud/what-is-cloud",
-      },
-      {
-        text: "Get started",
-        link: "/cloud/get-started",
-      },
-      {
-        text: "Binary caching",
-        link: "/cloud/binary-caching",
-      },
-      {
-        text: "Selective testing",
-        link: "/cloud/selective-testing",
-      },
-      {
-        text: "Hashing",
-        link: "/cloud/hashing",
-      },
-      {
-        text: "On-premise",
-        link: "/cloud/on-premise",
-        items: [
-          {
-            text: "Metrics",
-            link: "/cloud/on-premise/metrics",
-          },
-        ],
+        text: "Binary cache",
       },
     ],
   },
+  {
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tests ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
+    items: [
+      {
+        text: "Smart test selection",
+      },
+      {
+        text: "Flakiness detection",
+      },
+    ],
+  },
+  {
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Runs ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
+    items: [
+      {
+        text: "Analytics",
+      },
+    ],
+  },
+  // {
+  //   text: "Tuist Cloud",
+  //   items: [
+  //     {
+  //       text: "What is Tuist Cloud?",
+  //       link: "/cloud/what-is-cloud",
+  //     },
+  //     {
+  //       text: "Get started",
+  //       link: "/cloud/get-started",
+  //     },
+  //     {
+  //       text: "Binary caching",
+  //       link: "/cloud/binary-caching",
+  //     },
+  //     {
+  //       text: "Selective testing",
+  //       link: "/cloud/selective-testing",
+  //     },
+  //     {
+  //       text: "Hashing",
+  //       link: "/cloud/hashing",
+  //     },
+  //     {
+  //       text: "On-premise",
+  //       link: "/cloud/on-premise",
+  //       items: [
+  //         {
+  //           text: "Metrics",
+  //           link: "/cloud/on-premise/metrics",
+  //         },
+  //       ],
+  //     },
+  //   ],
+  // },
 ];
 
 // https://vitepress.dev/reference/site-config
@@ -294,13 +334,15 @@ export default defineConfig({
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
 /guide/introduction/from-v3-to-v4 /guide/tuist/from-v3-to-v4 301
-/guide/introduction/installation /guide/tuist/installation 301
+/guide/introduction/installation /guide/tuist/installation/cli 301
 /guide/introduction/adopting-tuist/new-project /guide/project/adoption/new-project 301
 /guide/introduction/adopting-tuist/swift-package /guide/project/adoption/swift-package 301
 /guide/introduction/adopting-tuist/migrate-from-xcodeproj /guide/project/adoption/migrate-from-xcodeproj 301
 /guide/introduction/adopting-tuist/migrate-local-swift-packages /guide/project/adoption/migrate-local-swift-packages 301
 /guide/introduction/adopting-tuist/migrate-from-xcodegen /guide/project/adoption/migrate-from-xcodegen 301
 /guide/introduction/adopting-tuist/migrate-from-bazel /guide/project/adoption/migrate-from-bazel 301
+/guide/tuist/installation /guide/tuist/installation/cli 301
+/cloud/on-premise /guide/tuist/installation/server 301
 
 /documentation/tuist/* / 301
     `;
