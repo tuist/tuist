@@ -60,17 +60,10 @@ The next step is to create a project. You can easily do that with the following 
 
 ::: code-group
 ```bash [Project under user account]
-<<<<<<< HEAD
-tuist cloud project create my-account/my-project
+tuist project create my-account/my-project
 ```
 ```bash [Project under organization]
-tuist cloud project create my-organization/my-project
-=======
-tuist project create my-project
-```
-```bash [Project under organization]
-tuist project create my-project -o my-organization
->>>>>>> e5897c3c7 (Flatten cloud commands to tuist)
+tuist project create my-organization/my-project
 ```
 :::
 
@@ -79,7 +72,7 @@ After creating the project, modify your `Tuist/Config.swift` file to reference t
 ```swift
 import ProjectDescription
 
-let config = Config(cloud: .cloud(projectId: "my-organization/my-project"))
+let config = Config(fullHandle: "my-organization/my-project")
 ```
 
 > [!TIP] PROJECT IDENTIFIER

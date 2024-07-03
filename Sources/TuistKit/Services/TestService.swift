@@ -241,7 +241,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         )
 
         defer {
-            if let resultBundlePath, let passedResultBundlePath, config.cloud != nil {
+            if let resultBundlePath, let passedResultBundlePath, config.fullHandle != nil {
                 if !FileHandler.shared.exists(resultBundlePath.parentDirectory) {
                     try? FileHandler.shared.createFolder(resultBundlePath.parentDirectory)
                 }
@@ -355,7 +355,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             .cacheDirectory(for: .runs)
             .appending(components: runId, Constants.resultBundleName)
 
-        if config.cloud == nil {
+        if config.fullHandle == nil {
             return passedResultBundlePath
         } else {
             return passedResultBundlePath ?? runResultBundlePath

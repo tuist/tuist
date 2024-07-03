@@ -10,20 +10,20 @@ protocol AnalyticsServicing {
 }
 
 enum AnalyticsServiceError: FatalError, Equatable {
-    case cloudNotFound
+    case fullHandleNotFound
 
     /// Error description.
     var description: String {
         switch self {
-        case .cloudNotFound:
-            return "You are missing Cloud configuration in your Config.swift."
+        case .fullHandleNotFound:
+            return "You are missing `fullHandle` in your `Config.swift`."
         }
     }
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .cloudNotFound:
+        case .fullHandleNotFound:
             return .abort
         }
     }
@@ -47,10 +47,10 @@ final class AnalyticsService: AnalyticsServicing {
         let path: AbsolutePath = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
 
-        guard let cloud = config.cloud else { throw AnalyticsServiceError.cloudNotFound }
+        guard let fullHandle = config.fullHandle else { throw AnalyticsServiceError.fullHandleNotFound }
         try opener.open(
-            url: cloud.url
-                .appendingPathComponent(cloud.projectId)
+            url: config.url
+                .appendingPathComponent(fullHandle)
         )
     }
 

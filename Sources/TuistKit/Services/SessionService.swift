@@ -42,7 +42,7 @@ final class SessionService: SessionServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
-        try serverSessionController.printSession(serverURL: cloudURL)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
+        try serverSessionController.printSession(serverURL: serverURL)
     }
 }

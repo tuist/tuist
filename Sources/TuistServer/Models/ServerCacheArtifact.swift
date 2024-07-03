@@ -42,10 +42,10 @@ extension ServerCacheArtifact {
     }
 }
 
-#if MOCKING
+#if DEBUG
     extension ServerCacheArtifact {
         public static func test(
-            url: URL = URL(string: Constants.URLs.production)!,
+            url: URL = Constants.URLs.production,
             expiresAt: Int = 0
         ) -> Self {
             .init(

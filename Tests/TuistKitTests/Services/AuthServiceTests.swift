@@ -15,17 +15,17 @@ import XCTest
 final class AuthServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
     private var subject: AuthService!
 
     override func setUp() {
         super.setUp()
         serverSessionController = .init()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(cloud: .test(url: cloudURL)))
+            .willReturn(.test(url: serverURL))
 
         subject = AuthService(
             serverSessionController: serverSessionController,
@@ -36,7 +36,7 @@ final class AuthServiceTests: TuistUnitTestCase {
     override func tearDown() {
         serverSessionController = nil
         configLoader = nil
-        cloudURL = nil
+        serverURL = nil
         subject = nil
         super.tearDown()
     }
@@ -44,7 +44,7 @@ final class AuthServiceTests: TuistUnitTestCase {
     func test_authenticate() async throws {
         // Given
         given(serverSessionController)
-            .authenticate(serverURL: .value(cloudURL))
+            .authenticate(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then

@@ -42,12 +42,12 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
         }
         let config = try configLoader.loadConfig(path: directoryPath)
 
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
         let member = try await updateOrganizationMemberService.updateOrganizationMember(
             organizationName: organizationName,
             username: username,
             role: ServerOrganization.Member.Role(rawValue: role) ?? .user,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         logger.info("The member \(username) role was successfully updated to \(member.role.rawValue).")

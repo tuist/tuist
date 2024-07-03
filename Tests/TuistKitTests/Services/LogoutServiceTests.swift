@@ -17,14 +17,14 @@ final class LogoutServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
     private var subject: LogoutService!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
 
     override func setUp() {
         super.setUp()
         serverSessionController = MockServerSessionControlling()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = LogoutService(
             serverSessionController: serverSessionController,
             configLoader: configLoader
@@ -33,7 +33,7 @@ final class LogoutServiceTests: TuistUnitTestCase {
 
     override func tearDown() {
         serverSessionController = nil
-        cloudURL = nil
+        serverURL = nil
         configLoader = nil
         subject = nil
         super.tearDown()
@@ -42,7 +42,7 @@ final class LogoutServiceTests: TuistUnitTestCase {
     func test_logout() throws {
         // Given
         given(serverSessionController)
-            .logout(serverURL: .value(cloudURL))
+            .logout(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then

@@ -187,10 +187,8 @@ final class CleanServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(
                 Config.test(
-                    cloud: Cloud.test(
-                        url: url,
-                        projectId: "tuist/tuist"
-                    )
+                    fullHandle: "tuist/tuist",
+                    url: url
                 )
             )
 

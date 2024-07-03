@@ -48,10 +48,10 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
             ssoOrganization = .google(organizationId)
         }
 
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
         _ = try await updateOrganizationService.updateOrganization(
             organizationName: organizationName,
-            serverURL: cloudURL,
+            serverURL: serverURL,
             ssoOrganization: ssoOrganization
         )
 

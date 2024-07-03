@@ -80,7 +80,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -121,7 +122,64 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(),
+            path: "/project/Tuist/Config.swift"
+        ))
+    }
+
+    func test_loadConfig_with_full_handle_and_url() throws {
+        // Given
+        stub(rootDirectory: "/project")
+        stub(path: "/project/Tuist/Config.swift", exists: true)
+        stub(
+            config: .test(
+                fullHandle: "tuist/tuist",
+                url: "https://test.cloud.tuist.io"
+            ),
+            at: "/project/Tuist"
+        )
+
+        // When
+        let result = try subject.loadConfig(path: "/project")
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Config(
+            compatibleXcodeVersions: .all,
+            fullHandle: "tuist/tuist",
+            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(),
+            path: "/project/Tuist/Config.swift"
+        ))
+    }
+
+    func test_loadConfig_with_deprecated_cloud() throws {
+        // Given
+        stub(rootDirectory: "/project")
+        stub(path: "/project/Tuist/Config.swift", exists: true)
+        stub(
+            config: ProjectDescription.Config(
+                cloud: .cloud(
+                    projectId: "tuist/tuist",
+                    url: "https://test.cloud.tuist.io"
+                )
+            ),
+            at: "/project/Tuist"
+        )
+
+        // When
+        let result = try subject.loadConfig(path: "/project")
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Config(
+            compatibleXcodeVersions: .all,
+            fullHandle: "tuist/tuist",
+            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),

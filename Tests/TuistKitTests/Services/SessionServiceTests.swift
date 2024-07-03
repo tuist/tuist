@@ -17,14 +17,14 @@ final class SessionServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
     private var subject: SessionService!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
 
     override func setUp() {
         super.setUp()
         serverSessionController = MockServerSessionControlling()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = SessionService(
             serverSessionController: serverSessionController,
             configLoader: configLoader
@@ -34,7 +34,7 @@ final class SessionServiceTests: TuistUnitTestCase {
     override func tearDown() {
         serverSessionController = nil
         configLoader = nil
-        cloudURL = nil
+        serverURL = nil
         subject = nil
         super.tearDown()
     }
@@ -42,7 +42,7 @@ final class SessionServiceTests: TuistUnitTestCase {
     func test_printSession() throws {
         // Given
         given(serverSessionController)
-            .printSession(serverURL: .value(cloudURL))
+            .printSession(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then

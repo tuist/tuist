@@ -38,10 +38,10 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
         }
         let config = try configLoader.loadConfig(path: directoryPath)
 
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
         _ = try await updateOrganizationService.updateOrganization(
             organizationName: organizationName,
-            serverURL: cloudURL,
+            serverURL: serverURL,
             ssoOrganization: nil
         )
 

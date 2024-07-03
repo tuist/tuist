@@ -37,9 +37,9 @@ final class OrganizationBillingService: OrganizationBillingServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
         try opener.open(
-            url: cloudURL
+            url: serverURL
                 .appendingPathComponent(organizationName)
                 .appendingPathComponent("billing")
         )

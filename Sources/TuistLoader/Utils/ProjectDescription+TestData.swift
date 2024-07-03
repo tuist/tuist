@@ -1,13 +1,21 @@
 import Foundation
+import TuistSupport
 @testable import ProjectDescription
 
 #if DEBUG
     extension Config {
         public static func test(
+            fullHandle: String? = nil,
+            url: String = Constants.URLs.production.absoluteString,
             generationOptions: Config.GenerationOptions = .options(),
             plugins: [PluginLocation] = []
         ) -> Config {
-            Config(plugins: plugins, generationOptions: generationOptions)
+            Config(
+                fullHandle: fullHandle,
+                url: url,
+                plugins: plugins,
+                generationOptions: generationOptions
+            )
         }
     }
 

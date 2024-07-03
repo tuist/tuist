@@ -38,7 +38,7 @@ final class LogoutService: LogoutServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
-        try serverSessionController.logout(serverURL: cloudURL)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
+        try serverSessionController.logout(serverURL: serverURL)
     }
 }

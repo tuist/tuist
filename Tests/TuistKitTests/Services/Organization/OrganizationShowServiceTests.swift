@@ -13,15 +13,15 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     private var getOrganizationUsageService: MockGetOrganizationUsageServicing!
     private var subject: OrganizationShowService!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
 
     override func setUp() {
         super.setUp()
         getOrganizationService = .init()
         getOrganizationUsageService = .init()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = OrganizationShowService(
             getOrganizationService: getOrganizationService,
             getOrganizationUsageService: getOrganizationUsageService,
@@ -33,7 +33,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
         getOrganizationService = nil
         getOrganizationUsageService = nil
         configLoader = nil
-        cloudURL = nil
+        serverURL = nil
         subject = nil
 
         super.tearDown()

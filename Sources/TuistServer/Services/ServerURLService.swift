@@ -24,19 +24,19 @@ enum ServerURLServiceError: FatalError {
 
 @Mockable
 public protocol ServerURLServicing {
-    func url(configServerURL: URL?) throws -> URL
+    func url(configServerURL: URL) throws -> URL
 }
 
 public final class ServerURLService: ServerURLServicing {
     public init() {}
 
-    public func url(configServerURL: URL?) throws -> URL {
-        guard let cloudURL = ProcessInfo.processInfo.environment["TUIST_URL"]
-            .map(URL.init(string:)) ?? configServerURL ?? URL(string: Constants.URLs.production)
+    public func url(configServerURL: URL) throws -> URL {
+        guard let serverURL = ProcessInfo.processInfo.environment["TUIST_URL"]
+            .map(URL.init(string:)) ?? configServerURL
         else {
             throw ServerURLServiceError.invalidServerURL
         }
 
-        return cloudURL
+        return serverURL
     }
 }

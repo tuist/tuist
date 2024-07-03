@@ -124,11 +124,13 @@ final class CleanService {
             }
         }
 
-        if remote, let cloud = try configLoader.loadConfig(path: resolvedPath).cloud {
-            let cloudURL = try serverURLService.url(configServerURL: cloud.url)
+        if remote {
+            let config = try configLoader.loadConfig(path: resolvedPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let serverURL = try serverURLService.url(configServerURL: config.url)
             try await cleanCacheService.cleanCache(
-                serverURL: cloudURL,
-                fullName: cloud.projectId
+                serverURL: serverURL,
+                fullName: fullHandle
             )
 
             logger.notice("Successfully cleaned the remote storage.")

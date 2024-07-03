@@ -481,7 +481,8 @@ final class PluginServiceTests: TuistUnitTestCase {
     private func mockConfig(plugins: [TuistCore.PluginLocation]) -> TuistCore.Config {
         TuistCore.Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),

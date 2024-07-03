@@ -6,6 +6,26 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
+enum ConfigManifestMapperError: FatalError {
+    /// Thrown when the server URL is invalid.
+    case invalidServerURL(String)
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .invalidServerURL: return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .invalidServerURL(url):
+            return "The server URL '\(url)' is not a valid URL"
+        }
+    }
+}
+
 extension TuistCore.Config {
     /// Maps a ProjectDescription.Config instance into a XcodeGraph.Config model.
     /// - Parameters:
@@ -13,7 +33,7 @@ extension TuistCore.Config {
     ///   - path: The path of the config file.
     static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistCore.Config {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let generationOptions = try TuistCore.Config.GenerationOptions.from(
+        var generationOptions = try TuistCore.Config.GenerationOptions.from(
             manifest: manifest.generationOptions,
             generatorPaths: generatorPaths
         )
@@ -26,14 +46,25 @@ extension TuistCore.Config {
             swiftVersion = nil
         }
 
-        var cloud: TuistCore.Cloud?
+        let fullHandle: String?
+        let urlString: String
         if let manifestCloud = manifest.cloud {
-            cloud = try TuistCore.Cloud.from(manifest: manifestCloud)
+            fullHandle = manifestCloud.projectId
+            urlString = manifestCloud.url
+            generationOptions.optionalAuthentication = manifestCloud.options.contains(.optional)
+        } else {
+            fullHandle = manifest.fullHandle
+            urlString = manifest.url
+        }
+
+        guard let url = URL(string: urlString.dropSuffix("/")) else {
+            throw ConfigManifestMapperError.invalidServerURL(manifest.url)
         }
 
         return TuistCore.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
-            cloud: cloud,
+            fullHandle: fullHandle,
+            url: url,
             swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
             plugins: plugins,
             generationOptions: generationOptions,

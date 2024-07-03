@@ -35,13 +35,18 @@ extension Config {
         /// If not specified, Tuist generates for the first (when alphabetically sorted) debug configuration.
         public var defaultConfiguration: String?
 
+        /// Marks whether the Tuist server authentication is optional.
+        /// If present, the interaction with the Tuist server will be skipped (instead of failing) if a user is not authenticated.
+        public var optionalAuthentication: Bool
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -49,7 +54,8 @@ extension Config {
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
-                defaultConfiguration: defaultConfiguration
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication
             )
         }
     }
