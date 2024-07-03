@@ -39,12 +39,12 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await removeOrganizationMemberService.removeOrganizationMember(
             organizationName: organizationName,
             username: username,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")

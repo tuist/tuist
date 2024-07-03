@@ -14,7 +14,7 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
     private var deleteProjectService: MockDeleteProjectServicing!
     private var credentialsStore: MockServerCredentialsStoring!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
     private var subject: ProjectDeleteService!
 
     override func setUp() {
@@ -24,8 +24,8 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
         deleteProjectService = .init()
         credentialsStore = .init()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = ProjectDeleteService(
             deleteProjectService: deleteProjectService,
             getProjectService: getProjectService,
@@ -39,7 +39,7 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
         getProjectService = nil
         credentialsStore = nil
         configLoader = nil
-        cloudURL = nil
+        serverURL = nil
         subject = nil
 
         super.tearDown()
@@ -50,7 +50,7 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
         given(getProjectService)
             .getProject(
                 fullHandle: .value("tuist-org/tuist"),
-                serverURL: .value(cloudURL)
+                serverURL: .value(serverURL)
             )
             .willReturn(
                 .test(id: 0, fullName: "tuist-org/tuist")
@@ -58,12 +58,12 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
         given(deleteProjectService)
             .deleteProject(
                 projectId: .value(0),
-                serverURL: .value(cloudURL)
+                serverURL: .value(serverURL)
             )
             .willReturn(())
 
         given(credentialsStore)
-            .get(serverURL: .value(cloudURL))
+            .get(serverURL: .value(serverURL))
             .willReturn(.init(token: "token"))
 
         // When / Then

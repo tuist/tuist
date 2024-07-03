@@ -37,11 +37,11 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let organization = try await createOrganizationService.createOrganization(
             name: organizationName,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         logger.info("Tuist organization \(organization.name) was successfully created 🎉")

@@ -42,16 +42,16 @@ final class OrganizationShowService: OrganizationShowServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let organization = try await getOrganizationService.getOrganization(
             organizationName: organizationName,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         let organizationUsage = try await getOrganizationUsageService.getOrganizationUsage(
             organizationName: organizationName,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         if json {

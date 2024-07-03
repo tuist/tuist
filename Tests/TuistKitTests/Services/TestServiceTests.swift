@@ -968,7 +968,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(
                 .test(
-                    cloud: .test()
+                    fullHandle: "tuist/tuist"
                 )
             )
 

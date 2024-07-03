@@ -8,16 +8,21 @@ import TuistSupport
 import XcodeGraph
 
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
-    private let config: Cloud
+    private let fullHandle: String
+    private let url: URL
     private let createCommandEventService: CreateCommandEventServicing
     private let fileHandler: FileHandling
     private let ciChecker: CIChecking
     private let cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
 
-    public convenience init(config: Cloud) {
+    public convenience init(
+        fullHandle: String,
+        url: URL
+    ) {
         self.init(
-            config: config,
+            fullHandle: fullHandle,
+            url: url,
             createCommandEventService: CreateCommandEventService(),
             fileHandler: FileHandler.shared,
             ciChecker: CIChecker(),
@@ -27,14 +32,16 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     }
 
     public init(
-        config: Cloud,
+        fullHandle: String,
+        url: URL,
         createCommandEventService: CreateCommandEventServicing,
         fileHandler: FileHandling,
         ciChecker: CIChecking,
         cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring,
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     ) {
-        self.config = config
+        self.fullHandle = fullHandle
+        self.url = url
         self.createCommandEventService = createCommandEventService
         self.fileHandler = fileHandler
         self.ciChecker = ciChecker
@@ -45,8 +52,8 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     public func send(commandEvent: CommandEvent) async throws {
         let cloudCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
-            projectId: config.projectId,
-            serverURL: config.url
+            projectId: fullHandle,
+            serverURL: url
         )
 
         let runDirectory = try cacheDirectoriesProviderFactory.cacheDirectories()
@@ -65,7 +72,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
                 targetHashes: targetHashes,
                 graphPath: graphPath,
                 commandEventId: cloudCommandEvent.id,
-                serverURL: config.url
+                serverURL: url
             )
         }
 

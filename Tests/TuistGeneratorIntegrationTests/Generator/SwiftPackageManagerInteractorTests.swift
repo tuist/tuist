@@ -60,7 +60,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let config = Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(resolveDependenciesWithSystemScm: true),
@@ -183,7 +184,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let config = Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),

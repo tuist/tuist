@@ -37,10 +37,10 @@ final class ProjectListService: ProjectListServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let projects = try await listProjectsService.listProjects(
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         if json {

@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
-    private var config: Cloud!
+    private var fullHandle = "tuist-org/tuist"
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecker!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
@@ -20,10 +20,6 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
 
     override func setUpWithError() throws {
         super.setUp()
-        config = Cloud.test(
-            url: URL(string: "https://cloud.tuist.io")!,
-            projectId: "tuist-org/tuist"
-        )
         createCommandEventService = .init()
         ciChecker = .init()
         cacheDirectoriesProviderFactory = .init()
@@ -33,7 +29,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .cacheDirectories()
             .willReturn(cacheDirectoriesProvider)
         subject = TuistAnalyticsServerBackend(
-            config: config,
+            fullHandle: fullHandle,
+            url: Constants.URLs.production,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
@@ -43,7 +40,6 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        config = nil
         createCommandEventService = nil
         ciChecker = nil
         cacheDirectoriesProviderFactory = nil
@@ -62,8 +58,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .value(event),
-                projectId: .value(config.projectId),
-                serverURL: .value(config.url)
+                projectId: .value(fullHandle),
+                serverURL: .value(Constants.URLs.production)
             )
             .willReturn(
                 .test(
@@ -89,8 +85,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .value(event),
-                projectId: .value(config.projectId),
-                serverURL: .value(config.url)
+                projectId: .value(fullHandle),
+                serverURL: .value(Constants.URLs.production)
             )
             .willReturn(
                 .test(
@@ -113,8 +109,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .value(event),
-                projectId: .value(config.projectId),
-                serverURL: .value(config.url)
+                projectId: .value(fullHandle),
+                serverURL: .value(Constants.URLs.production)
             )
             .willReturn(
                 .test(
@@ -138,7 +134,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
                 targetHashes: .any,
                 graphPath: .any,
                 commandEventId: .value(10),
-                serverURL: .value(config.url)
+                serverURL: .value(Constants.URLs.production)
             )
             .willReturn(())
 

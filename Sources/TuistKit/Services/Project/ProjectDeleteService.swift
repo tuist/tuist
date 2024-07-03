@@ -43,16 +43,16 @@ final class ProjectDeleteService: ProjectDeleteServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try configLoader.loadConfig(path: directoryPath)
-        let cloudURL = try serverURLService.url(configServerURL: config.cloud?.url)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let project = try await getProjectService.getProject(
             fullHandle: fullHandle,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         try await deleteProjectService.deleteProject(
             projectId: project.id,
-            serverURL: cloudURL
+            serverURL: serverURL
         )
 
         logger.info("Successfully deleted the \(project.fullName) project.")

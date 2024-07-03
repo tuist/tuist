@@ -12,15 +12,15 @@ final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
     private var updateOrganizationService: MockUpdateOrganizationServicing!
     private var subject: OrganizationRemoveSSOService!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
 
     override func setUp() {
         super.setUp()
 
         updateOrganizationService = .init()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 
         subject = OrganizationRemoveSSOService(
             updateOrganizationService: updateOrganizationService,
@@ -41,7 +41,7 @@ final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
         given(updateOrganizationService)
             .updateOrganization(
                 organizationName: .value("tuist"),
-                serverURL: .value(cloudURL),
+                serverURL: .value(serverURL),
                 ssoOrganization: .value(nil)
             )
             .willReturn(.test())

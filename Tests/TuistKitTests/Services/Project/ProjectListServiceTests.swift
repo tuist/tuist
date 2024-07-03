@@ -11,14 +11,14 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     private var listProjectsService: MockListProjectsServicing!
     private var subject: ProjectListService!
     private var configLoader: MockConfigLoading!
-    private var cloudURL: URL!
+    private var serverURL: URL!
 
     override func setUp() {
         super.setUp()
         listProjectsService = .init()
         configLoader = MockConfigLoading()
-        cloudURL = URL(string: "https://test.cloud.tuist.io")!
-        given(configLoader).loadConfig(path: .any).willReturn(.test(cloud: .test(url: cloudURL)))
+        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = ProjectListService(
             listProjectsService: listProjectsService,
             configLoader: configLoader
@@ -28,7 +28,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     override func tearDown() {
         listProjectsService = nil
         configLoader = nil
-        cloudURL = nil
+        serverURL = nil
         subject = nil
 
         super.tearDown()
@@ -37,7 +37,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     func test_project_list() async throws {
         // Given
         given(listProjectsService)
-            .listProjects(serverURL: .value(cloudURL))
+            .listProjects(serverURL: .value(serverURL))
             .willReturn(
                 [
                     .test(id: 0, fullName: "tuist/test-one"),
@@ -59,7 +59,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     func test_project_list_when_none() async throws {
         // Given
         given(listProjectsService)
-            .listProjects(serverURL: .value(cloudURL))
+            .listProjects(serverURL: .value(serverURL))
             .willReturn([])
 
         // When
