@@ -45,7 +45,7 @@ func schemes() -> [Scheme] {
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
                         "CI": "true",
-                        "TUIST_CONFIG_CLOUD_TOKEN": "i1932DHAyBwEtHCsRYyE2Ub6ReHNwQ",
+                        "TUIST_CONFIG_TOKEN": "i1932DHAyBwEtHCsRYyE2Ub6ReHNwQ",
                     ]
                 )
             )
@@ -97,7 +97,7 @@ func schemes() -> [Scheme] {
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
                         "CI": "true",
-                        "TUIST_CONFIG_CLOUD_TOKEN": "i1932DHAyBwEtHCsRYyE2Ub6ReHNwQ",
+                        "TUIST_CONFIG_TOKEN": "i1932DHAyBwEtHCsRYyE2Ub6ReHNwQ",
                     ]
                 )
             )

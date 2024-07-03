@@ -8,7 +8,7 @@ struct ProjectTokenCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "token",
             _superCommandName: "project",
-            abstract: "Get a project token. You can save this token in the `TUIST_CONFIG_CLOUD_TOKEN` environment variable to use the remote cache on the CI."
+            abstract: "Get a project token. You can save this token in the `TUIST_CONFIG_TOKEN` environment variable to use the remote cache on the CI."
         )
     }
 
