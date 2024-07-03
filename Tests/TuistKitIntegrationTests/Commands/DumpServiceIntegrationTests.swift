@@ -148,7 +148,7 @@ final class DumpServiceTests: TuistTestCase {
 
         let config = Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: "tuist/tuist",
             swiftVersion: nil,
             plugins: [],
             generationOptions: .options()
@@ -168,9 +168,11 @@ final class DumpServiceTests: TuistTestCase {
 
             }
           },
+          "fullHandle": "tuist/tuist",
           "generationOptions": {
             "disablePackageVersionLocking": false,
             "enforceExplicitDependencies": false,
+            "optionalAuthentication": false,
             "resolveDependenciesWithSystemScm": false,
             "staticSideEffectsWarningTargets": {
               "all": {
@@ -180,7 +182,8 @@ final class DumpServiceTests: TuistTestCase {
           },
           "plugins": [
 
-          ]
+          ],
+          "url": "https://cloud.tuist.io"
         }
 
         """
