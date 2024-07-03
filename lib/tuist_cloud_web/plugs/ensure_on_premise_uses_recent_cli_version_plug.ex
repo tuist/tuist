@@ -11,9 +11,23 @@ defmodule TuistCloudWeb.EnsureOnPremiseUsesRecentCLIVersionPlug do
 
   def call(conn, _opts) do
     cli_release_date_string =
-      conn |> get_req_header("x-tuist-cloud-cli-release-date") |> List.first()
+      conn |> get_req_header("x-tuist-cli-release-date") |> List.first()
 
-    cli_version = conn |> get_req_header("x-tuist-cloud-cli-version") |> List.first()
+    cli_release_date_string =
+      if is_nil(cli_release_date_string) do
+        conn |> get_req_header("x-tuist-cloud-cli-release-date") |> List.first()
+      else
+        cli_release_date_string
+      end
+
+    cli_version = conn |> get_req_header("x-tuist-cli-version") |> List.first()
+
+    cli_version =
+      if is_nil(cli_version) do
+        conn |> get_req_header("x-tuist-cloud-cli-version") |> List.first()
+      else
+        cli_version
+      end
 
     if cli_release_date_string != nil and Environment.on_premise?() do
       cli_release_date =
