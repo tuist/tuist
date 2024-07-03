@@ -1,6 +1,6 @@
 import Foundation
 import TuistSupport
-@testable import ProjectDescription
+import ProjectDescription
 
 #if DEBUG
     extension Config {
