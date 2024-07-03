@@ -97,40 +97,6 @@ const guideSidebar = [
         text: "What is Tuist?",
         link: "/",
       },
-      {
-        text: "Installation",
-        link: "/guide/introduction/installation",
-      },
-      {
-        text: "Adopting Tuist",
-        collapsed: true,
-        items: [
-          {
-            text: "Create a project",
-            link: "/guide/introduction/adopting-tuist/new-project",
-          },
-          {
-            text: "Use it with a Swift Package",
-            link: "/guide/introduction/adopting-tuist/swift-package",
-          },
-          {
-            text: "Migrate from .xcodeproj",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
-          },
-          {
-            text: "Migrate local Swift Packages",
-            link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
-          },
-          {
-            text: "Migrate from XcodeGen",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
-          },
-          {
-            text: "Migrate from Bazel",
-            link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
-          },
-        ],
-      },
     ],
   },
   {
@@ -152,6 +118,36 @@ const guideSidebar = [
       {
         text: "The cost of convenience",
         link: "/guide/project/cost-of-convenience",
+      },
+      {
+        text: "Adoption",
+        collapsed: true,
+        items: [
+          {
+            text: "Create a project",
+            link: "/guide/project/adoption/new-project",
+          },
+          {
+            text: "Use it with a Swift Package",
+            link: "/guide/project/adoption/swift-package",
+          },
+          {
+            text: "Migrate from .xcodeproj",
+            link: "/guide/project/adoption/migrate-from-xcodeproj",
+          },
+          {
+            text: "Migrate local Swift Packages",
+            link: "/guide/project/adoption/migrate-local-swift-packages",
+          },
+          {
+            text: "Migrate from XcodeGen",
+            link: "/guide/project/adoption/migrate-from-xcodegen",
+          },
+          {
+            text: "Migrate from Bazel",
+            link: "/guide/project/adoption/migrate-from-bazel",
+          },
+        ],
       },
       {
         text: "Manifests",
@@ -271,17 +267,17 @@ export default defineConfig({
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `    
-/documentation/tuist/installation /guide/introduction/installation 301
+/documentation/tuist/installation /guide/cli/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
 /documentation/tuist/dependencies /guide/project/dependencies 301
 /documentation/tuist/sharing-code-across-manifests /guide/project/code-sharing 301
 /documentation/tuist/synthesized-files /guide/project/synthesized-files 301
-/documentation/tuist/migration-guidelines /guide/introduction/adopting-tuist/migrate-from-xcodeproj 301
-/tutorials/tuist-tutorials /guide/introduction/adopting-tuist/new-project 301
-/tutorials/tuist/install  /guide/introduction/adopting-tuist/new-project 301
-/tutorials/tuist/create-project  /guide/introduction/adopting-tuist/new-project 301
-/tutorials/tuist/external-dependencies /guide/introduction/adopting-tuist/new-project 301
+/documentation/tuist/migration-guidelines /guide/project/adoption/migrate-from-xcodeproj 301
+/tutorials/tuist-tutorials /guide/project/adoption/new-project 301
+/tutorials/tuist/install  /guide/project/adoption/new-project 301
+/tutorials/tuist/create-project  /guide/project/adoption/new-project 301
+/tutorials/tuist/external-dependencies /guide/project/adoption/new-project 301
 /documentation/tuist/generation-environment /guide/project/dynamic-configuration 301
 /documentation/tuist/using-plugins /guide/project/plugins 301
 /documentation/tuist/creating-plugins /guide/project/plugins 301
@@ -304,6 +300,13 @@ export default defineConfig({
 /guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
 /guide/introduction/from-v3-to-v4 /guide/cli/from-v3-to-v4 301
 /guide/introduction/installation /guide/cli/installation 301
+/guide/introduction/adopting-tuist/new-project /guide/project/adoption/new-project 301
+/guide/introduction/adopting-tuist/swift-package /guide/project/adoption/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guide/project/adoption/migrate-from-xcodeproj 301
+/guide/introduction/adopting-tuist/migrate-local-swift-packages /guide/project/adoption/migrate-local-swift-packages 301
+/guide/introduction/adopting-tuist/migrate-from-xcodegen /guide/project/adoption/migrate-from-xcodegen 301
+/guide/introduction/adopting-tuist/migrate-from-bazel /guide/project/adoption/migrate-from-bazel 301
+
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
