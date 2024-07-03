@@ -14,8 +14,8 @@ struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
         next: (Request, URL) async throws -> Response
     ) async throws -> Response {
         var request = request
-        request.headerFields.append(.init(name: "x-tuist-cloud-cli-release-date", value: releaseDate))
-        request.headerFields.append(.init(name: "x-tuist-cloud-cli-version", value: Constants.version))
+        request.headerFields.append(.init(name: "x-tuist-cli-release-date", value: releaseDate))
+        request.headerFields.append(.init(name: "x-tuist-cli-version", value: Constants.version))
         return try await next(request, baseURL)
     }
 }
