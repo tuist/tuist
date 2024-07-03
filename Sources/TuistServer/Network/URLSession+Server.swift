@@ -21,7 +21,7 @@ private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
 private var _tuistURLSession: URLSession = .init(configuration: tuistURLSessionConfiguration())
 
 extension URLSession {
-    public static var shared: URLSession {
+    public static var tuistShared: URLSession {
         _tuistURLSession
     }
 }

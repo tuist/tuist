@@ -13,7 +13,7 @@ extension Client {
     static func authenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
-            transport: URLSessionTransport(configuration: .init(session: .shared)),
+            transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: commonMiddlewares + [
                 ServerClientRequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
@@ -28,7 +28,7 @@ extension Client {
     static func unauthenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
-            transport: URLSessionTransport(configuration: .init(session: .shared)),
+            transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: commonMiddlewares
         )
     }
