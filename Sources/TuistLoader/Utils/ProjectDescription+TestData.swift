@@ -1,8 +1,9 @@
 import Foundation
 import TuistSupport
-import ProjectDescription
 
 #if DEBUG
+    @testable import ProjectDescription
+
     extension Config {
         public static func test(
             fullHandle: String? = nil,
