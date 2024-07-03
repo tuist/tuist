@@ -36,7 +36,7 @@ public enum MultipartUploadCompleteCacheServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The multi-part upload could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -55,7 +55,7 @@ public final class MultipartUploadCompleteCacheService: MultipartUploadCompleteC
         uploadId: String,
         parts: [(etag: String, partNumber: Int)]
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.completeCacheArtifactMultipartUpload(.init(query: .init(
             cache_category: .init(cacheCategory),
             project_id: projectId,

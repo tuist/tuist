@@ -9,7 +9,7 @@ public protocol UpdateOrganizationServicing {
         organizationName: String,
         serverURL: URL,
         ssoOrganization: SSOOrganization?
-    ) async throws -> CloudOrganization
+    ) async throws -> ServerOrganization
 }
 
 enum UpdateOrganizationServiceError: FatalError {
@@ -31,7 +31,7 @@ enum UpdateOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the organization due to an unknown cloud response of \(statusCode)."
+            return "We could not get the organization due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .notFound(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
@@ -45,8 +45,8 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
         organizationName: String,
         serverURL: URL,
         ssoOrganization: SSOOrganization?
-    ) async throws -> CloudOrganization {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization {
+        let client = Client.authenticated(serverURL: serverURL)
         let ssoProvider: Operations.updateOrganization
             .Input.Body.jsonPayload.sso_providerPayload
         let ssoOrganizationId: String?
@@ -79,7 +79,7 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudOrganization(project)
+                return ServerOrganization(project)
             }
         case let .notFound(notFound):
             switch notFound.body {

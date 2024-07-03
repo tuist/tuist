@@ -27,7 +27,7 @@ enum DeleteOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The organization could not be deleted due to an unknown cloud response of \(statusCode)."
+            return "The organization could not be deleted due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .unauthorized(message), let .notFound(message):
             return message
         }
@@ -41,7 +41,7 @@ public final class DeleteOrganizationService: DeleteOrganizationServicing {
         name: String,
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.deleteOrganization(
             .init(

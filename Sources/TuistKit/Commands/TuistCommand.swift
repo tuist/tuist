@@ -28,7 +28,13 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
-                CloudCommand.self,
+                AuthCommand.self,
+                SessionCommand.self,
+                LogoutCommand.self,
+                CleanCommand.self,
+                ProjectCommand.self,
+                OrganizationCommand.self,
+                AnalyticsCommand.self,
             ]
         )
     }
@@ -47,7 +53,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let backend: TuistAnalyticsBackend?
         let config = try ConfigLoader().loadConfig(path: path)
         if let cloud = config.cloud {
-            backend = TuistAnalyticsCloudBackend(
+            backend = TuistAnalyticsServerBackend(
                 config: cloud
             )
         } else {
@@ -89,10 +95,10 @@ public struct TuistCommand: AsyncParsableCommand {
             WarningController.shared.flush()
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
-        } catch let error as ClientError where error.underlyingError is CloudClientAuthenticationError {
+        } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             WarningController.shared.flush()
             // swiftlint:disable:next force_cast
-            logger.error("\((error.underlyingError as! CloudClientAuthenticationError).description)")
+            logger.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
             _exit(exitCode(for: error).rawValue)
         } catch {
             WarningController.shared.flush()

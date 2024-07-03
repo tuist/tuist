@@ -28,7 +28,7 @@ enum CancelOrganizationInviteServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The invitation could not be cancelled due to an unknown cloud response of \(statusCode)."
+            return "The invitation could not be cancelled due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -43,7 +43,7 @@ public final class CancelOrganizationInviteService: CancelOrganizationInviteServ
         email: String,
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.cancelInvitation(
             .init(

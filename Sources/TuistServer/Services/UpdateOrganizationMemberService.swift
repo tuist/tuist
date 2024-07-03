@@ -6,9 +6,9 @@ public protocol UpdateOrganizationMemberServicing {
     func updateOrganizationMember(
         organizationName: String,
         username: String,
-        role: CloudOrganization.Member.Role,
+        role: ServerOrganization.Member.Role,
         serverURL: URL
-    ) async throws -> CloudOrganization.Member
+    ) async throws -> ServerOrganization.Member
 }
 
 enum UpdateOrganizationMemberServiceError: FatalError {
@@ -30,7 +30,7 @@ enum UpdateOrganizationMemberServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The member could not be updated due to an unknown cloud response of \(statusCode)."
+            return "The member could not be updated due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
@@ -43,10 +43,10 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
     public func updateOrganizationMember(
         organizationName: String,
         username: String,
-        role: CloudOrganization.Member.Role,
+        role: ServerOrganization.Member.Role,
         serverURL: URL
-    ) async throws -> CloudOrganization.Member {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization.Member {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.updateOrganizationMember(
             .init(
@@ -61,7 +61,7 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(organizationMember):
-                return CloudOrganization.Member(organizationMember)
+                return ServerOrganization.Member(organizationMember)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {

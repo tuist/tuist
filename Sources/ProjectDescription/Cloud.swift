@@ -4,8 +4,8 @@ import Foundation
 public struct Cloud: Codable, Equatable, Sendable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable, Sendable {
-        /// Marks whether Tuist Cloud authentication is optional.
-        /// If present, the interaction with Tuist Cloud will be skipped (instead of failing) if a user is not authenticated.
+        /// Marks whether the Tuist server authentication is optional.
+        /// If present, the interaction with the Tuist server will be skipped (instead of failing) if a user is not authenticated.
         case optional
     }
 

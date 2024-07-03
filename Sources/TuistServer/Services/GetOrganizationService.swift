@@ -8,7 +8,7 @@ public protocol GetOrganizationServicing {
     func getOrganization(
         organizationName: String,
         serverURL: URL
-    ) async throws -> CloudOrganization
+    ) async throws -> ServerOrganization
 }
 
 enum GetOrganizationServiceError: FatalError {
@@ -29,7 +29,7 @@ enum GetOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the organization due to an unknown cloud response of \(statusCode)."
+            return "We could not get the organization due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
@@ -42,8 +42,8 @@ public final class GetOrganizationService: GetOrganizationServicing {
     public func getOrganization(
         organizationName: String,
         serverURL: URL
-    ) async throws -> CloudOrganization {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.showOrganization(
             .init(
@@ -56,7 +56,7 @@ public final class GetOrganizationService: GetOrganizationServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudOrganization(project)
+                return ServerOrganization(project)
             }
         case let .notFound(notFound):
             switch notFound.body {

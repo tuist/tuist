@@ -11,11 +11,11 @@ final class ServerAcceptanceTestProjects: TuistAcceptanceTestCase {
         let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
         let fullHandle = "\(organizationHandle)/\(projectHandle)"
-        try await run(CloudOrganizationCreateCommand.self, organizationHandle)
-        try await run(CloudProjectCreateCommand.self, fullHandle)
-        try await run(CloudProjectListCommand.self)
-        try await run(CloudProjectDeleteCommand.self, fullHandle)
-        try await run(CloudOrganizationDeleteCommand.self, organizationHandle)
+        try await run(OrganizationCreateCommand.self, organizationHandle)
+        try await run(ProjectCreateCommand.self, fullHandle)
+        try await run(ProjectListCommand.self)
+        try await run(ProjectDeleteCommand.self, fullHandle)
+        try await run(OrganizationDeleteCommand.self, organizationHandle)
         XCTAssertStandardOutput(pattern: "Listing all your projects:")
         XCTAssertStandardOutput(pattern: "• \(fullHandle)")
     }

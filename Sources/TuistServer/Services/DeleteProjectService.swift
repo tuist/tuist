@@ -29,7 +29,7 @@ enum DeleteProjectServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project could not be deleted due to an unknown cloud response of \(statusCode)."
+            return "The project could not be deleted due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .unauthorized(message), let .notFound(message):
             return message
         }
@@ -43,7 +43,7 @@ public final class DeleteProjectService: DeleteProjectServicing {
         projectId: Int,
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.deleteProject(
             .init(

@@ -8,7 +8,7 @@ public protocol CreateProjectServicing {
     func createProject(
         fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject
+    ) async throws -> ServerProject
 }
 
 enum CreateProjectServiceError: FatalError {
@@ -42,8 +42,8 @@ public final class CreateProjectService: CreateProjectServicing {
     public func createProject(
         fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerProject {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createProject(
             .init(
@@ -58,7 +58,7 @@ public final class CreateProjectService: CreateProjectServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudProject(project)
+                return ServerProject(project)
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {

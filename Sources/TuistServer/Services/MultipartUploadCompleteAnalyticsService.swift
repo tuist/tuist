@@ -6,7 +6,7 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadCompleteAnalyticsServicing {
     func uploadAnalyticsArtifact(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
@@ -32,7 +32,7 @@ public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable 
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The multi-part upload could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
@@ -43,13 +43,13 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
     public init() {}
 
     public func uploadAnalyticsArtifact(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.completeAnalyticsArtifactMultipartUpload(
             .init(
                 path: .init(run_id: commandEventId),
