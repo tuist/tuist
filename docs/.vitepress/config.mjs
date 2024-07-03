@@ -16,7 +16,18 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 }
 
-["structs", "enums", "extensions", "typealiases"].forEach((category) => {
+function appleIcon(size = 15) {
+  return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>`;
+}
+
+function cliIcon(size = 15) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+</svg>
+`;
+}
+
+[("structs", "enums", "extensions", "typealiases")].forEach((category) => {
   if (projectDescriptionTypesData.find((item) => item.category === category)) {
     projectDescriptionSidebar.items.push({
       text: capitalize(category),
@@ -87,10 +98,6 @@ const guideSidebar = [
         link: "/",
       },
       {
-        text: "The cost of convenience",
-        link: "/guide/introduction/cost-of-convenience",
-      },
-      {
         text: "Installation",
         link: "/guide/introduction/installation",
       },
@@ -124,6 +131,11 @@ const guideSidebar = [
           },
         ],
       },
+    ],
+  },
+  {
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${cliIcon()}</div>`,
+    items: [
       {
         text: "From v3 to v4",
         link: "/guide/introduction/from-v3-to-v4",
@@ -131,8 +143,12 @@ const guideSidebar = [
     ],
   },
   {
-    text: "Tuist Projects",
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${appleIcon()}</div>`,
     items: [
+      {
+        text: "The cost of convenience",
+        link: "/guide/project/cost-of-convenience",
+      },
       {
         text: "Manifests",
         link: "/guide/project/manifests",
@@ -251,6 +267,7 @@ export default defineConfig({
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `    
+/guide/introduction/from-v3-to-v4 /guide/cli/from-v3-to-v4
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -281,6 +298,7 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+/guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
