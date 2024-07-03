@@ -78,7 +78,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             .willReturn(cacheDirectoriesProvider)
 
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
 
         // When

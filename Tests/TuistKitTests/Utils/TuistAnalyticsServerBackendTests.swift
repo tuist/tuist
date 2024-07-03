@@ -55,7 +55,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     func test_send_when_is_not_ci() async throws {
         // Given
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
         ciChecker.isCIStub = false
         let event = CommandEvent.test()
@@ -82,7 +82,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     func test_send_when_is_ci() async throws {
         // Given
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
         ciChecker.isCIStub = true
         let event = CommandEvent.test()
@@ -124,11 +124,11 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             )
 
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
 
         let resultBundle = try cacheDirectoriesProvider
-            .tuistCacheDirectory(for: .runs)
+            .cacheDirectory(for: .runs)
             .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
         try fileHandler.createFolder(resultBundle)
 

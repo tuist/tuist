@@ -10,7 +10,7 @@ public protocol CacheExistsServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws
 }
 
@@ -48,7 +48,7 @@ public final class CacheExistsService: CacheExistsServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
 

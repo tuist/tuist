@@ -10,7 +10,7 @@ public protocol GetCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> ServerCacheArtifact
 }
 
@@ -48,7 +48,7 @@ public final class GetCacheService: GetCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> ServerCacheArtifact {
         let client = Client.authenticated(serverURL: serverURL)
 

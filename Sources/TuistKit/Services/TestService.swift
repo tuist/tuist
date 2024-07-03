@@ -352,7 +352,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         config: Config
     ) throws -> AbsolutePath? {
         let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
-            .tuistCacheDirectory(for: .runs)
+            .cacheDirectory(for: .runs)
             .appending(components: runId, Constants.resultBundleName)
 
         if config.cloud == nil {

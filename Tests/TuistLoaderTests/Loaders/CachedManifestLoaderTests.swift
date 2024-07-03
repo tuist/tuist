@@ -41,7 +41,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
                 .cacheDirectories()
                 .willReturn(cacheDirectoriesProvider)
             given(cacheDirectoriesProvider)
-                .tuistCacheDirectory(for: .value(.manifests))
+                .cacheDirectory(for: .value(.manifests))
                 .willReturn(cacheDirectory)
         } catch {
             XCTFail("Failed to create temporary directory")

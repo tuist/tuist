@@ -44,7 +44,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         let runsCacheDirectory = try temporaryPath()
         given(mockCacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
         configLoader = .init()
@@ -924,7 +924,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         var resultBundlePath: AbsolutePath?
         let expectedResultBundlePath = try cacheDirectoriesProvider
-            .tuistCacheDirectory(for: .runs)
+            .cacheDirectory(for: .runs)
             .appending(components: "run-id", Constants.resultBundleName)
 
         given(xcodebuildController)
@@ -974,7 +974,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         let runsCacheDirectory = try temporaryPath()
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
         try fileHandler.createFolder(runsCacheDirectory)

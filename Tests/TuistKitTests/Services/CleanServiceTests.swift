@@ -58,8 +58,11 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         let cachePath = cachePaths[0].parentDirectory.parentDirectory
         given(cacheDirectoriesProvider)
-            .cacheDirectory()
-            .willReturn(cachePath)
+            .cacheDirectory(for: .value(.manifests))
+            .willReturn(cachePaths[0])
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.projectDescriptionHelpers))
+            .willReturn(cachePaths[1])
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(cachePath)
@@ -144,11 +147,10 @@ final class CleanServiceTests: TuistUnitTestCase {
     func test_run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try createFolders(["tuist/Manifests"])
-        let cachePath = cachePaths[0].parentDirectory.parentDirectory
 
         given(cacheDirectoriesProvider)
-            .cacheDirectory()
-            .willReturn(cachePath)
+            .cacheDirectory(for: .any)
+            .willReturn(cachePaths[0])
 
         let projectPath = try temporaryPath()
         given(rootDirectoryLocator)
@@ -204,7 +206,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         given(cacheDirectoriesProvider)
-            .cacheDirectory()
+            .cacheDirectory(for: .any)
             .willReturn(try temporaryPath())
 
         let projectPath = try temporaryPath()

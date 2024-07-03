@@ -11,7 +11,7 @@ public protocol MultipartUploadCompleteCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)]
     ) async throws
@@ -51,7 +51,7 @@ public final class MultipartUploadCompleteCacheService: MultipartUploadCompleteC
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)]
     ) async throws {
