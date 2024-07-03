@@ -137,8 +137,12 @@ const guideSidebar = [
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${cliIcon()}</div>`,
     items: [
       {
+        text: "Installation",
+        link: "/guide/cli/installation",
+      },
+      {
         text: "From v3 to v4",
-        link: "/guide/introduction/from-v3-to-v4",
+        link: "/guide/cli/from-v3-to-v4",
       },
     ],
   },
@@ -267,7 +271,6 @@ export default defineConfig({
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `    
-/guide/introduction/from-v3-to-v4 /guide/cli/from-v3-to-v4
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -299,6 +302,8 @@ export default defineConfig({
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
+/guide/introduction/from-v3-to-v4 /guide/cli/from-v3-to-v4 301
+/guide/introduction/installation /guide/cli/installation 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
