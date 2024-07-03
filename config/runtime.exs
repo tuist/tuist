@@ -155,6 +155,7 @@ if !TuistCloud.Environment.on_premise?() do
       request-uri server-name server-port server-protocol
       x-request-id
       x-tuist-cloud-cli-version x-tuist-cloud-cli-release-date
+      x-tuist-cli-version x-tuist-cli-release-date
     )
 else
   config :appsignal, :config,
