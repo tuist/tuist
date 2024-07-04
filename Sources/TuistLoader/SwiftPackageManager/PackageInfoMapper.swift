@@ -471,8 +471,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let dependencyNames = target.dependencies.map(\.name)
             for dependencyName in dependencyNames {
                 let dependencyProducts = targetToProducts[dependencyName] ?? Set()
-                let destinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
-                testDestinations.formIntersection(destinations)
+                let isExternalDependency = dependencyProducts.isEmpty
+                let dependencyDestinations: XcodeGraph.Destinations = if isExternalDependency {
+                    Set(Destination.allCases)
+                } else {
+                    unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                }
+                testDestinations.formIntersection(dependencyDestinations)
             }
             destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:
