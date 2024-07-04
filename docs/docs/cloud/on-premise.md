@@ -108,7 +108,7 @@ You can enable authentication with Okta through the [OAuth 2.0](https://oauth.ne
         
 - **App integration name:** `Tuist Cloud`
 - **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
-- **Sign-in redirect URL:** `{url}/users/auth/github/callback` where `url` is the public URL your service is accessed through.
+- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
 - **Assignments:** This configuration will depend on your security team requirements.
 
 If you'd like Tuist Cloud to detect when a user is removed from the application, you'll have to configure an [event hook](https://help.okta.com/en-us/content/topics/automation-hooks/event-hooks-main.htm). In your Okta organization, go to **Workflow > Event Hooks** and create a new event hook with the following data:
