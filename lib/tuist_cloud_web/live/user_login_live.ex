@@ -11,9 +11,9 @@ defmodule TuistCloudWeb.UserLoginLive do
       socket
       |> assign(:form, form)
       |> assign(:mail_configured?, Environment.mail_configured?())
-      |> assign(:github_configured, Environment.github_configured?())
-      |> assign(:google_configured, Environment.google_oauth_configured?())
-      |> assign(:okta_configured, Environment.okta_configured?()),
+      |> assign(:github_configured?, Environment.github_configured?())
+      |> assign(:google_configured?, Environment.google_oauth_configured?())
+      |> assign(:okta_configured?, Environment.okta_configured?()),
       temporary_assigns: [form: form]
     }
   end
@@ -81,7 +81,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             </.stack>
           </.stack>
         </.simple_form>
-        <%= if @github_configured do %>
+        <%= if @github_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/github"}>
               <%= gettext("Sign in with GitHub") %>
@@ -89,7 +89,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             <:icon><.github_logo /></:icon>
           </.social_button>
         <% end %>
-        <%= if @google_configured do %>
+        <%= if @google_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/google"}>
               <%= gettext("Sign in with Google") %>
@@ -97,7 +97,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             <:icon><.google_logo /></:icon>
           </.social_button>
         <% end %>
-        <%= if @okta_configured do %>
+        <%= if @okta_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/okta"}>
               <%= gettext("Sign in with Okta") %>

@@ -694,6 +694,30 @@ defmodule TuistCloud.AccountsTest do
       assert got.provider == :google
     end
 
+    test "returns okta oauth2 identity" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :okta,
+        uid: "uid",
+        info: %{
+          email: user.email
+        },
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      })
+
+      # When
+      got = Accounts.find_oauth2_identity(%{user: user, provider: :okta})
+
+      # Then
+      assert got.provider == :okta
+    end
+
     test "returns nil when a user only has a github identity" do
       # Given
       user = AccountsFixtures.user_fixture()

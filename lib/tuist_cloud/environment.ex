@@ -214,6 +214,10 @@ defmodule TuistCloud.Environment do
     get([:okta, :site], secrets)
   end
 
+  def okta_client_id(secrets \\ secrets()) do
+    get([:okta, :client_id], secrets)
+  end
+
   def okta_client_secret(secrets \\ secrets()) do
     get([:okta, :client_secret], secrets)
   end
@@ -230,15 +234,9 @@ defmodule TuistCloud.Environment do
     get([:okta, :user_info_url], secrets)
   end
 
-  def okta_event_hook_secret(secrets \\ secrets()) do
-    get([:okta, :event_hook_secret], secrets)
-  end
-
   def okta_configured?(secrets \\ secrets()) do
-    okta_site(secrets) != nil and okta_client_secret(secrets) != nil and
-      okta_authorize_url(secrets) != nil and okta_token_url(secrets) != nil and
-      okta_user_info_url(secrets) != nil and okta_event_hook_secret(secrets) != nil and
-      okta_event_hook_secret(secrets) != nil
+    okta_site(secrets) != nil and okta_client_id(secrets) != nil and
+      okta_client_secret(secrets) != nil
   end
 
   def mailgun_api_key(secrets \\ secrets()) do

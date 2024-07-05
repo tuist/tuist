@@ -261,6 +261,7 @@ defmodule TuistCloud.Accounts do
         # Google hosted domain. See more at https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
         :google -> auth.extra.raw_info.user["hd"]
         :github -> nil
+        :okta -> nil
       end
 
     if oauth2_identity do
