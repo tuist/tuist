@@ -21,6 +21,24 @@ defmodule TuistCloudWeb.UserLoginLiveTest do
 
       assert {:ok, _conn} = result
     end
+
+    test "renders Okta button if Okta is configured", %{conn: conn} do
+      TuistCloud.Environment
+      |> stub(:okta_configured?, fn -> true end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "Sign in with Okta"
+    end
+
+    test "does not render Okta button if Okta is not configured", %{conn: conn} do
+      TuistCloud.Environment
+      |> stub(:okta_configured?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Sign in with Okta"
+    end
   end
 
   describe "user login" do

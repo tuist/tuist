@@ -59,7 +59,8 @@ config :ueberauth, Ueberauth,
   base_path: "/users/auth",
   providers: [
     github: {Ueberauth.Strategy.Github, []},
-    google: {Ueberauth.Strategy.Google, []}
+    google: {Ueberauth.Strategy.Google, []},
+    okta: {Ueberauth.Strategy.Okta, []}
   ]
 
 config :hammer,
