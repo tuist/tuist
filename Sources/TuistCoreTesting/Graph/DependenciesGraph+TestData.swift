@@ -25,7 +25,7 @@ extension TuistCore.DependenciesGraph {
 
     public static func test(
         externalDependencies: [String: [TargetDependency]] = [:],
-        externalProjects: [Path: Project] = [:]
+        externalProjects: [Path: ExternalProject] = [:]
     ) -> Self {
         .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
@@ -48,7 +48,8 @@ extension TuistCore.DependenciesGraph {
         spmFolder: Path,
         packageFolder: Path,
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
-        fileHandler: FileHandler
+        fileHandler: FileHandler,
+        type: PackageType
     ) throws -> Self {
         try fileHandler.createFolder(try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
 
@@ -130,24 +131,27 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "test",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "test",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            base: [
+                                "GCC_C_LANGUAGE_STANDARD": "c99",
+                            ],
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        base: [
-                            "GCC_C_LANGUAGE_STANDARD": "c99",
-                        ],
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: type
                 ),
             ]
         )
@@ -156,7 +160,8 @@ extension TuistCore.DependenciesGraph {
     // swiftlint:disable:next function_body_length
     public static func aDependency(
         spmFolder: Path,
-        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
+        type: PackageType = .local
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
 
@@ -211,21 +216,24 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "a-dependency",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "a-dependency",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: type
                 ),
             ]
         )
@@ -233,7 +241,8 @@ extension TuistCore.DependenciesGraph {
 
     public static func anotherDependency(
         spmFolder: Path,
-        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
+        type: PackageType
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
 
@@ -266,21 +275,24 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "another-dependency",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "another-dependency",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: type
                 ),
             ]
         )
@@ -329,16 +341,19 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "Alamofire",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "Alamofire",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -456,25 +471,28 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "GoogleAppMeasurement",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "GoogleAppMeasurement",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            base: [
+                                "GCC_C_LANGUAGE_STANDARD": "c99",
+                                "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+                            ],
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        base: [
-                            "GCC_C_LANGUAGE_STANDARD": "c99",
-                            "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
-                        ],
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -575,21 +593,24 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "GoogleUtilities",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "GoogleUtilities",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -630,21 +651,24 @@ extension TuistCore.DependenciesGraph {
             externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
-                    name: "nanopb",
-                    options: .options(
-                        automaticSchemesOptions: .disabled,
-                        disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: true,
-                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    project: .init(
+                        name: "nanopb",
+                        options: .options(
+                            automaticSchemesOptions: .disabled,
+                            disableBundleAccessors: false,
+                            disableSynthesizedResourceAccessors: true,
+                            textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        ),
+                        settings: .settings(
+                            configurations: [
+                                .debug(name: .debug),
+                                .release(name: .release),
+                            ]
+                        ),
+                        targets: targets,
+                        resourceSynthesizers: .default
                     ),
-                    settings: .settings(
-                        configurations: [
-                            .debug(name: .debug),
-                            .release(name: .release),
-                        ]
-                    ),
-                    targets: targets,
-                    resourceSynthesizers: .default
+                    type: .remote(artifactPaths: [:])
                 ),
             ]
         )
