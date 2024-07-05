@@ -12,7 +12,7 @@ import XCTest
 final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     private var fullHandle = "tuist-org/tuist"
     private var createCommandEventService: MockCreateCommandEventServicing!
-    private var ciChecker: MockCIChecker!
+    private var ciChecker: MockCIChecking!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
@@ -53,7 +53,9 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
-        ciChecker.isCIStub = false
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         let event = CommandEvent.test()
         given(createCommandEventService)
             .createCommandEvent(
@@ -80,7 +82,9 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
-        ciChecker.isCIStub = true
+        given(ciChecker)
+            .isCI()
+            .willReturn(true)
         let event = CommandEvent.test()
         given(createCommandEventService)
             .createCommandEvent(
@@ -104,7 +108,9 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
         // Given
-        ciChecker.isCIStub = true
+        given(ciChecker)
+            .isCI()
+            .willReturn(true)
         let event = CommandEvent.test()
         given(createCommandEventService)
             .createCommandEvent(

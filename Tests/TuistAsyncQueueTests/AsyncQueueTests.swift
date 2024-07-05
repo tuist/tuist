@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Queuer
 import TuistCore
 import TuistSupport
@@ -17,7 +18,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
     var mockAsyncQueueDispatcher1: MockAsyncQueueDispatcher!
     var mockAsyncQueueDispatcher2: MockAsyncQueueDispatcher!
 
-    var mockCIChecker: MockCIChecker!
+    var mockCIChecker: MockCIChecking!
 
     var mockPersistor: MockAsyncQueuePersistor<AnyAsyncQueueEvent>!
     var mockQueuer: MockQueuer!
@@ -32,7 +33,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         mockAsyncQueueDispatcher2 = MockAsyncQueueDispatcher()
         mockAsyncQueueDispatcher2.stubbedIdentifier = dispatcher2ID
 
-        mockCIChecker = MockCIChecker()
+        mockCIChecker = .init()
         mockPersistor = MockAsyncQueuePersistor()
         mockQueuer = MockQueuer()
     }
@@ -201,7 +202,9 @@ final class AsyncQueueTests: TuistUnitTestCase {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
-        mockCIChecker.isCIStub = true
+        given(mockCIChecker)
+            .isCI()
+            .willReturn(true)
 
         // When
         subject = makeSubject(queue: Queuer.shared)

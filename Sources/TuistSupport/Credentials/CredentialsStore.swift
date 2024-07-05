@@ -1,6 +1,8 @@
 import Foundation
 import KeychainAccess
+import Mockable
 
+@Mockable
 public protocol CredentialsStoring {
     /// It stores the credentials for the server with the given URL.
     /// - Parameters:

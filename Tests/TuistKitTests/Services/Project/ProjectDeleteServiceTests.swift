@@ -64,7 +64,7 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
 
         given(credentialsStore)
             .get(serverURL: .value(serverURL))
-            .willReturn(.init(token: "token"))
+            .willReturn(.init(token: nil, accessToken: "access-token", refreshToken: "refresh-token"))
 
         // When / Then
         try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)

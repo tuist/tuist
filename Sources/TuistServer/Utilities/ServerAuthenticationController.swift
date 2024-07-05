@@ -3,15 +3,15 @@ import Mockable
 import TuistSupport
 
 @Mockable
-public protocol ServerAuthenticationControlling {
-    func authenticationToken(serverURL: URL) throws -> ServerAuthenticationToken?
+public protocol ServerAuthenticationControlling: Sendable {
+    func authenticationToken(serverURL: URL) throws -> AuthenticationToken?
 }
 
-public enum ServerAuthenticationToken: CustomStringConvertible {
+public enum AuthenticationToken: CustomStringConvertible, Equatable {
     /// The token represents a user session. User sessions are typically used in
     /// local environments where the user can be guided through an interactive
     /// authentication workflow
-    case user(String)
+    case user(legacyToken: String?, accessToken: JWT?, refreshToken: JWT?)
 
     /// The token represents a project session. Project sessions are typically used
     /// in CI environments where limited scopes are desired for security reasons.
@@ -20,8 +20,12 @@ public enum ServerAuthenticationToken: CustomStringConvertible {
     /// It returns the value of the token
     public var value: String {
         switch self {
-        case let .user(token):
-            return token
+        case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: _):
+            if let accessToken {
+                return accessToken.token
+            } else {
+                return legacyToken!
+            }
         case let .project(token):
             return token
         }
@@ -29,10 +33,28 @@ public enum ServerAuthenticationToken: CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case let .user(token):
-            return "tuist user token: \(token)"
+        case .user:
+            return "tuist user token: \(value)"
         case let .project(token):
             return "tuist project token: \(token)"
+        }
+    }
+}
+
+enum ServerAuthenticationControllerError: FatalError {
+    case invalidJWT(String)
+
+    var description: String {
+        switch self {
+        case let .invalidJWT(token):
+            return "The access token \(token) is invalid. Try to reauthenticate by running `tuist auth`."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .invalidJWT:
+            return .bug
         }
     }
 }
@@ -40,32 +62,77 @@ public enum ServerAuthenticationToken: CustomStringConvertible {
 public final class ServerAuthenticationController: ServerAuthenticationControlling {
     private let credentialsStore: ServerCredentialsStoring
     private let ciChecker: CIChecking
-    private let environmentVariables: () -> [String: String]
+    private let environment: Environmenting
 
     public init(
         credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
         ciChecker: CIChecking = CIChecker(),
-        environmentVariables: @escaping () -> [String: String] = { ProcessInfo.processInfo.environment }
+        environment: Environmenting = Environment.shared
     ) {
         self.credentialsStore = credentialsStore
         self.ciChecker = ciChecker
-        self.environmentVariables = environmentVariables
+        self.environment = environment
     }
 
-    public func authenticationToken(serverURL: URL) throws -> ServerAuthenticationToken? {
+    public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
         if ciChecker.isCI() {
-            let environment = environmentVariables()
-            if let deprecatedToken = environment[Constants.EnvironmentVariables.deprecatedToken] {
+            if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
                 logger
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
                 return .project(deprecatedToken)
             } else {
-                return environment[Constants.EnvironmentVariables.token].map { .project($0) }
+                return environment.tuistVariables[Constants.EnvironmentVariables.token].map { .project($0) }
             }
         } else {
-            return (try credentialsStore.read(serverURL: serverURL)?.token).map { .user($0) }
+            let credentials = try credentialsStore.read(serverURL: serverURL)
+            return try credentials.map {
+                if $0.token != nil {
+                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                }
+
+                return .user(
+                    legacyToken: $0.token,
+                    accessToken: try $0.accessToken.map(parseJWT),
+                    refreshToken: try $0.refreshToken.map(parseJWT)
+                )
+            }
         }
+    }
+
+    private func parseJWT(_ jwt: String) throws -> JWT {
+        let components = jwt.components(separatedBy: ".")
+        guard components.count == 3
+        else {
+            throw ServerAuthenticationControllerError.invalidJWT(jwt)
+        }
+        let jwtEncodedPayload = components[1]
+        let remainder = jwtEncodedPayload.count % 4
+        let paddedJWTEncodedPayload: String
+        if remainder > 0 {
+            paddedJWTEncodedPayload = jwtEncodedPayload.padding(
+                toLength: jwtEncodedPayload.count + 4 - remainder,
+                withPad: "=",
+                startingAt: 0
+            )
+        } else {
+            paddedJWTEncodedPayload = jwtEncodedPayload
+        }
+        guard let data = Data(base64Encoded: paddedJWTEncodedPayload)
+        else {
+            throw ServerAuthenticationControllerError.invalidJWT(jwtEncodedPayload)
+        }
+        let jsonDecoder = JSONDecoder()
+        let payload = try jsonDecoder.decode(JWTPayload.self, from: data)
+
+        return JWT(
+            token: jwt,
+            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp))
+        )
+    }
+
+    private struct JWTPayload: Codable {
+        let exp: Int
     }
 }

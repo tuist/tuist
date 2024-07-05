@@ -4,32 +4,31 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol ProjectTokenServicing {
+protocol ProjectTokensRevokeServicing {
     func run(
+        projectTokenId: String,
         fullHandle: String,
         directory: String?
     ) async throws
 }
 
-final class ProjectTokenService: ProjectTokenServicing {
-    private let getProjectService: GetProjectServicing
-    private let credentialsStore: ServerCredentialsStoring
+final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
+    private let revokeProjectTokenService: RevokeProjectTokenServicing
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
 
     init(
-        getProjectService: GetProjectServicing = GetProjectService(),
-        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
+        revokeProjectTokenService: RevokeProjectTokenServicing = RevokeProjectTokenService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.getProjectService = getProjectService
-        self.credentialsStore = credentialsStore
+        self.revokeProjectTokenService = revokeProjectTokenService
         self.serverURLService = serverURLService
         self.configLoader = configLoader
     }
 
     func run(
+        projectTokenId: String,
         fullHandle: String,
         directory: String?
     ) async throws {
@@ -42,11 +41,12 @@ final class ProjectTokenService: ProjectTokenServicing {
         let config = try configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        let project = try await getProjectService.getProject(
+        try await revokeProjectTokenService.revokeProjectToken(
+            projectTokenId: projectTokenId,
             fullHandle: fullHandle,
             serverURL: serverURL
         )
 
-        logger.info(.init(stringLiteral: project.token))
+        logger.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

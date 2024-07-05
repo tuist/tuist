@@ -10,7 +10,7 @@ import XCTest
 
 final class ServerSessionControllerTests: TuistUnitTestCase {
     private var credentialsStore: MockServerCredentialsStoring!
-    private var ciChecker: MockCIChecker!
+    private var ciChecker: MockCIChecking!
     private var opener: MockOpener!
     private var serverURL: URL!
     private var getAuthTokenService: MockGetAuthTokenServicing!
@@ -21,7 +21,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         credentialsStore = .init()
-        ciChecker = MockCIChecker()
+        ciChecker = .init()
         opener = MockOpener()
         serverURL = URL.test()
         getAuthTokenService = MockGetAuthTokenServicing()
@@ -50,11 +50,15 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_tokenAndAccountParametersAreIncluded() async throws {
         // Given
-        given(getAuthTokenService).getAuthToken(serverURL: .any, deviceCode: .any).willReturn("token")
+        given(getAuthTokenService)
+            .getAuthToken(serverURL: .any, deviceCode: .any)
+            .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
         given(uniqueIDGenerator).uniqueID().willReturn("id")
         given(credentialsStore)
             .read(serverURL: .value(serverURL))
-            .willReturn(ServerCredentials(token: "token"))
+            .willReturn(
+                ServerCredentials(token: nil, accessToken: "access-token", refreshToken: "refresh-token")
+            )
         given(credentialsStore)
             .store(credentials: .any, serverURL: .value(serverURL))
             .willReturn()
@@ -70,15 +74,39 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_printSession_when_userToken() throws {
+    func test_printSession_when_legacyUserToken() throws {
         // When
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(serverURL)).willReturn(.user("token"))
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
+            )
         try subject.printSession(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
         Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
-        token
+        legacy-token
+        """)
+    }
+
+    func test_printSession_when_userToken() throws {
+        // When
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(
+                    legacyToken: nil,
+                    accessToken: .test(token: "access-token"),
+                    refreshToken: .test(token: "refresh-token")
+                )
+            )
+        try subject.printSession(serverURL: serverURL)
+
+        // Then
+        XCTAssertPrinterOutputContains("""
+        Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
+        access-token
         """)
     }
 
@@ -107,9 +135,39 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_logout_deletesTheCredentials() throws {
+    func test_logout_deletesLegacyCredentials() throws {
         // Given
-        let credentials = ServerCredentials(token: "token")
+        let credentials = ServerCredentials(
+            token: "token",
+            accessToken: nil,
+            refreshToken: nil
+        )
+        given(credentialsStore)
+            .store(credentials: .value(credentials), serverURL: .value(serverURL))
+            .willReturn()
+        try credentialsStore.store(credentials: credentials, serverURL: serverURL)
+
+        given(credentialsStore)
+            .delete(serverURL: .value(serverURL))
+            .willReturn()
+
+        // When
+        try subject.logout(serverURL: serverURL)
+
+        // Then
+        XCTAssertPrinterOutputContains("""
+        Removing session for server with URL \(serverURL.absoluteString)
+        Session deleted successfully
+        """)
+    }
+
+    func test_logout_deletesCredentials() throws {
+        // Given
+        let credentials = ServerCredentials(
+            token: nil,
+            accessToken: "access-token",
+            refreshToken: "refresh-token"
+        )
         given(credentialsStore)
             .store(credentials: .value(credentials), serverURL: .value(serverURL))
             .willReturn()

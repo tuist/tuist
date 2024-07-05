@@ -4,20 +4,32 @@ import Path
 import TuistSupport
 
 public struct ServerCredentials: Codable, Equatable {
-    /// Authentication token.
-    public let token: String
+    /// Deprecated authentication token.
+    public let token: String?
+
+    /// JWT access token
+    public let accessToken: String?
+
+    /// JWT refresh token
+    public let refreshToken: String?
 
     /// Initializes the credentials with its attributes.
     /// - Parameters:
     ///   - token: Authentication token.
     ///   - account: Account identifier.
-    public init(token: String) {
+    public init(
+        token: String?,
+        accessToken: String?,
+        refreshToken: String?
+    ) {
         self.token = token
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
     }
 }
 
 @Mockable
-public protocol ServerCredentialsStoring {
+public protocol ServerCredentialsStoring: Sendable {
     /// It stores the credentials for the server with the given URL.
     /// - Parameters:
     ///   - credentials: Credentials to be stored.
