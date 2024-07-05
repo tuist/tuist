@@ -5,7 +5,7 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
     func uploadAnalyticsArtifact(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         serverURL: URL
     ) async throws -> String
@@ -16,12 +16,13 @@ public enum MultipartUploadStartAnalyticsServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -29,8 +30,8 @@ public enum MultipartUploadStartAnalyticsServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache artifact could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+            return "The remote cache artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -40,11 +41,11 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
     public init() {}
 
     public func uploadAnalyticsArtifact(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         serverURL: URL
     ) async throws -> String {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.startAnalyticsArtifactMultipartUpload(
             .init(
                 path: .init(run_id: commandEventId),
@@ -68,6 +69,11 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadStartAnalyticsServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

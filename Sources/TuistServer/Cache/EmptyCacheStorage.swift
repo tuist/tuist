@@ -8,10 +8,10 @@ public final class EmptyCacheStorage: CacheStoring {
 
     public func fetch(
         _: Set<CacheStorableItem>,
-        cacheCategory _: CacheCategory.App
+        cacheCategory _: RemoteCacheCategory
     ) async throws -> [CacheStorableItem: AbsolutePath] {
         [:]
     }
 
-    public func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: CacheCategory.App) async throws {}
+    public func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory) async throws {}
 }

@@ -1,5 +1,48 @@
 # Changelog
 
+## 4.20.0 - 2024-07-02
+
+### Tuist
+
+#### Added
+
+- Add support for enabling explicit modules for Xcode 16 [#6405](https://github.com/tuist/tuist/pull/6405) by [@waltflanagan](https://github.com/waltflanagan)
+
+#### Fixed
+
+- Print only JSON string for dump and when --json flag is present [#6440](https://github.com/tuist/tuist/pull/6440) by [@fortmarek](https://github.com/fortmarek)
+- Handle unauthorized server errors [#6451](https://github.com/tuist/tuist/pull/6451) by [@fortmarek](https://github.com/fortmarek)
+- Fix generation of Quick's SPM QuickObjcRuntime target [#6445](https://github.com/tuist/tuist/pull/6445) by [@simpers](https://github.com/simpers)
+- Provide better error message for a missing Tuist server token [#6450](https://github.com/tuist/tuist/pull/6450) by [@fortmarek](https://github.com/fortmarek)
+- Fix deleting Tuist project and organization [#6455](https://github.com/tuist/tuist/pull/6455) by [@fortmarek](https://github.com/fortmarek)
+- Add missing target settings `MERGED_BINARY_TYPE` and `MERGEABLE_LIBRARY` [#6447](https://github.com/tuist/tuist/pull/6447) by [@woin2ee](https://github.com/woin2ee)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.19.0 - 2024-06-25
+
+### Tuist
+
+#### Changed
+
+- Surface current organization usage in cloud organization show [#6421](https://github.com/tuist/tuist/pull/6421) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add test targets to project when generating from `Package.swift` file. [#6424](https://github.com/tuist/tuist/pull/6424) by [@woin2ee](https://github.com/woin2ee)
+
+#### Fixed
+
+- Fix tuist clean when no category is provided [#6422](https://github.com/tuist/tuist/pull/6422) by [@fortmarek](https://github.com/fortmarek)
+- Fix caching ProjectDescriptionHelpers across macOS versions [#6429](https://github.com/tuist/tuist/pull/6429) by [@fortmarek](https://github.com/fortmarek)
+- Skip tests for schemes removed by selective testing [#6435](https://github.com/tuist/tuist/pull/6435) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.18.0 - 2024-06-18
 
 ### Tuist

@@ -14,6 +14,7 @@ extension Config {
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
         public let enforceExplicitDependencies: Bool
         public let defaultConfiguration: String?
+        public var optionalAuthentication: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -21,7 +22,8 @@ extension Config {
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -29,6 +31,7 @@ extension Config {
             self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
             self.enforceExplicitDependencies = enforceExplicitDependencies
             self.defaultConfiguration = defaultConfiguration
+            self.optionalAuthentication = optionalAuthentication
         }
     }
 }

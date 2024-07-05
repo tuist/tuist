@@ -6,12 +6,11 @@ import TuistSupport
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private var path: AbsolutePath!
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var packageInfoMapper: MockPackageInfoMapping!
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
@@ -395,42 +394,50 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         packageManifests[manifestPath.parentDirectory] = manifest
     }
 
-    private func createManifestLoader() -> MockManifestLoader {
-        let manifestLoader = MockManifestLoader()
-        manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = projectManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.project, path)
+    private func createManifestLoader() -> MockManifestLoading {
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadProject(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = projectManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.project, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = workspaceManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadWorkspace(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = workspaceManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.loadPackageStub = { [unowned self] path in
-            guard let manifest = packageManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadPackage(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = packageManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.manifestsAtStub = { [unowned self] path in
-            var manifests = Set<Manifest>()
-            if let _ = projectManifests[path] {
-                manifests.insert(.project)
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willProduce { [unowned self] path in
+                var manifests = Set<Manifest>()
+                if let _ = projectManifests[path] {
+                    manifests.insert(.project)
+                }
+                if let _ = workspaceManifests[path] {
+                    manifests.insert(.workspace)
+                }
+                if let _ = packageManifests[path] {
+                    manifests.insert(.package)
+                }
+                return manifests
             }
-            if let _ = workspaceManifests[path] {
-                manifests.insert(.workspace)
-            }
-            if let _ = packageManifests[path] {
-                manifests.insert(.package)
-            }
-            return manifests
-        }
         return manifestLoader
     }
 }

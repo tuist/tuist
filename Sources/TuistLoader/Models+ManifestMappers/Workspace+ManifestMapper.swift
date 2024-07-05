@@ -19,7 +19,6 @@ extension XcodeGraph.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
-                .lazy
                 .filter(FileHandler.shared.isFolder)
                 .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
                 .filter {

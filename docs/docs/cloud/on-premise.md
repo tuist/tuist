@@ -108,16 +108,8 @@ You can enable authentication with Okta through the [OAuth 2.0](https://oauth.ne
         
 - **App integration name:** `Tuist Cloud`
 - **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
-- **Sign-in redirect URL:** `{url}/users/auth/github/callback` where `url` is the public URL your service is accessed through.
+- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
 - **Assignments:** This configuration will depend on your security team requirements.
-
-If you'd like Tuist Cloud to detect when a user is removed from the application, you'll have to configure an [event hook](https://help.okta.com/en-us/content/topics/automation-hooks/event-hooks-main.htm). In your Okta organization, go to **Workflow > Event Hooks** and create a new event hook with the following data:
-
-- **Name:**  Notify memberhip removal to Tuist Cloud
-- **URL:** `{url}/webhooks/okta` where `url` is the public URL your service is accessed through.
-- **Authentication field:** `Authorization`
-- **Authentication secret:** A token that Tuist Cloud uses to validate the webhooks.
-- **Subscribe to events** Include *User unassigned from app*
 
 Once the app is created you'll need to set the following environment variables:
 
@@ -126,10 +118,6 @@ Once the app is created you'll need to set the following environment variables:
 | `TUIST_OKTA_SITE` | The URL of your Okta organization | Yes | | `https://your-org.okta.com` |
 | `TUIST_OKTA_CLIENT_ID` | The client ID to authenticate against Okta | Yes | | |
 | `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes | | |
-| `TUIST_OKTA_AUTHORIZE_URL` | The authorize URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/authorize` | |
-| `TUIST_OKTA_TOKEN_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/token` | |
-| `TUIST_OKTA_USER_INFO_URL` | The token URL | No | `{OKTA_SITE}/oauth2/<authorization_server>/v1/userinfo` | |
-| `TUIST_OKTA_EVENT_HOOK_SECRET` | A secret to validat event hooks delivered by Okta | No | |
 
 ### Storage environment configuration
 
@@ -314,40 +302,3 @@ volumes:
   db:
     driver: local
 ```
-
-## Metrics
-
-You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
-
-### Runs metrics
-
-A set of metrics related to Tuist Runs.
-
-#### `tuist_runs_total` (counter)
-
-The total number of Tuist Runs.
-
-**Tags:**
-- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
-- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
-- `status` – `0` in case of `success`, `1` in case of `failure`
-
-#### `tuist_runs_duration_milliseconds` (histogram)
-
-The total duration of each tuist run in milliseconds.
-
-**Tags:**
-- `name` – name of the `tuist` command that was run, such as `build`, `test`, etc.
-- `is_ci` – a boolean indicating if the executor was a CI or a developer's machine.
-- `status` – `0` in case of `success`, `1` in case of `failure`
-
-### Cache metrics
-
-A set of metrics related to the Tuist Cache.
-
-#### `tuist_cache_events_total` (counter)
-
-The total number of Tuist Binary Cache events.
-
-**Tags:**
-- `event_type`: Can be either of `local_hit`, `remote_hit`, or `miss`.

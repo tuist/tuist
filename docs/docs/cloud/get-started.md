@@ -28,7 +28,7 @@ The first to start using Tuist Cloud is to **sign up**.
 For that, you can run the following command:
 
 ```bash
-tuist cloud auth
+tuist auth
 ```
 
 > [!TIP] ORGANIZATION AND USERS
@@ -42,14 +42,14 @@ If you are part of an organization to which you want to invite other members, yo
 > This is not necessary if you are working by yourself because you can create projects under your personal account.
 
 ```bash
-tuist cloud organization create my-organization # Create organization
+tuist organization create my-organization # Create organization
 ```
 
 ### Organization SSO
 
 If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
 ```bash
-tuist cloud organization update sso my-organization --provider google --organization-id my-domain.com
+tuist organization update sso my-organization --provider google --organization-id my-domain.com
 ```
 
 > [!IMPORTANT] 
@@ -60,10 +60,10 @@ The next step is to create a project. You can easily do that with the following 
 
 ::: code-group
 ```bash [Project under user account]
-tuist cloud project create my-project
+tuist project create my-account/my-project
 ```
 ```bash [Project under organization]
-tuist cloud project create my-project -o my-organization
+tuist project create my-organization/my-project
 ```
 :::
 
@@ -72,7 +72,7 @@ After creating the project, modify your `Tuist/Config.swift` file to reference t
 ```swift
 import ProjectDescription
 
-let config = Config(cloud: .cloud(projectId: "my-organization/my-project"))
+let config = Config(fullHandle: "my-organization/my-project")
 ```
 
 > [!TIP] PROJECT IDENTIFIER
@@ -82,17 +82,17 @@ let config = Config(cloud: .cloud(projectId: "my-organization/my-project"))
 
 ### As user
 
-Developers on your team can access Tuist Cloud if they are authenticated and added as members of the organization, which you can do using the `tuist cloud organization invite` command. 
+Developers on your team can access Tuist Cloud if they are authenticated and added as members of the organization, which you can do using the `tuist organization invite` command. 
 
 ### As project (e.g. for CI)
 For CI environments, authentication is managed differently; it's done using **project-scoped tokens**. These tokens possess restricted permissions compared to those of the organization, including the ability to warm the cache with binaries. To obtain this token, you can execute the following command:
 
 
 ```bash
-tuist cloud project token my-project -o my-organization
+tuist project token my-organization/my-project
 ```
 
-You will then need to set the token as an environment variable named `TUIST_CONFIG_CLOUD_TOKEN` to make it accessible.
+You will then need to set the token as an environment variable named `TUIST_CONFIG_TOKEN` to make it accessible.
 
 > [!NOTE] EXPOSING SECRET ENVIRONMENT VARIABLES IN CI ENVIRONMENTS
 > How environment secret environment variables are exposed in CI environments varies depending on the CI provider. Ensure you follow the guidelines provided by your CI provider to securely manage these tokens. 

@@ -20,7 +20,7 @@ public enum Module: String, CaseIterable {
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
-    case app = "TuistServer"
+    case server = "TuistServer"
 
     public var isRunnable: Bool {
         switch self {
@@ -117,7 +117,7 @@ public enum Module: String, CaseIterable {
 
     public var acceptanceTestsTargetName: String? {
         switch self {
-        case .tuist, .automation, .dependencies, .generator:
+        case .kit, .automation, .dependencies, .generator:
             return "\(rawValue)AcceptanceTests"
         default:
             return nil
@@ -127,7 +127,7 @@ public enum Module: String, CaseIterable {
     public var testingTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation, .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .app:
+             .dependencies, .acceptanceTesting, .server:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -148,7 +148,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .app:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -172,7 +172,7 @@ public enum Module: String, CaseIterable {
 
     public var acceptanceTestDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] = switch self {
-        case .tuist, .automation, .dependencies, .generator:
+        case .kit, .automation, .dependencies, .generator:
             [
                 .target(name: Module.acceptanceTesting.targetName),
                 .target(name: Module.support.testingTargetName!),
@@ -241,7 +241,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.generator.targetName),
                 .target(name: Module.automation.targetName),
-                .target(name: Module.app.targetName),
+                .target(name: Module.server.targetName),
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.projectAutomation.targetName),
                 .target(name: Module.loader.targetName),
@@ -256,6 +256,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
+                .external(name: "OpenAPIRuntime"),
             ]
         case .core:
             [
@@ -343,7 +344,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "XcbeautifyLib"),
                 .external(name: "XcodeGraph"),
             ]
-        case .app:
+        case .server:
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
@@ -446,7 +447,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
             ]
-        case .app:
+        case .server:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
@@ -522,7 +523,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.testingTargetName!),
             ]
-        case .app:
+        case .server:
             []
         }
         return dependencies + sharedDependencies + [.target(name: targetName)]
@@ -588,7 +589,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.support.testingTargetName!),
             ]
-        case .app:
+        case .server:
             []
         }
         dependencies.append(contentsOf: sharedDependencies)

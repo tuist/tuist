@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import TuistCore
 import TuistSupport
@@ -9,13 +10,13 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class EnvironmentLinterTests: TuistUnitTestCase {
-    private var rootDirectoryLocator: MockRootDirectoryLocator!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
     var subject: EnvironmentLinter!
 
     override func setUp() {
         super.setUp()
 
-        rootDirectoryLocator = MockRootDirectoryLocator()
+        rootDirectoryLocator = .init()
         subject = EnvironmentLinter(rootDirectoryLocator: rootDirectoryLocator)
     }
 
@@ -108,7 +109,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
     func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory() throws {
         // Given
         let fakeRoot = try! AbsolutePath(validating: "/root")
-        rootDirectoryLocator.locateStub = fakeRoot
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(fakeRoot)
 
         let configPath = fakeRoot.appending(try RelativePath(validating: "Config.swift"))
         let config = Config.test(path: configPath)
@@ -124,7 +127,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
     func test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory() throws {
         // Given
         let fakeRoot = try! AbsolutePath(validating: "/root")
-        rootDirectoryLocator.locateStub = fakeRoot
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(fakeRoot)
 
         let configPath = fakeRoot
             .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)"))

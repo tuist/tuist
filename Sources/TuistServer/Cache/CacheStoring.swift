@@ -39,18 +39,18 @@ public struct CacheStorableItem: Hashable, Equatable {
 public protocol CacheStoring {
     func fetch(
         _ items: Set<CacheStorableItem>,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> [CacheStorableItem: AbsolutePath]
     func store(
         _ items: [CacheStorableItem: [AbsolutePath]],
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws
 }
 
 extension CacheStoring {
     public func fetch(
         _ targets: Set<CacheStorableTarget>,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> [CacheStorableTarget: AbsolutePath] {
         Dictionary(
             uniqueKeysWithValues: try await fetch(
@@ -66,7 +66,7 @@ extension CacheStoring {
 
     public func store(
         _ targets: [CacheStorableTarget: [AbsolutePath]],
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws {
         let items = Dictionary(uniqueKeysWithValues: targets.map { target, paths -> (CacheStorableItem, [AbsolutePath]) in
             (CacheStorableItem(name: target.name, hash: target.hash), paths)

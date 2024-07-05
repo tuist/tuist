@@ -6,9 +6,9 @@ public protocol UpdateOrganizationMemberServicing {
     func updateOrganizationMember(
         organizationName: String,
         username: String,
-        role: CloudOrganization.Member.Role,
+        role: ServerOrganization.Member.Role,
         serverURL: URL
-    ) async throws -> CloudOrganization.Member
+    ) async throws -> ServerOrganization.Member
 }
 
 enum UpdateOrganizationMemberServiceError: FatalError {
@@ -16,12 +16,13 @@ enum UpdateOrganizationMemberServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .badRequest:
+        case .notFound, .forbidden, .unauthorized, .badRequest:
             return .abort
         }
     }
@@ -29,8 +30,8 @@ enum UpdateOrganizationMemberServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The member could not be updated due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message):
+            return "The member could not be updated due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -42,10 +43,10 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
     public func updateOrganizationMember(
         organizationName: String,
         username: String,
-        role: CloudOrganization.Member.Role,
+        role: ServerOrganization.Member.Role,
         serverURL: URL
-    ) async throws -> CloudOrganization.Member {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization.Member {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.updateOrganizationMember(
             .init(
@@ -60,7 +61,7 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(organizationMember):
-                return CloudOrganization.Member(organizationMember)
+                return ServerOrganization.Member(organizationMember)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
@@ -71,6 +72,11 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
             switch forbiddenResponse.body {
             case let .json(error):
                 throw UpdateOrganizationMemberServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateOrganizationMemberServiceError.unknownError(statusCode)

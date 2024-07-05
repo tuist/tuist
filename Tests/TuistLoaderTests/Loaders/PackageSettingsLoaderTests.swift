@@ -14,7 +14,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestFilesLocator: MockManifestFilesLocating!
     private var subject: PackageSettingsLoader!
@@ -22,7 +22,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        manifestLoader = MockManifestLoader()
+        manifestLoader = .init()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestFilesLocator = MockManifestFilesLocating()
         subject = PackageSettingsLoader(
@@ -49,6 +49,14 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(temporaryPath)
 
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn(())
+
+        given(manifestLoader)
+            .loadPackageSettings(at: .any)
+            .willReturn(.test())
+
         swiftPackageManagerController.getToolsVersionStub = { _ in
             TSCUtility.Version("5.4.9")
         }
@@ -73,7 +81,9 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             includeLocalPackageTestTargets: false,
             swiftToolsVersion: Version(stringLiteral: "5.4.9")
         )
-        XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
+        verify(manifestLoader)
+            .register(plugins: .any)
+            .called(1)
         XCTAssertEqual(got, expected)
     }
 }

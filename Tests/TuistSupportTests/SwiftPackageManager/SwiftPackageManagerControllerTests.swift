@@ -12,7 +12,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerController()
+        subject = SwiftPackageManagerController(system: system, fileHandler: fileHandler)
     }
 
     override func tearDown() {

@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported to the cloud backend (if defined)
+/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported to the Tuist server (if defined)
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public static let dispatcherId = "TuistAnalytics"
 

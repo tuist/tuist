@@ -902,22 +902,31 @@ public enum Components {
             public enum planPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
                 _AutoLosslessStringConvertible, CaseIterable
             {
-                case team
+                case air
+                case pro
+                case enterprise
+                case none
                 /// Parsed a raw value that was not defined in the OpenAPI document.
                 case undocumented(String)
                 public init?(rawValue: String) {
                     switch rawValue {
-                    case "team": self = .team
+                    case "air": self = .air
+                    case "pro": self = .pro
+                    case "enterprise": self = .enterprise
+                    case "none": self = .none
                     default: self = .undocumented(rawValue)
                     }
                 }
                 public var rawValue: String {
                     switch self {
                     case let .undocumented(string): return string
-                    case .team: return "team"
+                    case .air: return "air"
+                    case .pro: return "pro"
+                    case .enterprise: return "enterprise"
+                    case .none: return "none"
                     }
                 }
-                public static var allCases: [planPayload] { [.team] }
+                public static var allCases: [planPayload] { [.air, .pro, .enterprise, .none] }
             }
             /// The plan associated with the organization
             ///
@@ -1462,6 +1471,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createCommandEvent.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createCommandEvent.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCommandEvent.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createCommandEvent.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createCommandEvent.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createCommandEvent.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -1776,6 +1816,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.downloadCacheArtifact.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadCacheArtifact.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadCacheArtifact.Output.Unauthorized.Headers = .init(),
+                    body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadCacheArtifact.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2030,6 +2101,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.cacheArtifactExists.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheArtifactExists.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheArtifactExists.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cacheArtifactExists.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2379,6 +2481,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.completeCacheArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2605,6 +2741,43 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.generateCacheArtifactMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+            )
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2823,6 +2996,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.startCacheArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startCacheArtifactMultipartUpload.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3031,6 +3238,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.listOrganizations.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listOrganizations.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listOrganizations.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listOrganizations.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listOrganizations.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listOrganizations.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3298,6 +3536,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showOrganization.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(showOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3549,6 +3818,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganization__2_.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganization__2_.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganization__2_.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganization__2_.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganization__2_.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/patch(updateOrganization (2))/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganization__2_.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3799,6 +4100,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganization.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.updateOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/put(updateOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3934,11 +4266,9 @@ public enum Operations {
                 }
                 /// Received HTTP response headers
                 public var headers: Operations.deleteOrganization.Output.NoContent.Headers
-                @frozen public enum Body: Sendable, Equatable, Hashable {
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                }
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
                 /// Received HTTP response body
-                public var body: Operations.deleteOrganization.Output.NoContent.Body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
                 ///
                 /// - Parameters:
@@ -3946,7 +4276,7 @@ public enum Operations {
                 ///   - body: Received HTTP response body
                 public init(
                     headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
-                    body: Operations.deleteOrganization.Output.NoContent.Body
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
                 ) {
                     self.headers = headers
                     self.body = body
@@ -3958,6 +4288,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteOrganization.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4165,6 +4526,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createInvitation.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createInvitation.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createInvitation.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createInvitation.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createInvitation.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createInvitation)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createInvitation.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4341,6 +4733,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cancelInvitation.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelInvitation.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelInvitation.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelInvitation.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cancelInvitation.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cancelInvitation.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4582,6 +5005,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganizationMember.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/put(updateOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationMember.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4776,6 +5231,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.removeOrganizationMember.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.removeOrganizationMember.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4935,6 +5422,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showOrganizationUsage.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showOrganizationUsage.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5099,6 +5617,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.listProjects.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjects.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjects.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjects.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listProjects.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjects.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -5137,24 +5686,35 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/POST/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The full handle of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/full_handle`.
+                    public var full_handle: Swift.String?
                     /// The name of the project that should be created.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/name`.
-                    public var name: Swift.String
+                    @available(*, deprecated) public var name: Swift.String?
                     /// Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/organization`.
-                    public var organization: Swift.String?
+                    @available(*, deprecated) public var organization: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                    public init(name: Swift.String, organization: Swift.String? = nil) {
+                    public init(
+                        full_handle: Swift.String? = nil,
+                        name: Swift.String? = nil,
+                        organization: Swift.String? = nil
+                    ) {
+                        self.full_handle = full_handle
                         self.name = name
                         self.organization = organization
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case full_handle
                         case name
                         case organization
                     }
@@ -5247,6 +5807,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createProject.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5376,6 +5967,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showProject.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5534,6 +6156,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cleanCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cleanCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cleanCache.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5610,12 +6263,12 @@ public enum Operations {
         public static let id: String = "deleteProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var id: Swift.Double
+                public var id: Swift.Int
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - id:
-                public init(id: Swift.Double) { self.id = id }
+                public init(id: Swift.Int) { self.id = id }
             }
             public var path: Operations.deleteProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
@@ -5687,6 +6340,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteProject.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5878,6 +6562,43 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+            )
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6058,6 +6779,40 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploads.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6253,6 +7008,44 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                        .Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output
+                        .Unauthorized.Headers = .init(),
+                    body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+            )
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6422,6 +7215,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.startAnalyticsArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.

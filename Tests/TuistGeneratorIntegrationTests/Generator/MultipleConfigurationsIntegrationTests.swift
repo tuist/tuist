@@ -380,7 +380,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     private func createConfig() -> Config {
         Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
