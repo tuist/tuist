@@ -39,10 +39,19 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
-                let (updatedTarget, sideEffects) = try map(target: target, project: project)
-                results.targets[updatedTarget.name] = updatedTarget
-                results.sideEffects.append(contentsOf: sideEffects)
+                let (updatedTargetProject, sideEffectsProject) = try mapToProject(
+                    target: target,
+                    project: project
+                )
+                let (updatedTargetSetings, sideEffectsSettings) = try mapToConfigurations(
+                    target: updatedTargetProject,
+                    project: project
+                )
+
+                results.targets[updatedTargetSetings.name] = updatedTargetSetings
+                results.sideEffects.append(contentsOf: sideEffectsProject + sideEffectsSettings)
             }
+
         var project = project
         project.targets = results.targets
 
@@ -51,7 +60,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
 
     // MARK: - Private
 
-    private func map(target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
+    private func mapToProject(target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         // There's nothing to do
         guard let infoPlist = target.infoPlist else {
             return (target, [])
@@ -80,6 +89,53 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         let newTarget = target.with(infoPlist: InfoPlist.generatedFile(path: infoPlistPath, data: data))
 
         return (newTarget, [sideEffect])
+    }
+
+    private func mapToConfigurations(target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
+        guard let settings = target.settings else {
+            return (target, [])
+        }
+
+        var results = (configurations: [BuildConfiguration: Configuration?](), sideEffects: [SideEffectDescriptor]())
+        results = try settings.configurations.reduce(into: results) { results, element in
+            let (buildConfiguration, configuration) = element
+            guard let configuration, let infoPlist = configuration.infoPlist else {
+                results.configurations[buildConfiguration] = configuration
+                return
+            }
+
+            guard let dictionary = infoPlistDictionary(
+                infoPlist: infoPlist,
+                project: project,
+                target: target
+            )
+            else {
+                results.configurations[buildConfiguration] = configuration
+                return
+            }
+
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: dictionary,
+                format: .xml,
+                options: 0
+            )
+
+            let infoPlistPath = project.derivedDirectoryPath(for: target)
+                .appending(component: infoPlistsDirectoryName)
+                .appending(component: "\(target.name)-\(buildConfiguration.name)-Info.plist")
+
+            let newConfiguration = configuration.with(
+                infoPlist: InfoPlist.generatedFile(path: infoPlistPath, data: data)
+            )
+
+            results.configurations[buildConfiguration] = newConfiguration
+            results.sideEffects += [SideEffectDescriptor.file(FileDescriptor(path: infoPlistPath, contents: data))]
+        }
+
+        let newSettings = settings.with(configurations: results.configurations)
+        let newTarget = target.with(settings: newSettings)
+
+        return (newTarget, results.sideEffects)
     }
 
     private func infoPlistDictionary(
