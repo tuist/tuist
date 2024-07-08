@@ -17,7 +17,11 @@ function capitalize(text) {
 }
 
 function requiresProjectBadge() {
-  return `<div style="background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>`;
+  return `<div style="background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Tuist Project</div>`;
+}
+
+function requiresAccount() {
+  return `<div style="background: var(--vp-c-success-soft); color: var(--vp-c-success-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Account required</div>`;
 }
 
 function appleIcon(size = 15) {
@@ -181,37 +185,38 @@ const guideSidebar = [
         link: "/guide/project/plugins",
       },
       {
-        text: "Commands",
-        collapsed: true,
-        items: [
-          { text: "Generate", link: "/guide/automation/generate" },
-          { text: "Build", link: "/guide/automation/build" },
-          { text: "Test", link: "/guide/automation/test" },
-          { text: "Run", link: "/guide/automation/run" },
-          { text: "Graph", link: "/guide/automation/graph" },
-          { text: "Clean", link: "/guide/automation/clean" },
-        ],
+        text: "Hashing",
+        link: "/guide/project/hashing",
       },
       {
         text: "The modular architecture",
-        link: "/guide/scale/tma-architecture",
+        link: "/guide/project/tma-architecture",
       },
       {
         text: "The cost of convenience",
         link: "/guide/project/cost-of-convenience",
       },
-    ],
-  },
-  {
-    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
-    items: [
       {
-        text: "Binary cache",
+        text: "Commands",
+        collapsed: true,
+        items: [
+          { text: "Generate", link: "/guide/project/commands/generate" },
+          { text: "Build", link: "/guide/project/commands/build" },
+          { text: "Test", link: "/guide/project/commands/test" },
+          { text: "Run", link: "/guide/project/commands/run" },
+          { text: "Graph", link: "/guide/project/commands/graph" },
+          { text: "Clean", link: "/guide/project/commands/clean" },
+        ],
       },
     ],
   },
   {
-    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tests ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
+    link: "/guide/cache",
+    items: [],
+  },
+  {
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tests ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
     items: [
       {
         text: "Smart test selection",
@@ -222,7 +227,7 @@ const guideSidebar = [
     ],
   },
   {
-    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Runs ${appleIcon()}</div>${requiresProjectBadge()}</div>`,
+    text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Runs ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
     items: [
       {
         text: "Analytics",
@@ -241,16 +246,8 @@ const guideSidebar = [
   //       link: "/cloud/get-started",
   //     },
   //     {
-  //       text: "Binary caching",
-  //       link: "/cloud/binary-caching",
-  //     },
-  //     {
   //       text: "Selective testing",
   //       link: "/cloud/selective-testing",
-  //     },
-  //     {
-  //       text: "Hashing",
-  //       link: "/cloud/hashing",
   //     },
   //     {
   //       text: "On-premise",
@@ -304,7 +301,7 @@ export default defineConfig({
     const redirects = `    
 /documentation/tuist/installation /guide/cli/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
-/documentation/tuist/command-line-interface /guide/automation/generate 301
+/documentation/tuist/command-line-interface /guide/project/commands/generate 301
 /documentation/tuist/dependencies /guide/project/dependencies 301
 /documentation/tuist/sharing-code-across-manifests /guide/project/code-sharing 301
 /documentation/tuist/synthesized-files /guide/project/synthesized-files 301
@@ -319,7 +316,7 @@ export default defineConfig({
 /documentation/tuist/task /guide/project/plugins 301
 /documentation/tuist/tuist-cloud /cloud/what-is-cloud 301
 /documentation/tuist/tuist-cloud-get-started /cloud/get-started 301
-/documentation/tuist/binary-caching /cloud/binary-caching 301
+/documentation/tuist/binary-caching /guide/cache 301
 /documentation/tuist/selective-testing /cloud/selective-testing 301
 /tutorials/tuist-cloud-tutorials /cloud/on-premise 301
 /tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
@@ -330,8 +327,8 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
-/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
-/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+/guide/scale/ufeatures-architecture.html /guide/project/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/project/tma-architecture 301
 /guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
 /guide/introduction/from-v3-to-v4 /guide/tuist/from-v3-to-v4 301
 /guide/introduction/installation /guide/tuist/installation/cli 301
@@ -343,7 +340,14 @@ export default defineConfig({
 /guide/introduction/adopting-tuist/migrate-from-bazel /guide/project/adoption/migrate-from-bazel 301
 /guide/tuist/installation /guide/tuist/installation/cli 301
 /cloud/on-premise /guide/tuist/installation/server 301
-
+/cloud/binary-caching /guide/cache 301
+/guide/automation/build /guide/project/commands/build 301
+/guide/automation/test /guide/project/commands/test 301
+/guide/automation/run /guide/project/commands/run 301
+/guide/automation/graph /guide/project/commands/graph 301
+/guide/automation/clean /guide/project/commands/clean 301
+/guide/scale/tma-architecture /guide/project/tma-architecture 301
+/cloud/hashing /guide/project/hashing 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
