@@ -1437,6 +1437,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dansinclair25",
+      "name": "Dan Sinclair",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2573447?v=4",
+      "profile": "https://github.com/dansinclair25",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
