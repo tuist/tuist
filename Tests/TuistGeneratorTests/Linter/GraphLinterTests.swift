@@ -1713,15 +1713,23 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             targets: [targetA, targetB],
             schemes: [
-                .test(testAction: .test(
-                    coverage: true,
-                    codeCoverageTargets: [
-                        TargetReference(
-                            projectPath: temporaryPath,
-                            name: "TargetA"
-                        ),
-                    ]
-                )),
+                .test(
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        coverage: true,
+                        codeCoverageTargets: [
+                            TargetReference(
+                                projectPath: temporaryPath,
+                                name: "TargetA"
+                            ),
+                        ]
+                    ),
+                    runAction: nil,
+                    archiveAction: nil,
+                    profileAction: nil,
+                    analyzeAction: nil
+                ),
             ]
         )
 
