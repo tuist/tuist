@@ -8,7 +8,7 @@ defmodule TuistCloudWeb.UserSessionControllerTest do
     TuistCloud.Environment
     |> stub(:secret_key_password, fn -> "secret_key_password" end)
 
-    %{user: user_fixture()}
+    %{user: user_fixture(preloads: [:account])}
   end
 
   describe "POST /users/log_in" do
@@ -23,8 +23,7 @@ defmodule TuistCloudWeb.UserSessionControllerTest do
 
       # Now do a logged in request and assert on the menu
       conn = build_conn() |> log_in_user(user) |> get(~p"/")
-      response = html_response(conn, 302)
-      assert response =~ ~p"/get-started"
+      assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
     end
 
     test "logs the user in with remember me", %{conn: conn, user: user} do

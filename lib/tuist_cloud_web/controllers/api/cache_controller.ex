@@ -488,13 +488,13 @@ defmodule TuistCloudWeb.API.CacheController do
     summary: "Cleans cache for a given project",
     operation_id: "cleanCache",
     parameters: [
-      account_name: [
+      account_handle: [
         in: :path,
         type: :string,
         required: true,
         description: "The name of the account that the project belongs to."
       ],
-      project_name: [
+      project_handle: [
         in: :path,
         type: :string,
         required: true,
@@ -515,13 +515,13 @@ defmodule TuistCloudWeb.API.CacheController do
   def clean(
         %{
           path_params: %{
-            "account_name" => account_name,
-            "project_name" => project_name
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
           }
         } = conn,
         _params
       ) do
-    project_slug = "#{account_name}/#{project_name}"
+    project_slug = "#{account_handle}/#{project_handle}"
 
     Storage.delete_all_objects("#{project_slug}/builds")
     Storage.delete_all_objects("#{project_slug}/tests")

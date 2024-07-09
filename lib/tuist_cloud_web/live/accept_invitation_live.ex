@@ -29,8 +29,6 @@ defmodule TuistCloudWeb.AcceptInvitationLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
-
     <.stack class="auth-page" gap="4xl">
       <%= if assigns[:error] do %>
         <.auth_header

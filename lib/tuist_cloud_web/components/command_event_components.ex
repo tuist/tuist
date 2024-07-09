@@ -5,7 +5,7 @@ defmodule TuistCloudWeb.CommandEventComponents do
 
   use Phoenix.Component
   import TuistCloudWeb.CoreComponents
-  import TuistCloudWeb.Components.Icons
+  import TuistCloudWeb.Components.IconComponents
   import TuistCloudWeb.Gettext
 
   attr(:command_event, :map, required: true)
@@ -15,15 +15,15 @@ defmodule TuistCloudWeb.CommandEventComponents do
     <%= cond do %>
       <% not is_nil(@command_event.user) -> %>
         <.badge title={@command_event.user.account.name} kind={:brand}>
-          <:icon><.user /></:icon>
+          <:icon><.user_icon /></:icon>
         </.badge>
       <% @command_event.is_ci -> %>
         <.badge title={gettext("CI")} kind={:neutral}>
-          <:icon><.settings /></:icon>
+          <:icon><.settings_icon /></:icon>
         </.badge>
       <% true -> %>
         <.badge title={gettext("Unknown")} kind={:warning}>
-          <:icon><.user /></:icon>
+          <:icon><.user_icon /></:icon>
         </.badge>
     <% end %>
     """

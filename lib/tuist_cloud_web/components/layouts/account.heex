@@ -1,0 +1,20 @@
+<main class="layout">
+  <.headerbar
+    breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
+    current_user={@current_user}
+    selected_account={@selected_account}
+    most_recent_release={@most_recent_release}
+  />
+  <section class="layout__main">
+    <.account_sidebar
+      current_path={@current_path}
+      current_user={@current_user}
+      current_user_accounts={@current_user_accounts}
+      selected_account={@selected_account}
+      can_read_billing={@can_read_billing}
+    />
+    <div class="layout__content">
+      <%= @inner_content %>
+    </div>
+  </section>
+</main>

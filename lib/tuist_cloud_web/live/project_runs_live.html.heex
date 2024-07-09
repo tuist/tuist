@@ -1,0 +1,36 @@
+<div class="runs page">
+  <h2 class="runs__title text--extraExtraLarge font--semibold"><%= gettext("Runs") %></h2>
+  <.table
+    id="command_events"
+    rows={@command_events}
+    row_link={
+      fn command_event ->
+        ~p"/#{@selected_account.name}/#{@selected_project.name}/runs/#{command_event.id}"
+      end
+    }
+    empty_state_title={gettext("No runs")}
+  >
+    <:col :let={command_event} label={gettext("Command")}>
+      <%= command_event.command_arguments || command_event.name %>
+    </:col>
+    <:col :let={command_event} label={gettext("Status")}>
+      <.command_event_status_badge command_event={command_event} />
+    </:col>
+    <:col :let={command_event} label={gettext("Ran by")}>
+      <.command_event_ran_by_badge command_event={command_event} />
+    </:col>
+    <:col :let={command_event} label={gettext("Duration")}>
+      <%= "#{Float.round(command_event.duration / 1000, 1)} s" %>
+    </:col>
+    <:col :let={command_event} label={gettext("Created at")}>
+      <%= Timex.from_now(command_event.created_at) %>
+    </:col>
+  </.table>
+  <.pagination
+    uri={@uri}
+    has_previous_page={@command_events_meta.has_previous_page?}
+    has_next_page={@command_events_meta.has_next_page?}
+    start_cursor={@command_events_meta.start_cursor}
+    end_cursor={@command_events_meta.end_cursor}
+  />
+</div>

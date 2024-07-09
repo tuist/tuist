@@ -6,8 +6,9 @@ defmodule TuistCloud.AnalyticsTest do
 
   setup [:telemetry_listen]
 
-  @tag telemetry_listen: [:analytics, :organization, :create]
   describe "organization_create" do
+    @describetag telemetry_listen: [:analytics, :organization, :create]
+
     test "when analytics are enabled" do
       # When
       TuistCloud.Environment
@@ -43,8 +44,9 @@ defmodule TuistCloud.AnalyticsTest do
     end
   end
 
-  @tag telemetry_listen: [:analytics, :user, :authenticate]
   describe "user_authenticate" do
+    @describetag telemetry_listen: [:analytics, :user, :authenticate]
+
     test "when analytics are enabled" do
       # When
       TuistCloud.Environment

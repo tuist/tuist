@@ -1,5 +1,6 @@
 alias TuistCloud.Accounts
 alias TuistCloud.Projects
+alias TuistCloud.Projects.Project
 alias TuistCloud.CommandEvents
 import Ecto.Query, only: [from: 2]
 
@@ -22,16 +23,23 @@ account =
 user = Accounts.get_user_by_email(email)
 
 _tuist_project =
-  Projects.get_project_by_slug("tuist/tuist") ||
-    Projects.create_project(%{name: "tuist", account: %{id: account.id}}, token: "tuist")
+  case Projects.get_project_by_slug("tuist/tuist") do
+    {:ok, %Project{} = project} ->
+      project
 
-_tuist_project =
-  with {:ok, project} <- Projects.get_project_by_slug("tuist/tuist") do
-    project
-  else
     {:error, _} ->
-      Projects.create_project(%{name: "tuist", account: %{id: account.id}},
-        token: "tuist"
+      Projects.create_project(%{name: "tuist", account: %{id: account.id}}, token: "tuist")
+  end
+
+_public_project =
+  case Projects.get_project_by_slug("tuist/public") do
+    {:ok, %Project{} = project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project(%{name: "public", account: %{id: account.id}},
+        token: "public",
+        visibility: :public
       )
   end
 

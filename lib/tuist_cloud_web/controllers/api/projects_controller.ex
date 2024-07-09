@@ -186,13 +186,13 @@ defmodule TuistCloudWeb.API.ProjectsController do
     summary: "Returns a project based on the handle.",
     operation_id: "showProject",
     parameters: [
-      account_name: [
+      account_handle: [
         in: :path,
         type: :string,
         required: true,
         description: "The name of the account that the project belongs to."
       ],
-      project_name: [
+      project_handle: [
         in: :path,
         type: :string,
         required: true,
@@ -213,25 +213,25 @@ defmodule TuistCloudWeb.API.ProjectsController do
   def show(
         %{
           path_params: %{
-            "account_name" => account_name,
-            "project_name" => project_name
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
           }
         } = conn,
         _params
       ) do
     user = Authentication.current_user(conn)
-    account = Accounts.get_account_by_handle(account_name)
+    account = Accounts.get_account_by_handle(account_handle)
 
     project =
       if is_nil(account),
         do: nil,
-        else: Projects.get_project_by_account_and_project_handles(account.name, project_name)
+        else: Projects.get_project_by_account_and_project_handles(account.name, project_handle)
 
     cond do
       is_nil(account) ->
         conn
         |> put_status(:not_found)
-        |> json(%Error{message: "Account #{account_name} not found."})
+        |> json(%Error{message: "Account #{account_handle} not found."})
 
       !Authorization.can(user, :read, account, :project) ->
         conn
@@ -243,7 +243,7 @@ defmodule TuistCloudWeb.API.ProjectsController do
       is_nil(project) ->
         conn
         |> put_status(:not_found)
-        |> json(%Error{message: "Project #{account_name}/#{project_name} not found."})
+        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
       !is_nil(project) ->
         conn

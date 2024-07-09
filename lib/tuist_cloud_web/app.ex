@@ -46,7 +46,7 @@ defmodule TuistCloudWeb.App do
 
     {:cont,
      socket
-     |> assign(:selected_owner, owner_handle)
+     |> assign(:selected_account, owner_handle)
      |> assign(:selected_project, project)
      |> assign(:current_user, user)
      |> assign(

@@ -18,7 +18,7 @@ defmodule TuistCloudWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
   import TuistCloudWeb.Gettext
-  import TuistCloudWeb.Components.Icons
+  import TuistCloudWeb.Components.IconComponents
 
   @doc """
   Renders a section header
@@ -81,22 +81,23 @@ defmodule TuistCloudWeb.CoreComponents do
   Renders a dropdown picker
   """
 
-  attr(:id, :string, required: true)
+  attr(:class, :string, default: "")
+  attr(:menu_id, :string, required: true)
+  attr(:menu_class, :string, default: "")
   slot(:inner_block, required: true)
   slot(:content, required: true)
   slot(:icon, required: false)
 
   def dropdown_picker(assigns) do
     ~H"""
-    <div class="dropdown" id={"#{@id}"}>
+    <div class={"dropdown #{@class}"}>
       <.button
         class="dropdown-button"
         variant="secondary"
         size="medium"
-        id={"#{@id}-button"}
         aria-expanded="false"
-        phx-click={JS.toggle(to: "##{@id}-menu")}
-        phx-window-keydown={JS.hide(to: "##{@id}-menu")}
+        phx-click={JS.toggle(to: "##{@menu_id}")}
+        phx-window-keydown={JS.hide(to: "##{@menu_id}")}
         phx-key="Escape"
         type="button"
       >
@@ -108,16 +109,16 @@ defmodule TuistCloudWeb.CoreComponents do
         <%= render_slot(@inner_block) %>
         <:icon>
           <%= if @icon == [] do %>
-            <.chevron_down />
+            <.chevron_down_icon />
           <% end %>
         </:icon>
       </.button>
 
       <div
-        class="dropdown-menu"
-        id={"#{@id}-menu"}
+        class={"dropdown-menu #{@menu_class}"}
+        id={@menu_id}
         hidden
-        phx-click-away={JS.hide(to: "##{@id}-menu")}
+        phx-click-away={JS.hide(to: "##{@menu_id}")}
       >
         <%= render_slot(@content) %>
       </div>
@@ -276,7 +277,7 @@ defmodule TuistCloudWeb.CoreComponents do
             aria-label={gettext("close")}
             class="modal__dialog__container__close-button button--small button--tertiary button--icon-only"
           >
-            <.close />
+            <.close_icon />
           </button>
           <div id={"#{@id}-content"} class="modal__dialog__container__content">
             <%= render_slot(@inner_block) %>
@@ -313,7 +314,7 @@ defmodule TuistCloudWeb.CoreComponents do
       <.stack class="text--extraSmall font--medium" direction="horizontal" gap="xs">
         <span class="badge__type"><%= @title %></span>
         <span class="badge__text"><%= @message %></span>
-        <.close />
+        <.close_icon />
       </.stack>
     </button>
     """
@@ -687,14 +688,14 @@ defmodule TuistCloudWeb.CoreComponents do
     <%= if @type == :prev do %>
       <.link navigate={@uri} class="pagination-link">
         <.button variant="secondary" size="small" disabled={@disabled?}>
-          <:icon_start><.arrow_left /></:icon_start>
+          <:icon_start><.arrow_left_icon /></:icon_start>
           <%= gettext("Previous") %>
         </.button>
       </.link>
     <% else %>
       <.link navigate={@uri} class="pagination-link">
         <.button variant="secondary" size="small" disabled={@disabled?}>
-          <:icon><.arrow_right /></:icon>
+          <:icon><.arrow_right_icon /></:icon>
           <%= gettext("Next") %>
         </.button>
       </.link>
@@ -751,7 +752,7 @@ defmodule TuistCloudWeb.CoreComponents do
             <%= if @empty_state_icon != [] do %>
               <%= render_slot(@empty_state_icon) %>
             <% else %>
-              <.search />
+              <.search_icon />
             <% end %>
           </.featured_icon>
           <.stack gap="xs" class="table-container__empty-state__labels">

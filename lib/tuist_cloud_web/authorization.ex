@@ -11,25 +11,29 @@ defmodule TuistCloudWeb.Authorization do
   def require_user_can_read_project(
         %{
           path_params: %{
-            "owner" => owner,
-            "project" => project
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
           }
         } = conn,
         _opts
       ) do
     user = Authentication.current_user(conn)
 
-    require_user_can_read_project(%{user: user, owner_handle: owner, project_handle: project})
+    require_user_can_read_project(%{
+      user: user,
+      account_handle: account_handle,
+      project_handle: project_handle
+    })
 
     conn
   end
 
   def require_user_can_read_project(%{
         user: user,
-        owner_handle: owner_handle,
+        account_handle: account_handle,
         project_handle: project_handle
       }) do
-    project = Projects.get_project_by_account_and_project_handles(owner_handle, project_handle)
+    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
     if is_nil(project) or not TuistCloud.Authorization.can(user, :read, project, :dashboard) do
       raise TuistCloudWeb.Errors.NotFoundError,

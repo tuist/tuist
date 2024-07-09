@@ -54,7 +54,7 @@ defmodule TuistCloudWeb.AuthorizationTest do
       assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
         Authorization.require_user_can_read_project(%{
           user: user,
-          owner_handle: account.name,
+          account_handle: account.name,
           project_handle: project.name
         })
       end
@@ -68,7 +68,7 @@ defmodule TuistCloudWeb.AuthorizationTest do
       # When / Then
       Authorization.require_user_can_read_project(%{
         user: user,
-        owner_handle: account.name,
+        account_handle: account.name,
         project_handle: project.name
       })
     end

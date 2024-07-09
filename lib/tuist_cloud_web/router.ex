@@ -95,9 +95,9 @@ defmodule TuistCloudWeb.Router do
         OrganizationsController,
         :update_member
 
-    put "/projects/:account_name/:project_name/cache/clean", CacheController, :clean
+    put "/projects/:account_handle/:project_handle/cache/clean", CacheController, :clean
     post "/projects", ProjectsController, :create
-    get "/projects/:account_name/:project_name", ProjectsController, :show
+    get "/projects/:account_handle/:project_handle", ProjectsController, :show
     delete "/projects/:id", ProjectsController, :delete
     get "/projects", ProjectsController, :index
   end
@@ -187,7 +187,7 @@ defmodule TuistCloudWeb.Router do
     get "/cli/:device_code", AuthController, :authenticate
   end
 
-  # Authenticated routes
+  # Dashboard
   scope "/", TuistCloudWeb do
     pipe_through [
       :open_api,
@@ -197,20 +197,22 @@ defmodule TuistCloudWeb.Router do
       TuistCloudWeb.AutoRedirectToProjectPlug
     ]
 
-    live_session :authenticated,
+    get "/:account_handle/billing/manage", BillingController, :manage
+
+    live_session :dashboard,
+      layout: {TuistCloudWeb.Layouts, :account},
       on_mount: [
+        {TuistCloudWeb.LayoutLive, :account},
         {TuistCloudWeb.Authentication, :mount_current_user}
       ] do
-      live "/", HomeLive
-      live "/:owner_handle/settings/billing", BillingLive
-      get "/organizations/:account_name/billing/plan", BillingController, :billing_plan
-      get "/:account_name/billing", BillingController, :billing_plan
-      live "/get-started", GetStartedLive
+      live "/", AccountProjectsLive
+      live "/:account_handle/billing", AccountBillingLive
+      live "/:account_handle/projects", AccountProjectsLive
     end
   end
 
   # Project routes
-  scope "/:owner/:project", TuistCloudWeb do
+  scope "/:account_handle/:project_handle", TuistCloudWeb do
     pipe_through [
       :open_api,
       :browser,
@@ -222,18 +224,19 @@ defmodule TuistCloudWeb.Router do
     ]
 
     live_session :project,
+      layout: {TuistCloudWeb.Layouts, :project},
       on_mount: [
-        {TuistCloudWeb.App, :mount_app},
+        {TuistCloudWeb.LayoutLive, :project},
         {TuistCloudWeb.Authentication, :mount_current_user}
       ] do
-      live "/", HomeLive
-      live "/runs", RunsLive
+      live "/", ProjectDashboardLive
+      live "/runs", ProjectRunsLive
       get "/runs/:id/download", RunsController, :download
-      live "/runs/:id", RunDetailLive
-      live "/tests", FlakyTestsLive
-      live "/tests/cases/:identifier", TestCaseDetailLive
+      live "/runs/:id", ProjectRunDetailLive
+      live "/tests", ProjectFlakyTestsLive
+      live "/tests/cases/:identifier", ProjectTestCaseDetailLive
       # Used in tuist analytics command
-      live "/analytics", HomeLive
+      live "/analytics", ProjectDashboardLive
     end
   end
 end

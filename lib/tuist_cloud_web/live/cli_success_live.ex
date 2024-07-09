@@ -14,8 +14,6 @@ defmodule TuistCloudWeb.CLISuccessLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
-
     <.stack class="auth-page" gap="4xl">
       <.auth_header
         title={gettext("Tuist CLI is connected")}

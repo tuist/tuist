@@ -80,4 +80,10 @@ defmodule TuistCloud.Accounts.User do
     now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
     change(user, confirmed_at: now)
   end
+
+  def gravatar_url(%__MODULE__{email: email}) do
+    email = email |> String.trim() |> String.downcase()
+    hash = :crypto.hash(:md5, email) |> Base.encode16(case: :lower)
+    "https://www.gravatar.com/avatar/" <> hash
+  end
 end
