@@ -78,7 +78,7 @@ defmodule TuistCloud.MixProject do
       {:oban, "~> 2.17"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
-      {:rustler, "~> 0.33.0"},
+      {:rustler, "~> 0.34.0"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
