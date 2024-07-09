@@ -91,6 +91,7 @@ defmodule TuistCloud.MixProject do
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.1.0", override: true},
       {:hammer, "~> 6.0"},
+      {:memoize, "~> 1.4"},
       # OpenTelemetry
       {:opentelemetry, "~> 1.4"},
       {:opentelemetry_telemetry, "~> 1.1"},
