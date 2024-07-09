@@ -1,13 +1,19 @@
 ---
-title: Graph
-description: Tuist provides a command to output and visualize a project graph
+title: tuist graph
+description: "'tuist graph' is a command to generate a visual representation of the Tuist project graph."
 ---
 
 # Graph
 
+### Supported platforms
+
+| Platform | Available |
+|----- | ----- |
+| Apple (Native) | This command generates a visual representation of the [Tuist Project](/guide/project) graph. |
+
 One of the advantages of extracting the project graph from its implicitly codified form in Xcode projects and workspaces, is that Tuist knows it ahead of time and can provide useful features to developers. One of those features is the ability to export and visualize the graph through the `tuist graph` command.
 
-## Graph image
+## Usage
 
 By default, `tuist graph` outputs and opens the image `graph.png` at the root of the project:
 
@@ -23,7 +29,7 @@ tuist graph --output-path /tmp/graphs
 ```
 :::
 
-## Algorithms and formats
+### Algorithms and formats
 
 When the dependency graph is large, the generated image might be hard to visually parse.
 In those scenarios, we recommend playing with other formats and algorithms and using interactive tools to work with them:
@@ -31,7 +37,7 @@ In those scenarios, we recommend playing with other formats and algorithms and u
 - **Formats:** `.dot`, `.json`, `.png`, and `.svg`
 - **Algorithms:** `dot`, `neato`, `twoapi`, `circo`, `fdp`, `sfdp`, and `patchwork`.
 
-## Filtering <Badge type="warning" text="Needs improvement" />
+### Filtering <Badge type="warning" text="Needs improvement" />
 
 You can use some flags to filter nodes from the graph:
 

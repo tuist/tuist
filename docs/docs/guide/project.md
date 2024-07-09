@@ -9,7 +9,7 @@ description: Learn about Tuist's DSL for defining Xcode projects.
 
 | Platform | Available |
 |----- | ----- |
-| Apple | Projects was the first feature that Tuist introduced. It allows you to define Xcode projects using a Swift-based DSL. |
+| Apple (Native) | Projects was the first feature that Tuist introduced. It allows you to define Xcode projects using a Swift-based DSL. |
 
 ---
 

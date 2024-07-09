@@ -4,6 +4,7 @@ import examplesDataLoader from "../docs/reference/examples/examples.data";
 import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { link } from "node:fs";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
@@ -117,6 +118,18 @@ const guideSidebar = [
         ],
       },
       {
+        text: "Commands",
+        collapsed: true,
+        items: [
+          { text: "Generate", link: "/guide/tuist/commands/generate" },
+          { text: "Build", link: "/guide/tuist/commands/build" },
+          { text: "Test", link: "/guide/tuist/commands/test" },
+          { text: "Run", link: "/guide/tuist/commands/run" },
+          { text: "Graph", link: "/guide/tuist/commands/graph" },
+          { text: "Clean", link: "/guide/tuist/commands/clean" },
+        ],
+      },
+      {
         text: "From v3 to v4",
         link: "/guide/tuist/from-v3-to-v4",
       },
@@ -196,18 +209,6 @@ const guideSidebar = [
         text: "The cost of convenience",
         link: "/guide/project/cost-of-convenience",
       },
-      {
-        text: "Commands",
-        collapsed: true,
-        items: [
-          { text: "Generate", link: "/guide/project/commands/generate" },
-          { text: "Build", link: "/guide/project/commands/build" },
-          { text: "Test", link: "/guide/project/commands/test" },
-          { text: "Run", link: "/guide/project/commands/run" },
-          { text: "Graph", link: "/guide/project/commands/graph" },
-          { text: "Clean", link: "/guide/project/commands/clean" },
-        ],
-      },
     ],
   },
   {
@@ -219,10 +220,12 @@ const guideSidebar = [
     text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tests ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
     items: [
       {
-        text: "Smart test selection",
+        text: "Smart runner",
+        link: "/guide/tests/smart-runner",
       },
       {
-        text: "Flakiness detection",
+        text: "Flakiness",
+        link: "/guide/tests/flakiness",
       },
     ],
   },
@@ -301,7 +304,7 @@ export default defineConfig({
     const redirects = `    
 /documentation/tuist/installation /guide/cli/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
-/documentation/tuist/command-line-interface /guide/project/commands/generate 301
+/documentation/tuist/command-line-interface /guide/tuist/commands/generate 301
 /documentation/tuist/dependencies /guide/project/dependencies 301
 /documentation/tuist/sharing-code-across-manifests /guide/project/code-sharing 301
 /documentation/tuist/synthesized-files /guide/project/synthesized-files 301
@@ -341,11 +344,11 @@ export default defineConfig({
 /guide/tuist/installation /guide/tuist/installation/cli 301
 /cloud/on-premise /guide/tuist/installation/server 301
 /cloud/binary-caching /guide/cache 301
-/guide/automation/build /guide/project/commands/build 301
-/guide/automation/test /guide/project/commands/test 301
-/guide/automation/run /guide/project/commands/run 301
-/guide/automation/graph /guide/project/commands/graph 301
-/guide/automation/clean /guide/project/commands/clean 301
+/guide/automation/build /guide/tuist/commands/build 301
+/guide/automation/test /guide/tuist/commands/test 301
+/guide/automation/run /guide/tuist/commands/run 301
+/guide/automation/graph /guide/tuist/commands/graph 301
+/guide/automation/clean /guide/tuist/commands/clean 301
 /guide/scale/tma-architecture /guide/project/tma-architecture 301
 /cloud/hashing /guide/project/hashing 301
 /documentation/tuist/* / 301
