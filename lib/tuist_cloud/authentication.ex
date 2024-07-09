@@ -6,7 +6,7 @@ defmodule TuistCloud.Authentication do
   alias TuistCloud.Accounts
 
   def authenticated_subject(token) do
-    project = Projects.get_project_by_token(token)
+    project = Projects.get_project_by_token(token, preloads: [:account])
     user = Accounts.get_user_by_token(token)
 
     case {project, user} do

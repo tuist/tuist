@@ -286,7 +286,13 @@ defmodule TuistCloudWeb.AuthenticationTest do
         ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
-      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
 
       # When
       conn =
@@ -305,7 +311,13 @@ defmodule TuistCloudWeb.AuthenticationTest do
         ProjectsFixtures.project_fixture(visibility: :public)
         |> Repo.preload(:account)
 
-      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
 
       # When
       conn = Authentication.require_authenticated_user_for_private_projects(conn, [])
@@ -321,7 +333,13 @@ defmodule TuistCloudWeb.AuthenticationTest do
         ProjectsFixtures.project_fixture(visibility: :private)
         |> Repo.preload(:account)
 
-      conn = %{conn | path_params: %{"owner" => project.account.name, "project" => project.name}}
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
 
       # When
       conn = Authentication.require_authenticated_user_for_private_projects(conn, [])

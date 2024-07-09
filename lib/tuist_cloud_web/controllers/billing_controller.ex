@@ -9,8 +9,8 @@ defmodule TuistCloudWeb.BillingController do
   alias TuistCloud.Billing
   alias TuistCloudWeb.Authentication
 
-  def billing_plan(conn, %{"account_name" => account_name}) do
-    account = Accounts.get_account_by_handle(account_name)
+  def manage(conn, %{"account_handle" => account_handle}) do
+    account = Accounts.get_account_by_handle(account_handle)
     user = Authentication.current_user(conn)
 
     if Authorization.can(user, :update, account, :billing) do

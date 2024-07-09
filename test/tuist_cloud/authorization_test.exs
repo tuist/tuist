@@ -166,6 +166,93 @@ defmodule TuistCloud.AuthorizationTest do
     assert Authorization.can(user, :update, project, :cache) == false
   end
 
+  test "can.access.project.url returns true when the project is public and the subject is nil" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+
+    # When/Then
+    assert Authorization.can(nil, :access, project, :url) == true
+  end
+
+  test "can.access.project.url returns true when the project is public and the subject is not nil" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+    user = AccountsFixtures.user_fixture()
+
+    # When/Then
+    assert Authorization.can(user, :access, project, :url) == true
+  end
+
+  test "can.access.project.url returns false when the project is private and the subject is nil" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+    # When/Then
+    assert Authorization.can(nil, :access, project, :url) == false
+  end
+
+  test "can.access.project.url returns true when the project is private and the subject is user of the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        visibility: :private,
+        preloads: [:account]
+      )
+
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When/Then
+    assert Authorization.can(user, :access, project, :url) == true
+  end
+
+  test "can.access.project.url returns true when the project is private and the subject is admin of the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        visibility: :private,
+        preloads: [:account]
+      )
+
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When/Then
+    assert Authorization.can(user, :access, project, :url) == true
+  end
+
+  test "can.access.project.url returns true when the project is private and the subject doesn't belong to the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        visibility: :private,
+        preloads: [:account]
+      )
+
+    user = AccountsFixtures.user_fixture()
+
+    # When/Then
+    assert Authorization.can(user, :access, project, :url) == false
+  end
+
   test "can.create.project.command_event when the subject is a user that belongs to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -494,6 +581,38 @@ defmodule TuistCloud.AuthorizationTest do
     assert Authorization.can(user, :delete, account, :project) == false
   end
 
+  test "can.read.account.projects when the subject is a user that is admin of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :read, account, :projects) == true
+  end
+
+  test "can.read.account.projects when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :read, account, :projects) == true
+  end
+
+  test "can.read.account.projects when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :read, account, :projects) == false
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -503,6 +622,46 @@ defmodule TuistCloud.AuthorizationTest do
 
     # When
     assert Authorization.can(user, :read, account, :organization) == true
+  end
+
+  test "can.read.account.billing when the subject is a user that belongs to the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is a user is admin of the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == true
+  end
+
+  test "can.read.account.billing when the subject is interacting with its account" do
+    # Given
+    user = AccountsFixtures.user_fixture(preloads: [:account])
+
+    # When
+    assert Authorization.can(user, :read, user.account, :billing) == true
   end
 
   test "can.read.account.organization when the subject is a user that belongs to an organization" do

@@ -6,8 +6,6 @@ defmodule TuistCloudWeb.UserRegistrationLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
-
     <.stack class="auth-page" gap="4xl">
       <.decorative_background class="auth-page__background" />
       <.stack class="auth-header" gap="3xl">
@@ -16,7 +14,7 @@ defmodule TuistCloudWeb.UserRegistrationLive do
           <h5 class="auth-header__title font--semibold color--text-primary">
             <%= gettext("Create an account") %>
           </h5>
-          <p class="text--medium color--text-tertiary">
+          <p class="auth-header__subtitle text--medium color--text-tertiary">
             <%= gettext("Start your Tuist journey.") %>
           </p>
         </.stack>
@@ -61,7 +59,7 @@ defmodule TuistCloudWeb.UserRegistrationLive do
             <a href={~p"/users/auth/github"}>
               <%= gettext("Sign up with GitHub") %>
             </a>
-            <:icon><.github_logo /></:icon>
+            <:icon><.github_icon /></:icon>
           </.social_button>
         <% end %>
         <%= if @google_configured do %>
@@ -69,7 +67,7 @@ defmodule TuistCloudWeb.UserRegistrationLive do
             <a href={~p"/users/auth/google"}>
               <%= gettext("Sign up with Google") %>
             </a>
-            <:icon><.google_logo /></:icon>
+            <:icon><.google_icon /></:icon>
           </.social_button>
         <% end %>
         <%= if @okta_configured do %>
@@ -77,7 +75,7 @@ defmodule TuistCloudWeb.UserRegistrationLive do
             <a href={~p"/users/auth/okta"}>
               <%= gettext("Sign up with Okta") %>
             </a>
-            <:icon><.okta_logo /></:icon>
+            <:icon><.okta_icon /></:icon>
           </.social_button>
         <% end %>
       </.stack>

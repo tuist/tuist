@@ -25,7 +25,7 @@ defmodule TuistCloud.AuthenticationTest do
 
   test "authenticated_subject returns the project associated to the token" do
     # Given
-    project = TuistCloud.ProjectsFixtures.project_fixture()
+    project = TuistCloud.ProjectsFixtures.project_fixture(preloads: [:account])
 
     # When/Then
     assert Authentication.authenticated_subject(project.token) == {:project, project}

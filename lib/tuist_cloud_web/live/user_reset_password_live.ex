@@ -5,8 +5,6 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
-
     <.stack class="auth-page" gap="4xl">
       <.auth_header
         title={gettext("Set new password")}
@@ -14,7 +12,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
       >
         <:icon>
           <.featured_icon>
-            <.lock />
+            <.lock_icon />
           </.featured_icon>
         </:icon>
       </.auth_header>

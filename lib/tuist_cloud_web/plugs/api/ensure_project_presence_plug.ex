@@ -37,13 +37,13 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
   def call(
         %{
           path_params: %{
-            "account_name" => account_name,
-            "project_name" => project_name
+            "account_handle" => account_handle,
+            "project_handle" => project_name
           }
         } = conn,
         _opts
       ) do
-    assign_request_project_to_conn("#{account_name}/#{project_name}", conn)
+    assign_request_project_to_conn("#{account_handle}/#{project_name}", conn)
   end
 
   def call(
@@ -63,7 +63,7 @@ defmodule TuistCloudWeb.API.EnsureProjectPresencePlug do
       ) do
     command_event =
       CommandEvents.get_command_event_by_id(run_id)
-      |> Repo.preload(:project)
+      |> Repo.preload(project: [:account])
 
     if is_nil(command_event) do
       conn

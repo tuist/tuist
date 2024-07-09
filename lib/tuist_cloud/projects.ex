@@ -10,8 +10,8 @@ defmodule TuistCloud.Projects do
 
   import Ecto.Query
 
-  def get_project_by_token(token) do
-    Repo.get_by(Project, token: token)
+  def get_project_by_token(token, opts \\ []) do
+    Repo.get_by(Project, token: token) |> Repo.preload(Keyword.get(opts, :preloads, []))
   end
 
   def get_project_by_id(project_id) do
@@ -60,10 +60,9 @@ defmodule TuistCloud.Projects do
               from(p in Project,
                 where: fragment("lower(?)", p.name) == ^String.downcase(project_name),
                 where: p.account_id == ^account_id
-              ),
-              preloads: Keyword.get(opts, :preloads, [])
+              )
             )} do
-      project
+      project |> Repo.preload(Keyword.get(opts, :preloads, []))
     else
       {:account, nil} -> nil
       {:project, nil} -> nil

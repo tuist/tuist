@@ -11,14 +11,14 @@ defmodule TuistCloudWeb.AutoRedirectToProjectPlug do
 
   def call(%{request_path: "/", state: state} = conn, _opts)
       when state in [:unset] do
-    user = Authentication.current_user(conn)
-    project = user |> project_to_redirect_to()
+    current_user = Authentication.current_user(conn)
+    project = current_user |> project_to_redirect_to()
 
     if project do
       project_path = "/#{project.handle}"
-      redirect(conn, to: project_path) |> halt()
+      conn |> redirect(to: project_path) |> halt()
     else
-      redirect(conn, to: ~p"/get-started") |> halt()
+      conn |> redirect(to: "/#{current_user.account.name}/projects") |> halt()
     end
   end
 

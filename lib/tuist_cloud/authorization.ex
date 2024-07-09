@@ -51,8 +51,16 @@ defmodule TuistCloud.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
 
+  def can(%User{} = user, :read, %Account{} = account, :billing) do
+    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+  end
+
   def can(nil, :update, _account, :billing) do
     false
+  end
+
+  def can(%User{} = user, :read, %Account{} = account, :projects) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
   def can(%User{} = user, :read, %Account{} = account, :organization) do
@@ -97,6 +105,18 @@ defmodule TuistCloud.Authorization do
 
   def can(%Project{} = current_project, :update, %Project{} = project, :cache) do
     current_project.id == project.id
+  end
+
+  def can(_, :access, %Project{visibility: :public}, :url) do
+    true
+  end
+
+  def can(nil, :access, %Project{visibility: :private}, :url) do
+    false
+  end
+
+  def can(user, :access, %Project{visibility: :private, account: %Account{} = account}, :url) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
   def can(subject, action, project, category, opts \\ [])

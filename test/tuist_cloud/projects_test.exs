@@ -180,7 +180,9 @@ defmodule TuistCloud.ProjectsTest do
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
       Accounts.add_user_to_organization(user, organization, role: :user)
-      project_two = ProjectsFixtures.project_fixture(account_id: user_account.id)
+
+      project_two =
+        ProjectsFixtures.project_fixture(account_id: user_account.id)
 
       # When
       got = Projects.get_all_project_accounts(user)

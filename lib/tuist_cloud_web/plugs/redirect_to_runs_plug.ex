@@ -10,10 +10,10 @@ defmodule TuistCloudWeb.RedirectToRunsPlug do
   def call(
         %{
           path_params: %{
-            "owner" => owner,
-            "project" => project
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
           },
-          path_info: [owner, project]
+          path_info: [account_handle, project_handle]
         } = conn,
         _opts
       ) do
@@ -21,7 +21,7 @@ defmodule TuistCloudWeb.RedirectToRunsPlug do
       conn
     else
       conn
-      |> redirect(to: ~p"/#{owner}/#{project}/runs")
+      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/runs")
       |> halt()
     end
   end

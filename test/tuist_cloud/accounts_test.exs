@@ -8,7 +8,7 @@ defmodule TuistCloud.AccountsTest do
   alias TuistCloud.Accounts
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.Environment
-  use TuistCloud.DataCase, async: true
+  use TuistCloud.DataCase, async: false
   use Mimic
 
   setup do

@@ -1116,12 +1116,13 @@ defmodule TuistCloud.CommandEventsTest do
         })
 
       # Then
-      assert got_test_case_runs |> Enum.map(& &1.id) ==
+      assert got_test_case_runs |> Enum.map(& &1.id) |> Enum.sort() ==
                [
                  test_case_run_one,
                  test_case_run_two
                ]
                |> Enum.map(& &1.id)
+               |> Enum.sort()
     end
   end
 

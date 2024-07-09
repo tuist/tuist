@@ -1,13 +1,6 @@
 defmodule TuistCloudWeb.Layouts do
   use TuistCloudWeb, :html
+  import TuistCloudWeb.LayoutComponents
 
   embed_templates "layouts/*"
-
-  def show_dashboard?() do
-    if TuistCloud.Environment.on_premise?() do
-      TuistCloud.Repo.timescale_available?()
-    else
-      true
-    end
-  end
 end

@@ -238,7 +238,7 @@ defmodule TuistCloudWeb.API.CacheControllerTest do
     end
   end
 
-  describe "PUT /api/projects/:account_name/:project_name/cache/clean" do
+  describe "PUT /api/projects/:account_handle/:project_handle/cache/clean" do
     test "given project is cleaned", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()

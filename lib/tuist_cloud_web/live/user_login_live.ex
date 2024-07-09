@@ -20,8 +20,6 @@ defmodule TuistCloudWeb.UserLoginLive do
 
   def render(assigns) do
     ~H"""
-    <link phx-track-static rel="stylesheet" href={~p"/css/auth.css"} />
-
     <.stack class="auth-page" gap="4xl">
       <.decorative_background class="auth-page__background" />
       <.stack class="auth-header" gap="3xl">
@@ -86,7 +84,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             <a href={~p"/users/auth/github"}>
               <%= gettext("Sign in with GitHub") %>
             </a>
-            <:icon><.github_logo /></:icon>
+            <:icon><.github_icon /></:icon>
           </.social_button>
         <% end %>
         <%= if @google_configured? do %>
@@ -94,7 +92,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             <a href={~p"/users/auth/google"}>
               <%= gettext("Sign in with Google") %>
             </a>
-            <:icon><.google_logo /></:icon>
+            <:icon><.google_icon /></:icon>
           </.social_button>
         <% end %>
         <%= if @okta_configured? do %>
@@ -102,7 +100,7 @@ defmodule TuistCloudWeb.UserLoginLive do
             <a href={~p"/users/auth/okta"}>
               <%= gettext("Sign in with Okta") %>
             </a>
-            <:icon><.okta_logo /></:icon>
+            <:icon><.okta_icon /></:icon>
           </.social_button>
         <% end %>
       </.stack>

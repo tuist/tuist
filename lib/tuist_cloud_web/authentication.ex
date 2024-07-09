@@ -145,7 +145,7 @@ defmodule TuistCloudWeb.Authentication do
   """
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
-    user = user_token && Accounts.get_user_by_session_token(user_token)
+    user = user_token && Accounts.get_user_by_session_token(user_token, preloads: [:account])
     assign(conn, :current_user, user)
   end
 
@@ -230,7 +230,7 @@ defmodule TuistCloudWeb.Authentication do
   defp mount_current_user(socket, session) do
     Phoenix.Component.assign_new(socket, :current_user, fn ->
       if user_token = session["user_token"] do
-        Accounts.get_user_by_session_token(user_token)
+        Accounts.get_user_by_session_token(user_token, preloads: [:account])
       end
     end)
   end
@@ -268,13 +268,13 @@ defmodule TuistCloudWeb.Authentication do
   def require_authenticated_user_for_private_projects(
         %{
           path_params: %{
-            "owner" => owner,
-            "project" => project
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
           }
         } = conn,
         opts
       ) do
-    project = Projects.get_project_by_account_and_project_handles(owner, project)
+    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
     if is_nil(project) or project.visibility == :private,
       do: require_authenticated_user(conn, opts),

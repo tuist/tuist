@@ -18,7 +18,7 @@ defmodule TuistCloudWeb.HomeLiveTest do
     conn =
       conn
       |> assign(:selected_project, selected_project)
-      |> assign(:selected_owner, account.name)
+      |> assign(:selected_account, account)
       |> log_in_user(user)
 
     %{conn: conn, user: user, project: selected_project, account: account}
@@ -33,7 +33,7 @@ defmodule TuistCloudWeb.HomeLiveTest do
     conn =
       build_conn()
       |> assign(:selected_project, project)
-      |> assign(:selected_owner, project.account.name)
+      |> assign(:selected_account, project.account)
 
     # When
     {:ok, _lv, html} = conn |> live(~p"/#{project.account.name}/#{project.name}")

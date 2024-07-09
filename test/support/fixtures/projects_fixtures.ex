@@ -26,5 +26,6 @@ defmodule TuistCloud.ProjectsFixtures do
       created_at: created_at,
       visibility: Keyword.get(opts, :visibility, :private)
     )
+    |> Repo.preload(Keyword.get(opts, :preloads, []))
   end
 end

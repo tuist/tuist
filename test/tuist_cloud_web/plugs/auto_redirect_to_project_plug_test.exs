@@ -45,16 +45,16 @@ defmodule TuistCloudWeb.AutoRedirectToProjectPlugTest do
     assert redirected_to(conn) == "/#{current_user.account.name}/#{project.name}"
   end
 
-  test "redirects to get-started if the user has no projects", %{
+  test "redirects to the user projects if the user has no projects", %{
     conn: conn,
-    current_user: _,
+    current_user: current_user,
     plug_opts: plug_opts
   } do
     # When
     conn = conn |> AutoRedirectToProjectPlug.call(plug_opts)
 
     # Then
-    assert redirected_to(conn) == ~p"/get-started"
+    assert redirected_to(conn) == ~p"/#{current_user.account.name}/projects"
   end
 
   test "returns the same connection for any path", %{

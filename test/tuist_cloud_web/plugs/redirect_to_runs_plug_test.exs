@@ -6,7 +6,7 @@ defmodule TuistCloudWeb.RedirecToRunsPlugTest do
   test "redirects to runs when timescale is unavailable", %{conn: conn} do
     conn = %{
       conn
-      | path_params: %{"owner" => "owner-name", "project" => "project-name"},
+      | path_params: %{"account_handle" => "owner-name", "project_handle" => "project-name"},
         path_info: ["owner-name", "project-name"]
     }
 
@@ -22,7 +22,7 @@ defmodule TuistCloudWeb.RedirecToRunsPlugTest do
   test "returns the same connection when timescale is available", %{conn: conn} do
     conn = %{
       conn
-      | path_params: %{"owner" => "owner-name", "project" => "project-name"},
+      | path_params: %{"account_handle" => "owner-name", "project_handle" => "project-name"},
         path_info: ["owner-name", "project-name"]
     }
 

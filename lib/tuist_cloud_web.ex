@@ -51,8 +51,8 @@ defmodule TuistCloudWeb do
 
   def live_view do
     quote do
-      use Phoenix.LiveView,
-        layout: {TuistCloudWeb.Layouts, :app}
+      use Phoenix.LiveView
+      import TuistCloudWeb.LayoutComponents
 
       unquote(html_helpers())
     end
@@ -85,8 +85,9 @@ defmodule TuistCloudWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import TuistCloudWeb.CoreComponents
+      import TuistCloudWeb.HeadlessComponents
       import TuistCloudWeb.AuthComponents
-      import TuistCloudWeb.Components.Icons
+      import TuistCloudWeb.Components.IconComponents
       import TuistCloudWeb.CommandEventComponents
       import TuistCloudWeb.Gettext
 

@@ -99,7 +99,6 @@ defmodule TuistCloudWeb.ErrorHTML do
           <%= gettext("Not authenticated") %>
         </.live_title>
         <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
-        <link phx-track-static rel="stylesheet" href={~p"/css/error.css"} />
       </head>
       <body>
         <div class="page error-page">
