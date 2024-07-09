@@ -2688,6 +2688,54 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenBinaryTargetPathByNameDependencyInLocalPackage_mapsToXcFramework() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let xcframeworkPath = basePath.appending(try RelativePath(validating: "artifacts/Dependency1.xcframework"))
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Dependency1", type: .binary, path: xcframeworkPath.pathString),
+                    ]
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                options: .options(automaticSchemesOptions: .enabled(), disableSynthesizedResourceAccessors: true),
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.xcframework(path: .path(xcframeworkPath.pathString))]
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenExternalProductDependency_mapsToProjectDependencies() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))

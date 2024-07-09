@@ -1,0 +1,10 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/yunjaewon/Library/Developer/Xcode/DerivedData/LocalXCFramework-cmdwtcvgneowancwwjzbellvrffk/Build/Intermediates.noindex/ArchiveIntermediates/LocalXCFramework/InstallationBuildProductsLocation/Library/Frameworks/LocalXCFramework.framework/LocalXCFramework'
+relocations:
+  - { offsetInCU: 0x34, offset: 0x2ED7E, size: 0x8, addend: 0x0, symName: _LocalXCFrameworkVersionString, symObjAddr: 0x0, symBinAddr: 0x3F00, symSize: 0x0 }
+  - { offsetInCU: 0x69, offset: 0x2EDB3, size: 0x8, addend: 0x0, symName: _LocalXCFrameworkVersionNumber, symObjAddr: 0x40, symBinAddr: 0x3F40, symSize: 0x0 }
+  - { offsetInCU: 0x27, offset: 0x2EDF0, size: 0x8, addend: 0x0, symName: '_$s16LocalXCFrameworkAAVABycfC', symObjAddr: 0x0, symBinAddr: 0x3EEC, symSize: 0x4 }
+  - { offsetInCU: 0x5D, offset: 0x2EE26, size: 0x8, addend: 0x0, symName: '_$s16LocalXCFrameworkAAVMa', symObjAddr: 0x4, symBinAddr: 0x3EF0, symSize: 0x10 }
+  - { offsetInCU: 0xC4, offset: 0x2EE8D, size: 0x8, addend: 0x0, symName: '_$s16LocalXCFrameworkAAVABycfC', symObjAddr: 0x0, symBinAddr: 0x3EEC, symSize: 0x4 }
+...

@@ -16,6 +16,7 @@ let package = Package(
             name: "Styles",
             dependencies: [
                 .product(name: "LibraryA", package: "LocalSwiftPackageB"),
+                .target(name: "LocalXCFramework"),
             ],
             resources: [
                 .process("Resources/Fonts"),
@@ -24,6 +25,7 @@ let package = Package(
                 .copy("Resources/www"), // copy rule, directory
             ]
         ),
+        .binaryTarget(name: "LocalXCFramework", path: "../artifacts/LocalXCFramework.xcframework"),
         .testTarget(name: "StylesTests", dependencies: ["Styles"]),
     ]
 )

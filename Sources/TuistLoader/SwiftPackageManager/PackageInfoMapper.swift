@@ -561,11 +561,27 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         return nil
                     }
                     if let target = packageInfo.targets.first(where: { $0.name == name }) {
-                        if target.type == .binary, case let .remote(artifactPaths: artifactPaths) = packageType {
-                            guard let artifactPath = artifactPaths[target.name] else {
-                                throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
+                        if target.type == .binary {
+                            let artifactPath: String
+                            switch packageType {
+                            case .local:
+                                guard let path = target.path else {
+                                    throw PackageInfoMapperError.missingBinaryArtifact(
+                                        package: packageInfo.name,
+                                        target: target.name
+                                    )
+                                }
+                                artifactPath = path
+                            case let .remote(artifactPaths):
+                                guard let path = artifactPaths[target.name] else {
+                                    throw PackageInfoMapperError.missingBinaryArtifact(
+                                        package: packageInfo.name,
+                                        target: target.name
+                                    )
+                                }
+                                artifactPath = path.pathString
                             }
-                            return .xcframework(path: .path(artifactPath.pathString), status: .required, condition: nil)
+                            return .xcframework(path: .path(artifactPath), status: .required, condition: nil)
                         }
                         return .target(name: name, condition: platformCondition)
                     } else {

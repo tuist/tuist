@@ -1,0 +1,46 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "TypeDecl",
+        "name": "LocalXCFramework",
+        "printedName": "LocalXCFramework",
+        "children": [
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "LocalXCFramework",
+                "printedName": "LocalXCFramework.LocalXCFramework",
+                "usr": "s:16LocalXCFrameworkAAV"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:16LocalXCFrameworkAAVABycfc",
+            "mangledName": "$s16LocalXCFrameworkAAVABycfc",
+            "moduleName": "LocalXCFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Struct",
+        "usr": "s:16LocalXCFrameworkAAV",
+        "mangledName": "$s16LocalXCFrameworkAAV",
+        "moduleName": "LocalXCFramework",
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": []
+}
