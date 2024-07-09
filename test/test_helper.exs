@@ -1,4 +1,5 @@
 Mimic.copy(Hammer)
+Mimic.copy(Memoize.Cache)
 Mimic.copy(Req)
 Mimic.copy(Stripe.BillingPortal.Session)
 Mimic.copy(Stripe.Checkout.Session)
