@@ -45,28 +45,34 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintWorkspaceUnuesedTargetsInWorkspace(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
         return issues
     }
 
     // MARK: - Fileprivate
 
-    private func lintWorkspaceUnuesedTargetsInWorkspace(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        graphTraverser.workspace.schemes.map { scheme in
-            let arr = scheme
+    private func lintSchemesUnknownTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let targets = graphTraverser.targets()
+        return graphTraverser.schemes().compactMap { scheme in
+            let unknownTargets = scheme
                 .targetDependencies()
                 .filter { targetReference in
-                    if let target = graphTraverser
-                        .targets()[targetReference.projectPath],
-                        target.keys.contains(targetReference.name)
+                    if let target = targets[targetReference.projectPath],
+                       target.keys.contains(targetReference.name)
                     {
                         return false
                     }
                     return true
                 }
-                .map(\.name)
+
+            guard !unknownTargets.isEmpty else { return nil }
+
+            let targetsDescriptionStrings = unknownTargets.map { target in
+                target.name + " " + "(\(target.projectPath.pathString))"
+            }
+
             return LintingIssue(
-                reason: "Cannot find targets \(arr.joined(separator: ", ")) defined in \(scheme.name)",
+                reason: "Cannot find targets \(targetsDescriptionStrings.joined(separator: ", "))  defined in \(scheme.name)",
                 severity: .warning
             )
         }
