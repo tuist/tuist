@@ -66,6 +66,12 @@ You can use a tool like [xcdiff](https://github.com/bloomberg/xcdiff) for that.
 
 They allow defining your own abstractions for defining your projects, and most importantly, they allow reusing content across all your manifest files. One of the most common use cases is defining functions that act as factories of templated projects. After migrating all your projects, go through the Project.swift files to identify common patterns and extract them into helpers.
 
+## Manual Migration
+
+Now that you've extracted your settings into config files and cleaned up your exsisting project files you need to manually migrate your project over to Tuist. There are a couple of ways to do this;
+- Create empty `Project.swift` and `Tuist/Config.swift` files, and run `tuist edit` to start filling them in.
+- Run `tuist init` in a different directory and copy over the files created there for your own project.
+
 ## Tools
 
 Here's a list of community-developed tools that can aid you on the migration process:

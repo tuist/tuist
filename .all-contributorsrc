@@ -1353,7 +1353,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/45801227?v=4",
       "profile": "https://github.com/rofle100lvl",
       "contributions": [
-        "doc"
+        "doc",
+        "code"
       ]
     },
     {
@@ -1436,6 +1437,15 @@
       "profile": "http://darrarski.pl",
       "contributions": [
         "code"
+      ]
+    },
+    {
+      "login": "dansinclair25",
+      "name": "Dan Sinclair",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2573447?v=4",
+      "profile": "https://github.com/dansinclair25",
+      "contributions": [
+        "doc"
       ]
     }
   ],
