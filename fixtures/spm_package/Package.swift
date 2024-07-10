@@ -39,6 +39,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
+        .package(url: "https://github.com/AliSoftware/OHHTTPStubs.git", exact: "9.1.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -69,6 +70,8 @@ let package = Package(
             dependencies: [
                 "MyPackage",
                 "MyCommonPackage",
+                .product(name: "OHHTTPStubs", package: "OHHTTPStubs"),
+                .product(name: "OHHTTPStubsSwift", package: "OHHTTPStubs"),
             ]
         ),
         .testTarget(
