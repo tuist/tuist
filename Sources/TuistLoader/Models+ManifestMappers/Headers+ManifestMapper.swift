@@ -1,12 +1,12 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.Headers {
-    /// Maps a ProjectDescription.Headers instance into a TuistGraph.Headers model.
+extension XcodeGraph.Headers {
+    /// Maps a ProjectDescription.Headers instance into a XcodeGraph.Headers model.
     /// Glob patterns are resolved as part of the mapping process.
     /// - Parameters:
     ///   - manifest: Manifest representation of Headers.
@@ -16,7 +16,7 @@ extension TuistGraph.Headers {
         manifest: ProjectDescription.Headers,
         generatorPaths: GeneratorPaths,
         productName: String?
-    ) throws -> TuistGraph.Headers {
+    ) throws -> XcodeGraph.Headers {
         let resolvedUmbrellaPath = try manifest.umbrellaHeader.map { try generatorPaths.resolve(path: $0) }
         let headersFromUmbrella = try resolvedUmbrellaPath.map {
             Set(try UmbrellaHeaderHeadersExtractor.headers(from: $0, for: productName))
@@ -27,7 +27,7 @@ extension TuistGraph.Headers {
         let privateHeaders: [AbsolutePath]
         let projectHeaders: [AbsolutePath]
 
-        let allowedExtensions = TuistGraph.Headers.extensions
+        let allowedExtensions = XcodeGraph.Headers.extensions
         func unfold(
             _ list: FileList?,
             isPublic: Bool = false

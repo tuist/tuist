@@ -60,7 +60,7 @@ import Foundation
 ///     ]
 /// )
 /// ```
-public struct Project: Codable, Equatable {
+public struct Project: Codable, Equatable, Sendable {
     /// The name of the project. Also, the file name of the generated Xcode project.
     public let name: String
     /// The name of the organization used by Xcode as copyright.

@@ -1,5 +1,6 @@
 import Foundation
-import TSCBasic
+import Path
+import TuistCore
 import TuistSupport
 import XCTest
 

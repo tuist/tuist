@@ -1,12 +1,12 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.CopyFileElement {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
+extension XcodeGraph.CopyFileElement {
+    /// Maps a ProjectDescription.FileElement instance into a [XcodeGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of the file element.
@@ -15,7 +15,7 @@ extension TuistGraph.CopyFileElement {
         manifest: ProjectDescription.CopyFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [TuistGraph.CopyFileElement] {
+    ) throws -> [XcodeGraph.CopyFileElement] {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
@@ -51,12 +51,21 @@ extension TuistGraph.CopyFileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern, condition: condition):
+        case let .glob(pattern: pattern, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map { .file(path: $0, condition: condition?.asGraphCondition) }
-        case let .folderReference(path: folderReferencePath, condition: condition):
+            return try globFiles(resolvedPath).map { .file(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            )
+            }
+        case let .folderReference(path: folderReferencePath, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { .folderReference(path: $0, condition: condition?.asGraphCondition) }
+            return folderReferences(resolvedPath).map { .folderReference(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            ) }
         }
     }
 }

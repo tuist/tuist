@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -22,7 +22,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Documentation")
 
         // When
-        let model = try TuistGraph.ResourceFileElement.from(
+        let model = try XcodeGraph.ResourceFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             includeFiles: { !FileHandler.shared.isFolder($0) }
@@ -47,7 +47,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -61,7 +61,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -81,7 +81,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsSpecific(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
             error
         )
     }
@@ -99,7 +99,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
@@ -121,7 +121,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
@@ -143,7 +143,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
@@ -165,7 +165,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
             []
         )
     }

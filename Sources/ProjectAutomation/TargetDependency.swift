@@ -1,16 +1,16 @@
 import Foundation
 
-public enum FrameworkStatus: String, Codable {
+public enum FrameworkStatus: String, Codable, Sendable {
     case required
     case optional
 }
 
-public enum SDKStatus: String, Codable {
+public enum SDKStatus: String, Codable, Sendable {
     case required
     case optional
 }
 
-public enum TargetDependency: Equatable, Hashable, Codable {
+public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
     case target(name: String)
     case project(target: String, path: String)
     case framework(path: String, status: FrameworkStatus)

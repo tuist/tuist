@@ -2,6 +2,7 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithBuildRules
+    case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
     case appWithPlugins
     case appWithPreviews
@@ -12,6 +13,7 @@ public enum TuistAcceptanceFixtures {
     case commandLineToolWithDynamicLibrary
     case commandLineToolWithStaticLibrary
     case frameworkWithEnvironmentVariables
+    case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
     case invalidManifest
@@ -36,8 +38,10 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithLocalBinarySwiftPackage
     case iosAppWithLocalSwiftPackage
     case iosAppWithMultiConfigs
+    case iosAppWithOnDemandResources
     case iosAppWithPluginsAndTemplates
     case iosAppWithPrivacyManifest
+    case iosAppWithSpmDependencies
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
     case iosAppWithStaticFrameworks
@@ -71,6 +75,8 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithBuildRules:
             return "app_with_build_rules"
+        case .appWithCustomDefaultConfiguration:
+            return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
         case .appWithPlugins:
@@ -91,6 +97,8 @@ public enum TuistAcceptanceFixtures {
             return "command_line_tool_with_static_library"
         case .frameworkWithEnvironmentVariables:
             return "framework_with_environment_variables"
+        case .frameworkWithMacroAndPluginPackages:
+            return "framework_with_macro_and_plugin_packages"
         case .frameworkWithNativeSwiftMacro:
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:
@@ -139,6 +147,10 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_local_swift_package"
         case .iosAppWithMultiConfigs:
             return "ios_app_with_multi_configs"
+        case .iosAppWithOnDemandResources:
+            return "ios_app_with_on_demand_resources"
+        case .iosAppWithSpmDependencies:
+            return "ios_app_with_spm_dependencies"
         case .iosAppWithPluginsAndTemplates:
             return "ios_app_with_plugins_and_templates"
         case .iosAppWithPrivacyManifest:

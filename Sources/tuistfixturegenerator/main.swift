@@ -1,7 +1,5 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
-import TSCUtility
 
 public struct TuistFixtureGeneratorCommand: ParsableCommand {
     public init() {}

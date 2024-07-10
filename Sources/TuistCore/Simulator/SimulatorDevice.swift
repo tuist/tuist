@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// It represents a simulator device. Devices are obtained using Xcode's CLI simctl
 public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {

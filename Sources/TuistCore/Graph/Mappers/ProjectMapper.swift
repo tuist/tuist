@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeGraph
 
 public protocol ProjectMapping {
     func map(project: Project) throws -> (Project, [SideEffectDescriptor])
@@ -31,12 +31,15 @@ public class TargetProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        var results = (targets: [Target](), sideEffects: [SideEffectDescriptor]())
-        results = try project.targets.reduce(into: results) { results, target in
+        var results = (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())
+        results = try project.targets.values.reduce(into: results) { results, target in
             let (updatedTarget, sideEffects) = try mapper.map(target: target)
-            results.targets.append(updatedTarget)
+            results.targets[updatedTarget.name] = updatedTarget
             results.sideEffects.append(contentsOf: sideEffects)
         }
-        return (project.with(targets: results.targets), results.sideEffects)
+        var project = project
+        project.targets = results.targets
+
+        return (project, results.sideEffects)
     }
 }

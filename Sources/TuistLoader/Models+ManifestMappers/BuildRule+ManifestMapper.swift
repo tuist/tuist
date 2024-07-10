@@ -1,12 +1,12 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.BuildRule {
+extension XcodeGraph.BuildRule {
     static func from(manifest: ProjectDescription.BuildRule) -> Self {
         .init(
-            compilerSpec: TuistGraph.BuildRule.CompilerSpec.from(manifest: manifest.compilerSpec),
-            fileType: TuistGraph.BuildRule.FileType.from(manifest: manifest.fileType),
+            compilerSpec: XcodeGraph.BuildRule.CompilerSpec.from(manifest: manifest.compilerSpec),
+            fileType: XcodeGraph.BuildRule.FileType.from(manifest: manifest.fileType),
             filePatterns: manifest.filePatterns,
             name: manifest.name,
             outputFiles: manifest.outputFiles,

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A glob pattern that refers to files.
-public struct FileListGlob: Codable, Equatable {
+public struct FileListGlob: Codable, Equatable, Sendable {
     /// The path with a glob pattern.
     public var glob: Path
 

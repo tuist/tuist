@@ -1,5 +1,6 @@
+import MockableTest
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
@@ -7,13 +8,24 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
-    var subject: ProjectDescriptionHelpersHasher!
+final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
+    private var subject: ProjectDescriptionHelpersHasher!
+    private var machineEnvironment: MockMachineEnvironmentRetrieving!
 
     override func setUp() {
         super.setUp()
-        system.swiftVersionStub = { "5.2" }
-        subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+        machineEnvironment = .init()
+        given(machineEnvironment)
+            .macOSVersion
+            .willReturn("15.2.4")
+        subject = ProjectDescriptionHelpersHasher(
+            tuistVersion: "3.2.1",
+            machineEnvironment: machineEnvironment,
+            swiftVersionProvider: swiftVersionProvider
+        )
     }
 
     override func tearDown() {
@@ -31,7 +43,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         // Then
         for _ in 0 ..< 20 {
             let got = try subject.hash(helpersDirectory: temporaryDir)
-            XCTAssertEqual(got, "0a46768e766bdd05bdf901098d323b8a")
+            XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
         }
     }
 

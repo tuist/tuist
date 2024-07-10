@@ -1,11 +1,11 @@
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.MergedBinaryType {
-    /// Maps a ProjectDescription.MergedBinaryType instance into a TuistGraph.MergedBinaryType model.
+extension XcodeGraph.MergedBinaryType {
+    /// Maps a ProjectDescription.MergedBinaryType instance into a XcodeGraph.MergedBinaryType model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
-    static func from(manifest: ProjectDescription.MergedBinaryType) throws -> TuistGraph.MergedBinaryType {
+    static func from(manifest: ProjectDescription.MergedBinaryType) throws -> XcodeGraph.MergedBinaryType {
         switch manifest {
         case .automatic:
             return .automatic

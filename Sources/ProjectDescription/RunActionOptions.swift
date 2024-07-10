@@ -1,7 +1,7 @@
 import Foundation
 
 /// Options for the `RunAction` action
-public struct RunActionOptions: Equatable, Codable {
+public struct RunActionOptions: Equatable, Codable, Sendable {
     /// Language to use when running the app.
     public var language: SchemeLanguage?
 
@@ -14,7 +14,7 @@ public struct RunActionOptions: Equatable, Codable {
     public var storeKitConfigurationPath: Path?
 
     /// A simulated GPS location to use when running the app.
-    public var simulatedLocation: SimulatedLocation?
+    public var simulatedLocation: ProjectDescription.SimulatedLocation?
 
     /// Configure your project to work with the Metal frame debugger.
     public var enableGPUFrameCaptureMode: GPUFrameCaptureMode
@@ -40,7 +40,7 @@ public struct RunActionOptions: Equatable, Codable {
         language: SchemeLanguage? = nil,
         region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil,
+        simulatedLocation: ProjectDescription.SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) {
         self.language = language
@@ -74,7 +74,7 @@ public struct RunActionOptions: Equatable, Codable {
         language: SchemeLanguage? = nil,
         region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil,
+        simulatedLocation: ProjectDescription.SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) -> Self {
         self.init(
@@ -88,77 +88,7 @@ public struct RunActionOptions: Equatable, Codable {
 }
 
 extension RunActionOptions {
-    /// Simulated location represents a GPS location that is used when running an app on the simulator.
-    public struct SimulatedLocation: Codable, Equatable {
-        /// The identifier of the location (e.g. London, England)
-        public var identifier: String?
-        /// Path to a .gpx file that indicates the location
-        public var gpxFile: Path?
-
-        private init(
-            identifier: String? = nil,
-            gpxFile: Path? = nil
-        ) {
-            self.identifier = identifier
-            self.gpxFile = gpxFile
-        }
-
-        public static func custom(gpxFile: Path) -> SimulatedLocation {
-            .init(gpxFile: gpxFile)
-        }
-
-        public static var london: SimulatedLocation {
-            .init(identifier: "London, England")
-        }
-
-        public static var johannesburg: SimulatedLocation {
-            .init(identifier: "Johannesburg, South Africa")
-        }
-
-        public static var moscow: SimulatedLocation {
-            .init(identifier: "Moscow, Russia")
-        }
-
-        public static var mumbai: SimulatedLocation {
-            .init(identifier: "Mumbai, India")
-        }
-
-        public static var tokyo: SimulatedLocation {
-            .init(identifier: "Tokyo, Japan")
-        }
-
-        public static var sydney: SimulatedLocation {
-            .init(identifier: "Sydney, Australia")
-        }
-
-        public static var hongKong: SimulatedLocation {
-            .init(identifier: "Hong Kong, China")
-        }
-
-        public static var honolulu: SimulatedLocation {
-            .init(identifier: "Honolulu, HI, USA")
-        }
-
-        public static var sanFrancisco: SimulatedLocation {
-            .init(identifier: "San Francisco, CA, USA")
-        }
-
-        public static var mexicoCity: SimulatedLocation {
-            .init(identifier: "Mexico City, Mexico")
-        }
-
-        public static var newYork: SimulatedLocation {
-            .init(identifier: "New York, NY, USA")
-        }
-
-        public static var rioDeJaneiro: SimulatedLocation {
-            .init(identifier: "Rio De Janeiro, Brazil")
-        }
-    }
-}
-
-extension RunActionOptions {
-    public enum GPUFrameCaptureMode: String, Codable, Equatable {
+    public enum GPUFrameCaptureMode: String, Codable, Equatable, Sendable {
         case autoEnabled
         case metal
         case openGL
@@ -168,4 +98,9 @@ extension RunActionOptions {
             .autoEnabled
         }
     }
+}
+
+extension RunActionOptions {
+    @available(*, deprecated, message: "Use ProjectDescription.SimulatedLocation directly instead.")
+    public typealias SimulatedLocation = ProjectDescription.SimulatedLocation
 }

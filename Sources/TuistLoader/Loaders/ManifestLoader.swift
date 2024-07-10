@@ -1,9 +1,10 @@
 import Foundation
+import Mockable
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
@@ -50,6 +51,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
     }
 }
 
+@Mockable
 public protocol ManifestLoading {
     /// Loads the Config.swift in the given directory.
     ///
@@ -123,7 +125,7 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController()
+            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
         )
     }
 
@@ -358,7 +360,7 @@ public class ManifestLoader: ManifestLoading {
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories()
-            .tuistCacheDirectory(for: .projectDescriptionHelpers)
+            .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {

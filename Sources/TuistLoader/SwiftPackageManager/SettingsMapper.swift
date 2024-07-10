@@ -1,8 +1,8 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 struct SettingsMapper {
     init(
@@ -19,33 +19,55 @@ struct SettingsMapper {
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
 
-    // `nil` means settings without a condition
-    private func settingsForPlatform(_ platformName: String?) throws
-        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
-    {
-        settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                return setting.condition?.platformNames.contains(platformName) == true
-            } else {
-                return !setting.hasConditions
-            }
+    func mapSettings() throws -> XcodeGraph.SettingsDictionary {
+        var resolvedSettings = try settingsDictionary()
+
+        for platform in XcodeGraph.Platform.allCases.sorted(by: { $0.rawValue < $1.rawValue }) {
+            let platformSettings = try settingsDictionary(for: platform)
+            resolvedSettings.overlay(with: platformSettings, for: platform)
         }
+
+        return resolvedSettings
+    }
+
+    func settingsForBuildConfiguration(
+        _ buildConfiguration: String
+    ) throws -> XcodeGraph.SettingsDictionary {
+        try map(
+            settings: settings.filter { setting in
+                return setting.hasConditions && setting.condition?.config?.uppercasingFirst == buildConfiguration
+            }
+        )
     }
 
     // swiftlint:disable:next function_body_length
-    func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
+    func settingsDictionary(for platform: XcodeGraph.Platform? = nil) throws -> XcodeGraph.SettingsDictionary {
+        let platformSettings = try settings(for: platform?.rawValue)
+
+        return try map(
+            settings: platformSettings,
+            headerSearchPaths: headerSearchPaths,
+            defines: ["SWIFT_PACKAGE": "1"],
+            swiftDefines: "SWIFT_PACKAGE"
+        )
+    }
+
+    private func map(
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        headerSearchPaths: [String] = [],
+        defines: [String: String] = [:],
+        swiftDefines: String = ""
+    ) throws -> XcodeGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
-        var defines = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines = "SWIFT_PACKAGE"
+        var defines = defines
+        var swiftDefines = swiftDefines
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
-        var settingsDictionary = TuistGraph.SettingsDictionary()
-        let platformSettings = try settingsForPlatform(platform?.platformName)
-
-        for setting in platformSettings {
+        var settingsDictionary = XcodeGraph.SettingsDictionary()
+        for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
@@ -69,7 +91,6 @@ struct SettingsMapper {
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 // Handled as dependency
                 continue
-
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
@@ -113,15 +134,24 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
-        var resolvedSettings = try settingsDictionaryForPlatform(nil)
-
-        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
-            let platformSettings = try settingsDictionaryForPlatform(platform)
-            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
+    // `nil` means settings without a condition
+    private func settings(for platformName: String?) throws
+        -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+    {
+        settings.filter { setting in
+            if let platformName, setting.hasConditions {
+                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
+                let platformNames: [String]
+                if hasMacCatalystPlatform {
+                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
+                } else {
+                    platformNames = setting.condition?.platformNames ?? []
+                }
+                return platformNames.contains(platformName)
+            } else {
+                return !setting.hasConditions
+            }
         }
-
-        return resolvedSettings
     }
 }
 

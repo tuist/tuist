@@ -93,15 +93,15 @@ Tasks are `$PATH`-exposed executables that are invocable through the `tuist` com
 
 If you were using Tuist for distributing tasks, we recommend building your 
 - You can continue using the `ProjectAutomation.xcframework` distributed with every Tuist release to have access to the project graph from your logic with `let graph = try Tuist.graph()`. The command uses sytem process to run the `tuist` command, and return the in-memory representation of the project graph.
-- To distribute tasks, we recommend including the a fat binary that supports the `arm64` and `x86_64` in GitHub releases, and using [Mise](https://mise.jdx.dev) as an installation tool. To insturct Mise on how to install your tool, you'll need a plugin repository. You can use [Tuist's](https://github.com/asdf-community/asdf-tuist) as a reference.
+- To distribute tasks, we recommend including the a fat binary that supports the `arm64` and `x86_64` in GitHub releases, and using [Mise](https://mise.jdx.dev) as an installation tool. To instruct Mise on how to install your tool, you'll need a plugin repository. You can use [Tuist's](https://github.com/asdf-community/asdf-tuist) as a reference.
 - If you name your tool `tuist-{xxx}` and users can install it by running `mise install`, they can run it either invoking it directly, or through `tuist xxx`.
 
 > [!NOTE] THE FUTURE OF PROJECTAUTOMATION
-> We plan to consolidate the models of `ProjectAutomation` and `TuistGraph` into a single backward-compatible framework that exposes the entirity of the project graph to the user. Moreover, we'll extract the generation logic into a new layer, `XcodeProjectGenerator` that you can also use from your own CLI. Think of it as building your own Tuist. 
+> We plan to consolidate the models of `ProjectAutomation` and `XcodeGraph` into a single backward-compatible framework that exposes the entirity of the project graph to the user. Moreover, we'll extract the generation logic into a new layer, `XcodeGraph` that you can also use from your own CLI. Think of it as building your own Tuist. 
 
 ## Using plugins
 
-To use a plugin, you'll have to add it to your project's [`Config.swift`](/reference/project-description/config) manifest file:
+To use a plugin, you'll have to add it to your project's [`Config.swift`](/reference/project-description/structs/config) manifest file:
 
 ```swift
 import ProjectDescription
@@ -134,7 +134,7 @@ After adding the plugins, `tuist install` will fetch the plugins in a global cac
 > As you might have noted, we don't provide version resolution for plugins. We recommend using Git tags or SHAs to ensure reproducibility.
 
 > [!TIP] PROJECT DESCRIPTION HELPERS PLUGINS
-> Whe using a project description helpers plugin, the name of the module that contains the helpers is the name of the plugin
+> When using a project description helpers plugin, the name of the module that contains the helpers is the name of the plugin
 > ```swift
 > import ProjectDescription
 > import MyTuistPlugin

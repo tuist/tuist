@@ -1,8 +1,7 @@
-import TuistGraph
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
-@testable import TuistGraphTesting
 
 class XcodeprojExtrasTests: XCTestCase {
     func test_pbxFileElement_sort() {
@@ -37,7 +36,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try XCTUnwrap(.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -64,7 +63,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try XCTUnwrap(.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -78,7 +77,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try XCTUnwrap(.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -92,7 +91,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try XCTUnwrap(.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -106,7 +105,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try .test([.macos])
+        let dependencyCondition: PlatformCondition = try XCTUnwrap(.test([.macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)

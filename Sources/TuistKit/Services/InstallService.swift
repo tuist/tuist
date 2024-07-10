@@ -1,11 +1,11 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistDependencies
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 final class InstallService {
     private let pluginService: PluginServicing
@@ -17,7 +17,10 @@ final class InstallService {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        ),
         fileHandler: FileHandling = FileHandler.shared,
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {

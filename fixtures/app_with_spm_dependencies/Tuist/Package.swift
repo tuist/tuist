@@ -33,7 +33,8 @@ let package = Package(
         .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
         .package(url: "https://github.com/SVProgressHUD/SVProgressHUD", exact: "2.3.1"),
         // Has missing resources and its own resource bundle accessors
-        .package(url: "https://github.com/urbanairship/ios-library.git", .exact("17.7.3")),
+        .package(url: "https://github.com/urbanairship/ios-library.git", exact: "17.7.3"),
+        .package(url: "https://github.com/braze-inc/braze-swift-sdk.git", exact: "8.4.0"),
         // Has an umbrella header where moduleName must be sanitized
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.2.0"),
         .package(url: "https://github.com/googleads/swift-package-manager-google-mobile-ads", from: "11.1.0"),
@@ -41,5 +42,8 @@ let package = Package(
         .package(path: "../LocalSwiftPackage"),
         .package(path: "../StringifyMacro"),
         .package(url: "https://github.com/kishikawakatsumi/UICKeyChainStore", exact: "2.2.1"),
+        .package(url: "https://github.com/QMUI/LookinServer", from: "1.2.8"),
+        // Has XCTest API in a non-test target. Tuist will add Test Search path to support it
+        .package(url: "https://github.com/Brightify/Cuckoo.git", exact: "1.10.4"),
     ]
 )

@@ -1,9 +1,9 @@
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistGraph
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -21,7 +21,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: TuistTestCase {
         )
 
         // When
-        let actual = try TuistGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
+        let actual = try XcodeGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(
@@ -45,7 +45,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: TuistTestCase {
         )
 
         // When
-        let actual = try TuistGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
+        let actual = try XcodeGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(
@@ -70,7 +70,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: TuistTestCase {
         )
 
         // When
-        let actual = try TuistGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
+        let actual = try XcodeGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(
@@ -97,7 +97,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: TuistTestCase {
         )
 
         // When
-        let actual = try TuistGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
+        let actual = try XcodeGraph.Workspace.GenerationOptions.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(

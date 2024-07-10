@@ -1,5 +1,6 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistSupport
 
 public enum XcodeBuildDestination: Equatable {
@@ -7,61 +8,7 @@ public enum XcodeBuildDestination: Equatable {
     case mac
 }
 
-/// An enum that represents value pairs that can be passed when creating an .xcframework.
-public enum XcodeBuildControllerCreateXCFrameworkArgument { // swiftlint:disable:this type_name
-    /**
-     An argument that represents a framework archive. The argument is a tuple containing the
-     absolute path to the archive, and the name of the framework inside the archive.
-
-     xcodebuild -create-xcframework
-         -archive archives/MyFramework-iOS.xcarchive -framework MyFramework.framework
-         -archive archives/MyFramework-iOS_Simulator.xcarchive -framework MyFramework.framework
-         -archive archives/MyFramework-macOS.xcarchive -framework MyFramework.framework
-         -archive archives/MyFramework-Mac_Catalyst.xcarchive -framework MyFramework.framework
-         -output xcframeworks/MyFramework.xcframework
-     */
-    case framework(archivePath: AbsolutePath, framework: String)
-
-    /**
-     An argument that represents a library. The argument is a tuple containing the absolute path
-     to the library, and the absolute path to the directory containing the headers.
-
-     xcodebuild -create-xcframework
-         -library products/iOS/usr/local/lib/libMyLibrary.a -headers products/iOS/usr/local/include
-         -library products/iOS_Simulator/usr/local/lib/libMyLibrary.a -headers products/iOS/usr/local/include
-         -library products/macOS/usr/local/lib/libMyLibrary.a -headers products/macOS/usr/local/include
-         -library products/Mac\ Catalyst/usr/local/lib/libMyLibrary.a -headers products/Mac\ Catalyst/usr/local/include
-         -output xcframeworks/MyLibrary.xcframework
-     */
-    case library(path: AbsolutePath, headers: AbsolutePath)
-
-    /**
-     It passes the -debug-symbol argument when creating frameworks.
-     */
-    case debugSymbols(path: AbsolutePath)
-
-    /**
-     Returns the arguments that represent his argument when invoking xcodebuild.
-     */
-    public var xcodebuildArguments: [String] {
-        func sanitizedPath(_ path: AbsolutePath) -> String {
-            // It's workaround for Xcode 15 RC bug
-            // remove it since bug will be fixed
-            // more details here: https://github.com/tuist/tuist/issues/5354
-            path.pathString.hasPrefix("/var/") ? path.pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : path
-                .pathString
-        }
-        switch self {
-        case let .framework(archivePath, framework):
-            return ["-archive", sanitizedPath(archivePath), "-framework", framework]
-        case let .library(libraryPath, headers):
-            return ["-library", sanitizedPath(libraryPath), "-headers", sanitizedPath(headers)]
-        case let .debugSymbols(path):
-            return ["-debug-symbols", sanitizedPath(path)]
-        }
-    }
-}
-
+@Mockable
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
     /// - Parameters:
@@ -71,6 +18,7 @@ public protocol XcodeBuildControlling {
     ///   to determine the destination.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -78,8 +26,9 @@ public protocol XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+        arguments: [XcodeBuildArgument],
+        passthroughXcodeBuildArguments: [String]
+    ) async throws
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -93,6 +42,7 @@ public protocol XcodeBuildControlling {
     ///   - testTargets: A list of test identifiers indicating which tests to run
     ///   - skipTestTargets: A list of test identifiers indicating which tests to skip
     ///   - testPlanConfiguration: A configuration object indicating which test plan to use and its configurations
+    ///   - passthroughXcodeBuildArguments: Passthrough xcodebuild arguments.
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -105,8 +55,9 @@ public protocol XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:
@@ -123,17 +74,16 @@ public protocol XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
-    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
     ///   - arguments: A set of arguments to configure the XCFramework creation.
     ///   - output: Path to the output .xcframework.
     func createXCFramework(
-        arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
+        arguments: [String],
         output: AbsolutePath
-    )
-        throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    ) async throws
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:

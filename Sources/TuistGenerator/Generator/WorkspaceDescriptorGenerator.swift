@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -238,6 +238,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             )
 
             return .group(groupReference)
+
         case let .virtualGroup(name, contents):
             return .group(.init(location: .container(""), name: name, children: try contents.map {
                 try recursiveChildElement(
@@ -246,6 +247,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                     path: path
                 )
             }.sorted(by: workspaceDataElementSort)))
+
         case let .project(path: projectPath):
             guard generatedProjects[projectPath] != nil else {
                 throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)

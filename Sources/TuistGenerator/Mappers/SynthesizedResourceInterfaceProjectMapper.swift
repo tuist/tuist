@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import SwiftGenKit
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 // swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
@@ -52,13 +52,14 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
         logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
-        let mappings = try project.targets
+        let mappings = try project.targets.values
             .map { try mapTarget($0, project: project) }
 
         let targets: [Target] = mappings.map(\.0)
         let sideEffects: [SideEffectDescriptor] = mappings.map(\.1).flatMap { $0 }
-
-        return (project.with(targets: targets), sideEffects)
+        var project = project
+        project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+        return (project, sideEffects)
     }
 
     // MARK: - Helpers
@@ -70,7 +71,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
-        guard !target.resources.resources.isEmpty, target.supportsSources else { return (target, []) }
+        let resourcesForSynthesizersPaths = target.resources.resources
+            .map(\.path) + target.coreDataModels.map(\.path)
+        guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
         var target = target
 
@@ -153,7 +156,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources.resources
-            .map(\.path)
+            .map(\.path) + target.coreDataModels.map(\.path)
 
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }

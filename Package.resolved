@@ -1,4 +1,5 @@
 {
+  "originHash" : "dc4a35b9ed535c9d2a720826820ddba97515ea7aae953fc69429768c6acc657a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -28,15 +29,6 @@
       }
     },
     {
-      "identity" : "combineext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CombineCommunity/CombineExt.git",
-      "state" : {
-        "revision" : "d7b896fa9ca8b47fa7bcde6b43ef9b70bf8c1f56",
-        "version" : "1.8.1"
-      }
-    },
-    {
       "identity" : "difference",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/krzysztofzablocki/Difference.git",
@@ -48,10 +40,10 @@
     {
       "identity" : "graphviz",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftDocOrg/GraphViz.git",
+      "location" : "https://github.com/tuist/GraphViz.git",
       "state" : {
-        "revision" : "70bebcf4597b9ce33e19816d6bbd4ba9b7bdf038",
-        "version" : "0.2.0"
+        "branch" : "0.2.1",
+        "revision" : "e4e0796a8fa74b000aba54b0256601abf75d0307"
       }
     },
     {
@@ -86,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "7af00c08880d375f2742ca55705abd69837fe6c3",
-        "version" : "0.0.2"
+        "revision" : "81ccaead99a3c038c09345caa2888ae74b644ee9",
+        "version" : "0.0.9"
       }
     },
     {
@@ -97,6 +89,15 @@
       "state" : {
         "revision" : "58523193c26fb821ed1720dcd8a21009055c7cdb",
         "version" : "1.1.3"
+      }
+    },
+    {
+      "identity" : "path",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Path.git",
+      "state" : {
+        "revision" : "4490da629937fc3994f72dd787dcc3f50d6973fe",
+        "version" : "0.3.0"
       }
     },
     {
@@ -158,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "c8ed701b513cf5177118a175d85fbbbcd707ab41",
-        "version" : "1.3.0"
+        "revision" : "0fbc8848e389af3bb55c182bc19ca9d5dc2f255b",
+        "version" : "1.4.0"
       }
     },
     {
@@ -169,6 +170,24 @@
       "state" : {
         "revision" : "532d8b529501fb73a2455b179e0bbb6d49b652ed",
         "version" : "1.5.3"
+      }
+    },
+    {
+      "identity" : "swift-openapi-runtime",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/swift-openapi-runtime",
+      "state" : {
+        "branch" : "swift-tools-version",
+        "revision" : "863d51ca0b55a72143462f4517065d906a24e0fb"
+      }
+    },
+    {
+      "identity" : "swift-openapi-urlsession",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/swift-openapi-urlsession",
+      "state" : {
+        "branch" : "swift-tools-version",
+        "revision" : "91b1694705584a09827049b690e07f9118cdab5d"
       }
     },
     {
@@ -212,8 +231,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "3140aa2d58063dbe30426cce118f8ba8feb37e60",
-        "version" : "2.0.1"
+        "revision" : "d9e8acfd22aa3133d95a4b998d31e0f77895c755",
+        "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "xcodegraph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "state" : {
+        "revision" : "0e44220403553ce7f20a79e49873b492302b4650",
+        "version" : "0.5.0"
       }
     },
     {
@@ -248,10 +276,10 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/weichsel/ZIPFoundation.git",
       "state" : {
-        "revision" : "a3f5c2bae0f04b0bce9ef3c4ba6bd1031a0564c4",
-        "version" : "0.9.17"
+        "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
+        "version" : "0.9.19"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

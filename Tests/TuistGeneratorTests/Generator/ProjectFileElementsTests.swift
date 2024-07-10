@@ -1,28 +1,32 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    var subject: ProjectFileElements!
-    var groups: ProjectGroups!
-    var pbxproj: PBXProj!
-    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var subject: ProjectFileElements!
+    private var groups: ProjectGroups!
+    private var pbxproj: PBXProj!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
 
     override func setUpWithError() throws {
         super.setUp()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = .init()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try! temporaryPath())
 
         subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
@@ -947,11 +951,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                     "A": .remote(url: "url", requirement: .branch("master")),
                 ],
             ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
-                ],
-            ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
                     .packageProduct(path: project.path, product: "A", type: .runtime),
@@ -971,6 +970,66 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [])
+    }
+
+    func test_gpxFilesForRunAction() {
+        // Given
+        let schemes: [Scheme] = [
+            .test(runAction: nil),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/A"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/B"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .reference("London, England"))
+            )),
+            .test(runAction: .test(
+                options: RunActionOptions(simulatedLocation: .gpxFile("/gpx/C"))
+            )),
+        ]
+        let filesGroup: ProjectGroup = .group(name: "Project")
+
+        // When
+        let gpxFiles = subject.gpxFilesForRunAction(in: schemes, filesGroup: filesGroup)
+
+        // Then
+        XCTAssertEqual(gpxFiles, [
+            GroupFileElement(path: "/gpx/A", group: filesGroup),
+            GroupFileElement(path: "/gpx/B", group: filesGroup),
+            GroupFileElement(path: "/gpx/C", group: filesGroup),
+        ])
+    }
+
+    func test_gpxFilesForTestAction() {
+        // Given
+        let schemes: [Scheme] = [
+            .test(testAction: nil),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/A")),
+            ])),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/B")),
+                .test(simulatedLocation: .reference("London, England")),
+            ])),
+            .test(testAction: .test(targets: [
+                .test(simulatedLocation: .gpxFile("/gpx/C")),
+                .test(simulatedLocation: .gpxFile("/gpx/D")),
+            ])),
+        ]
+        let filesGroup: ProjectGroup = .group(name: "Project")
+
+        // When
+        let gpxFiles = subject.gpxFilesForTestAction(in: schemes, filesGroup: filesGroup)
+
+        // Then
+        XCTAssertEqual(gpxFiles, [
+            GroupFileElement(path: "/gpx/A", group: filesGroup),
+            GroupFileElement(path: "/gpx/B", group: filesGroup),
+            GroupFileElement(path: "/gpx/C", group: filesGroup),
+            GroupFileElement(path: "/gpx/D", group: filesGroup),
+        ])
     }
 }
 

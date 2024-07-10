@@ -1,8 +1,8 @@
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 extension XcodeBuildDestination {
     /// Finds the `XcodeBuildDestination` that matches the arguments provided
@@ -16,16 +16,16 @@ extension XcodeBuildDestination {
     /// - Returns: The `XcodeBuildDestination` that is compatible with the given arguments.
     public static func find(
         for target: Target,
-        on platform: TuistGraph.Platform,
+        on platform: XcodeGraph.Platform,
         scheme: Scheme,
-        version: Version?,
+        version: TSCUtility.Version?,
         deviceName: String?,
         graphTraverser: GraphTraversing,
         simulatorController: SimulatorControlling
     ) async throws -> XcodeBuildDestination {
         switch platform {
         case .iOS, .tvOS, .watchOS, .visionOS:
-            let minVersion: Version?
+            let minVersion: TSCUtility.Version?
             if let deploymentTargetVersion = target.deploymentTargets[platform] {
                 minVersion = deploymentTargetVersion.version()
             } else {

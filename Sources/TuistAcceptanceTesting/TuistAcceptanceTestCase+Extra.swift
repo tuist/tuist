@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistSupport
 import XcodeProj
 import XCTest
@@ -77,5 +77,55 @@ extension TuistAcceptanceTestCase {
             )
             return
         }
+    }
+
+    /// Asserts that a simulated location is contained in a specific testable target.
+    /// - Parameters:
+    ///   - xcodeprojPath: A specific `.xcodeproj` file path.
+    ///   - scheme: A specific scheme name.
+    ///   - testTarget: A specific test target name.
+    ///   - simulatedLocation: A simulated location. This value can be passed a `location string` or a `GPX filename`.
+    ///   For example, "Rio de Janeiro, Brazil" or "Grand Canyon.gpx".
+    public func XCTAssertContainsSimulatedLocation(
+        xcodeprojPath: AbsolutePath,
+        scheme: String,
+        testTarget: String,
+        simulatedLocation: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+
+        guard let scheme = xcodeproj.sharedData?.schemes
+            .filter({ $0.name == scheme })
+            .first
+        else {
+            XCTFail(
+                "The '\(scheme)' scheme doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        guard let testableTarget = scheme.testAction?.testables
+            .filter({ $0.buildableReference.blueprintName == testTarget })
+            .first
+        else {
+            XCTFail(
+                "The '\(testTarget)' testable target doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        XCTAssertEqual(
+            testableTarget.locationScenarioReference?.identifier.contains(simulatedLocation),
+            true,
+            "The '\(testableTarget)' testable target doesn't have simulated location set.",
+            file: file,
+            line: line
+        )
     }
 }

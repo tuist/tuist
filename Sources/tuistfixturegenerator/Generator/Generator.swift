@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 class Generator {
     private let fileSystem: FileSystem

@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -24,46 +23,91 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_target_has_invalid_product_name() {
         let XCTAssertInvalidProductNameApp: (Target) -> Void = { target in
-            let got = self.subject.lint(target: target)
+            let got = self.subject.lint(target: target, options: .test())
             let reason: String
             switch target.product {
-            case .app, .commandLineTool:
-                reason =
-                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
-            default:
+            case .framework, .staticFramework:
                 reason =
                     "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), and underscore (_) characters."
+            default:
+                reason =
+                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), hyphen (-), and underscore (_) characters."
             }
 
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
         }
 
         let XCTAssertValidProductNameApp: (Target) -> Void = { target in
-            let got = self.subject.lint(target: target)
+            let got = self.subject.lint(target: target, options: .test())
             XCTAssertNil(got.first(where: { $0.description.contains("Invalid product name") }))
         }
 
         XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp.iOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp-iOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .bundle, productName: "MyBundle.macOS"))
+        XCTAssertValidProductNameApp(Target.test(product: .bundle, productName: "MyBundle-macOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework_iOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework"))
 
         XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework.iOS"))
-        XCTAssertInvalidProductNameApp(Target.test(productName: "MyFramework-iOS"))
+        XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework-iOS"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ⅫFramework"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
+    }
+
+    func test_lint_when_inconsistentProductNameBuildSettingAcrossConfigurations() {
+        // Given
+        let target = Target.test(settings: .test(
+            base: ["PRODUCT_NAME": "1"],
+            debug: .test(settings: ["PRODUCT_NAME": "2"]),
+            release: .test(settings: ["PRODUCT_NAME": "3"])
+        ))
+
+        // When
+        let got = subject.lint(target: target, options: .test())
+
+        // Then
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting that is different across configurations and might cause unpredictable behaviours.",
+                severity: .warning
+            )
+        )
+    }
+
+    func test_lint_when_productNameBuildSettingWithVariables() {
+        // Given
+        let target = Target.test(settings: .test(
+            base: ["PRODUCT_NAME": "$VARIABLE"],
+            debug: .test(settings: ["PRODUCT_NAME": "$VARIABLE"]),
+            release: .test(settings: ["PRODUCT_NAME": "$VARIABLE"])
+        ))
+
+        // When
+        let got = subject.lint(target: target, options: .test())
+
+        // Then
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting containing variables that are resolved at build time, and might cause unpredictable behaviours.",
+                severity: .warning
+            )
+        )
     }
 
     func test_lint_when_target_has_invalid_bundle_identifier() {
         let XCTAssertInvalidBundleId: (String) -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
-            let got = self.subject.lint(target: target)
+            let got = self.subject.lint(target: target, options: .test())
             let reason =
                 "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .error))
         }
         let XCTAssertValidBundleId: (String) -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
-            let got = self.subject.lint(target: target)
+            let got = self.subject.lint(target: target, options: .test())
             XCTAssertNil(got.first(where: { $0.description.contains("Invalid bundle identifier") }))
         }
 
@@ -76,7 +120,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_target_no_source_files() {
         let target = Target.test(sources: [])
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTContainsLintingIssue(
             got,
@@ -88,7 +132,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let target = Target.test(sources: [], dependencies: [
             TargetDependency.sdk(name: "libc++.tbd", status: .optional),
         ])
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTAssertEqual(0, got.count)
     }
@@ -97,7 +141,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let target = Target.test(sources: [], scripts: [
             TargetScript(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
         ])
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTAssertEqual(0, got.count)
     }
@@ -116,7 +160,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             )
         )
 
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTContainsLintingIssue(
             got,
@@ -138,7 +182,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let path = try! AbsolutePath(validating: "/App.entitlements")
         let target = Target.test(resources: .init([.file(path: path)]))
 
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTContainsLintingIssue(
             got,
@@ -154,7 +198,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
 
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTContainsLintingIssue(
             got,
@@ -167,7 +211,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: .file(path: path))
 
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         XCTContainsLintingIssue(
             got,
@@ -183,20 +227,125 @@ final class TargetLinterTests: TuistUnitTestCase {
         let staticLibrary = Target.test(product: .staticLibrary, resources: .init([element]))
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: .init([element]))
 
-        let staticResult = subject.lint(target: staticLibrary)
-        XCTContainsLintingIssue(
-            staticResult,
+        let staticLibraryResult = subject.lint(
+            target: staticLibrary,
+            options: .test()
+        )
+        XCTDoesNotContainLintingIssue(
+            staticLibraryResult,
             LintingIssue(
-                reason: "Target \(staticLibrary.name) cannot contain resources. static library targets do not support resources",
+                reason: "Target \(staticLibrary.name) cannot contain resources. For \(staticLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                 severity: .error
             )
         )
 
-        let dynamicResult = subject.lint(target: dynamicLibrary)
-        XCTContainsLintingIssue(
-            dynamicResult,
+        let dynamicLibraryResult = subject.lint(
+            target: dynamicLibrary,
+            options: .test()
+        )
+        XCTDoesNotContainLintingIssue(
+            dynamicLibraryResult,
             LintingIssue(
-                reason: "Target \(dynamicLibrary.name) cannot contain resources. dynamic library targets do not support resources",
+                reason: "Target \(dynamicLibrary.name) cannot contain resources. For \(dynamicLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+    }
+
+    func test_lint_when_library_has_resources_with_disable_bundle_accessors() throws {
+        let temporaryPath = try temporaryPath()
+        let path = temporaryPath.appending(component: "Image.png")
+        let element = ResourceFileElement.file(path: path)
+
+        let staticLibrary = Target.test(product: .staticLibrary, resources: .init([element]))
+        let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: .init([element]))
+
+        let staticLibraryResult = subject.lint(
+            target: staticLibrary,
+            options: .test(disableBundleAccessors: true)
+        )
+        XCTContainsLintingIssue(
+            staticLibraryResult,
+            LintingIssue(
+                reason: "Target \(staticLibrary.name) cannot contain resources. For \(staticLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+
+        let dynamicLibraryResult = subject.lint(
+            target: dynamicLibrary,
+            options: .test(disableBundleAccessors: true)
+        )
+        XCTContainsLintingIssue(
+            dynamicLibraryResult,
+            LintingIssue(
+                reason: "Target \(dynamicLibrary.name) cannot contain resources. For \(dynamicLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+    }
+
+    func test_lint_when_framework_has_resources() throws {
+        let temporaryPath = try temporaryPath()
+        let path = temporaryPath.appending(component: "Image.png")
+        let element = ResourceFileElement.file(path: path)
+
+        let staticFramework = Target.test(product: .staticFramework, resources: .init([element]))
+        let dynamicFramework = Target.test(product: .framework, resources: .init([element]))
+
+        let staticFrameworkResult = subject.lint(
+            target: staticFramework,
+            options: .test()
+        )
+        XCTDoesNotContainLintingIssue(
+            staticFrameworkResult,
+            LintingIssue(
+                reason: "Target \(staticFramework.name) cannot contain resources. For \(staticFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+
+        let dynamicFrameworkResult = subject.lint(
+            target: dynamicFramework,
+            options: .test()
+        )
+        XCTDoesNotContainLintingIssue(
+            dynamicFrameworkResult,
+            LintingIssue(
+                reason: "Target \(dynamicFramework.name) cannot contain resources. For \(dynamicFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+    }
+
+    func test_lint_when_framework_has_resources_with_disable_bundle_accessors() throws {
+        let temporaryPath = try temporaryPath()
+        let path = temporaryPath.appending(component: "Image.png")
+        let element = ResourceFileElement.file(path: path)
+
+        let staticFramework = Target.test(product: .staticFramework, resources: .init([element]))
+        let dynamicFramework = Target.test(product: .framework, resources: .init([element]))
+
+        let staticFrameworkResult = subject.lint(
+            target: staticFramework,
+            options: .test(disableBundleAccessors: true)
+        )
+        XCTContainsLintingIssue(
+            staticFrameworkResult,
+            LintingIssue(
+                reason: "Target \(staticFramework.name) cannot contain resources. For \(staticFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
+                severity: .error
+            )
+        )
+
+        let dynamicFrameworkResult = subject.lint(
+            target: dynamicFramework,
+            options: .test(disableBundleAccessors: true)
+        )
+        XCTDoesNotContainLintingIssue(
+            dynamicFrameworkResult,
+            LintingIssue(
+                reason: "Target \(dynamicFramework.name) cannot contain resources. For \(dynamicFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                 severity: .error
             )
         )
@@ -214,7 +363,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let result = subject.lint(target: bundle)
+        let result = subject.lint(target: bundle, options: .test())
 
         // Then
         XCTContainsLintingIssue(
@@ -236,7 +385,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let result = subject.lint(target: bundle)
+        let result = subject.lint(target: bundle, options: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -255,7 +404,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let result = subject.lint(target: bundle)
+        let result = subject.lint(target: bundle, options: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -268,7 +417,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
 
             // When
-            let got = subject.lint(target: target)
+            let got = subject.lint(target: target, options: .test())
 
             // Then
             XCTDoesNotContainLintingIssue(
@@ -301,13 +450,13 @@ final class TargetLinterTests: TuistUnitTestCase {
         ]
 
         for target in targets {
-            let got = subject.lint(target: target)
+            let got = subject.lint(target: target, options: .test())
 
             // Then
             XCTDoesNotContainLintingIssue(
                 got,
                 LintingIssue(
-                    reason: "Found an inconsistency between target destinations `[TuistGraph.Destination.appleVisionWithiPadDesign, TuistGraph.Destination.iPad, TuistGraph.Destination.iPhone]` and deployment target `visionOS`",
+                    reason: "Found an inconsistency between target destinations `[XcodeGraph.Destination.appleVisionWithiPadDesign, XcodeGraph.Destination.iPad, XcodeGraph.Destination.iPhone]` and deployment target `visionOS`",
                     severity: .error
                 )
             )
@@ -321,7 +470,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
 
             // When
-            let got = subject.lint(target: target)
+            let got = subject.lint(target: target, options: .test())
 
             // Then
             XCTContainsLintingIssue(got, LintingIssue(reason: "The version of deployment target is incorrect", severity: .error))
@@ -340,7 +489,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(platform: combinations.0, deploymentTarget: combinations.1)
 
             // When
-            let got = subject.lint(target: target)
+            let got = subject.lint(target: target, options: .test())
 
             let expectedPlatform = try XCTUnwrap(combinations.1.configuredVersions.first?.platform.caseValue)
             // Then
@@ -362,7 +511,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         ]
 
         // When
-        let got = invalidTargets.flatMap { subject.lint(target: $0) }
+        let got = invalidTargets.flatMap { subject.lint(target: $0, options: .test()) }
 
         // Then
         let expectedIssues: [LintingIssue] = [
@@ -385,7 +534,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let target = Target.test(dependencies: .init(repeating: testDependency, count: 2))
 
         // When
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         // Then
         XCTContainsLintingIssue(got, .init(
@@ -403,7 +552,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         ])
 
         // When
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         // Then
         XCTContainsLintingIssue(got, .init(
@@ -423,7 +572,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         ])
 
         // When
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         // Then
         XCTContainsLintingIssue(got, .init(
@@ -446,11 +595,30 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.lint(target: target)
+        let got = subject.lint(target: target, options: .test())
 
         // Then
         XCTContainsLintingIssue(got, .init(
             reason: "Target '\(target.name)' has a source file at path \(target.sources[1].path) with unsupported `codeGen` attributes. Only intentdefinition and mlmodel are known to support this.",
+            severity: .warning
+        ))
+    }
+
+    func test_lint_when_target_has_invalid_on_demand_resources_tags() throws {
+        // Given
+        let target = Target.empty(
+            onDemandResourcesTags: .init(
+                initialInstall: ["tag1", "tag2"],
+                prefetchOrder: ["tag2", "tag3"]
+            )
+        )
+
+        // When
+        let got = subject.lint(target: target, options: .test())
+
+        // Then
+        XCTContainsLintingIssue(got, .init(
+            reason: "Prefetched Order Tag \"tag2\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
             severity: .warning
         ))
     }

@@ -1,4 +1,4 @@
-extension Dictionary {
+extension Dictionary where Key: Sendable, Value: Sendable {
     /// Map (with execution context)
     ///
     /// - Parameters:
@@ -13,7 +13,7 @@ extension Dictionary {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the dictionary
-    public func concurrentMap<B>(_ transform: @escaping (Key, Value) async throws -> B) async throws -> [B] {
+    public func concurrentMap<B: Sendable>(_ transform: @Sendable @escaping (Key, Value) async throws -> B) async throws -> [B] {
         try await map { ($0.key, $0.value) }
             .concurrentMap(transform)
     }

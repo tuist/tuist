@@ -1,7 +1,9 @@
 import CryptoKit
 import Foundation
+import Mockable
 
-public protocol MachineEnvironmentRetrieving {
+@Mockable
+public protocol MachineEnvironmentRetrieving: Sendable {
     var clientId: String { get }
     var macOSVersion: String { get }
     var swiftVersion: String { get }
@@ -10,12 +12,12 @@ public protocol MachineEnvironmentRetrieving {
 }
 
 /// `MachineEnvironment` is a data structure that contains information about the machine executing Tuist
-public class MachineEnvironment: MachineEnvironmentRetrieving {
+public final class MachineEnvironment: MachineEnvironmentRetrieving {
     public static let shared = MachineEnvironment()
     private init() {}
 
     /// `clientId` is a unique anonymous hash that identifies the machine running Tuist
-    public lazy var clientId: String = {
+    public let clientId: String = {
         let matchingDict = IOServiceMatching("IOPlatformExpertDevice")
         let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, matchingDict)
         defer { IOObjectRelease(platformExpert) }
@@ -33,20 +35,20 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
     }()
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"
-    public lazy var macOSVersion = """
+    public let macOSVersion = """
     \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\
     \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
     \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
     """
 
     /// The `swiftVersion` of the machine running Tuist
-    public lazy var swiftVersion = try! System.shared // swiftlint:disable:this force_try
+    public let swiftVersion = try! System.shared // swiftlint:disable:this force_try
         .capture(["/usr/bin/xcrun", "swift", "-version"])
         .components(separatedBy: "Swift version ").last!
         .components(separatedBy: " ").first!
 
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
-    public lazy var hardwareName = ProcessInfo.processInfo.machineHardwareName
+    public let hardwareName = ProcessInfo.processInfo.machineHardwareName
 
     /// Indicates whether Tuist is running in Continuous Integration (CI) environment
     public var isCI: Bool {

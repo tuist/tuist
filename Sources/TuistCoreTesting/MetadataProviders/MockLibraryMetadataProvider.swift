@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 @testable import TuistCore
 
 public final class MockLibraryMetadataProvider: MockPrecompiledMetadataProvider, LibraryMetadataProviding {

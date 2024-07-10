@@ -27,7 +27,7 @@
 ///     swiftVersion: "5.9.0"
 /// )
 /// ```
-public struct Config: Codable, Equatable {
+public struct Config: Codable, Equatable, Sendable {
     /// Generation options.
     public let generationOptions: GenerationOptions
 
@@ -38,7 +38,14 @@ public struct Config: Codable, Equatable {
     public let plugins: [PluginLocation]
 
     /// Cloud configuration.
+    @available(*, deprecated, message: "Use the `fullHandle` and `url` properties directly in the `Config`")
     public let cloud: Cloud?
+
+    /// The full project handle such as tuist-org/tuist.
+    public let fullHandle: String?
+
+    /// The base URL that points to the Tuist server.
+    public let url: String
 
     /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
     /// If `nil` is passed then Tuist will use the environment’s version.
@@ -58,6 +65,8 @@ public struct Config: Codable, Equatable {
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
+        fullHandle: String? = nil,
+        url: String = "https://cloud.tuist.io",
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options()
@@ -66,6 +75,8 @@ public struct Config: Codable, Equatable {
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.cloud = cloud
+        self.fullHandle = fullHandle
+        self.url = url
         self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import XCTest
 
 @testable import TuistCore
@@ -11,7 +11,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = SimulatorController()
+        subject = SimulatorController(system: system)
     }
 
     override func tearDown() {

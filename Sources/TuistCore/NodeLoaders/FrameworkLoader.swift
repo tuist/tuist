@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 
 enum FrameworkLoaderError: FatalError, Equatable {
     case frameworkNotFound(AbsolutePath)

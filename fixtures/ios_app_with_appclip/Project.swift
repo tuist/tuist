@@ -44,6 +44,7 @@ let project = Project(
             dependencies: [
                 .target(name: "Framework"),
                 .target(name: "StaticFramework"),
+                .target(name: "AppClip1Widgets"),
             ]
         ),
         .target(
@@ -67,6 +68,23 @@ let project = Project(
             sources: ["AppClip1UITests/Tests/**"],
             dependencies: [
                 .target(name: "AppClip1"),
+            ]
+        ),
+        .target(
+            name: "AppClip1Widgets",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "io.tuist.App.Clip.Widgets",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
+                ],
+            ]),
+            sources: "AppClip1Widgets/Sources/**",
+            resources: "AppClip1Widgets/Resources/**",
+            dependencies: [
+                .target(name: "StaticFramework"),
             ]
         ),
     ]

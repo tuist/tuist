@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 public protocol ProjectDescriptionHelpersHashing: AnyObject {
@@ -16,10 +16,18 @@ public protocol ProjectDescriptionHelpersHashing: AnyObject {
 
 public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
     /// Tuist version.
-    let tuistVersion: String
+    private let tuistVersion: String
+    private let machineEnvironment: MachineEnvironmentRetrieving
+    private let swiftVersionProvider: SwiftVersionProviding
 
-    public init(tuistVersion: String = Constants.version) {
+    public init(
+        tuistVersion: String = Constants.version,
+        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared
+    ) {
         self.tuistVersion = tuistVersion
+        self.machineEnvironment = machineEnvironment
+        self.swiftVersionProvider = swiftVersionProvider
     }
 
     // MARK: - ProjectDescriptionHelpersHashing
@@ -31,14 +39,15 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.shared.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try System.shared.swiftVersion()
+        let swiftVersion = try swiftVersionProvider.swiftVersion()
+        let macosVersion = machineEnvironment.macOSVersion
         #if DEBUG
             let debug = true
         #else
             let debug = false
         #endif
 
-        let identifiers = [swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
+        let identifiers = [macosVersion, swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
 
         return identifiers.joined(separator: "-").md5
     }

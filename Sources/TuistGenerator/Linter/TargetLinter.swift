@@ -1,10 +1,10 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol TargetLinting: AnyObject {
-    func lint(target: Target) -> [LintingIssue]
+    func lint(target: Target, options: Project.Options) -> [LintingIssue]
 }
 
 class TargetLinter: TargetLinting {
@@ -25,14 +25,15 @@ class TargetLinter: TargetLinting {
 
     // MARK: - TargetLinting
 
-    func lint(target: Target) -> [LintingIssue] {
+    func lint(target: Target, options: Project.Options) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
+        issues.append(contentsOf: lintProductNameBuildSettings(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
-        issues.append(contentsOf: lintLibraryHasNoResources(target: target))
+        issues.append(contentsOf: lintLibraryHasNoResources(target: target, options: options))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
@@ -40,6 +41,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
+        issues.append(contentsOf: lintOnDemandResourcesTags(target: target))
         for script in target.scripts {
             issues.append(contentsOf: targetScriptLinter.lint(script))
         }
@@ -60,7 +62,7 @@ class TargetLinter: TargetLinting {
         bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
 
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        allowed.formUnion(CharacterSet(charactersIn: "-."))
+        allowed.formUnion(CharacterSet(charactersIn: "-./"))
 
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
             let reason =
@@ -74,19 +76,49 @@ class TargetLinter: TargetLinting {
     private func lintProductName(target: Target) -> [LintingIssue] {
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
-        let allowsDot = target.product == .app || target.product == .commandLineTool
-        if allowsDot {
-            allowed.formUnion(CharacterSet(charactersIn: "."))
+        let allowsExtraCharacters = target.product != .framework && target.product != .staticFramework
+        if allowsExtraCharacters {
+            allowed.formUnion(CharacterSet(charactersIn: ".-"))
         }
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason =
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsDot ? ", period (.)" : ""), and underscore (_) characters."
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsExtraCharacters ? ", period (.), hyphen (-)" : ""), and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }
 
         return []
+    }
+
+    private func lintProductNameBuildSettings(target: Target) -> [LintingIssue] {
+        var settingsProductNames: Set<String> = Set()
+        var issues: [LintingIssue] = []
+
+        if let value = target.settings?.base["PRODUCT_NAME"], case let SettingValue.string(baseProductName) = value {
+            settingsProductNames.insert(baseProductName)
+        }
+        target.settings?.configurations.values.forEach { configuration in
+            if let value = configuration?.settings["PRODUCT_NAME"],
+               case let SettingValue.string(configurationProductName) = value
+            {
+                settingsProductNames.insert(configurationProductName)
+            }
+        }
+        if settingsProductNames.count > 1 {
+            issues.append(.init(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting that is different across configurations and might cause unpredictable behaviours.",
+                severity: .warning
+            ))
+        }
+        if settingsProductNames.contains(where: { $0.contains("$") }) {
+            issues.append(.init(
+                reason: "The target '\(target.name)' has a PRODUCT_NAME build setting containing variables that are resolved at build time, and might cause unpredictable behaviours.",
+                severity: .warning
+            ))
+        }
+
+        return issues
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
@@ -188,15 +220,15 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
+    private func lintLibraryHasNoResources(target: Target, options: Project.Options) -> [LintingIssue] {
         if target.supportsResources {
             return []
         }
 
-        if target.resources.resources.isEmpty == false {
+        if target.resources.resources.isEmpty == false, options.disableBundleAccessors {
             return [
                 LintingIssue(
-                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    reason: "Target \(target.name) cannot contain resources. For \(target.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                     severity: .error
                 ),
             ]
@@ -291,6 +323,19 @@ class TargetLinter: TargetLinting {
             )]
         }
         return []
+    }
+
+    private func lintOnDemandResourcesTags(target: Target) -> [LintingIssue] {
+        guard let onDemandResourcesTags = target.onDemandResourcesTags else { return [] }
+        guard let initialInstall = onDemandResourcesTags.initialInstall else { return [] }
+        guard let prefetchOrder = onDemandResourcesTags.prefetchOrder else { return [] }
+        let intersection = Set(initialInstall).intersection(Set(prefetchOrder))
+        return intersection.map { tag in
+            LintingIssue(
+                reason: "Prefetched Order Tag \"\(tag)\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
+                severity: .warning
+            )
+        }
     }
 }
 

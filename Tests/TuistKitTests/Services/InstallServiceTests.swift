@@ -1,23 +1,21 @@
 import Foundation
 import MockableTest
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 
 @testable import TuistKit
 
 final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
-    private var configLoader: MockConfigLoader!
+    private var configLoader: MockConfigLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
@@ -27,7 +25,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         super.setUp()
 
         pluginService = MockPluginService()
-        configLoader = MockConfigLoader()
+        configLoader = MockConfigLoading()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestFilesLocator = MockManifestFilesLocating()
 
@@ -59,7 +57,11 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
-        configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+            )
 
         pluginService.fetchRemotePluginsStub = { _ in
             _ = Plugins.test()
@@ -89,9 +91,9 @@ final class InstallServiceTests: TuistUnitTestCase {
                 .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
             ]
         )
-        configLoader.loadConfigStub = { _ in
-            config
-        }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
         var invokedConfig: Config?
         pluginService.loadPluginsStub = { config in
             invokedConfig = config
@@ -120,7 +122,11 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
-        configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+            )
 
         pluginService.fetchRemotePluginsStub = { _ in }
 
@@ -147,6 +153,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         let expectedFoundPackageLocation = temporaryDirectory.appending(
             components: Constants.tuistDirectoryName, Manifest.package.fileName(temporaryDirectory)
         )
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(expectedFoundPackageLocation)

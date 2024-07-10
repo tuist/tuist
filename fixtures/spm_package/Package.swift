@@ -24,11 +24,17 @@ let package = Package(
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "MyPackage",
-            targets: ["MyPackage"]
+            targets: [
+                "MyPackage",
+                "MyCommonPackage",
+            ]
         ),
         .library(
             name: "MyUIKitPackage",
-            targets: ["MyUIKitPackage"]
+            targets: [
+                "MyUIKitPackage",
+                "MyCommonPackage",
+            ]
         ),
     ],
     dependencies: [
@@ -44,6 +50,9 @@ let package = Package(
             ]
         ),
         .target(
+            name: "MyCommonPackage"
+        ),
+        .target(
             name: "MyPackage",
             dependencies: [
                 "Alamofire",
@@ -57,7 +66,17 @@ let package = Package(
         ),
         .testTarget(
             name: "MyPackageTests",
-            dependencies: ["MyPackage"]
+            dependencies: [
+                "MyPackage",
+                "MyCommonPackage",
+            ]
+        ),
+        .testTarget(
+            name: "MyUIKitPackageTests",
+            dependencies: [
+                "MyUIKitPackage",
+                "MyCommonPackage",
+            ]
         ),
     ]
 )

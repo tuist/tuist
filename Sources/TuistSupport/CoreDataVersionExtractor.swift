@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// Extract version from .xccurrentversion file.
 public enum CoreDataVersionExtractor {

@@ -13,7 +13,7 @@ import Foundation
 ///   }
 /// }
 /// ```
-public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable {
+public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable, Sendable {
     /// The configuration name.
     public var rawValue: String
 

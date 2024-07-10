@@ -1,7 +1,7 @@
 import Foundation
 
 /// A scaffold template model.
-public struct Template: Codable, Equatable {
+public struct Template: Codable, Equatable, Sendable {
     /// Description of template
     public let description: String
     /// Attributes to be passed to template
@@ -21,7 +21,7 @@ public struct Template: Codable, Equatable {
     }
 
     /// Enum containing information about how to generate item
-    public enum Contents: Codable, Equatable {
+    public enum Contents: Codable, Equatable, Sendable {
         /// String Contents is defined in `name_of_template.swift` and contains a simple `String`
         /// Can not contain any additional logic apart from plain `String` from `arguments`
         case string(String)
@@ -34,7 +34,7 @@ public struct Template: Codable, Equatable {
     }
 
     /// File description for generating
-    public struct Item: Codable, Equatable {
+    public struct Item: Codable, Equatable, Sendable {
         public let path: String
         public let contents: Contents
 
@@ -44,7 +44,7 @@ public struct Template: Codable, Equatable {
     }
 
     /// Attribute to be passed to `tuist scaffold` for generating with `Template`
-    public enum Attribute: Codable, Equatable {
+    public enum Attribute: Codable, Equatable, Sendable {
         /// Required attribute with a given name
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user
@@ -54,7 +54,7 @@ public struct Template: Codable, Equatable {
 
 extension Template.Attribute {
     /// This represents the default value type of Attribute
-    public indirect enum Value: Codable, Equatable {
+    public indirect enum Value: Codable, Equatable, Sendable {
         /// It represents a string value.
         case string(String)
         /// It represents an integer value.

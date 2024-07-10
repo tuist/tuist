@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 
 /// A plugin which is loaded & editable as part of the `tuist edit` command.
 struct EditablePluginManifest {

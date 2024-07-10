@@ -1,28 +1,26 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
+import XcodeGraph
 
-public protocol CleanCategory: ExpressibleByArgument & CaseIterable {
-    func directory(
-        rootDirectory: AbsolutePath?,
-        packageDirectory: AbsolutePath?,
-        cacheDirectory: AbsolutePath
-    ) throws -> AbsolutePath?
-}
+enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
+    static let allCases = CacheCategory.allCases
+        .map { .global($0) } + [Self.dependencies]
 
-public enum TuistCleanCategory: CleanCategory {
-    public static let allCases = CacheCategory.allCases.map { .global($0) } + [Self.dependencies]
+    static var allValueStrings: [String] {
+        TuistCleanCategory.allCases.map(\.defaultValueDescription)
+    }
 
-    /// The global cache
+    /// The local global cache
     case global(CacheCategory)
 
     /// The local dependencies cache
     case dependencies
 
-    public var defaultValueDescription: String {
+    var defaultValueDescription: String {
         switch self {
         case let .global(cacheCategory):
             return cacheCategory.rawValue
@@ -31,7 +29,7 @@ public enum TuistCleanCategory: CleanCategory {
         }
     }
 
-    public init?(argument: String) {
+    init?(argument: String) {
         if let cacheCategory = CacheCategory(rawValue: argument) {
             self = .global(cacheCategory)
         } else if argument == "dependencies" {
@@ -41,14 +39,12 @@ public enum TuistCleanCategory: CleanCategory {
         }
     }
 
-    public func directory(
-        rootDirectory _: AbsolutePath?,
-        packageDirectory: AbsolutePath?,
-        cacheDirectory: AbsolutePath
-    ) throws -> TSCBasic.AbsolutePath? {
+    func directory(
+        packageDirectory: AbsolutePath?
+    ) throws -> Path.AbsolutePath? {
         switch self {
         case let .global(category):
-            return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)
+            return try CacheDirectoriesProvider().cacheDirectory(for: category)
         case .dependencies:
             return packageDirectory?.appending(
                 component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -62,16 +58,25 @@ final class CleanService {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let manifestFilesLocator: ManifestFilesLocating
+    private let configLoader: ConfigLoading
+    private let serverURLService: ServerURLServicing
+    private let cleanCacheService: CleanCacheServicing
     init(
         fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        configLoader: ConfigLoading,
+        serverURLService: ServerURLServicing,
+        cleanCacheService: CleanCacheServicing
     ) {
         self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.manifestFilesLocator = manifestFilesLocator
+        self.configLoader = configLoader
+        self.serverURLService = serverURLService
+        self.cleanCacheService = cleanCacheService
     }
 
     public convenience init() {
@@ -79,37 +84,56 @@ final class CleanService {
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
-            manifestFilesLocator: ManifestFilesLocator()
+            manifestFilesLocator: ManifestFilesLocator(),
+            configLoader: ConfigLoader(),
+            serverURLService: ServerURLService(),
+            cleanCacheService: CleanCacheService()
         )
     }
 
     func run(
-        categories: [some CleanCategory],
+        categories: [TuistCleanCategory],
+        remote: Bool,
         path: String?
-    ) throws {
+    ) async throws {
         let resolvedPath = if let path {
             try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             FileHandler.shared.currentPath
         }
 
-        let rootDirectory = rootDirectoryLocator.locate(from: resolvedPath)
-        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
         let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
-            if let directory = try category.directory(
-                rootDirectory: rootDirectory,
-                packageDirectory: packageDirectory,
-                cacheDirectory: cacheDirectory
-            ),
-                fileHandler.exists(directory)
+            let directory: AbsolutePath?
+            switch category {
+            case let .global(category):
+                directory = try cacheDirectoriesProvider.cacheDirectory(for: category)
+            case .dependencies:
+                directory = packageDirectory?.appending(
+                    component: Constants.SwiftPackageManager.packageBuildDirectoryName
+                )
+            }
+            if let directory,
+               fileHandler.exists(directory)
             {
                 try FileHandler.shared.delete(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             } else {
                 logger.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
+        }
+
+        if remote {
+            let config = try configLoader.loadConfig(path: resolvedPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let serverURL = try serverURLService.url(configServerURL: config.url)
+            try await cleanCacheService.cleanCache(
+                serverURL: serverURL,
+                fullName: fullHandle
+            )
+
+            logger.notice("Successfully cleaned the remote storage.")
         }
     }
 }

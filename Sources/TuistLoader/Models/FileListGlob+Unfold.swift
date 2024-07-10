@@ -1,8 +1,8 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 extension FileListGlob {
     func unfold(

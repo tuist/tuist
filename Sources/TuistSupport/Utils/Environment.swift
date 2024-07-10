@@ -1,10 +1,10 @@
 import Darwin
 import Foundation
-import TSCBasic
+import Path
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
-public protocol Environmenting: AnyObject {
+public protocol Environmenting: AnyObject, Sendable {
     /// Returns the versions directory.
     var versionsDirectory: AbsolutePath { get }
 
@@ -44,8 +44,13 @@ public protocol Environmenting: AnyObject {
 }
 
 /// Local environment controller.
-public class Environment: Environmenting {
-    public static var shared: Environmenting = Environment()
+public final class Environment: Environmenting {
+    public static var shared: Environmenting {
+        _shared.value
+    }
+
+    // swiftlint:disable:next identifier_name
+    static let _shared: ThreadSafe<Environmenting> = ThreadSafe(Environment())
 
     /// Returns the default local directory.
     static let defaultDirectory = try! AbsolutePath( // swiftlint:disable:this force_try

@@ -1,32 +1,71 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
+import TuistAutomation
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
+import TuistServer
 import TuistSupport
+import XcodeGraph
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands
+@Mockable
 public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
     /// - Parameter testsCacheDirectory: The cache directory used for tests.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
+    /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+    /// - Parameter ignoreSelectiveTesting: True to run all tests
+    /// - Parameter cacheStorage: The cache storage instance.
+    /// - Parameter automationStorage: The storage for automation.
     /// - Returns: A Generator instance.
-    func test(
+    func testing(
         config: Config,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        configuration: String?,
+        ignoreBinaryCache: Bool,
+        ignoreSelectiveTesting: Bool,
+        cacheStorage: CacheStoring,
+        automationStorage: AutomationStoring
+    ) -> Generating
+
+    /// Returns the generator for focused projects.
+    /// - Parameter config: The project configuration.
+    /// - Parameter sources: The list of targets whose sources should be included.
+    /// - Parameter configuration: The configuration to generate for.
+    /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
+    /// - Parameter cacheStorage: The cache storage instance.
+    /// - Returns: The generator for focused projects.
+    func generation(
+        config: Config,
+        sources: Set<String>,
+        configuration: String?,
+        ignoreBinaryCache: Bool,
+        cacheStorage: CacheStoring
+    ) -> Generating
+
+    /// Returns a generator for building a project.
+    /// - Parameters:
+    ///     - config: The project configuration
+    /// - Returns: A Generator instance
+    func building(
+        config: Config,
+        configuration: String?,
+        ignoreBinaryCache: Bool,
+        cacheStorage: CacheStoring
     ) -> Generating
 
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Returns: A Generator instance.
-    func `default`(
+    func defaultGenerator(
         config: Config
     ) -> Generating
 }
@@ -38,13 +77,18 @@ public class GeneratorFactory: GeneratorFactorying {
         self.contentHasher = contentHasher
     }
 
-    public func test(
+    public func testing(
         config: Config,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        configuration _: String?,
+        ignoreBinaryCache _: Bool,
+        ignoreSelectiveTesting _: Bool,
+        cacheStorage _: CacheStoring,
+        automationStorage _: AutomationStoring
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -71,7 +115,26 @@ public class GeneratorFactory: GeneratorFactorying {
         )
     }
 
-    public func `default`(config: Config) -> Generating {
+    public func generation(
+        config: Config,
+        sources _: Set<String>,
+        configuration _: String?,
+        ignoreBinaryCache _: Bool,
+        cacheStorage _: CacheStoring
+    ) -> Generating {
+        defaultGenerator(config: config)
+    }
+
+    public func building(
+        config: Config,
+        configuration _: String?,
+        ignoreBinaryCache _: Bool,
+        cacheStorage _: CacheStoring
+    ) -> Generating {
+        defaultGenerator(config: config)
+    }
+
+    public func defaultGenerator(config: Config) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.default()

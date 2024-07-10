@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Protocol that defines the interface of a linter for target scripts.
 protocol TargetScriptLinting {

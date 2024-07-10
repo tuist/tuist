@@ -1,8 +1,8 @@
 import Foundation
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue]
@@ -89,6 +89,62 @@ public class GraphLinter: GraphLinting {
 
     private func lintDependencies(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
         var issues: [LintingIssue] = []
+
+        issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintLinkableDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
+        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
+
+        return issues
+    }
+
+    private func lintLinkableDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        let linkableProducts: Set<Product> = [
+            .framework,
+            .staticFramework,
+            .staticLibrary,
+            .dynamicLibrary,
+        ]
+
+        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, _ -> [LintingIssue] in
+            guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+                  let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+
+            let fromPlatforms = fromTarget.target.supportedPlatforms
+
+            let dependencies: [LintingIssue] = graphTraverser.directTargetDependencies(path: fromTargetPath, name: fromTargetName)
+                .flatMap { dependentTarget in
+                    guard linkableProducts.contains(dependentTarget.target.product) else { return [LintingIssue]() }
+
+                    var requiredPlatforms = fromPlatforms
+
+                    if let condition = dependentTarget.condition {
+                        requiredPlatforms.formIntersection(Set(condition.platformFilters.compactMap(\.platform)))
+                    }
+
+                    let platformsSupportedByDependency = dependentTarget.target.supportedPlatforms
+                    let unaccountedPlatforms = requiredPlatforms.subtracting(platformsSupportedByDependency)
+
+                    if !unaccountedPlatforms.isEmpty {
+                        let missingPlatforms = unaccountedPlatforms.map(\.rawValue).joined(separator: ", ")
+                        return [LintingIssue(
+                            reason: "Target \(fromTargetName) which depends on \(dependentTarget.target.name) does not support the required platforms: \(missingPlatforms). The dependency on \(dependentTarget.target.name) must have a dependency condition constraining to at most: \(platformsSupportedByDependency.map(\.rawValue).joined(separator: ", ")).",
+                            severity: .error
+                        )]
+                    } else {
+                        return [LintingIssue]()
+                    }
+                }
+
+            return dependencies
+        }
+
+        return dependencyIssues
+    }
+
+    private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in
                 guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
@@ -98,14 +154,7 @@ public class GraphLinter: GraphLinting {
                 return lintDependency(from: fromTarget, to: toTarget)
             }
         }
-
-        issues.append(contentsOf: dependencyIssues)
-        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
-        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
-
-        return issues
+        return dependencyIssues
     }
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
@@ -321,7 +370,7 @@ public class GraphLinter: GraphLinting {
     }
 
     struct LintableTarget: Equatable, Hashable {
-        let platform: TuistGraph.Platform
+        let platform: XcodeGraph.Platform
         let product: Product
     }
 
@@ -394,6 +443,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .iOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .appClip): [
@@ -401,6 +451,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .appExtension),
             LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .extensionKitExtension): [

@@ -1,9 +1,8 @@
 import Foundation
+import Path
 import PathKit
 import StencilSwiftKit
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
 
 /// Interface for generating content defined in template manifest
@@ -16,7 +15,7 @@ public protocol TemplateGenerating {
     func generate(
         template: Template,
         to destinationPath: AbsolutePath,
-        attributes: [String: TuistGraph.Template.Attribute.Value]
+        attributes: [String: Template.Attribute.Value]
     ) throws
 }
 
@@ -27,7 +26,7 @@ public final class TemplateGenerator: TemplateGenerating {
     public func generate(
         template: Template,
         to destinationPath: AbsolutePath,
-        attributes: [String: TuistGraph.Template.Attribute.Value]
+        attributes: [String: Template.Attribute.Value]
     ) throws {
         let renderedItems = try renderItems(
             template: template,
@@ -50,7 +49,7 @@ public final class TemplateGenerator: TemplateGenerating {
     /// Renders items' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
     private func renderItems(
         template: Template,
-        attributes: [String: TuistGraph.Template.Attribute.Value]
+        attributes: [String: Template.Attribute.Value]
     ) throws -> [Template.Item] {
         let environment = stencilSwiftEnvironment()
         return try template.items.map {
@@ -103,7 +102,7 @@ public final class TemplateGenerator: TemplateGenerating {
     /// Generate all `renderedItems`
     private func generateItems(
         renderedItems: [Template.Item],
-        attributes: [String: TuistGraph.Template.Attribute.Value],
+        attributes: [String: Template.Attribute.Value],
         destinationPath: AbsolutePath
     ) throws {
         let environment = stencilSwiftEnvironment()
@@ -156,7 +155,7 @@ public final class TemplateGenerator: TemplateGenerating {
     }
 }
 
-extension [String: TuistGraph.Template.Attribute.Value] {
+extension [String: Template.Attribute.Value] {
     fileprivate var toStringAny: [String: Any] {
         reduce([:]) { partialResult, attribute in
             var result: [String: Any] = partialResult

@@ -16,6 +16,8 @@ let project = Project(
                 .target(name: "AppKit"),
                 .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
                 .external(name: "Styles"),
+                .external(name: "BrazeKit"),
+                .external(name: "BrazeUI"),
             ],
             settings: .targetSettings
         ),
@@ -44,6 +46,7 @@ let project = Project(
                 .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
+                .external(name: "LookinServer"),
             ],
             settings: .targetSettings
         ),
@@ -58,6 +61,7 @@ let project = Project(
                 .target(name: "AppKit"),
                 .external(name: "Nimble"),
                 .external(name: "Testing"),
+                .external(name: "Cuckoo"),
             ],
             settings: .targetSettings
         ),
@@ -80,8 +84,8 @@ let project = Project(
                 with: [
                     "WKCompanionAppBundleIdentifier": "io.tuist.app",
                 ]
-            ),
-            sources: ["Sources/Watch/App/**"],
+            ), sources: ["Sources/Watch/App/**"],
+
             dependencies: [
                 .target(name: "WatchExtension"),
             ]

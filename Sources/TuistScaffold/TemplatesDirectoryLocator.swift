@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistSupport
 
@@ -32,7 +32,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public func locateTuistTemplates() -> AbsolutePath? {
         #if DEBUG
             let maybeBundlePath: AbsolutePath?
-            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"] {
+            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"] {
                 maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(component: "Templates")
             } else {
                 // Used only for debug purposes to find templates in your tuist working directory
@@ -57,7 +57,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                    share/
                        Templates
                 */
-            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share/Templates")),
+            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share")),
             // swiftlint:disable:previous force_try
         ]
         let candidates = paths.map { path in

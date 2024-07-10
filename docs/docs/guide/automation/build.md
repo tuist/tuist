@@ -21,20 +21,16 @@ Understanding the build process is crucial to optimize the build times. Unfortun
 
 ## Building schemes
 
-To build schemes of a project, you can use the `tuist build` command. This command will generate the project if needed, and then build it using the `xcodebuild` command-line tool.
+To build schemes of a project, you can use the `tuist build` command. This command will generate the project if needed, and then build it using the `xcodebuild` command-line tool. We support the use of the `--` terminator to forward all subsequent arguments directly to `xcodebuild. Arguments such as `-workspace` or `-project` cannot be used because tuist takes care of them.
 
 ::: code-group
 ```bash [Build a scheme]
 tuist build MyScheme
 ```
 ```bash [Build a specific configuration]
-tuist build MyScheme --configuration Debug
+tuist build MyScheme -- -configuration Debug
 ```
 ```bash [Build all schemes without binary cache]
 tuist build --no-binary-cache
 ```
 :::
-
-> [!NOTE] XCODEBUILD ARGUMENT FORWARDING
-> We don't support forwarding arbitrary arguments to `xcodebuild` yet. If you need to pass arguments to `xcodebuild`, you can use the `--verbose` flag to see the command that Tuist is running, and then run it manually with the arguments you need.
-

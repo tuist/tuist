@@ -1,4 +1,4 @@
-import TSCBasic
+import Path
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -138,6 +138,36 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithOnDemandResources: TuistAcceptanceTestCase {
+    func test_ios_app_with_on_demand_resources() async throws {
+        try setUpFixture(.iosAppWithOnDemandResources)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        let pbxprojPath = xcodeprojPath.appending(component: "project.pbxproj")
+        let data = try Data(contentsOf: pbxprojPath.url)
+        let pbxProj = try PBXProj(data: data)
+        let attributes = try XCTUnwrap(pbxProj.projects.first?.attributes)
+        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"] as? [String])
+        let givenTags = [
+            "ar-resource-group",
+            "cube-texture",
+            "data",
+            "data file",
+            "datafile",
+            "datafolder",
+            "image",
+            "image-stack",
+            "json",
+            "nestedimage",
+            "newfolder",
+            "sprite",
+            "tag with space",
+            "texture",
+        ]
+        XCTAssertEqual(knownAssetTags, givenTags)
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithPrivacyManifest: TuistAcceptanceTestCase {
     func test_ios_app_with_privacy_manifest() async throws {
         try setUpFixture(.iosAppWithPrivacyManifest)
@@ -255,6 +285,21 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
         try await run(BuildCommand.self, "App-Debug")
         try await run(BuildCommand.self, "App-Release")
         try await run(BuildCommand.self, "App-Local")
+
+        let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
+
+        try XCTAssertContainsSimulatedLocation(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "App-Debug",
+            testTarget: "AppTests",
+            simulatedLocation: "Rio de Janeiro, Brazil"
+        )
+        try XCTAssertContainsSimulatedLocation(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "App-Release",
+            testTarget: "AppTests",
+            simulatedLocation: "Grand Canyon.gpx"
+        )
     }
 }
 
@@ -438,6 +483,11 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             "App.app",
             destination: "Debug-iphonesimulator"
         )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "WidgetExtension.appex",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
+        )
     }
 }
 
@@ -545,6 +595,17 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
                 resource: resource
             )
         }
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                fixturePath.appending(
+                    components: [
+                        "Derived",
+                        "Sources",
+                        "TuistCoreData+App.swift",
+                    ]
+                )
+            )
+        )
     }
 }
 
@@ -560,12 +621,25 @@ final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
             architecture: "arm64"
         )
         try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            appClip: "AppClip1",
+            architecture: "arm64"
+        )
+        try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "AppClip1.app",
+            destination: "Debug-iphonesimulator",
+            extension: "AppClip1Widgets"
+        )
     }
 }
 
 final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
     func test_command_line_tool_basic() async throws {
         try setUpFixture(.commandLineToolBasic)
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "CommandLineTool")
     }
@@ -780,8 +854,28 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "MyUIKitPackage", "--platform", "ios")
         try await run(BuildCommand.self, "MyCLI")
         try await run(TestCommand.self, "--platform", "ios")
+        try await run(TestCommand.self, "MyPackage", "--platform", "macos")
     }
 }
+
+final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTestCase {
+    func test_app_with_custom_default_configuration() async throws {
+        try setUpFixture(.appWithCustomDefaultConfiguration)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
+    func test_framework_with_macro_and_plugin_packages() async throws {
+        try setUpFixture(.frameworkWithMacroAndPluginPackages)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "--", "-skipPackagePluginValidation")
+    }
+}
+
+// frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
     private func resourcePath(

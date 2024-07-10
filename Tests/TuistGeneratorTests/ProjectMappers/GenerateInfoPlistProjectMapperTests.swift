@@ -1,9 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistCoreTesting
 @testable import TuistGenerator
@@ -95,7 +94,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) {
-        XCTAssertNotNil(project.targets.first(where: { (target: Target) in
+        XCTAssertNotNil(project.targets.values.first(where: { (target: Target) in
             target.infoPlist?.path == project.path
                 .appending(component: Constants.DerivedDirectory.name)
                 .appending(component: Constants.DerivedDirectory.infoPlists)

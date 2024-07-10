@@ -1,11 +1,10 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
 class StaticProductsGraphLinterTests: XCTestCase {
@@ -26,7 +25,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let path: AbsolutePath = "/project"
         let app = Target.test(name: "App")
         let framework = Target.test(name: "Framework", product: .framework)
-        let project = Project.test(path: "/tmp/app", name: "AppProject")
+        let project = Project.test(path: "/tmp/app", name: "AppProject", targets: [app, framework])
         let package = Package.remote(url: "https://test.tuist.io", requirement: .branch("main"))
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
@@ -40,10 +39,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
             path: path,
             projects: [path: project],
             packages: [path: ["Package": package]],
-            targets: [path: [
-                app.name: app,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -63,7 +58,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let path: AbsolutePath = "/project"
         let app = Target.test(name: "App")
         let framework = Target.test(name: "Framework", product: .framework)
-        let project = Project.test(path: "/tmp/app", name: "AppProject")
+        let project = Project.test(path: "/tmp/app", name: "AppProject", targets: [app, framework])
         let package = Package.remote(url: "https://test.tuist.io", requirement: .branch("main"))
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
@@ -78,10 +73,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
             path: path,
             projects: [path: project],
             packages: [path: ["Package": package]],
-            targets: [path: [
-                app.name: app,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -116,10 +107,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -154,11 +141,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                framework.name: framework,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -206,15 +188,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -262,15 +235,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -294,7 +258,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
         let frameworkD = Target.test(name: "FrameworkD", product: .framework)
-        let project = Project.test(targets: [app, frameworkA, frameworkB, frameworkC, staticFrameworkA])
+        let project = Project.test(targets: [app, frameworkA, frameworkB, frameworkC, frameworkD, staticFrameworkA])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
@@ -314,14 +278,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFrameworkA.name: staticFrameworkA,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-                frameworkD.name: frameworkD,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -357,11 +313,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFramework.name: staticFramework,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -407,15 +358,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -448,11 +390,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFramework.name: staticFramework,
-                frameworkTests.name: frameworkTests,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -472,7 +409,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
-        let project = Project.test(targets: [app, staticFramework, frameworkTests])
+        let project = Project.test(targets: [app, framework, staticFramework, frameworkTests])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
@@ -488,12 +425,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                framework.name: framework,
-                staticFramework.name: staticFramework,
-                frameworkTests.name: frameworkTests,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -528,11 +459,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appTestsTarget.name: appTestsTarget,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -613,21 +539,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appTests.name: appTests,
-                appUITests.name: appUITests,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-                frameworkTests.name: frameworkTests,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-                staticFrameworkATests.name: staticFrameworkATests,
-                staticFrameworkBTests.name: staticFrameworkBTests,
-                staticFrameworkCTests.name: staticFrameworkCTests,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -660,11 +571,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                appClip.name: appClip,
-                appClipTestsTarget.name: appClipTestsTarget,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -729,17 +635,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appTests.name: appTests,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-                frameworkTests.name: frameworkTests,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -782,13 +677,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appTests.name: appTests,
-                appUITests.name: appUITests,
-                frameworkA.name: frameworkA,
-                staticFrameworkA.name: staticFrameworkA,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -827,12 +715,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appUITests.name: appUITests,
-                frameworkA.name: frameworkA,
-                staticFrameworkA.name: staticFrameworkA,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -873,12 +755,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appUITests.name: appUITests,
-                frameworkA.name: frameworkA,
-                staticFrameworkA.name: staticFrameworkA,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -918,12 +794,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appUITests.name: appUITests,
-                frameworkA.name: frameworkA,
-                staticFrameworkA.name: staticFrameworkA,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -960,11 +830,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appExtension.name: appExtension,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1001,12 +866,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appExtension.name: appExtension,
-                staticFramework.name: staticFramework,
-                framework.name: framework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1042,11 +901,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appClip.name: appClip,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1083,12 +937,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                appClip.name: appClip,
-                framework.name: framework,
-                staticFramework.name: staticFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1126,11 +974,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                watchApp.name: watchApp,
-                watchAppExtension.name: watchAppExtension,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1169,12 +1012,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                watchApp.name: watchApp,
-                watchAppExtension.name: watchAppExtension,
-                watchFramework.name: watchFramework,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()
@@ -1222,15 +1059,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                staticFrameworkA.name: staticFrameworkA,
-                staticFrameworkB.name: staticFrameworkB,
-                staticFrameworkC.name: staticFrameworkC,
-                frameworkA.name: frameworkA,
-                frameworkB.name: frameworkB,
-                frameworkC.name: frameworkC,
-            ]],
             dependencies: dependencies
         )
         let config = Config
@@ -1271,12 +1099,6 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [
-                app.name: app,
-                macroStaticFramework.name: macroStaticFramework,
-                macroExecutable.name: macroExecutable,
-                swiftSyntax.name: swiftSyntax,
-            ]],
             dependencies: dependencies
         )
         let config = Config.test()

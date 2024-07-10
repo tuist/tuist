@@ -1,9 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
-import TuistGraphTesting
+import XcodeGraph
 @testable import TuistKit
 
 final class MockGenerator: Generating {

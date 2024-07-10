@@ -1,11 +1,11 @@
 import Foundation
-import TSCBasic
+import Path
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 enum RunServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -80,7 +80,7 @@ final class RunService {
 
         let graph: Graph
         let config = try configLoader.loadConfig(path: runPath)
-        let generator = generatorFactory.default(config: config)
+        let generator = generatorFactory.defaultGenerator(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: runPath).1
@@ -117,9 +117,10 @@ final class RunService {
             buildOutputPath: nil,
             derivedDataPath: nil,
             device: device,
-            osVersion: version?.version(),
+            osVersion: version?.version().map { .init(stringLiteral: $0.description) },
             rosetta: rosetta,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            passthroughXcodeBuildArguments: []
         )
 
         let minVersion: Version?

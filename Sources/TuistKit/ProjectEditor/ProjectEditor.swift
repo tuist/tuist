@@ -1,11 +1,12 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.
@@ -25,6 +26,7 @@ enum ProjectEditorError: FatalError, Equatable {
     }
 }
 
+@Mockable
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
@@ -133,7 +135,7 @@ final class ProjectEditor: ProjectEditing {
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: try cacheDirectory.tuistCacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 

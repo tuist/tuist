@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
@@ -17,7 +17,8 @@ public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     @Option(
         name: [.customShort("p"), .long],
         help: "The path to the Xcode project",
-        completion: .directory
+        completion: .directory,
+        envKey: .migrationListTargetsXcodeprojPath
     )
     var xcodeprojPath: String
 

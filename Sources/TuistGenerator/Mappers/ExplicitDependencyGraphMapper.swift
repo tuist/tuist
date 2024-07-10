@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// A target mapper that enforces explicit dependencies by adding custom build directories
 public struct ExplicitDependencyGraphMapper: GraphMapping {
@@ -23,7 +23,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = project.targets.map { target in
+            project.targets = project.targets.mapValues { target in
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
                 let projectDebugConfigurations = project.settings.configurations.keys
                     .filter { $0.variant == .debug }

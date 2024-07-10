@@ -1,6 +1,6 @@
 import Foundation
+import Path
 import PathKit
-import TSCBasic
 import XcodeProj
 
 final class GeneratedProject {

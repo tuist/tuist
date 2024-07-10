@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
+import XcodeGraph
 import XCTest
 @testable import TuistSupportTesting
 

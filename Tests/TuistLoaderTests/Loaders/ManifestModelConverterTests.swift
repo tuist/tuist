@@ -1,5 +1,6 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
 import TuistSupport
 import XCTest
@@ -86,13 +87,13 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.targets.count, 2)
         try XCTAssertTargetMatchesManifest(
-            target: model.targets[0],
+            target: try XCTUnwrap(model.targets["A"]),
             matches: targetA,
             at: temporaryPath,
             generatorPaths: generatorPaths
         )
         try XCTAssertTargetMatchesManifest(
-            target: model.targets[1],
+            target: try XCTUnwrap(model.targets["B"]),
             matches: targetB,
             at: temporaryPath,
             generatorPaths: generatorPaths
@@ -320,30 +321,36 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         with projects: [AbsolutePath: ProjectDescription.Project],
         configs: [AbsolutePath: ProjectDescription.Config] = [:]
     ) -> ManifestLoading {
-        let manifestLoader = MockManifestLoader()
-        manifestLoader.loadProjectStub = { path in
-            guard let manifest = projects[path] else {
-                throw ManifestLoaderError.manifestNotFound(path)
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadProject(at: .any)
+            .willProduce { path in
+                guard let manifest = projects[path] else {
+                    throw ManifestLoaderError.manifestNotFound(path)
+                }
+                return manifest
             }
-            return manifest
-        }
-        manifestLoader.loadConfigStub = { path in
-            guard let manifest = configs[path] else {
-                throw ManifestLoaderError.manifestNotFound(path)
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willProduce { path in
+                guard let manifest = configs[path] else {
+                    throw ManifestLoaderError.manifestNotFound(path)
+                }
+                return manifest
             }
-            return manifest
-        }
-        manifestLoader.manifestsAtStub = { path in
-            var manifests = Set<Manifest>()
-            if projects[path] != nil {
-                manifests.insert(.project)
-            }
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willProduce { path in
+                var manifests = Set<Manifest>()
+                if projects[path] != nil {
+                    manifests.insert(.project)
+                }
 
-            if configs[path] != nil {
-                manifests.insert(.config)
+                if configs[path] != nil {
+                    manifests.insert(.config)
+                }
+                return manifests
             }
-            return manifests
-        }
         return manifestLoader
     }
 
@@ -351,16 +358,20 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         with workspaces: [AbsolutePath: ProjectDescription.Workspace],
         projects: [AbsolutePath] = []
     ) -> ManifestLoading {
-        let manifestLoader = MockManifestLoader()
-        manifestLoader.loadWorkspaceStub = { path in
-            guard let manifest = workspaces[path] else {
-                throw ManifestLoaderError.manifestNotFound(path)
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadWorkspace(at: .any)
+            .willProduce { path in
+                guard let manifest = workspaces[path] else {
+                    throw ManifestLoaderError.manifestNotFound(path)
+                }
+                return manifest
             }
-            return manifest
-        }
-        manifestLoader.manifestsAtStub = { path in
-            projects.contains(path) ? Set([.project]) : Set([])
-        }
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willProduce { path in
+                projects.contains(path) ? Set([.project]) : Set([])
+            }
         return manifestLoader
     }
 

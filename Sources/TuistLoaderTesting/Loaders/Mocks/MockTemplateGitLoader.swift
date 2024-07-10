@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 import TuistLoader
 
 public final class MockTemplateGitLoader: TemplateGitLoading {

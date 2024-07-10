@@ -1,14 +1,16 @@
 import Foundation
+import Mockable
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) async throws -> Graph

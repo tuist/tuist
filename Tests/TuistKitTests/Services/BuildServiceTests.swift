@@ -1,10 +1,12 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TSCUtility
+import TuistAutomation
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import TuistServer
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistAutomationTesting
@@ -36,21 +38,38 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 }
 
 final class BuildServiceTests: TuistUnitTestCase {
-    var generator: MockGenerator!
-    var generatorFactory: MockGeneratorFactory!
-    var buildGraphInspector: MockBuildGraphInspector!
-    var targetBuilder: MockTargetBuilder!
-    var subject: BuildService!
+    private var generator: MockGenerating!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var buildGraphInspector: MockBuildGraphInspecting!
+    private var targetBuilder: MockTargetBuilder!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var subject: BuildService!
 
     override func setUp() {
         super.setUp()
-        generator = MockGenerator()
-        generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedDefaultResult = generator
-        buildGraphInspector = MockBuildGraphInspector()
+        generator = .init()
+        generatorFactory = .init()
+        given(generatorFactory)
+            .building(
+                config: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+        buildGraphInspector = .init()
+        given(buildGraphInspector)
+            .buildableEntrySchemes(graphTraverser: .any)
+            .willReturn([])
+
         targetBuilder = MockTargetBuilder()
+        cacheStorageFactory = .init()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
         subject = BuildService(
             generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder
         )
@@ -61,6 +80,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         generatorFactory = nil
         buildGraphInspector = nil
         targetBuilder = nil
+        cacheStorageFactory = nil
         subject = nil
         super.tearDown()
     }
@@ -76,29 +96,28 @@ final class BuildServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
 
-        generator.generateWithGraphStub = { _path in
-            XCTAssertEqual(_path, path)
-            return (path, graph)
-        }
-        buildGraphInspector.buildableSchemesStub = { _ in
-            [scheme]
-        }
-        buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            XCTAssertEqual(_scheme, scheme)
-            return GraphTarget.test(path: project.path, target: target, project: project)
-        }
-        buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildGraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
-            XCTAssertEqual(_project, project)
-            XCTAssertEqual(_target, target)
-            XCTAssertEqual(_skipSigning, skipSigning)
-            return buildArguments
-        }
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
+            .willReturn(GraphTarget.test(path: project.path, target: target, project: project))
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .value(project),
+                target: .value(target),
+                configuration: .any,
+                skipSigning: .value(skipSigning)
+            )
+            .willReturn(buildArguments)
         targetBuilder
-            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_scheme, scheme)
                 XCTAssertTrue(_clean)
@@ -124,28 +143,31 @@ final class BuildServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
 
-        generator.loadStub = { _path in
-            XCTAssertEqual(_path, path)
-            return graph
-        }
-        buildGraphInspector.buildableSchemesStub = { _ in
-            [scheme]
-        }
-        buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            XCTAssertEqual(_scheme, scheme)
-            return GraphTarget.test(path: project.path, target: target, project: project)
-        }
-        buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildGraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
-            XCTAssertEqual(_project, project)
-            XCTAssertEqual(_target, target)
-            XCTAssertEqual(_skipSigning, skipSigning)
-            return buildArguments
-        }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    scheme,
+                ]
+            )
+        given(buildGraphInspector)
+            .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
+            .willReturn(GraphTarget.test(path: project.path, target: target, project: project))
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .value(project),
+                target: .value(target),
+                configuration: .any,
+                skipSigning: .value(skipSigning)
+            )
+            .willReturn(buildArguments)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
@@ -171,28 +193,31 @@ final class BuildServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
 
-        generator.loadStub = { _path in
-            XCTAssertEqual(_path, path)
-            return graph
-        }
-        buildGraphInspector.buildableSchemesStub = { _ in
-            [schemeA, schemeB]
-        }
-        buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
-        }
-        buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildGraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
-            XCTAssertEqual(_skipSigning, skipSigning)
-            return buildArguments
-        }
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn([schemeA, schemeB])
+        given(buildGraphInspector)
+            .buildableTarget(scheme: .matching {
+                $0 == schemeA || $0 == schemeB
+            }, graphTraverser: .any)
+            .willProduce { scheme, _ in
+                if scheme == schemeA {
+                    return GraphTarget.test(path: project.path, target: targetA, project: project)
+                } else {
+                    return GraphTarget.test(path: project.path, target: targetB, project: project)
+                }
+            }
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .value(skipSigning))
+            .willReturn(buildArguments)
         targetBuilder
-            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertNil(_device)
                 XCTAssertNil(_osVersion)
@@ -228,27 +253,35 @@ final class BuildServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
 
-        generator.loadStub = { _path in
-            XCTAssertEqual(_path, path)
-            return graph
-        }
-        buildGraphInspector.buildableSchemesStub = { _ in
-            [schemeA, schemeB]
-        }
-        buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
-        }
-        buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildGraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
-            XCTAssertEqual(_skipSigning, skipSigning)
-            return buildArguments
-        }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    schemeA,
+                    schemeB,
+                ]
+            )
+        given(buildGraphInspector)
+            .buildableTarget(scheme: .matching {
+                $0 == schemeA || $0 == schemeB
+            }, graphTraverser: .any)
+            .willProduce { scheme, _ in
+                if scheme == schemeA {
+                    return GraphTarget.test(path: project.path, target: targetA, project: project)
+                } else {
+                    return GraphTarget.test(path: project.path, target: targetB, project: project)
+                }
+            }
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .value(skipSigning))
+            .willReturn(buildArguments)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             if _scheme.name == "A" {
                 XCTAssertEqual(_scheme, schemeA)
@@ -272,20 +305,20 @@ final class BuildServiceTests: TuistUnitTestCase {
         let graph = Graph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
-        generator.loadStub = { _path in
-            XCTAssertEqual(_path, path)
-            return graph
-        }
-        buildGraphInspector.workspacePathStub = { _path in
-            XCTAssertEqual(_path, path)
-            return workspacePath
-        }
-        buildGraphInspector.buildableSchemesStub = { _ in
-            [
-                schemeA,
-                schemeB,
-            ]
-        }
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    schemeA,
+                    schemeB,
+                ]
+            )
 
         // When
         try await subject.testRun(
@@ -305,20 +338,23 @@ extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
+        ignoreBinaryCache: Bool = false,
         buildOutputPath: AbsolutePath? = nil,
         derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
-        platform: String? = nil,
+        platform: XcodeGraph.Platform? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
-        generateOnly: Bool = false
+        generateOnly: Bool = false,
+        passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         try await run(
             schemeName: schemeName,
             generate: generate,
             clean: clean,
             configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
             buildOutputPath: buildOutputPath,
             derivedDataPath: derivedDataPath,
             path: path,
@@ -326,7 +362,8 @@ extension BuildService {
             platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
-            generateOnly: generateOnly
+            generateOnly: generateOnly,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

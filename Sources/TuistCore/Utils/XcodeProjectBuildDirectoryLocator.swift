@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 
 public protocol XcodeProjectBuildDirectoryLocating {
     /// Locates the build output directory for `xcodebuild` command.

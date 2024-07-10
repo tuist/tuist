@@ -1,4 +1,5 @@
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
 import TuistSupport
 import XCTest
@@ -9,7 +10,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-class GeneratorPathsErrorTests: TuistUnitTestCase {
+final class GeneratorPathsErrorTests: TuistUnitTestCase {
     func test_type_when_rootDirectoryNotFound() {
         // Given
         let path = try! AbsolutePath(validating: "/")
@@ -35,13 +36,12 @@ class GeneratorPathsErrorTests: TuistUnitTestCase {
 class GeneratorPathsTests: TuistUnitTestCase {
     var subject: GeneratorPaths!
     var path: AbsolutePath!
-    var rootDirectoryLocator: MockRootDirectoryLocator!
+    var rootDirectoryLocator: MockRootDirectoryLocating!
 
     override func setUp() {
         super.setUp()
         path = try! temporaryPath()
-        rootDirectoryLocator = MockRootDirectoryLocator()
-        rootDirectoryLocator.locateStub = path.appending(component: "Root")
+        rootDirectoryLocator = .init()
         subject = GeneratorPaths(
             manifestDirectory: path,
             rootDirectoryLocator: rootDirectoryLocator
@@ -62,6 +62,9 @@ class GeneratorPathsTests: TuistUnitTestCase {
             type: .relativeToCurrentFile,
             callerPath: path.pathString
         )
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
@@ -73,6 +76,9 @@ class GeneratorPathsTests: TuistUnitTestCase {
     func test_resolve_when_relative_to_manifest() throws {
         // Given
         let filePath = Path.relativeToManifest("file.swift")
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
@@ -84,6 +90,9 @@ class GeneratorPathsTests: TuistUnitTestCase {
     func test_resolve_when_relative_to_root_directory() throws {
         // Given
         let filePath = Path.relativeToRoot("file.swift")
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
@@ -95,7 +104,9 @@ class GeneratorPathsTests: TuistUnitTestCase {
     func test_resolve_throws_when_the_root_directory_cant_be_found() throws {
         // Given
         let filePath = Path.relativeToRoot("file.swift")
-        rootDirectoryLocator.locateStub = nil
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(nil)
 
         // When
         XCTAssertThrowsSpecific(try subject.resolve(path: filePath), GeneratorPathsError.rootDirectoryNotFound(path))

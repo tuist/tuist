@@ -1,8 +1,8 @@
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol TargetBuilding {
     /// Builds a provided target.
@@ -18,9 +18,10 @@ public protocol TargetBuilding {
     ///   - device: An optional device specifier to use when building the scheme.
     ///   - osVersion: An optional OS number to use when building the scheme.
     ///   - graphTraverser: The Graph traverser.
+    ///   - passthroughXcodeBuildArguments: The passthrough xcodebuild arguments to pass to xcodebuild
     func buildTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -28,9 +29,10 @@ public protocol TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        passthroughXcodeBuildArguments: [String]
     ) async throws
 }
 
@@ -77,7 +79,7 @@ public final class TargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -85,9 +87,10 @@ public final class TargetBuilder: TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
@@ -102,7 +105,7 @@ public final class TargetBuilder: TargetBuilding {
             for: target.target,
             on: platform,
             scheme: scheme,
-            version: osVersion,
+            version: osVersion.map { try .init(versionString: $0.description) },
             deviceName: device,
             graphTraverser: graphTraverser,
             simulatorController: simulatorController
@@ -116,9 +119,9 @@ public final class TargetBuilder: TargetBuilding {
                 rosetta: rosetta,
                 derivedDataPath: derivedDataPath,
                 clean: clean,
-                arguments: buildArguments
+                arguments: buildArguments,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
-            .printFormattedOutput()
 
         if let buildOutputPath {
             let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?
@@ -137,7 +140,7 @@ public final class TargetBuilder: TargetBuilding {
         to outputPath: AbsolutePath,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         configuration: String
     ) throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(

@@ -1,5 +1,5 @@
 import Foundation
-import TuistGraph
+import XcodeGraph
 import XcodeProj
 
 extension Requirement {

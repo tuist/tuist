@@ -6,7 +6,7 @@ export default {
   load() {
     const generatedDirectory = path.join(
       import.meta.dirname,
-      "../../../docs/generated"
+      "../../../docs/generated/manifest"
     );
     const files = fg
       .sync("**/*.md", {
@@ -16,10 +16,13 @@ export default {
       })
       .sort();
     return files.map((file) => {
+      const category = path.basename(path.dirname(file))
+      const fileName = path.basename(file).replace(".md", "")
       return {
-        category: path.basename(path.dirname(file)),
-        title: path.basename(file).replace(".md", ""),
-        name: path.basename(file).replace(".md", "").toLowerCase(),
+        category: category,
+        title: fileName,
+        name: fileName.toLowerCase(),
+        identifier: category + "/" + fileName.toLowerCase(),
         description: "",
         content: fs.readFileSync(file, "utf-8"),
       };

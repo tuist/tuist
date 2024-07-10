@@ -55,6 +55,9 @@ extension SettingsDictionary {
     }
 
     /// Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`
+    /// - Parameters:
+    ///   - devTeam: Your Apple Developer Team ID. See
+    /// [here](https://developer.apple.com/help/account/manage-your-team/locate-your-team-id/) how you can find it.
     public func automaticCodeSigning(devTeam: String) -> SettingsDictionary {
         merging([
             "CODE_SIGN_STYLE": "Automatic",
@@ -182,5 +185,13 @@ extension SettingsDictionary {
     /// Sets `"DEBUG_INFORMATION_FORMAT"`to `"dwarf"` or `"dwarf-with-dsym"`
     public func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary {
         merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
+    }
+
+    /// Sets `"_EXPERIMENTAL_SWIFT_EXPLICIT_MODULES"`
+    /// NOTE: This is only available when using Xcode 16 or later.
+    /// This setting may change and is not guaranteed to work across all beta versions.
+    public func betaFeature_enableExplicitModules(_ enabled: Bool) -> SettingsDictionary {
+        // This is the value as of Xcode 16 beta 1
+        merging(["_EXPERIMENTAL_SWIFT_EXPLICIT_MODULES": SettingValue(enabled)])
     }
 }

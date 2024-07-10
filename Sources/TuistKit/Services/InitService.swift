@@ -1,9 +1,9 @@
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -187,11 +187,13 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
-        let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+    ) throws -> [String: Template.Attribute.Value] {
+        let defaultAttributes: [String: Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string(name.toValidSwiftIdentifier()),
+            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if defaultAttributes.keys.contains(attribute.name) { return }
@@ -224,16 +226,15 @@ class InitService {
         return templateDirectory
     }
 
+    /// Returns name to use. If `name` is nil, returns a directory name executed `init` command.
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
-        let initName: String
         if let name {
-            initName = name
-        } else if let name = path.components.last {
-            initName = name
+            return name
+        } else if let directoryName = path.components.last {
+            return directoryName
         } else {
             throw InitServiceError.ungettableProjectName(AbsolutePath.current)
         }
-        return initName.camelized.uppercasingFirst
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

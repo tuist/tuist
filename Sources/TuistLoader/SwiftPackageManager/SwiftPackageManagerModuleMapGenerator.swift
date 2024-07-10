@@ -1,4 +1,5 @@
-import TSCBasic
+import Path
+import TuistCore
 import TuistSupport
 
 /// The type of modulemap file
@@ -43,7 +44,11 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 }
 
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
-    public init() {}
+    private let contentHasher: ContentHashing
+
+    public init(contentHasher: ContentHashing = ContentHasher()) {
+        self.contentHasher = contentHasher
+    }
 
     // swiftlint:disable:next function_body_length
     public func generate(
@@ -51,10 +56,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         moduleName: String,
         publicHeadersPath: AbsolutePath
     ) throws -> ModuleMap {
-        let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
+        let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath
-            .appending(components: sanitizedModuleName, moduleName + ".h")
+            .appending(components: sanitizedModuleName, sanitizedModuleName + ".h")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 
@@ -64,12 +69,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 .parentDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                    moduleName,
-                    "\(moduleName).modulemap"
+                    sanitizedModuleName,
+                    "\(sanitizedModuleName).modulemap"
                 )
         } else {
             generatedModuleMapPath = packageDirectory.appending(
-                components: Constants.DerivedDirectory.name, "\(moduleName).modulemap"
+                components: Constants.DerivedDirectory.name, "\(sanitizedModuleName).modulemap"
             )
         }
 
@@ -81,9 +86,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
             }
-            try FileHandler.shared.write(
-                umbrellaHeaderModuleMap(umbrellaHeaderPath: umbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
-                path: generatedModuleMapPath,
+            try writeIfDifferent(
+                moduleMapContent: umbrellaHeaderModuleMap(
+                    umbrellaHeaderPath: umbrellaHeaderPath,
+                    sanitizedModuleName: sanitizedModuleName
+                ),
+                to: generatedModuleMapPath,
                 atomically: true
             )
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
@@ -92,9 +100,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
             }
-            try FileHandler.shared.write(
-                umbrellaHeaderModuleMap(umbrellaHeaderPath: nestedUmbrellaHeaderPath, sanitizedModuleName: sanitizedModuleName),
-                path: generatedModuleMapPath,
+            try writeIfDifferent(
+                moduleMapContent: umbrellaHeaderModuleMap(
+                    umbrellaHeaderPath: nestedUmbrellaHeaderPath,
+                    sanitizedModuleName: sanitizedModuleName
+                ),
+                to: generatedModuleMapPath,
                 atomically: true
             )
             // If 'PublicHeadersDir/ModuleName/ModuleName.h' exists, then use it as the umbrella header.
@@ -114,10 +125,26 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     export *
                 }
                 """
-            try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
+            try writeIfDifferent(moduleMapContent: generatedModuleMapContent, to: generatedModuleMapPath, atomically: true)
+
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {
             return .none
+        }
+    }
+
+    /// Write our modulemap to disk if it is distinct from what already exists.
+    /// This addresses an issue with dependencies that are included in a precompiled header.
+    /// https://github.com/tuist/tuist/issues/6211
+    /// - Parameters:
+    ///   - moduleMapContent: contents of the moduleMap file to write
+    ///   - path: destination to write file contents to
+    ///   - atomically: whether to write atomically
+    func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically: Bool) throws {
+        let newContentHash = try contentHasher.hash(moduleMapContent)
+        let currentContentHash = try? contentHasher.hash(path: path)
+        if currentContentHash != newContentHash {
+            try FileHandler.shared.write(moduleMapContent, path: path, atomically: true)
         }
     }
 

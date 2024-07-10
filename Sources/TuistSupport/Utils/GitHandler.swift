@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 public protocol GitHandling {
@@ -42,11 +42,14 @@ public protocol GitHandling {
 /// Uses the system to execute git commands.
 public final class GitHandler: GitHandling {
     private let system: Systeming
+    private let environment: Environmenting
 
     public init(
-        system: Systeming = System.shared
+        system: Systeming = System.shared,
+        environment: Environmenting = Environment.shared
     ) {
         self.system = system
+        self.environment = environment
     }
 
     public func clone(url: String, into path: AbsolutePath) throws {
@@ -75,7 +78,7 @@ public final class GitHandler: GitHandling {
     }
 
     private func run(command: String...) throws {
-        if Environment.shared.isVerbose {
+        if environment.isVerbose {
             try system.runAndPrint(command, verbose: true, environment: System.shared.env)
         } else {
             try system.run(command)
@@ -83,7 +86,7 @@ public final class GitHandler: GitHandling {
     }
 
     private func capture(command: String...) throws -> String {
-        if Environment.shared.isVerbose {
+        if environment.isVerbose {
             return try system.capture(command, verbose: true, environment: System.shared.env)
         } else {
             return try system.capture(command)

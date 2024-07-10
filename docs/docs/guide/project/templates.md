@@ -5,7 +5,7 @@ description: Learn how to create and use templates in Tuist to generate code in 
 
 # Templates
 
-In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project. With `tuist scaffold` you generate files, you can generate files from a template. You can define your own templates or use the ones that are vendored with Tuist. These are some scenarios where scaffolding might be useful:
+In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project. With `tuist scaffold` you can generate files from a template. You can define your own templates or use the ones that are vendored with Tuist. These are some scenarios where scaffolding might be useful:
 
 - Create a new feature that follows a given architecture: `tuist scaffold viper --name MyFeature`.
 - Create new projects: `tuist scaffold feature-project --name Home`

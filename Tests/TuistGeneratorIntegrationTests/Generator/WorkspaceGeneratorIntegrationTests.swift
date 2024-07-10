@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator

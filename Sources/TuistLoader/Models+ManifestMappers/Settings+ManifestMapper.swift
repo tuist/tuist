@@ -1,25 +1,25 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.Settings {
-    /// Maps a ProjectDescription.Settings instance into a TuistGraph.Settings instance.
+extension XcodeGraph.Settings {
+    /// Maps a ProjectDescription.Settings instance into a XcodeGraph.Settings instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> TuistGraph.Settings {
-        let base = manifest.base.mapValues(TuistGraph.SettingValue.from)
+    static func from(manifest: ProjectDescription.Settings, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Settings {
+        let base = manifest.base.mapValues(XcodeGraph.SettingValue.from)
         let configurations = try manifest.configurations
-            .reduce([TuistGraph.BuildConfiguration: TuistGraph.Configuration?]()) { acc, val in
+            .reduce([XcodeGraph.BuildConfiguration: XcodeGraph.Configuration?]()) { acc, val in
                 var result = acc
-                let variant = TuistGraph.BuildConfiguration.from(manifest: val)
-                result[variant] = try TuistGraph.Configuration.from(manifest: val, generatorPaths: generatorPaths)
+                let variant = XcodeGraph.BuildConfiguration.from(manifest: val)
+                result[variant] = try XcodeGraph.Configuration.from(manifest: val, generatorPaths: generatorPaths)
                 return result
             }
-        let defaultSettings = TuistGraph.DefaultSettings.from(manifest: manifest.defaultSettings)
-        return TuistGraph.Settings(
+        let defaultSettings = XcodeGraph.DefaultSettings.from(manifest: manifest.defaultSettings)
+        return XcodeGraph.Settings(
             base: base,
             configurations: configurations,
             defaultSettings: defaultSettings

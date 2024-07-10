@@ -1,11 +1,10 @@
 
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -61,7 +60,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let config = Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(resolveDependenciesWithSystemScm: true),
@@ -184,7 +184,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let config = Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),

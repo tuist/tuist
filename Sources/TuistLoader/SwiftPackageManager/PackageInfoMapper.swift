@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
+import Path
 import ProjectDescription
-import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 // MARK: - PackageInfo Mapper Errors
 
@@ -111,7 +111,7 @@ public protocol PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
+        packageSettings: TuistCore.PackageSettings,
         packageToProject: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project?
 }
@@ -150,13 +150,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
                             .pathString
                     )
-                } else {
-                    // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
-                    // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
-                    guard let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] else {
-                        throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
-                    }
+                }
+                // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
+                // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
+                else if let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] {
                     result[target.name] = .path(artifactPath.pathString)
+                }
+                // If the binary path is not present in the `.build/workspace-state.json`, we try to use a default path.
+                // If the target is not used by a downstream target, the generation will ignore a missing binary artifact.
+                // Otherwise, users will get an error that the xcframework was not found.
+                else {
+                    result[target.name] = .path(
+                        packageToFolder[packageInfo.key]!.appending(
+                            components: target.name,
+                            "\(target.name).xcframework"
+                        )
+                        .pathString
+                    )
                 }
             }
         }
@@ -247,7 +257,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfo: PackageInfo,
         path: AbsolutePath,
         packageType: PackageType,
-        packageSettings: TuistGraph.PackageSettings,
+        packageSettings: TuistCore.PackageSettings,
         packageToProject _: [String: AbsolutePath]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
@@ -272,6 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "Nimble", // https://github.com/Quick/Nimble
                     "NimbleObjectiveC", // https://github.com/Quick/Nimble
                     "Quick", // https://github.com/Quick/Quick
+                    "QuickObjCRuntime", // https://github.com/Quick/Quick
                     "RxTest", // https://github.com/ReactiveX/RxSwift
                     "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
@@ -282,6 +293,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "XCTVapor", // https://github.com/vapor/vapor
                     "MockableTest", // https://github.com/Kolos65/Mockable.git
                     "Testing", // https://github.com/apple/swift-testing
+                    "Cuckoo", // https://github.com/Brightify/Cuckoo
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -294,7 +306,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let baseSettings = packageSettings.baseSettings.with(
             base: packageSettings.baseSettings.base.combine(
                 with: [
-                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name],
+                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
                 ]
             )
         )
@@ -327,7 +339,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .compactMap { target -> ProjectDescription.Target? in
                 return try map(
                     target: target,
-                    products: targetToProducts[target.name] ?? Set(),
+                    targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
                     packageType: packageType,
                     path: path,
@@ -364,7 +376,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             name: packageInfo.name,
             options: options,
             settings: packageInfo.projectSettings(
-                swiftToolsVersion: packageSettings.swiftToolsVersion,
+                swiftToolsVersion: .init(packageSettings.swiftToolsVersion.description),
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,
@@ -374,21 +386,24 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
     fileprivate class func sanitize(targetName: String) -> String {
         targetName.replacingOccurrences(of: ".", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
     }
 
     // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
-        products: Set<PackageInfo.Product>,
+        targetToProducts: [String: Set<PackageInfo.Product>],
         packageInfo: PackageInfo,
         packageType: PackageType,
         path: AbsolutePath,
         packageFolder: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        productDestinations: [String: TuistGraph.Destinations],
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        productTypes: [String: XcodeGraph.Product],
+        productDestinations: [String: XcodeGraph.Destinations],
+        baseSettings: XcodeGraph.Settings,
+        targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> ProjectDescription.Target? {
+        // Ignores or passes a target based on the `type` and the `packageType`.
+        // After that, it assumes that no target is ignored.
         switch target.type {
         case .regular, .system, .macro:
             break
@@ -404,6 +419,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
+
+        let products = targetToProducts[target.name] ?? Set()
 
         guard let product = ProjectDescription.Product.from(
             name: target.name,
@@ -449,46 +466,26 @@ public final class PackageInfoMapper: PackageInfoMapping {
         switch target.type {
         case .macro, .executable:
             destinations = Set([.mac])
+        case .test:
+            var testDestinations = Set(XcodeGraph.Destination.allCases)
+            let dependencyNames = target.dependencies.map(\.name)
+            for dependencyName in dependencyNames {
+                let dependencyProducts = targetToProducts[dependencyName] ?? Set()
+                let destinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                testDestinations.formIntersection(destinations)
+            }
+            destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:
             switch packageType {
             case .local:
-                let productDestinations: Set<ProjectDescription.Destination> = Set(
-                    products.flatMap { product in
-                        if product.type == .executable {
-                            return Set([TuistGraph.Destination.mac])
-                        }
-                        return productDestinations[product.name] ?? Set(Destination.allCases)
-                    }
-                    .map {
-                        switch $0 {
-                        case .iPhone:
-                            return .iPhone
-                        case .iPad:
-                            return .iPad
-                        case .mac:
-                            return .mac
-                        case .macWithiPadDesign:
-                            return .macWithiPadDesign
-                        case .macCatalyst:
-                            return .macCatalyst
-                        case .appleWatch:
-                            return .appleWatch
-                        case .appleTv:
-                            return .appleTv
-                        case .appleVision:
-                            return .appleVision
-                        case .appleVisionWithiPadDesign:
-                            return .appleVisionWithiPadDesign
-                        }
-                    }
-                )
-                destinations = Set(Destination.allCases).intersection(productDestinations)
+                let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
+                destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
             case .external:
                 destinations = Set(Destination.allCases)
             }
         }
 
-        let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
+        let version = try Version(versionString: try SwiftVersionProvider.shared.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
@@ -581,7 +578,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
             packageFolder: packageFolder,
             packageName: packageInfo.name,
             settings: target.settings,
-            platforms: packageInfo.platforms,
             moduleMap: moduleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
@@ -595,7 +591,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 .sanitize(targetName: target.name)
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
-                .replacingOccurrences(of: "_", with: "."),
+                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
@@ -603,6 +599,21 @@ public final class PackageInfoMapper: PackageInfoMapping {
             headers: headers,
             dependencies: dependencies,
             settings: settings
+        )
+    }
+
+    /// Returns a union of products' destinations.
+    private func unionDestinationsOfProducts(
+        _ products: Set<PackageInfo.Product>,
+        in productToDestinations: [String: XcodeGraph.Destinations]
+    ) -> XcodeGraph.Destinations {
+        Set(
+            products.flatMap { product in
+                if product.type == .executable {
+                    return Set([XcodeGraph.Destination.mac])
+                }
+                return productToDestinations[product.name] ?? Set(Destination.allCases)
+            }
         )
     }
 }
@@ -679,7 +690,7 @@ extension ProjectDescription.Product {
         name: String,
         type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
-        productTypes: [String: TuistGraph.Product]
+        productTypes: [String: XcodeGraph.Product]
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         switch type {
@@ -783,9 +794,14 @@ extension ProjectDescription.ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement {
+        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement? {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
+            for exclude in excluding {
+                if absolutePathGlob.isDescendantOfOrEqual(to: path.appending(try RelativePath(validating: exclude))) {
+                    return nil
+                }
+            }
             return .glob(
                 pattern: .path(absolutePathGlob.pathString),
                 excluding: try excluding.map {
@@ -796,7 +812,7 @@ extension ProjectDescription.ResourceFileElements {
             )
         }
 
-        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.map {
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.compactMap {
             let resourceAbsolutePath = path.appending(try RelativePath(validating: $0.path))
 
             switch $0.rule {
@@ -828,7 +844,7 @@ extension ProjectDescription.ResourceFileElements {
         // They are handled like a `.process` rule
         if sources == nil {
             resourceFileElements += try defaultResourcePaths(from: path)
-                .map { try handleProcessResource(resourceAbsolutePath: $0) }
+                .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
@@ -926,10 +942,9 @@ extension ProjectDescription.Settings {
         packageFolder: AbsolutePath,
         packageName _: String,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        platforms: [PackageInfo.Platform],
         moduleMap: ModuleMap?,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary]
+        baseSettings: XcodeGraph.Settings,
+        targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> Self? {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -943,7 +958,7 @@ extension ProjectDescription.Settings {
             }
         }
 
-        var settingsDictionary: TuistGraph.SettingsDictionary = [
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
             // Xcode settings configured by SPM by default
             "ALWAYS_SEARCH_USER_PATHS": "YES",
             "CLANG_ENABLE_OBJC_WEAK": "NO",
@@ -963,7 +978,7 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        let resolvedSettings = try mapper.settingsForPlatforms(platforms)
+        let resolvedSettings = try mapper.mapSettings()
 
         settingsDictionary.merge(resolvedSettings) { $1 }
 
@@ -996,7 +1011,37 @@ extension ProjectDescription.Settings {
             mappedSettingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .from(settings: baseSettings, adding: mappedSettingsDictionary, packageFolder: packageFolder)
+        let configurations: [ProjectDescription.Configuration] = try baseSettings.configurations
+            .map { buildConfiguration, configuration in
+                var configuration = configuration ?? Configuration(settings: [:])
+                configuration.settings = configuration.settings.merging(
+                    try mapper.settingsForBuildConfiguration(buildConfiguration.name),
+                    uniquingKeysWith: { $1 }
+                )
+                return .from(
+                    buildConfiguration: buildConfiguration,
+                    configuration: configuration,
+                    packageFolder: packageFolder
+                )
+            }
+
+        return .settings(
+            base: .from(settingsDictionary: baseSettings.base)
+                .merging(
+                    mappedSettingsDictionary,
+                    uniquingKeysWith: {
+                        switch ($0, $1) {
+                        case let (.array(leftArray), .array(rightArray)):
+                            return SettingValue.array(leftArray + rightArray)
+                        default:
+                            return $1
+                        }
+                    }
+                ),
+            configurations: configurations
+                .sorted { $0.name.rawValue < $1.name.rawValue },
+            defaultSettings: .from(defaultSettings: baseSettings.defaultSettings)
+        )
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -1025,7 +1070,7 @@ extension ProjectDescription.PackagePlatform {
 }
 
 extension ProjectDescription.Product {
-    fileprivate static func from(product: TuistGraph.Product) -> Self {
+    fileprivate static func from(product: XcodeGraph.Product) -> Self {
         switch product {
         case .app:
             return .app
@@ -1072,7 +1117,7 @@ extension ProjectDescription.Product {
 }
 
 extension ProjectDescription.SettingsDictionary {
-    public static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+    public static func from(settingsDictionary: XcodeGraph.SettingsDictionary) -> Self {
         settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
@@ -1084,28 +1129,10 @@ extension ProjectDescription.SettingsDictionary {
     }
 }
 
-extension ProjectDescription.Settings {
-    public static func from(
-        settings: TuistGraph.Settings,
-        adding: ProjectDescription.SettingsDictionary,
-        packageFolder: AbsolutePath
-    ) -> Self {
-        .settings(
-            base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
-            configurations: settings.configurations
-                .map { buildConfiguration, configuration in
-                    .from(buildConfiguration: buildConfiguration, configuration: configuration, packageFolder: packageFolder)
-                }
-                .sorted { $0.name.rawValue < $1.name.rawValue },
-            defaultSettings: .from(defaultSettings: settings.defaultSettings)
-        )
-    }
-}
-
 extension ProjectDescription.Configuration {
     public static func from(
         buildConfiguration: BuildConfiguration,
-        configuration: TuistGraph.Configuration?,
+        configuration: XcodeGraph.Configuration?,
         packageFolder: AbsolutePath
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
@@ -1121,7 +1148,7 @@ extension ProjectDescription.Configuration {
 }
 
 extension ProjectDescription.DefaultSettings {
-    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+    fileprivate static func from(defaultSettings: XcodeGraph.DefaultSettings) -> Self {
         switch defaultSettings {
         case let .recommended(excluding):
             return .recommended(excluding: excluding)
@@ -1130,6 +1157,35 @@ extension ProjectDescription.DefaultSettings {
         case .none:
             return .none
         }
+    }
+}
+
+extension ProjectDescription.Destinations {
+    fileprivate static func from(destinations: XcodeGraph.Destinations) -> Self {
+        Set(
+            destinations.map {
+                switch $0 {
+                case .iPhone:
+                    return .iPhone
+                case .iPad:
+                    return .iPad
+                case .mac:
+                    return .mac
+                case .macWithiPadDesign:
+                    return .macWithiPadDesign
+                case .macCatalyst:
+                    return .macCatalyst
+                case .appleWatch:
+                    return .appleWatch
+                case .appleTv:
+                    return .appleTv
+                case .appleVision:
+                    return .appleVision
+                case .appleVisionWithiPadDesign:
+                    return .appleVisionWithiPadDesign
+                }
+            }
+        )
     }
 }
 
@@ -1211,6 +1267,20 @@ extension PackageInfo.Target {
     func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
         let mainPath = try basePath(packageFolder: packageFolder)
         return mainPath.appending(try RelativePath(validating: publicHeadersPath ?? "include"))
+    }
+}
+
+extension PackageInfo.Target.Dependency {
+    /// The literal name of the dependency.
+    var name: String {
+        switch self {
+        case let .target(name: name, _):
+            return name
+        case let .product(name: name, _, _, _):
+            return name
+        case let .byName(name: name, _):
+            return name
+        }
     }
 }
 

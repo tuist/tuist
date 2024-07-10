@@ -1,4 +1,5 @@
 {
+  "originHash" : "78f7dd0ebfab47739cc0e35c49d4996c86d420124374e3f4789e90b5a00daa6a",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -28,6 +29,15 @@
       }
     },
     {
+      "identity" : "braze-swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/braze-inc/braze-swift-sdk.git",
+      "state" : {
+        "revision" : "f893978502a08b02124d2d15c6117eb1a06b7f6f",
+        "version" : "8.4.0"
+      }
+    },
+    {
       "identity" : "cocoalumberjack",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/CocoaLumberjack/CocoaLumberjack",
@@ -43,6 +53,15 @@
       "state" : {
         "revision" : "9dc9cbe4bc45c65164fa653a563d8d8db61b09bb",
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "cuckoo",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Brightify/Cuckoo.git",
+      "state" : {
+        "revision" : "0cfbb729d0aced6494c19c58c0c31ea16d1cbf66",
+        "version" : "1.10.4"
       }
     },
     {
@@ -97,6 +116,15 @@
       "state" : {
         "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
         "version" : "17.7.3"
+      }
+    },
+    {
+      "identity" : "lookinserver",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/QMUI/LookinServer",
+      "state" : {
+        "revision" : "e553d1b689d147817dc54ad5c28fcff71e860101",
+        "version" : "1.2.8"
       }
     },
     {
@@ -160,6 +188,15 @@
       "state" : {
         "revision" : "eafdd3720a8cc750bdd38bf776082d2c8cf743fc",
         "version" : "10.46.0"
+      }
+    },
+    {
+      "identity" : "sdwebimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SDWebImage/SDWebImage.git",
+      "state" : {
+        "revision" : "f6afa0132961d593f07970d84e2d8b588c29ea04",
+        "version" : "5.19.1"
       }
     },
     {
@@ -370,5 +407,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

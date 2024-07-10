@@ -1,6 +1,6 @@
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCore

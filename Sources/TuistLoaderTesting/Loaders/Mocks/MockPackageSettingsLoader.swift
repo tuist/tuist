@@ -1,6 +1,5 @@
-import TSCBasic
-import TuistGraph
-import TuistGraphTesting
+import Path
+import TuistCore
 import TuistSupport
 
 @testable import TuistLoader

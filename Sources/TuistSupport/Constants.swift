@@ -1,6 +1,9 @@
 import Foundation
 
 public enum Constants {
+    // NOTE: We expect tuist-cloud to set the value before running the CLI
+    public static var version: String! = "x.y.z"
+
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -8,10 +11,10 @@ public enum Constants {
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
-    public static let version = "4.3.4"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
+    public static let resultBundleName = "result-bundle"
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
@@ -27,7 +30,7 @@ public enum Constants {
     public static let tuistGeneratedFileName = ".tuist-generated"
 
     /// The cache version.
-    /// This should change only when it changes the logic to map a `TuistGraph.Target` to a cached build artifact.
+    /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
     public static let cacheVersion = "1.0.0"
 
@@ -67,5 +70,12 @@ public enum Constants {
         public static let osLog = "TUIST_CONFIG_OS_LOG"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
+        public static let token = "TUIST_CONFIG_TOKEN"
+        @available(*, deprecated, message: "Use `token` instead")
+        public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
+    }
+
+    public enum URLs {
+        public static let production = URL(string: "https://cloud.tuist.io")!
     }
 }

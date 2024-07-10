@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
+import XcodeGraph
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.
@@ -53,6 +53,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         config: Config
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
+        mappers.append(ModuleMapMapper())
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
         mappers.append(PruneOrphanExternalTargetsGraphMapper())

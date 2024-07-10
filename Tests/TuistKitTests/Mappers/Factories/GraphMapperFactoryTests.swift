@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistAutomation
 import TuistCoreTesting
-import TuistGraph
 import TuistLoader
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
@@ -51,5 +51,13 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
 
         // Then
         XCTAssertDoesntContainElementOfType(got, ExplicitDependencyGraphMapper.self)
+    }
+
+    func test_default_contains_the_modulemap_mapper() {
+        // When
+        let got = subject.default(config: .test())
+
+        // Then
+        XCTAssertContainsElementOfType(got, ModuleMapMapper.self)
     }
 }

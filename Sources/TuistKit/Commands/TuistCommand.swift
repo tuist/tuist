@@ -1,5 +1,10 @@
 @_exported import ArgumentParser
 import Foundation
+import OpenAPIRuntime
+import Path
+import TuistAnalytics
+import TuistLoader
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -11,7 +16,7 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
-                CleanCommand<TuistCleanCategory>.self,
+                CleanCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
                 InstallCommand.self,
@@ -23,16 +28,41 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
+                AuthCommand.self,
+                SessionCommand.self,
+                LogoutCommand.self,
+                CleanCommand.self,
+                ProjectCommand.self,
+                OrganizationCommand.self,
+                AnalyticsCommand.self,
             ]
         )
     }
 
     public static func main(
         _ arguments: [String]? = nil,
-        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot,
-        execute: ((_ command: ParsableCommand, _ commandArguments: [String]) async throws -> Void)? = nil
-    ) async {
-        let execute = execute ?? Self.execute
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
+    ) async throws {
+        let path: AbsolutePath
+        if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
+            path = try AbsolutePath(validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
+        } else {
+            path = .current
+        }
+
+        let backend: TuistAnalyticsBackend?
+        let config = try ConfigLoader().loadConfig(path: path)
+        if let fullHandle = config.fullHandle {
+            backend = TuistAnalyticsServerBackend(
+                fullHandle: fullHandle,
+                url: config.url
+            )
+        } else {
+            backend = nil
+        }
+        let dispatcher = TuistAnalyticsDispatcher(backend: backend)
+        try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
@@ -46,10 +76,11 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
-                try await execute(
-                    command,
-                    processedArguments
+                let trackableCommand = TrackableCommand(
+                    command: command,
+                    commandArguments: processedArguments
                 )
+                try await trackableCommand.run()
             }
         } catch {
             parsedError = error
@@ -64,6 +95,11 @@ public struct TuistCommand: AsyncParsableCommand {
         } catch let error as FatalError {
             WarningController.shared.flush()
             errorHandler.fatal(error: error)
+            _exit(exitCode(for: error).rawValue)
+        } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
+            WarningController.shared.flush()
+            // swiftlint:disable:next force_cast
+            logger.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
             _exit(exitCode(for: error).rawValue)
         } catch {
             WarningController.shared.flush()
@@ -95,18 +131,6 @@ public struct TuistCommand: AsyncParsableCommand {
             logger.error("\(fullMessage(for: error))")
         }
         _exit(exitCode)
-    }
-
-    private static func execute(
-        command: ParsableCommand,
-        commandArguments _: [String]
-    ) async throws {
-        var command = command
-        if var asyncCommand = command as? AsyncParsableCommand {
-            try await asyncCommand.run()
-        } else {
-            try command.run()
-        }
     }
 
     // MARK: - Helpers

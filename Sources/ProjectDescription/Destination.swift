@@ -1,20 +1,20 @@
 import Foundation
 
-/// Set of deployment destinstions
+/// Set of deployment destinations
 public typealias Destinations = Set<Destination>
 
-/// Convenience collections of desitions mapped to platforms terminology.
+/// Convenience collections of destinations mapped to platforms terminology.
 extension Destinations {
-    public static var watchOS: Destinations = [.appleWatch]
+    public static let watchOS: Destinations = [.appleWatch]
     /// Currently we omit `.visionOSwithiPadDesign` from our default because `visionOS` is unreleased.
-    public static var iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign]
-    public static var macOS: Destinations = [.mac]
-    public static var tvOS: Destinations = [.appleTv]
-    public static var visionOS: Destinations = [.appleVision]
+    public static let iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign]
+    public static let macOS: Destinations = [.mac]
+    public static let tvOS: Destinations = [.appleTv]
+    public static let visionOS: Destinations = [.appleVision]
 }
 
 extension Destinations {
-    /// Convience set of platforms that are supported by a set of destinations
+    /// Convenience set of platforms that are supported by a set of destinations
     public var platforms: Set<Platform> {
         let platforms = map(\.platform)
         return Set<Platform>(platforms)
@@ -22,7 +22,7 @@ extension Destinations {
 }
 
 /// A supported deployment destination representation.
-public enum Destination: String, Codable, Equatable, CaseIterable {
+public enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
     /// iPhone support
     case iPhone
     /// iPad support
@@ -39,7 +39,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case appleTv
     /// visionOS support
     case appleVision
-    /// visionOS support useing iPad design
+    /// visionOS support using iPad design
     case appleVisionWithiPadDesign
 
     /// SDK Platform of a destination

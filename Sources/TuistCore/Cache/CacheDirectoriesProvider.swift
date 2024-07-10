@@ -1,12 +1,13 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Mockable
+import Path
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol CacheDirectoriesProviding {
     /// Returns the cache directory for a Tuist cache category
-    func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath
-
+    func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath
     func cacheDirectory() throws -> AbsolutePath
 }
 
@@ -21,15 +22,11 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
         self.init(fileHandler: FileHandler.shared)
     }
 
-    public func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
-        return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: try cacheDirectory())
+    public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
+        try cacheDirectory().appending(components: ["tuist", category.directoryName])
     }
 
-    public static func tuistCacheDirectory(for category: CacheCategory, cacheDirectory: AbsolutePath) -> AbsolutePath {
-        return cacheDirectory.appending(components: ["tuist", category.directoryName])
-    }
-
-    public func cacheDirectory() throws -> TSCBasic.AbsolutePath {
+    public func cacheDirectory() throws -> Path.AbsolutePath {
         if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
             return try AbsolutePath(validating: xdgCacheHome)
         } else {

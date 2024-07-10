@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import PathKit
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum LinkGeneratorError: FatalError, Equatable {

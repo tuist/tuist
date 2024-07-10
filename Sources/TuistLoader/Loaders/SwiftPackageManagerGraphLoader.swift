@@ -1,10 +1,10 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -48,7 +48,7 @@ public protocol SwiftPackageManagerGraphLoading {
     /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -59,7 +59,10 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let fileHandler: FileHandling
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        ),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared
@@ -73,7 +76,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings
+        packageSettings: TuistCore.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -165,10 +168,10 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 }
 
 extension ProjectDescription.Platform {
-    /// Maps a TuistGraph.Platform instance into a  ProjectDescription.Platform instance.
+    /// Maps a XcodeGraph.Platform instance into a  ProjectDescription.Platform instance.
     /// - Parameters:
     ///   - graph: Graph representation of platform model.
-    static func from(graph: TuistGraph.Platform) -> ProjectDescription.Platform {
+    static func from(graph: XcodeGraph.Platform) -> ProjectDescription.Platform {
         switch graph {
         case .macOS:
             return .macOS

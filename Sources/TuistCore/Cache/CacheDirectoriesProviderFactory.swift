@@ -1,7 +1,9 @@
 import Foundation
-import TuistGraph
+import Mockable
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol CacheDirectoriesProviderFactoring {
     func cacheDirectories() throws -> CacheDirectoriesProviding
 }
@@ -11,7 +13,7 @@ public final class CacheDirectoriesProviderFactory: CacheDirectoriesProviderFact
     public func cacheDirectories() throws -> CacheDirectoriesProviding {
         let provider = CacheDirectoriesProvider()
         for category in CacheCategory.allCases {
-            let directory = try provider.tuistCacheDirectory(for: category)
+            let directory = try provider.cacheDirectory(for: category)
             if !FileHandler.shared.exists(directory) {
                 try FileHandler.shared.createFolder(directory)
             }

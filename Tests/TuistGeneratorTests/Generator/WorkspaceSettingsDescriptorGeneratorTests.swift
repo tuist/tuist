@@ -1,10 +1,10 @@
 import Foundation
-import TSCBasic
+import MockableTest
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -15,7 +15,11 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        system.swiftVersionStub = { "5.2" }
+
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
         subject = WorkspaceSettingsDescriptorGenerator()
     }
 
