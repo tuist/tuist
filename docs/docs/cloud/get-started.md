@@ -89,7 +89,7 @@ For CI environments, authentication is managed differently; it's done using **pr
 
 
 ```bash
-tuist project token my-organization/my-project
+tuist project tokens create my-organization/my-project
 ```
 
 You will then need to set the token as an environment variable named `TUIST_CONFIG_TOKEN` to make it accessible.

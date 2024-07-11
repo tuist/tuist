@@ -28,7 +28,7 @@ final class AuthService: AuthServicing {
         self.configLoader = configLoader
     }
 
-    // MARK: - CloudAuthServicing
+    // MARK: - AuthServicing
 
     func authenticate(
         directory: String?

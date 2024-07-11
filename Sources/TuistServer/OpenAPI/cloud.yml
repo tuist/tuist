@@ -101,13 +101,19 @@ components:
       title: ArtifactUploadID
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactUploadId
-    AuthenticationToken:
-      description: Token to authenticate the user with.
+    AuthenticationTokens:
+      description: A new user access token to authenticate the user with.
       properties:
-        token:
-          description: User authentication token
+        access_token:
+          description: User access token
           type: string
-      title: AuthenticationToken
+        refresh_token:
+          description: User refresh token
+          type: string
+      required:
+        - access_token
+        - refresh_token
+      title: AuthenticationTokens
       type: object
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
@@ -364,6 +370,7 @@ components:
           description: ID of the project
           type: number
         token:
+          deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
           type: string
       required:
@@ -373,6 +380,43 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Project
+    ProjectFullToken:
+      description: A new project token.
+      properties:
+        token:
+          description: The generated project token.
+          type: string
+      required:
+        - token
+      title: ProjectFullToken
+      type: object
+    ProjectToken:
+      description: A token to authenticate API requests as a project.
+      properties:
+        id:
+          description: The token unique identifier.
+          type: string
+        inserted_at:
+          description: The timestamp of when the token was created.
+          format: date-time
+          type: string
+      required:
+        - id
+        - inserted_at
+      title: ProjectToken
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ProjectToken
+    Tokens:
+      description: A list of project tokens.
+      properties:
+        tokens:
+          items:
+            $ref: '#/components/schemas/ProjectToken'
+          type: array
+      required:
+        - tokens
+      title: Tokens
+      type: object
     User:
       description: A user.
       properties:
@@ -540,10 +584,17 @@ paths:
               schema:
                 description: Token to authenticate the user with.
                 properties:
+                  access_token:
+                    description: A short-lived token to authenticate API requests as user.
+                    type: string
+                  refresh_token:
+                    description: A token to generate new access tokens when they expire.
+                    type: string
                   token:
+                    deprecated: true
                     description: User authentication token
                     type: string
-                title: AuthenticationToken
+                title: AuthenticationTokens
                 type: object
           description: The device code is authenticated
         202:
@@ -559,6 +610,52 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The request was not accepted, e.g., when the device code is expired
       summary: Get a specific device code.
+      tags: []
+  /api/auth/refresh_token:
+    post:
+      callbacks: {}
+      description: This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+      operationId: refreshToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                refresh_token:
+                  description: User refresh token
+                  type: string
+              required:
+                - refresh_token
+              type: object
+        description: Token params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new user access token to authenticate the user with.
+                properties:
+                  access_token:
+                    description: User access token
+                    type: string
+                  refresh_token:
+                    description: User refresh token
+                    type: string
+                required:
+                  - access_token
+                  - refresh_token
+                title: AuthenticationTokens
+                type: object
+          description: A new a pair of tokens was generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+      summary: Request new tokens.
       tags: []
   /api/cache:
     get:
@@ -1552,20 +1649,20 @@ paths:
           description: The authenticated subject is not authorized to perform this action
       summary: Create a new project.
       tags: []
-  /api/projects/{account_name}/{project_name}:
+  /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
       operationId: showProject
       parameters:
         - description: The name of the account that the project belongs to.
           in: path
-          name: account_name
+          name: account_handle
           required: true
           schema:
             type: string
         - description: The name of the project to show
           in: path
-          name: project_name
+          name: project_handle
           required: true
           schema:
             type: string
@@ -1596,20 +1693,20 @@ paths:
           description: The project was not found
       summary: Returns a project based on the handle.
       tags: []
-  /api/projects/{account_name}/{project_name}/cache/clean:
+  /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
       operationId: cleanCache
       parameters:
         - description: The name of the account that the project belongs to.
           in: path
-          name: account_name
+          name: account_handle
           required: true
           schema:
             type: string
         - description: The name of the project to clean cache for
           in: path
-          name: project_name
+          name: project_handle
           required: true
           schema:
             type: string
@@ -1635,6 +1732,158 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
       summary: Cleans cache for a given project
+      tags: []
+  /api/projects/{account_handle}/{project_handle}/tokens:
+    get:
+      callbacks: {}
+      description: This endpoint returns all tokens for a given project.
+      operationId: listProjectTokens
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A list of project tokens.
+                properties:
+                  tokens:
+                    items:
+                      $ref: '#/components/schemas/ProjectToken'
+                    type: array
+                required:
+                  - tokens
+                title: Tokens
+                type: object
+          description: A list of project tokens.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to list tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List all project tokens.
+      tags: []
+    post:
+      callbacks: {}
+      description: This endpoint returns a new project token.
+      operationId: createProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new project token.
+                properties:
+                  token:
+                    description: The generated project token.
+                    type: string
+                required:
+                  - token
+                title: ProjectFullToken
+                type: object
+          description: A project token was generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to issue new tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Create a new project token.
+      tags: []
+  /api/projects/{account_handle}/{project_handle}/tokens/{id}:
+    delete:
+      callbacks: {}
+      operationId: revokeProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The ID of the project token
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: The project token was revoked
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project token was not found
+      summary: Revokes a project token.
       tags: []
   /api/projects/{id}:
     delete:

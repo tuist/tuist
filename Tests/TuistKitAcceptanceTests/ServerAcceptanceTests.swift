@@ -1,22 +1,56 @@
 import Foundation
 import TuistAcceptanceTesting
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
 @testable import TuistServer
 
-final class ServerAcceptanceTestProjects: TuistAcceptanceTestCase {
-    func test_create_and_delete_organization_with_project() async throws {
-        try setUpFixture(.iosAppWithFrameworks)
-        let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
-        let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-        let fullHandle = "\(organizationHandle)/\(projectHandle)"
-        try await run(OrganizationCreateCommand.self, organizationHandle)
-        try await run(ProjectCreateCommand.self, fullHandle)
+final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
+    func test_list_project() async throws {
         try await run(ProjectListCommand.self)
-        try await run(ProjectDeleteCommand.self, fullHandle)
-        try await run(OrganizationDeleteCommand.self, organizationHandle)
         XCTAssertStandardOutput(pattern: "Listing all your projects:")
         XCTAssertStandardOutput(pattern: "• \(fullHandle)")
+    }
+}
+
+final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
+    func test_create_list_and_revoke_project_token() async throws {
+        try await run(ProjectTokensCreateCommand.self, fullHandle)
+        try await run(ProjectTokensListCommand.self, fullHandle)
+        let id = try XCTUnwrap(
+            TestingLogHandler.collected[.info, <=].components(separatedBy: .newlines).dropLast().last?
+                .components(separatedBy: .whitespaces).first
+        )
+        try await run(ProjectTokensRevokeCommand.self, id, fullHandle)
+        TestingLogHandler.reset()
+        try await run(ProjectTokensListCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
+        )
+    }
+}
+
+// MARK: - Helpers
+
+class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
+    var fullHandle: String = ""
+    var organizationHandle: String = ""
+    var projectHandle: String = ""
+
+    override func setUp() async throws {
+        try await super.setUp()
+        try setUpFixture(.iosAppWithFrameworks)
+        organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
+        projectHandle = String(UUID().uuidString.prefix(12).lowercased())
+        fullHandle = "\(organizationHandle)/\(projectHandle)"
+        try await run(OrganizationCreateCommand.self, organizationHandle)
+        try await run(ProjectCreateCommand.self, fullHandle)
+    }
+
+    override func tearDown() async throws {
+        try await run(ProjectDeleteCommand.self, fullHandle)
+        try await run(OrganizationDeleteCommand.self, organizationHandle)
+        try await super.tearDown()
     }
 }
