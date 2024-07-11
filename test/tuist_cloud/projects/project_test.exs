@@ -15,6 +15,20 @@ defmodule TuistCloud.ProjectTest do
            ).name
   end
 
+  describe "validation of handle validity" do
+    test "it fails when the handle is included in the block list" do
+      # Given/When
+      changeset =
+        Project.create_changeset(%Project{}, %{
+          name: Enum.random(Application.get_env(:tuist_cloud, :blocked_handles))
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "is reserved" in errors_on(changeset).name
+    end
+  end
+
   test "it nilifies user's last visited project when the project is deleted" do
     # Given
     project = ProjectsFixtures.project_fixture()
