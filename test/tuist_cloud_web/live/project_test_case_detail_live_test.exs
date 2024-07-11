@@ -11,6 +11,7 @@ defmodule TuistCloudWeb.ProjectTestCaseDetailLiveTest do
     user = AccountsFixtures.user_fixture()
 
     %{account: account} =
+      organization =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         creator: user,
@@ -25,10 +26,32 @@ defmodule TuistCloudWeb.ProjectTestCaseDetailLiveTest do
       |> assign(:selected_account, account)
       |> log_in_user(user)
 
-    %{conn: conn, user: user, project: selected_project}
+    %{conn: conn, user: user, project: selected_project, organization: organization}
   end
 
-  test "renders rows with their status", %{conn: conn} do
+  test "sets the right title", %{conn: conn, organization: organization, project: project} do
+    # Given
+    test_case_identifier = "test_case_identifier"
+
+    test_case = CommandEventsFixtures.test_case_fixture(identifier: test_case_identifier)
+    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id, flaky: true)
+    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id)
+
+    # When
+    {:ok, _lv, html} =
+      conn
+      |> live(
+        ~p"/#{organization.account.name}/#{project.name}/tests/cases/#{Base.encode64(test_case_identifier)}"
+      )
+
+    assert html =~ "Test case #{test_case_identifier} · tuist-org/tuist · Tuist"
+  end
+
+  test "renders rows with their status", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
     test_case_identifier = "test_case_identifier"
 
     test_case = CommandEventsFixtures.test_case_fixture(identifier: test_case_identifier)
@@ -37,18 +60,24 @@ defmodule TuistCloudWeb.ProjectTestCaseDetailLiveTest do
 
     {:ok, lv, _html} =
       conn
-      |> live(~p"/tuist-org/tuist/tests/cases/#{Base.encode64(test_case_identifier)}")
+      |> live(
+        ~p"/#{organization.account.name}/#{project.name}/tests/cases/#{Base.encode64(test_case_identifier)}"
+      )
 
     assert has_element?(lv, "table tbody tr:nth-child(1) *", "flaky")
     assert has_element?(lv, "table tbody tr:nth-child(2) *", "success")
     refute has_element?(lv, "table tbody tr:nth-child(2) *", "flaky")
   end
 
-  test "raises not found error when decoding the base64 identifier fails", %{conn: conn} do
+  test "raises not found error when decoding the base64 identifier fails", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
     # When / Then
     assert_raise TuistCloudWeb.Errors.NotFoundError, fn ->
       conn
-      |> live(~p"/tuist-org/tuist/tests/cases/invalid-identifier")
+      |> live(~p"/#{organization.account.name}/#{project.name}/tests/cases/invalid-identifier")
     end
   end
 end

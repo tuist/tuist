@@ -14,7 +14,10 @@ defmodule TuistCloudWeb.AccountProjectsLive do
     projects =
       selected_account |> Projects.get_all_project_accounts() |> Enum.map(&Map.get(&1, :project))
 
-    {:ok, socket |> assign(:projects, projects)}
+    {:ok,
+     socket
+     |> assign(:projects, projects)
+     |> assign(:page_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")}
   end
 
   attr(:title, :string, required: true)

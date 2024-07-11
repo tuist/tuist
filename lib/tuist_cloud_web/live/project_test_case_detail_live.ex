@@ -1,9 +1,10 @@
 defmodule TuistCloudWeb.ProjectTestCaseDetailLive do
+  alias TuistCloud.Projects
   alias TuistCloudWeb.Flop
   alias TuistCloud.CommandEvents
   use TuistCloudWeb, :live_view
 
-  def mount(params, _session, socket) do
+  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     uri =
       ("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
       |> URI.new!()
@@ -23,9 +24,12 @@ defmodule TuistCloudWeb.ProjectTestCaseDetailLive do
     {test_case_runs, test_case_runs_meta} =
       list_test_case_runs(test_case.id)
 
+    slug = Projects.get_project_slug_from_id(project.id)
+
     {
       :ok,
       socket
+      |> assign(:page_title, "#{gettext("Test case")} #{test_case_identifier} · #{slug} · Tuist")
       |> assign(:uri, uri)
       |> assign(:test_case, test_case)
       |> assign(:test_case_runs, test_case_runs)
