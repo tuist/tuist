@@ -297,7 +297,7 @@ defmodule TuistCloud.Environment do
   It decrypts the secrets and returns them.
   """
   def decrypt_secrets() do
-    if Mix.env() == :test do
+    if env() == :test do
       {:ok, secrets_map} =
         File.read!("priv/secrets/test_secrets.yml")
         |> YamlElixir.read_from_string()
