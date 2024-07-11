@@ -32,7 +32,7 @@ defmodule TuistCloudWeb.API.ProjectTokensControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      assert response["project_token"] == "project_access_token"
+      assert response["token"] == "project_access_token"
     end
 
     test "returns not_found when a project does not exist", %{conn: conn} do
