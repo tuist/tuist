@@ -864,34 +864,34 @@ defmodule TuistCloud.AccountsTest do
 
     test "creates the user when there's already a user with the same handle derived from email" do
       # Given
-      Accounts.create_user("test@tuist.io")
+      Accounts.create_user("foo@tuist.io")
 
       # When
-      assert %{name: "test1"} =
-               Accounts.create_user("test@tuist.test")
+      assert %{name: "foo1"} =
+               Accounts.create_user("foo@tuist.test")
                |> elem(1)
                |> Accounts.get_account_from_user()
     end
 
     test "errors after attempting finding a unique account handle using suffixes" do
       # Given
-      Accounts.create_user("test@tuist.io")
-      Accounts.create_user("test1@tuist.io")
-      Accounts.create_user("test2@tuist.io")
-      Accounts.create_user("test3@tuist.io")
-      Accounts.create_user("test4@tuist.io")
-      Accounts.create_user("test5@tuist.io")
+      Accounts.create_user("foo@tuist.io")
+      Accounts.create_user("foo1@tuist.io")
+      Accounts.create_user("foo2@tuist.io")
+      Accounts.create_user("foo3@tuist.io")
+      Accounts.create_user("foo4@tuist.io")
+      Accounts.create_user("foo5@tuist.io")
 
       # When
-      {:error, :account_name_taken} = Accounts.create_user("test@tuist.test")
+      {:error, :account_name_taken} = Accounts.create_user("foo@tuist.test")
     end
 
     test "errors after creating user with an email that already exists" do
       # Given
-      Accounts.create_user("test@tuist.io")
+      Accounts.create_user("foo@tuist.io")
 
       # When
-      assert {:error, :email_taken} = Accounts.create_user("test@tuist.io")
+      assert {:error, :email_taken} = Accounts.create_user("foo@tuist.io")
     end
   end
 

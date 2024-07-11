@@ -50,10 +50,15 @@ defmodule TuistCloud.Accounts.Account do
         []
       end
     end)
+    |> validate_allowed_handle()
     |> update_change(:name, &String.downcase/1)
     |> unique_constraint(:name, name: "index_accounts_on_name")
     |> unique_constraint([:user_id])
     |> unique_constraint([:organization_id])
+  end
+
+  def validate_allowed_handle(changeset) do
+    changeset |> validate_exclusion(:name, Application.get_env(:tuist_cloud, :blocked_handles))
   end
 
   def update_changeset(account, attrs) do

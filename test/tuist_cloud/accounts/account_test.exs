@@ -50,6 +50,18 @@ defmodule TuistCloud.AccountTest do
     assert "can't contain a dot" in errors_on(changeset).name
   end
 
+  describe "handle validity" do
+    test "it fails the validation if a handle is included in the block list" do
+      changeset =
+        Account.create_changeset(%Account{}, %{
+          name: Enum.random(Application.get_env(:tuist_cloud, :blocked_handles))
+        })
+
+      assert changeset.valid? == false
+      assert "is reserved" in errors_on(changeset).name
+    end
+  end
+
   describe "user_id and organization_id validity" do
     test "changeset is valid when user_id is present" do
       changeset =

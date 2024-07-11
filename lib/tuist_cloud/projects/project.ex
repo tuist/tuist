@@ -25,6 +25,7 @@ defmodule TuistCloud.Projects.Project do
   def create_changeset(project, attrs) do
     project
     |> cast(attrs, [:token, :account_id, :name, :created_at, :visibility])
+    |> validate_allowed_handle()
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_change(:name, fn :name, name ->
@@ -38,5 +39,9 @@ defmodule TuistCloud.Projects.Project do
       end
     end)
     |> update_change(:name, &String.downcase/1)
+  end
+
+  def validate_allowed_handle(changeset) do
+    changeset |> validate_exclusion(:name, Application.get_env(:tuist_cloud, :blocked_handles))
   end
 end
