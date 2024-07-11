@@ -17,7 +17,7 @@ defmodule TuistCloudWeb.API.Spec do
         version: "0.1.0",
         extensions: %{
           "x-logo" => %{
-            "url" => TuistCloud.Environment.app_url("/images/open-graph.png"),
+            "url" => TuistCloud.Environment.app_url(path: "/images/open-graph.png"),
             "altText" => "Tuist logo"
           }
         }
