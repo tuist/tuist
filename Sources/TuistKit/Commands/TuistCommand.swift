@@ -13,7 +13,7 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Generate, build and test your Xcode projects  ",
             subcommands: [
                 BuildCommand.self,
                 CleanCommand.self,
