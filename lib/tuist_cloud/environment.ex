@@ -101,10 +101,6 @@ defmodule TuistCloud.Environment do
     get([:open_telemetry, :enabled], secrets) |> truthy?()
   end
 
-  def secret_key_base(secrets \\ secrets()) do
-    get([:secret_key, :base], secrets)
-  end
-
   def attio_api_key(secrets \\ secrets()) do
     get([:attio, :api_key], secrets)
   end
@@ -264,8 +260,16 @@ defmodule TuistCloud.Environment do
     get([:app_signal, :push_api_key], secrets)
   end
 
+  def secret_key_base(secrets \\ secrets()) do
+    get([:secret_key, :base], secrets)
+  end
+
   def secret_key_password(secrets \\ secrets()) do
     get([:secret_key, :password], secrets)
+  end
+
+  def secret_key_tokens(secrets \\ secrets()) do
+    get([:secret_key, :tokens], secrets)
   end
 
   def get(keys, secrets \\ secrets()) do
@@ -292,15 +296,33 @@ defmodule TuistCloud.Environment do
   It decrypts the secrets and returns them.
   """
   def decrypt_secrets() do
-    master_key_path = Path.join("priv/secrets", "master.key")
-    master_key_env_variable = "PHX_MASTER_KEY"
-    secrets_path = System.get_env("SECRETS_PATH", "priv/secrets/secrets.yml.enc")
+    if Mix.env() == :test do
+      {:ok, secrets_map} =
+        File.read!("priv/secrets/test_secrets.yml")
+        |> YamlElixir.read_from_string()
 
-    if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
-      key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
-      EncryptedSecrets.read!(key, secrets_path)
+      secrets_map
+      |> to_atom_map()
     else
-      %{}
+      master_key_path = Path.join("priv/secrets", "master.key")
+      master_key_env_variable = "PHX_MASTER_KEY"
+      secrets_path = System.get_env("SECRETS_PATH", "priv/secrets/secrets.yml.enc")
+
+      if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
+        key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
+
+        EncryptedSecrets.read!(key, secrets_path)
+      else
+        %{}
+      end
     end
+  end
+
+  defp to_atom_map(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {String.to_atom(k), to_atom_map(v)} end)
+  end
+
+  defp to_atom_map(value) do
+    value
   end
 end

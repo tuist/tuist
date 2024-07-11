@@ -17,6 +17,7 @@ defmodule TuistCloud.ProjectsFixtures do
 
     name = Keyword.get(opts, :name, "#{unique_integer()}")
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    preloads = Keyword.get(opts, :preloads, [])
 
     Projects.create_project(
       %{
@@ -24,7 +25,8 @@ defmodule TuistCloud.ProjectsFixtures do
         account: %{id: account_id}
       },
       created_at: created_at,
-      visibility: Keyword.get(opts, :visibility, :private)
+      visibility: Keyword.get(opts, :visibility, :private),
+      preloads: preloads
     )
     |> Repo.preload(Keyword.get(opts, :preloads, []))
   end

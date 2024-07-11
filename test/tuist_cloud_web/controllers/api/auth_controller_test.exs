@@ -74,7 +74,18 @@ defmodule TuistCloudWeb.API.AuthControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      assert %{"token" => user.token} == response
+
+      assert response["token"] == user.token
+
+      assert TuistCloud.Authentication.decode_and_verify(response["access_token"], %{
+               "typ" => "access",
+               "sub" => user.id
+             })
+
+      assert TuistCloud.Authentication.decode_and_verify(response["refresh_token"], %{
+               "typ" => "refresh",
+               "sub" => user.id
+             })
     end
   end
 
@@ -112,5 +123,72 @@ defmodule TuistCloudWeb.API.AuthControllerTest do
       html_response(conn, 302)
       assert length(Repo.all(DeviceCode)) == 1
     end
+  end
+
+  describe "POST /auth/refresh_token" do
+    test "returns refreshed tokens if the refresh token is valid", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, refresh_token, _opts} =
+        TuistCloud.Authentication.encode_and_sign(user, %{},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert TuistCloud.Authentication.decode_and_verify(response["access_token"], %{
+               "typ" => "access",
+               "sub" => user.id
+             })
+
+      assert TuistCloud.Authentication.decode_and_verify(response["refresh_token"], %{
+               "typ" => "refresh",
+               "sub" => user.id
+             })
+    end
+  end
+
+  test "returns unautheticated if the refresh token is expired", %{conn: conn} do
+    # Given
+    refresh_token = "refresh_token"
+
+    TuistCloud.Authentication
+    |> expect(:refresh, fn ^refresh_token, ttl: {4, :weeks} ->
+      {:error, :expired_token}
+    end)
+
+    # When
+    conn =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+    # Then
+    response = json_response(conn, :unauthorized)
+    assert response["message"] == "The refresh token is expired or invalid"
+  end
+
+  test "returns unautheticated if the refresh token is invalid", %{conn: conn} do
+    # Given
+    refresh_token = "refresh_token"
+
+    # When
+    conn =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+    # Then
+    response = json_response(conn, :unauthorized)
+    assert response["message"] == "The refresh token is expired or invalid"
   end
 end

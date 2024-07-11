@@ -68,6 +68,11 @@ config :hammer,
 
 config :flop, repo: TuistCloud.Repo
 
+config :guardian, Guardian.DB,
+  repo: TuistCloud.Repo,
+  schema_name: "tokens",
+  token_types: ["refresh"]
+
 config :tuist_cloud, :blocked_handles, [
   "admin",
   "settings",

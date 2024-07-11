@@ -1,4 +1,6 @@
 defmodule TuistCloud.ProjectsTest do
+  alias TuistCloud.Base64
+  alias TuistCloud.Projects.ProjectToken
   alias TuistCloud.Billing
   alias TuistCloud.CommandEvents
   alias TuistCloud.CommandEventsFixtures
@@ -220,6 +222,192 @@ defmodule TuistCloud.ProjectsTest do
 
       # Then
       assert got == project
+    end
+  end
+
+  describe "get_project_tokens/1" do
+    test "returns project's tokens" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, token_one} =
+        Projects.create_project_token(project)
+        |> Projects.get_project_token()
+
+      {:ok, token_two} =
+        Projects.create_project_token(project)
+        |> Projects.get_project_token()
+
+      _token_three = Projects.create_project_token(ProjectsFixtures.project_fixture())
+
+      # When
+      got = Projects.get_project_tokens(project)
+
+      # Then
+      assert got |> Enum.sort_by(& &1.id) == [token_one, token_two] |> Enum.sort_by(& &1.id)
+    end
+
+    test "returns empty array if there are no project's tokens" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.get_project_tokens(project)
+
+      # Then
+      assert [] == got
+    end
+  end
+
+  describe "get_project_token/1" do
+    test "returns project token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      token = Projects.create_project_token(project)
+
+      # When
+      {:ok, got} = Projects.get_project_token(token)
+
+      # Then
+      [_audience, token_id, _token_hash] = String.split(token, "_")
+      assert got.id == token_id
+    end
+
+    test "returns invalid if the token is invalid" do
+      # When
+      got = Projects.get_project_token("invalid-token")
+
+      # Then
+      assert {:error, :invalid_token} == got
+    end
+
+    test "returns not found if the token does not exist" do
+      # When
+      got = Projects.get_project_token("tuist_0fcc7a05-4f0d-490d-8545-1fe3171a2880_some-hash")
+
+      # Then
+      assert {:error, :not_found} == got
+    end
+  end
+
+  describe "get_project_by_full_token/1" do
+    test "returns project with a token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      token = Projects.create_project_token(project)
+
+      # When
+      got = Projects.get_project_by_full_token(token)
+
+      # Then
+      assert got == project
+    end
+
+    test "returns project with a legacy token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.get_project_by_full_token(project.token)
+
+      # Then
+      assert got == project
+    end
+
+    test "returns nil when the token does not exist" do
+      # When
+      got = Projects.get_project_by_full_token("some-non-existing-token")
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "get_project_token_by_id/2" do
+    test "returns project token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, token} =
+        Projects.create_project_token(project)
+        |> Projects.get_project_token()
+
+      # When
+      got = Projects.get_project_token_by_id(project, token.id)
+
+      # Then
+      assert got == token
+    end
+
+    test "returns nil if the token does not exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.get_project_token_by_id(project, "01909854-f9d1-7f9d-8956-b59155b0d8cc")
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "create_project_token/1" do
+    test "creates project token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      Base64
+      |> expect(:encode, fn _ -> "generated-hash" end)
+
+      # When
+      got = Projects.create_project_token(project)
+
+      # Then
+      %{id: token_id} = Repo.one(ProjectToken)
+      assert "tuist_#{token_id}_generated-hash" == got
+    end
+  end
+
+  describe "revoke_project_token/1" do
+    test "revokes project token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, token} =
+        Projects.create_project_token(project)
+        |> Projects.get_project_token()
+
+      # When
+      Projects.revoke_project_token(token)
+
+      # Then
+      assert [] == Projects.get_project_tokens(project)
+    end
+  end
+
+  describe "legacy_token?/1" do
+    test "returns true if the token is a legacy token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.legacy_token?(project.token)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false if the token is not a legacy token" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      token = Projects.create_project_token(project)
+
+      # When
+      got = Projects.legacy_token?(token)
+
+      # Then
+      assert got == false
     end
   end
 end

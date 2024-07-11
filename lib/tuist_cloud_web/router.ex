@@ -96,6 +96,17 @@ defmodule TuistCloudWeb.Router do
         :update_member
 
     put "/projects/:account_handle/:project_handle/cache/clean", CacheController, :clean
+
+    post "/projects/:account_handle/:project_handle/tokens",
+         ProjectTokensController,
+         :create
+
+    get "/projects/:account_handle/:project_handle/tokens", ProjectTokensController, :index
+
+    delete "/projects/:account_handle/:project_handle/tokens/:id",
+           ProjectTokensController,
+           :delete
+
     post "/projects", ProjectsController, :create
     get "/projects/:account_handle/:project_handle", ProjectsController, :show
     delete "/projects/:id", ProjectsController, :delete
@@ -112,6 +123,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :non_authenticated_api]
 
     get "/auth/device_code/:device_code", AuthController, :device_code
+    post "/auth/refresh_token", AuthController, :refresh_token
   end
 
   # Enable LiveDashboard and Bamboo mailbox preview in development

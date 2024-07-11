@@ -8,12 +8,6 @@ defmodule TuistCloudWeb.UserResetPasswordLiveTest do
   alias TuistCloud.Accounts
 
   setup do
-    TuistCloud.Environment
-    |> stub(:secret_key_password, fn -> "secret_key_password" end)
-
-    TuistCloud.Environment
-    |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
-
     user = user_fixture()
 
     token =

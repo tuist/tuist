@@ -244,3 +244,8 @@ config :tuist_cloud, TuistCloud.PromEx,
   drop_metrics_groups: [],
   grafana: :disabled,
   metrics_server: :disabled
+
+# Guardian
+config :tuist_cloud, TuistCloud.Guardian,
+  issuer: "tuist",
+  secret_key: TuistCloud.Environment.secret_key_tokens(secrets)
