@@ -199,7 +199,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         given(cleanCacheService)
             .cleanCache(
                 serverURL: .value(url),
-                fullName: .value("tuist/tuist")
+                fullHandle: .value("tuist/tuist")
             )
             .willReturn(())
 
@@ -224,7 +224,7 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         // Then
         verify(cleanCacheService)
-            .cleanCache(serverURL: .any, fullName: .any)
+            .cleanCache(serverURL: .any, fullHandle: .any)
             .called(1)
         XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
     }

@@ -1,16 +1,17 @@
 import Foundation
 import Mockable
+import OpenAPIURLSession
 import TuistSupport
 
 @Mockable
-public protocol CleanCacheServicing {
-    func cleanCache(
-        serverURL: URL,
-        fullHandle: String
-    ) async throws
+public protocol ListProjectTokensServicing {
+    func listProjectTokens(
+        fullHandle: String,
+        serverURL: URL
+    ) async throws -> [ServerProjectToken]
 }
 
-enum CleanCacheServiceError: FatalError {
+enum ListProjectTokensServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -20,7 +21,7 @@ enum CleanCacheServiceError: FatalError {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .unauthorized:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -28,14 +29,14 @@ enum CleanCacheServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project clean failed due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+            return "We could not list the project tokens due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
 }
 
-public final class CleanCacheService: CleanCacheServicing {
+public final class ListProjectTokensService: ListProjectTokensServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -50,14 +51,14 @@ public final class CleanCacheService: CleanCacheServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func cleanCache(
-        serverURL: URL,
-        fullHandle: String
-    ) async throws {
+    public func listProjectTokens(
+        fullHandle: String,
+        serverURL: URL
+    ) async throws -> [ServerProjectToken] {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.cleanCache(
+        let response = try await client.listProjectTokens(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -65,28 +66,29 @@ public final class CleanCacheService: CleanCacheServicing {
                 )
             )
         )
-
         switch response {
-        case .noContent:
-            // noop
-            break
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
-            case let .json(error):
-                throw CleanCacheServiceError.notFound(error.message)
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(response):
+                return response.tokens.map(ServerProjectToken.init)
             }
-        case let .forbidden(forbiddenResponse):
-            switch forbiddenResponse.body {
+        case let .notFound(notFound):
+            switch notFound.body {
             case let .json(error):
-                throw CleanCacheServiceError.forbidden(error.message)
+                throw ListProjectTokensServiceError.notFound(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw ListProjectTokensServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw ListProjectTokensServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw CleanCacheServiceError.unknownError(statusCode)
+            throw ListProjectTokensServiceError.unknownError(statusCode)
         }
     }
 }

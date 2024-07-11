@@ -73,11 +73,15 @@ public final class ServerSessionController: ServerSessionControlling {
             logger.notice("Press CTRL + C once to cancel the process.")
         }
 
-        let token = try await getAuthToken(
+        let tokens = try await getAuthTokens(
             serverURL: serverURL,
             deviceCode: deviceCode
         )
-        let credentials = ServerCredentials(token: token)
+        let credentials = ServerCredentials(
+            token: nil,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken
+        )
         try credentialsStore.store(credentials: credentials, serverURL: serverURL)
         logger.notice("Credentials stored successfully", metadata: .success)
     }
@@ -85,10 +89,10 @@ public final class ServerSessionController: ServerSessionControlling {
     public func printSession(serverURL: URL) throws {
         if let token = try serverAuthenticationController.authenticationToken(serverURL: serverURL) {
             switch token {
-            case let .user(userToken):
+            case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: _):
                 logger.notice("""
                 Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
-                \(userToken)
+                \(accessToken?.token ?? legacyToken!)
                 """)
             case let .project(projectToken):
                 logger.notice("""
@@ -107,10 +111,10 @@ public final class ServerSessionController: ServerSessionControlling {
         logger.notice("Session deleted successfully", metadata: .success)
     }
 
-    private func getAuthToken(
+    private func getAuthTokens(
         serverURL: URL,
         deviceCode: String
-    ) async throws -> String {
+    ) async throws -> ServerAuthenticationTokens {
         if let token = try await getAuthTokenService.getAuthToken(
             serverURL: serverURL,
             deviceCode: deviceCode
@@ -118,7 +122,7 @@ public final class ServerSessionController: ServerSessionControlling {
             return token
         } else {
             try await Task.sleep(nanoseconds: 1_000_000_000)
-            return try await getAuthToken(serverURL: serverURL, deviceCode: deviceCode)
+            return try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
         }
     }
 }
