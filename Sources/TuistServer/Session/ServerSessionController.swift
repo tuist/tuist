@@ -67,7 +67,12 @@ public final class ServerSessionController: ServerSessionControlling {
         logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
         try opener.open(url: authURL)
 
-        logger.pretty("Press \(.keystroke("CTRL + C")) once to cancel the process.")
+        if Environment.shared.shouldOutputBeColoured {
+            logger.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
+        } else {
+            logger.notice("Press CTRL + C once to cancel the process.")
+        }
+
         let tokens = try await getAuthTokens(
             serverURL: serverURL,
             deviceCode: deviceCode
