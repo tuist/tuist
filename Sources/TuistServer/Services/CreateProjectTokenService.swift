@@ -69,8 +69,8 @@ public final class CreateProjectTokenService: CreateProjectTokenServicing {
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
-            case let .json(token):
-                return token.project_token
+            case let .json(projectToken):
+                return projectToken.token
             }
         case let .notFound(notFound):
             switch notFound.body {

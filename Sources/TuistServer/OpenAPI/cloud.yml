@@ -380,21 +380,21 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Project
-    ProjectRawToken:
+    ProjectFullToken:
       description: A new project token.
       properties:
-        project_token:
+        token:
           description: The generated project token.
           type: string
       required:
-        - project_token
-      title: ProjectRawToken
+        - token
+      title: ProjectFullToken
       type: object
     ProjectToken:
-      description: Project token.
+      description: A token to authenticate API requests as a project.
       properties:
         id:
-          description: The token ID
+          description: The token unique identifier.
           type: string
         inserted_at:
           description: The timestamp of when the token was created.
@@ -585,10 +585,10 @@ paths:
                 description: Token to authenticate the user with.
                 properties:
                   access_token:
-                    description: User access token
+                    description: A short-lived token to authenticate API requests as user.
                     type: string
                   refresh_token:
-                    description: User refresh token
+                    description: A token to generate new access tokens when they expire.
                     type: string
                   token:
                     deprecated: true
@@ -1811,12 +1811,12 @@ paths:
               schema:
                 description: A new project token.
                 properties:
-                  project_token:
+                  token:
                     description: The generated project token.
                     type: string
                 required:
-                  - project_token
-                title: ProjectRawToken
+                  - token
+                title: ProjectFullToken
                 type: object
           description: A project token was generated
         401:

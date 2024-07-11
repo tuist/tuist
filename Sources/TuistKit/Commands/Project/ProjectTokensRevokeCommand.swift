@@ -14,7 +14,7 @@ struct ProjectTokensRevokeCommand: AsyncParsableCommand {
 
     @Argument(
         help: "The ID of the project token to revoke.",
-        envKey: .projectTokensRevokeId
+        envKey: .projectTokenId
     )
     var projectTokenId: String
 

@@ -1179,24 +1179,24 @@ public enum Components {
         }
         /// A new project token.
         ///
-        /// - Remark: Generated from `#/components/schemas/ProjectRawToken`.
-        public struct ProjectRawToken: Codable, Equatable, Hashable, Sendable {
+        /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
+        public struct ProjectFullToken: Codable, Equatable, Hashable, Sendable {
             /// The generated project token.
             ///
-            /// - Remark: Generated from `#/components/schemas/ProjectRawToken/project_token`.
-            public var project_token: Swift.String
-            /// Creates a new `ProjectRawToken`.
+            /// - Remark: Generated from `#/components/schemas/ProjectFullToken/token`.
+            public var token: Swift.String
+            /// Creates a new `ProjectFullToken`.
             ///
             /// - Parameters:
-            ///   - project_token: The generated project token.
-            public init(project_token: Swift.String) { self.project_token = project_token }
-            public enum CodingKeys: String, CodingKey { case project_token }
+            ///   - token: The generated project token.
+            public init(token: Swift.String) { self.token = token }
+            public enum CodingKeys: String, CodingKey { case token }
         }
-        /// Project token.
+        /// A token to authenticate API requests as a project.
         ///
         /// - Remark: Generated from `#/components/schemas/ProjectToken`.
         public struct ProjectToken: Codable, Equatable, Hashable, Sendable {
-            /// The token ID
+            /// The token unique identifier.
             ///
             /// - Remark: Generated from `#/components/schemas/ProjectToken/id`.
             public var id: Swift.String
@@ -1207,7 +1207,7 @@ public enum Components {
             /// Creates a new `ProjectToken`.
             ///
             /// - Parameters:
-            ///   - id: The token ID
+            ///   - id: The token unique identifier.
             ///   - inserted_at: The timestamp of when the token was created.
             public init(id: Swift.String, inserted_at: Foundation.Date) {
                 self.id = id
@@ -1704,11 +1704,11 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json`.
                     public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                        /// User access token
+                        /// A short-lived token to authenticate API requests as user.
                         ///
                         /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/access_token`.
                         public var access_token: Swift.String?
-                        /// User refresh token
+                        /// A token to generate new access tokens when they expire.
                         ///
                         /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/refresh_token`.
                         public var refresh_token: Swift.String?
@@ -1719,8 +1719,8 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - access_token: User access token
-                        ///   - refresh_token: User refresh token
+                        ///   - access_token: A short-lived token to authenticate API requests as user.
+                        ///   - refresh_token: A token to generate new access tokens when they expire.
                         ///   - token: User authentication token
                         public init(
                             access_token: Swift.String? = nil,
@@ -6822,16 +6822,14 @@ public enum Operations {
                     public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                         /// The generated project token.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json/project_token`.
-                        public var project_token: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json/token`.
+                        public var token: Swift.String
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - project_token: The generated project token.
-                        public init(project_token: Swift.String) {
-                            self.project_token = project_token
-                        }
-                        public enum CodingKeys: String, CodingKey { case project_token }
+                        ///   - token: The generated project token.
+                        public init(token: Swift.String) { self.token = token }
+                        public enum CodingKeys: String, CodingKey { case token }
                     }
                     case json(Operations.createProjectToken.Output.Ok.Body.jsonPayload)
                 }

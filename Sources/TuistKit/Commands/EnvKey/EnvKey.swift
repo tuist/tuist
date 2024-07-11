@@ -144,9 +144,7 @@ public enum EnvKey: String, CaseIterable {
     // PROJECT TOKEN
     case projectTokenFullHandle = "TUIST_PROJECT_TOKEN_FULL_HANDLE"
     case projectTokenPath = "TUIST_PROJECT_TOKEN_PATH"
-
-    // PROJECT TOKENS REVOKE
-    case projectTokensRevokeId = "TUIST_PROJECT_TOKENS_ID"
+    case projectTokenId = "TUIST_PROJECT_TOKEN_ID"
 
     // ORGANIZATION LIST
     case organizationListJson = "TUIST_ORGANIZATION_LIST_JSON"
