@@ -68,7 +68,7 @@ public class GraphLinter: GraphLinting {
             guard !unknownTargets.isEmpty else { return nil }
 
             let targetsDescriptionStrings = unknownTargets.map { target in
-                target.name + " " + "(\(target.projectPath.relative(to: graphTraverser.path).pathString)"
+                target.name + " " + "(\(target.projectPath.relative(to: graphTraverser.path).pathString))"
             }
 
             return LintingIssue(

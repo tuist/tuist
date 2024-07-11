@@ -135,7 +135,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEqual(
             result,
             [LintingIssue(
-                reason: "Cannot find targets UnknownReferenceTarget (/project)  defined in SomeScheme",
+                reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
                 severity: .warning
             )]
         )
