@@ -18,6 +18,8 @@ defmodule TuistCloudWeb.API.CacheController do
   plug(TuistCloudWeb.API.Authorization.AuthorizationPlug, :cache)
   plug(TuistCloudWeb.API.Authorization.BillingPlug)
 
+  tags ["Cache"]
+
   operation(:download,
     summary: "Downloads an artifact from the cache.",
     description:

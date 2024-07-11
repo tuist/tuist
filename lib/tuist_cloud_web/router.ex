@@ -49,7 +49,7 @@ defmodule TuistCloudWeb.Router do
     pipe_through [:open_api, :browser]
 
     get "/ready", TuistCloudWeb.PageController, :ready
-    get "/api-docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi"
+    get "/api/docs", TuistCloudWeb.APIController, :docs
   end
 
   scope "/api", TuistCloudWeb.API do
@@ -116,7 +116,7 @@ defmodule TuistCloudWeb.Router do
   scope "/api" do
     pipe_through [:open_api, :non_authenticated_api]
 
-    get "/openapi", OpenApiSpex.Plug.RenderSpec, []
+    get "/spec", OpenApiSpex.Plug.RenderSpec, []
   end
 
   scope "/api", TuistCloudWeb.API do

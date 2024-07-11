@@ -23,6 +23,8 @@ defmodule TuistCloudWeb.API.AnalyticsController do
   plug(TuistCloudWeb.API.EnsureProjectPresencePlug)
   plug(TuistCloudWeb.API.Authorization.AuthorizationPlug, :command_event)
 
+  tags ["Analytics"]
+
   operation(:create,
     summary: "Create a a new command analytics event",
     operation_id: "createCommandEvent",

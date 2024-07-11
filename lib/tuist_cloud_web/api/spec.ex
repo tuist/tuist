@@ -14,12 +14,21 @@ defmodule TuistCloudWeb.API.Spec do
       ],
       info: %Info{
         title: "Tuist",
-        version: "0.1.0"
+        version: "0.1.0",
+        extensions: %{
+          "x-logo" => %{
+            "url" => TuistCloud.Environment.app_url("/images/open-graph.png"),
+            "altText" => "Tuist logo"
+          }
+        }
       },
       components: %Components{
-        securitySchemes: %{"authorization" => %SecurityScheme{type: "http", scheme: "bearer"}}
+        securitySchemes: %{
+          "authorization" => %SecurityScheme{type: "http", scheme: "bearer"},
+          "cookie" => %SecurityScheme{type: "apiKey", in: "cookie", name: "_tuist_cloud_key"}
+        }
       },
-      security: [%{"authorization" => []}],
+      security: [%{"authorization" => []}, %{"cookie" => []}],
       paths: Paths.from_router(Router)
     }
     # Discover request/response schemas from path specs

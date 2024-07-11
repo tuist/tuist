@@ -7,6 +7,8 @@ defmodule TuistCloudWeb.API.ProjectTokensController do
   alias TuistCloud.Authorization
   alias TuistCloudWeb.API.Schemas.Error
 
+  tags ["Project tokens"]
+
   operation(:create,
     summary: "Create a new project token.",
     description: "This endpoint returns a new project token.",
