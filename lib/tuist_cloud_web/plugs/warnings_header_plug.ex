@@ -18,7 +18,9 @@ defmodule TuistCloudWeb.WarningsHeaderPlug do
           conn
 
         _ ->
-          put_resp_header(conn, "x-tuist-cloud-warnings", Base.encode64(Jason.encode!(warnings)))
+          conn
+
+          # put_resp_header(conn, "x-tuist-cloud-warnings", Base.encode64(Jason.encode!(warnings)))
       end
     end)
   end
