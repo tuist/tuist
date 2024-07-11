@@ -66,7 +66,7 @@ RUN mix assets.deploy
 COPY --from=rust /app/target/release/libtuistcloud_native.so priv/native/libtuistcloud_native.so
 
 # Compile the release
-RUN mix compile
+RUN mix compile --warnings-as-errors
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
