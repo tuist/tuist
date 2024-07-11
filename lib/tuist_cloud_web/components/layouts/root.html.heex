@@ -8,18 +8,21 @@
       <%= assigns[:page_title] || "Tuist" %>
     </.live_title>
     <!-- Meta Meta Tags -->
-    <meta property="og:url" content={TuistCloud.Environment.app_url("/")} />
+    <meta property="og:url" content={TuistCloud.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:page_title] || "Tuist"} />
-    <meta property="og:image" content={TuistCloud.Environment.app_url("/images/open-graph.png")} />
+    <meta
+      property="og:image"
+      content={TuistCloud.Environment.app_url(path: "/images/open-graph.png")}
+    />
     <!-- Twitter Meta Tags -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@tuistio" />
-    <meta name="twitter:image" content={TuistCloud.Environment.app_url("/")} />
+    <meta name="twitter:image" content={TuistCloud.Environment.app_url(path: "/")} />
     <meta name="twitter:title" content={assigns[:page_title] || "Tuist"} />
     <meta
       property="twitter:domain"
-      content={TuistCloud.Environment.app_url("/") |> URI.parse() |> Map.get(:host)}
+      content={TuistCloud.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
     />
     <meta property="twitter:url" content={TuistCloud.Environment.app_url()} />
     <!-- Assets -->

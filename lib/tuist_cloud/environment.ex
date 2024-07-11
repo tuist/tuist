@@ -252,7 +252,8 @@ defmodule TuistCloud.Environment do
       smtp_user_name(secrets) != nil
   end
 
-  def app_url(path \\ "/", secrets \\ secrets()) do
+  def app_url(secrets \\ secrets(), opts \\ []) do
+    path = Keyword.get(opts, :path, "/")
     url = get([:app, :url], secrets) || "http://localhost:8080"
     %{URI.parse(url) | path: path} |> URI.to_string()
   end
