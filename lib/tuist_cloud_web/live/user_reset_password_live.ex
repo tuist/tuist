@@ -44,7 +44,7 @@ defmodule TuistCloudWeb.UserResetPasswordLive do
   end
 
   def mount(params, _session, socket) do
-    password = live_flash(socket.assigns.flash, :password)
+    password = Phoenix.Flash.get(socket.assigns.flash, :password)
     form = to_form(%{"password" => password}, as: "user")
 
     {

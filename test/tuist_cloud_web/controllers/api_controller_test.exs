@@ -3,7 +3,7 @@ defmodule TuistCloudWeb.APIControllerTest do
   alias TuistCloud.AccountsFixtures
   use Mimic
 
-  setup %{conn: conn} do
+  setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
     %{user: user}
   end
@@ -28,13 +28,11 @@ defmodule TuistCloudWeb.APIControllerTest do
       assert data_configuration["authentication"]["http"]["basic"] == %{}
       assert data_configuration["authentication"]["http"]["bearer"]["token"] != nil
       assert data_configuration["authentication"]["preferredSecurityScheme"] == "authorization"
-      assert attrs = ~p"/api/spec"
       assert html =~ "<title>API Documentation · Tuist</title>"
     end
 
     test "includes the right scalar configuration when the user is not authenticated", %{
-      conn: conn,
-      user: user
+      conn: conn
     } do
       # When
       conn = conn |> get("/api/docs")
@@ -51,7 +49,6 @@ defmodule TuistCloudWeb.APIControllerTest do
       assert data_configuration["authentication"]["http"]["basic"] == %{}
       assert data_configuration["authentication"]["http"]["bearer"]["token"] == ""
       assert data_configuration["authentication"]["preferredSecurityScheme"] == "authorization"
-      assert attrs = ~p"/api/spec"
       assert html =~ "<title>API Documentation · Tuist</title>"
     end
   end
