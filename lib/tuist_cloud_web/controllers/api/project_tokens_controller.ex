@@ -77,12 +77,12 @@ defmodule TuistCloudWeb.API.ProjectTokensController do
         })
 
       true ->
-        project_token = Projects.create_project_token(project)
+        token = Projects.create_project_token(project)
 
         conn
         |> put_status(:ok)
         |> json(%{
-          project_token: project_token
+          token: token
         })
     end
   end
