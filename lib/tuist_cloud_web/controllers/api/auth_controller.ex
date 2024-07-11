@@ -15,6 +15,8 @@ defmodule TuistCloudWeb.API.AuthController do
   @refresh_token_ttl {4, :weeks}
   @access_token_ttl {10, :minutes}
 
+  tags ["Authentication"]
+
   defmodule Error do
     require OpenApiSpex
 

@@ -12,6 +12,8 @@ defmodule TuistCloudWeb.API.InvitationsController do
     render_message: TuistCloudWeb.RenderAPIErrorPlug
   )
 
+  tags ["Invitations"]
+
   operation(:create,
     summary: "Creates an invitation",
     description: "Invites a user with a given email to a given organization.",

@@ -13,6 +13,8 @@ defmodule TuistCloudWeb.API.ProjectsController do
     render_error: TuistCloudWeb.RenderAPIErrorPlug
   )
 
+  tags ["Projects"]
+
   operation(:create,
     summary: "Create a new project.",
     operation_id: "createProject",

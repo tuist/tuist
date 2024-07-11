@@ -14,6 +14,8 @@ defmodule TuistCloudWeb.API.OrganizationsController do
     render_message: TuistCloudWeb.RenderAPIErrorPlug
   )
 
+  tags ["Organizations"]
+
   operation(:index,
     summary: "Lists the organizations",
     description: "Returns all the organizations the authenticated subject is part of.",

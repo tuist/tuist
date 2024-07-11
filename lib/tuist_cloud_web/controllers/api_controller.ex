@@ -1,0 +1,25 @@
+defmodule TuistCloudWeb.APIController do
+  use TuistCloudWeb, :controller
+  import Plug.Conn
+
+  def docs(conn, _params) do
+    bearer_token =
+      if user = conn.assigns[:current_user] do
+        {:ok, access_token, _opts} =
+          TuistCloud.Authentication.encode_and_sign(user, %{},
+            token_type: :access,
+            ttl: {10, :minutes}
+          )
+
+        access_token
+      else
+        nil
+      end
+
+    conn
+    |> assign(:bearer_token, bearer_token)
+    |> assign(:page_title, "API Documentation · Tuist")
+    |> put_root_layout(false)
+    |> render(:docs, layout: false)
+  end
+end
