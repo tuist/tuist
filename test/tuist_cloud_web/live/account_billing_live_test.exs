@@ -54,6 +54,15 @@ defmodule TuistCloudWeb.AccountBillingLiveTest do
     %{conn: conn, user: user}
   end
 
+  test "sets the right title", %{conn: conn} do
+    # When
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/billing")
+
+    assert html =~ "Billing · tuist-org · Tuist"
+  end
+
   test "renders billing when a user has no active plan", %{conn: conn} do
     # When
     {:ok, lv, _html} =

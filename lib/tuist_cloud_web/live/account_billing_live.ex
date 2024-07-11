@@ -49,6 +49,7 @@ defmodule TuistCloudWeb.AccountBillingLive do
     {
       :ok,
       socket
+      |> assign(:page_title, "#{gettext("Billing")} · #{owner.name} · Tuist")
       |> assign(:selected_account, owner)
       |> assign(:plan, plan)
       |> assign(:new_plan, nil)

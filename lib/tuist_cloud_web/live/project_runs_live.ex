@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.ProjectRunsLive do
   use TuistCloudWeb, :live_view
 
+  alias TuistCloud.Projects
   alias TuistCloud.CommandEvents
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
@@ -11,10 +12,13 @@ defmodule TuistCloudWeb.ProjectRunsLive do
     {command_events, command_events_meta} =
       list_command_events(project.id, first: 20)
 
+    slug = Projects.get_project_slug_from_id(project.id)
+
     {
       :ok,
       socket
       |> assign(:uri, uri)
+      |> assign(:page_title, "#{gettext("Runs")} · #{slug} · Tuist")
       |> assign(
         :command_events,
         command_events

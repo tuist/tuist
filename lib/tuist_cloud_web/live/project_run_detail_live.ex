@@ -1,9 +1,10 @@
 defmodule TuistCloudWeb.ProjectRunDetailLive do
   use TuistCloudWeb, :live_view
 
+  alias TuistCloud.Projects
   alias TuistCloud.CommandEvents
 
-  def mount(params, _session, socket) do
+  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     command_event =
       CommandEvents.get_command_event_by_id(params["id"],
         preloads: [user: :account, project: :account]
@@ -41,9 +42,12 @@ defmodule TuistCloudWeb.ProjectRunDetailLive do
         |> Enum.sort_by(& &1.name)
       end
 
+    slug = Projects.get_project_slug_from_id(project.id)
+
     {
       :ok,
       socket
+      |> assign(:page_title, "#{gettext("Run")} · #{slug} · Tuist")
       |> assign(:command_event, command_event)
       |> assign(:cache_misses, cache_misses)
       |> assign(:cacheable_targets, cacheable_targets)

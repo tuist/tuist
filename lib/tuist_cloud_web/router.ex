@@ -245,7 +245,7 @@ defmodule TuistCloudWeb.Router do
       live "/runs", ProjectRunsLive
       get "/runs/:id/download", RunsController, :download
       live "/runs/:id", ProjectRunDetailLive
-      live "/tests", ProjectFlakyTestsLive
+      live "/tests", ProjectTestsLive
       live "/tests/cases/:identifier", ProjectTestCaseDetailLive
       # Used in tuist analytics command
       live "/analytics", ProjectDashboardLive

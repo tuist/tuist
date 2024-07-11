@@ -22,6 +22,15 @@ defmodule TuistCloudWeb.AccountProjectsLiveTest do
     %{conn: conn, user: user, organization: organization}
   end
 
+  test "sets the right title", %{conn: conn, organization: organization} do
+    # When
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/#{organization.account.name}/projects")
+
+    assert html =~ "Projects · tuist-org · Tuist"
+  end
+
   test "it shows the get started content when there are no projects", %{
     conn: conn,
     organization: organization

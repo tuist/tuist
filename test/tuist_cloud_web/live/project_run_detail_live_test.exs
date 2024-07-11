@@ -13,6 +13,7 @@ defmodule TuistCloudWeb.ProjectRunDetailLiveTest do
     user = AccountsFixtures.user_fixture()
 
     %{account: account} =
+      organization =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         creator: user,
@@ -47,7 +48,24 @@ defmodule TuistCloudWeb.ProjectRunDetailLiveTest do
       |> assign(:selected_account, account)
       |> log_in_user(user)
 
-    %{conn: conn, user: user, project: selected_project}
+    %{conn: conn, user: user, project: selected_project, organization: organization}
+  end
+
+  test "sets the right title", %{conn: conn, organization: organization, project: project} do
+    # Given
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        status: :failure
+      )
+
+    # When
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/runs/#{command_event.id}")
+
+    assert html =~ "Run · tuist-org/tuist · Tuist"
   end
 
   test "renders run detail with a failure status", %{conn: conn, project: project} do
