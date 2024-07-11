@@ -1,6 +1,8 @@
 defmodule TuistCloudWeb.API.AuthController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.Authentication
+  alias TuistCloud.Authentication
   alias OpenApiSpex.Schema
   alias TuistCloud.Accounts
   alias TuistCloud.Time
@@ -9,6 +11,9 @@ defmodule TuistCloudWeb.API.AuthController do
     json_render_error_v2: true,
     render_error: TuistCloudWeb.RenderAPIErrorPlug
   )
+
+  @refresh_token_ttl {4, :weeks}
+  @access_token_ttl {10, :minutes}
 
   defmodule Error do
     require OpenApiSpex
@@ -40,13 +45,22 @@ defmodule TuistCloudWeb.API.AuthController do
       ok:
         {"The device code is authenticated", "application/json",
          %Schema{
-           title: "AuthenticationToken",
+           title: "AuthenticationTokens",
            description: "Token to authenticate the user with.",
            type: :object,
            properties: %{
              token: %Schema{
                type: :string,
-               description: "User authentication token"
+               description: "User authentication token",
+               deprecated: true
+             },
+             access_token: %Schema{
+               type: :string,
+               description: "A short-lived token to authenticate API requests as user."
+             },
+             refresh_token: %Schema{
+               type: :string,
+               description: "A token to generate new access tokens when they expire."
              }
            }
          }},
@@ -86,10 +100,94 @@ defmodule TuistCloudWeb.API.AuthController do
       device_code.authenticated ->
         user = Accounts.get_user!(device_code.user_id)
 
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(user, %{},
+            token_type: :access,
+            ttl: @access_token_ttl
+          )
+
+        {:ok, refresh_token, _opts} =
+          Authentication.encode_and_sign(user, %{},
+            token_type: :refresh,
+            ttl: @refresh_token_ttl
+          )
+
         conn
         |> put_status(:ok)
         |> json(%{
-          token: user.token
+          token: user.token,
+          access_token: access_token,
+          refresh_token: refresh_token
+        })
+    end
+  end
+
+  operation(:refresh_token,
+    summary: "Request new tokens.",
+    description:
+      "This endpoint returns new tokens for a given refresh token if the refresh token is valid.",
+    operation_id: "refreshToken",
+    request_body:
+      {"Token params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           refresh_token: %Schema{
+             type: :string,
+             description: "User refresh token"
+           }
+         },
+         required: [:refresh_token]
+       }},
+    responses: %{
+      ok: {
+        "A new a pair of tokens was generated",
+        "application/json",
+        %Schema{
+          title: "AuthenticationTokens",
+          description: "A new user access token to authenticate the user with.",
+          type: :object,
+          properties: %{
+            access_token: %Schema{
+              type: :string,
+              description: "User access token"
+            },
+            refresh_token: %Schema{
+              type: :string,
+              description: "User refresh token"
+            }
+          },
+          required: [:access_token, :refresh_token]
+        }
+      },
+      unauthorized:
+        {"You need to be authenticated to issue new tokens", "application/json", Error}
+    }
+  )
+
+  def refresh_token(
+        %{
+          body_params: %{
+            refresh_token: refresh_token
+          }
+        } = conn,
+        _params
+      ) do
+    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
+      {:error, _} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "The refresh token is expired or invalid"})
+
+      {:ok, _old_token, {new_refresh_token, _new_claims}} ->
+        {:ok, _old_token_with_claims, {new_access_token, _new_access_token_claims}} =
+          Authentication.exchange(new_refresh_token, "refresh", "access", ttl: @access_token_ttl)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          access_token: new_access_token,
+          refresh_token: new_refresh_token
         })
     end
   end

@@ -908,4 +908,138 @@ defmodule TuistCloud.AuthorizationTest do
     # When
     assert Authorization.can(user, :update, account, :member) == false
   end
+
+  test "can.create.account.token when the subject is the same account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    # When
+    assert Authorization.can(user, :create, account, :token) == true
+  end
+
+  test "can.create.account.token when the subject is not the same account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+
+    # When
+    assert Authorization.can(user, :read, account_two, :token) == false
+  end
+
+  test "can.create.account.token when the subject is an admin of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :create, account, :token) == true
+  end
+
+  test "can.create.account.token when the subject is a user of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :create, account, :token) == false
+  end
+
+  test "can.create.account.token when the subject does not belong to the account organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    # When
+    assert Authorization.can(user, :create, account, :token) == false
+  end
+
+  test "can.read.account.token when the subject is not the same account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+
+    # When
+    assert Authorization.can(user, :read, account_two, :token) == false
+  end
+
+  test "can.read.account.token when the subject is an admin of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :read, account, :token) == true
+  end
+
+  test "can.read.account.token when the subject is a user of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :read, account, :token) == true
+  end
+
+  test "can.read.account.token when the subject does not belong to the account organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    # When
+    assert Authorization.can(user, :read, account, :token) == true
+  end
+
+  test "can.delete.account.token when the subject is not the same account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+
+    # When
+    assert Authorization.can(user, :delete, account_two, :token) == false
+  end
+
+  test "can.delete.account.token when the subject is an admin of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.can(user, :delete, account, :token) == true
+  end
+
+  test "can.delete.account.token when the subject is a user of the account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.can(user, :delete, account, :token) == false
+  end
+
+  test "can.delete.account.token when the subject does not belong to the account organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    # When
+    assert Authorization.can(user, :delete, account, :token) == false
+  end
 end

@@ -19,7 +19,8 @@ defmodule TuistCloudWeb.API.Schemas.Project do
       },
       token: %Schema{
         type: :string,
-        description: "The token that should be used to authenticate the project. For CI only."
+        description: "The token that should be used to authenticate the project. For CI only.",
+        deprecated: true
       }
     }
   })

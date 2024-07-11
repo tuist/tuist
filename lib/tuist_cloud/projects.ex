@@ -2,16 +2,29 @@ defmodule TuistCloud.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
+  alias TuistCloud.Base64
   alias TuistCloud.CommandEvents.Event
   alias TuistCloud.Repo
   alias TuistCloud.Accounts
   alias TuistCloud.Accounts.{Account, ProjectAccount, User}
   alias TuistCloud.Projects.Project
+  alias TuistCloud.Projects.ProjectToken
 
   import Ecto.Query
 
-  def get_project_by_token(token, opts \\ []) do
-    Repo.get_by(Project, token: token) |> Repo.preload(Keyword.get(opts, :preloads, []))
+  def legacy_token?(token) do
+    not String.starts_with?(token, "tuist_")
+  end
+
+  def get_project_by_full_token(full_token) do
+    if full_token |> legacy_token?() do
+      Repo.get_by(Project, token: full_token)
+    else
+      case get_project_token(full_token) do
+        {:error, _} -> nil
+        {:ok, token} -> get_project_by_id(token.project_id)
+      end
+    end
   end
 
   def get_project_by_id(project_id) do
@@ -136,6 +149,7 @@ defmodule TuistCloud.Projects do
     token = opts |> Keyword.get(:token, TuistCloud.Tokens.generate_token())
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
     visibility = opts |> Keyword.get(:visibility, :private)
+    preloads = opts |> Keyword.get(:preloads, [])
 
     %Project{}
     |> Project.create_changeset(%{
@@ -146,6 +160,7 @@ defmodule TuistCloud.Projects do
       visibility: visibility
     })
     |> Repo.insert!()
+    |> Repo.preload(preloads)
   end
 
   def delete_project(%Project{} = project) do
@@ -160,5 +175,66 @@ defmodule TuistCloud.Projects do
       )
       |> Ecto.Multi.delete(:delete_project, project)
       |> Repo.transaction()
+  end
+
+  def create_project_token(%Project{} = project) do
+    token_hash = Base64.encode(:crypto.strong_rand_bytes(20))
+
+    encrypted_token_hash =
+      Bcrypt.hash_pwd_salt(token_hash <> TuistCloud.Environment.secret_key_password())
+
+    token =
+      %ProjectToken{}
+      |> ProjectToken.create_changeset(%{
+        project_id: project.id,
+        encrypted_token_hash: encrypted_token_hash
+      })
+      |> Repo.insert!()
+
+    "tuist_#{token.id}_#{token_hash}"
+  end
+
+  def get_project_tokens(%Project{} = project) do
+    from(t in ProjectToken, where: t.project_id == ^project.id)
+    |> Repo.all()
+  end
+
+  def get_project_token_by_id(%Project{} = project, token_id) do
+    from(t in ProjectToken, where: t.id == ^token_id and t.project_id == ^project.id)
+    |> Repo.one()
+  end
+
+  def get_project_token(full_token) do
+    full_token_components = String.split(full_token, "_")
+
+    if length(full_token_components) != 3 do
+      {:error, :invalid_token}
+    else
+      [_audience, token_id, token_hash] = full_token_components
+
+      token =
+        from(t in ProjectToken,
+          where: t.id == ^token_id
+        )
+        |> TuistCloud.Repo.one()
+
+      cond do
+        is_nil(token) ->
+          {:error, :not_found}
+
+        Bcrypt.verify_pass(
+          token_hash <> TuistCloud.Environment.secret_key_password(),
+          token.encrypted_token_hash
+        ) ->
+          {:ok, token}
+
+        true ->
+          {:error, :invalid_token}
+      end
+    end
+  end
+
+  def revoke_project_token(%ProjectToken{} = token) do
+    Repo.delete(token)
   end
 end

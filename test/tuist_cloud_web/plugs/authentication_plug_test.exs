@@ -1,6 +1,8 @@
 defmodule TuistCloudWeb.AuthenticationPlugTest do
   use TuistCloudWeb.ConnCase
   use Plug.Test
+  use Mimic
+  alias TuistCloud.Projects
   alias TuistCloudWeb.AuthenticationPlug
   alias TuistCloud.AccountsFixtures
   alias TuistCloud.ProjectsFixtures
@@ -19,10 +21,10 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
   end
 
-  test "loads the authenticated project" do
+  test "loads the authenticated project with a legacy token" do
     # Given
     opts = AuthenticationPlug.init(:load_authenticated_subject)
-    project = ProjectsFixtures.project_fixture()
+    project = ProjectsFixtures.project_fixture(preloads: [:account])
     conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> project.token)
 
     # When
@@ -31,6 +33,27 @@ defmodule TuistCloudWeb.AuthenticationPlugTest do
     # Then
     assert TuistCloudWeb.Authentication.current_project(got).id == project.id
     assert TuistCloudWeb.Authentication.authenticated?(got) == true
+
+    assert TuistCloudWeb.WarningsHeaderPlug.get_warnings(got) ==
+             [
+               "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{project.account.name}/#{project.name}."
+             ]
+  end
+
+  test "loads the authenticated project" do
+    # Given
+    opts = AuthenticationPlug.init(:load_authenticated_subject)
+    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    token = Projects.create_project_token(project)
+    conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> token)
+
+    # When
+    got = conn |> AuthenticationPlug.call(opts)
+
+    # Then
+    assert TuistCloudWeb.Authentication.current_project(got).id == project.id
+    assert TuistCloudWeb.Authentication.authenticated?(got) == true
+    assert TuistCloudWeb.WarningsHeaderPlug.get_warnings(got) == []
   end
 
   test "doesn't load anything if the token is absent" do

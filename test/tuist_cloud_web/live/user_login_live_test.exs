@@ -43,9 +43,6 @@ defmodule TuistCloudWeb.UserLoginLiveTest do
 
   describe "user login" do
     test "redirects if user login with valid credentials", %{conn: conn} do
-      TuistCloud.Environment
-      |> stub(:secret_key_password, fn -> "secret_key_password" end)
-
       password = "123456789abcd"
       user = user_fixture(password: password)
 

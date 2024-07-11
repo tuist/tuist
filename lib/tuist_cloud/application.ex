@@ -32,6 +32,7 @@ defmodule TuistCloud.Application do
         {Phoenix.PubSub, name: TuistCloud.PubSub},
         # Start the Finch HTTP client for sending emails
         {Finch, name: TuistCloud.Finch},
+        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
         # Start a worker by calling: TuistCloud.Worker.start_link(arg)
         # {TuistCloud.Worker, arg},
         # Start to serve requests, typically the last entry

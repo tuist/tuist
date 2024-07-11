@@ -5,9 +5,6 @@ defmodule TuistCloudWeb.UserSessionControllerTest do
   import TuistCloud.AccountsFixtures
 
   setup do
-    TuistCloud.Environment
-    |> stub(:secret_key_password, fn -> "secret_key_password" end)
-
     %{user: user_fixture(preloads: [:account])}
   end
 

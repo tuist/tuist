@@ -505,13 +505,6 @@ defmodule TuistCloud.AccountsTest do
   end
 
   describe "get_user_by_email_and_password/2" do
-    setup do
-      TuistCloud.Environment
-      |> stub(:secret_key_password, fn -> "secret_key_password" end)
-
-      :ok
-    end
-
     test "does not return the user if the email does not exist" do
       assert {:error, :invalid_email_or_password} =
                Accounts.get_user_by_email_and_password("unknown@example.com", "hello world!")
@@ -1085,9 +1078,6 @@ defmodule TuistCloud.AccountsTest do
 
   describe "reset_user_password/2" do
     setup do
-      TuistCloud.Environment
-      |> stub(:secret_key_password, fn -> "secret_key_password" end)
-
       %{user: user_fixture()}
     end
 
