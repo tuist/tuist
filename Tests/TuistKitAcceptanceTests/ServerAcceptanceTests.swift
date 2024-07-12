@@ -1,5 +1,6 @@
 import Foundation
 import TuistAcceptanceTesting
+import TuistSupport
 import TuistSupportTesting
 import XCTest
 
@@ -40,6 +41,8 @@ class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        environment.tuistVariables[Constants.EnvironmentVariables.token] = ProcessInfo.processInfo
+            .environment[Constants.EnvironmentVariables.token]
         try setUpFixture(.iosAppWithFrameworks)
         organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         projectHandle = String(UUID().uuidString.prefix(12).lowercased())
