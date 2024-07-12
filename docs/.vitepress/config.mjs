@@ -131,12 +131,17 @@ const guideSidebar = [
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Create ${cubeOutlineIcon()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</div>`,
     items: [],
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${cube02Icon()}</div>`,
-    items: [],
+    items: [
+      {
+        text: "Projects",
+        items: [],
+      },
+    ],
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</div>`,
