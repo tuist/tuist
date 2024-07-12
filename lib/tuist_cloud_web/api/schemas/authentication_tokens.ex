@@ -1,0 +1,26 @@
+defmodule TuistCloudWeb.API.Schemas.AuthenticationTokens do
+  @moduledoc """
+  The schema for the API authentication tokens.
+  """
+
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(%{
+    title: "AuthenticationTokens",
+    description:
+      "A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.",
+    type: :object,
+    properties: %{
+      access_token: %Schema{
+        type: :string,
+        description: "API access token."
+      },
+      refresh_token: %Schema{
+        type: :string,
+        description: "A token to generate new API access tokens when they expire."
+      }
+    },
+    required: [:access_token, :refresh_token]
+  })
+end

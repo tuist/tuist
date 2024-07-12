@@ -155,40 +155,108 @@ defmodule TuistCloudWeb.API.AuthControllerTest do
                "sub" => user.id
              })
     end
+
+    test "returns unautheticated if the refresh token is expired", %{conn: conn} do
+      # Given
+      refresh_token = "refresh_token"
+
+      TuistCloud.Authentication
+      |> expect(:refresh, fn ^refresh_token, ttl: {4, :weeks} ->
+        {:error, :expired_token}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response["message"] == "The refresh token is expired or invalid"
+    end
+
+    test "returns unautheticated if the refresh token is invalid", %{conn: conn} do
+      # Given
+      refresh_token = "refresh_token"
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response["message"] == "The refresh token is expired or invalid"
+    end
   end
 
-  test "returns unautheticated if the refresh token is expired", %{conn: conn} do
-    # Given
-    refresh_token = "refresh_token"
+  describe "POST /auth" do
+    test "returns API tokens if the email and password are valid", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(password: "password")
 
-    TuistCloud.Authentication
-    |> expect(:refresh, fn ^refresh_token, ttl: {4, :weeks} ->
-      {:error, :expired_token}
-    end)
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: "password"})
 
-    # When
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+      # Then
+      response = json_response(conn, :ok)
 
-    # Then
-    response = json_response(conn, :unauthorized)
-    assert response["message"] == "The refresh token is expired or invalid"
-  end
+      assert TuistCloud.Authentication.decode_and_verify(response["access_token"], %{
+               "typ" => "access",
+               "sub" => user.id
+             })
 
-  test "returns unautheticated if the refresh token is invalid", %{conn: conn} do
-    # Given
-    refresh_token = "refresh_token"
+      assert TuistCloud.Authentication.decode_and_verify(response["refresh_token"], %{
+               "typ" => "refresh",
+               "sub" => user.id
+             })
+    end
 
-    # When
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+    test "returns unauthorized when the password is invalid", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(password: "password")
 
-    # Then
-    response = json_response(conn, :unauthorized)
-    assert response["message"] == "The refresh token is expired or invalid"
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: "invalid_password"})
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response == %{"message" => "Invalid email or password."}
+    end
+
+    test "returns unauthorized when the email is invalid", %{conn: conn} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: "invalid_email", password: "password"})
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response == %{"message" => "Invalid email or password."}
+    end
+
+    test "returns unauthorized when the user is not confirmed", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(password: "password", confirmed_at: nil)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: "password"})
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response == %{"message" => "Please confirm your account before logging in."}
+    end
   end
 end
