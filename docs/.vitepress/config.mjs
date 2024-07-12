@@ -124,6 +124,10 @@ const guideSidebar = [
         text: "Gather insights",
         link: "/guide/quick-start/gather-insights",
       },
+      {
+        text: "Optimize workflows",
+        link: "/guide/quick-start/optimize-workflows",
+      },
     ],
   },
   {

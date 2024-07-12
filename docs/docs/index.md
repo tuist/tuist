@@ -23,7 +23,3 @@ Why choose Tuist? Here are compelling reasons:
 - **Break down silos:** Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
 
 If you want to know more about Tuist, the project, and the company, you can check out our [handbook](https://handbook.tuist.io/), which contains detailed information about our vision, values, and the team behind Tuist.
-
-## Get started
-
-You are most likely here because your Xcode project has become too complex to manage and have continuous issues with it. If so, we recommend [installing Tuist](/guide/quick-start/installation) and get familiar with [the cost of convenience](/guide/project/cost-of-convenience), which will help you understand the benefits of using Tuist for defining your projects.
