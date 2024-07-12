@@ -1,6 +1,7 @@
 defmodule TuistCloudWeb.API.AuthController do
   use OpenApiSpex.ControllerSpecs
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.API.Schemas.AuthenticationTokens
   alias TuistCloudWeb.Authentication
   alias TuistCloud.Authentication
   alias OpenApiSpex.Schema
@@ -47,7 +48,7 @@ defmodule TuistCloudWeb.API.AuthController do
       ok:
         {"The device code is authenticated", "application/json",
          %Schema{
-           title: "AuthenticationTokens",
+           title: "DeviceCodeAuthenticationTokens",
            description: "Token to authenticate the user with.",
            type: :object,
            properties: %{
@@ -143,24 +144,9 @@ defmodule TuistCloudWeb.API.AuthController do
        }},
     responses: %{
       ok: {
-        "A new a pair of tokens was generated",
+        "Succcessfully generated new API tokens.",
         "application/json",
-        %Schema{
-          title: "AuthenticationTokens",
-          description: "A new user access token to authenticate the user with.",
-          type: :object,
-          properties: %{
-            access_token: %Schema{
-              type: :string,
-              description: "User access token"
-            },
-            refresh_token: %Schema{
-              type: :string,
-              description: "User refresh token"
-            }
-          },
-          required: [:access_token, :refresh_token]
-        }
+        AuthenticationTokens
       },
       unauthorized:
         {"You need to be authenticated to issue new tokens", "application/json", Error}
@@ -190,6 +176,78 @@ defmodule TuistCloudWeb.API.AuthController do
         |> json(%{
           access_token: new_access_token,
           refresh_token: new_refresh_token
+        })
+    end
+  end
+
+  operation(:authenticate,
+    summary: "Authenticate with email and password.",
+    description: "This endpoint returns API tokens for a given email and password.",
+    operation_id: "authenticate",
+    request_body:
+      {"Authentication params.", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           email: %Schema{
+             type: :string,
+             description: "The email to authenticate with."
+           },
+           password: %Schema{
+             type: :string,
+             description: "The password to authenticate with."
+           }
+         },
+         required: [:email, :password]
+       }},
+    responses: %{
+      ok: {
+        "Successfully authenticated and returned new API tokens.",
+        "application/json",
+        AuthenticationTokens
+      },
+      unauthorized: {"Invalid email or password.", "application/json", Error}
+    }
+  )
+
+  def authenticate(
+        %{
+          body_params: %{
+            email: email,
+            password: password
+          }
+        } = conn,
+        _params
+      ) do
+    case Accounts.get_user_by_email_and_password(email, password) do
+      {:error, :not_confirmed} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Please confirm your account before logging in."})
+
+      {:error, :invalid_email_or_password} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Invalid email or password."})
+
+      {:ok, user} ->
+        {:ok, access_token, _opts} =
+          Authentication.encode_and_sign(user, %{},
+            token_type: :access,
+            ttl: @access_token_ttl
+          )
+
+        {:ok, refresh_token, _opts} =
+          Authentication.encode_and_sign(user, %{},
+            token_type: :refresh,
+            ttl: @refresh_token_ttl
+          )
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          access_token: access_token,
+          refresh_token: refresh_token
         })
     end
   end

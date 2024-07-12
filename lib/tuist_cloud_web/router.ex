@@ -124,6 +124,7 @@ defmodule TuistCloudWeb.Router do
 
     get "/auth/device_code/:device_code", AuthController, :device_code
     post "/auth/refresh_token", AuthController, :refresh_token
+    post "/auth", AuthController, :authenticate
   end
 
   # Enable LiveDashboard and Bamboo mailbox preview in development
