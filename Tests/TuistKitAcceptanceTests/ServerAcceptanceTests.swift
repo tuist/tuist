@@ -18,6 +18,7 @@ final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
 final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
         try await run(ProjectTokensCreateCommand.self, fullHandle)
+        TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
         let id = try XCTUnwrap(
             TestingLogHandler.collected[.info, <=].components(separatedBy: .newlines).dropLast().last?
