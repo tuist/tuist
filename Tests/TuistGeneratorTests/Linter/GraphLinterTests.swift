@@ -90,6 +90,105 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertFalse(result.contains(LintingIssue(reason: reason, severity: .error)))
     }
 
+    func test_lint_when_scheme_has_unknown_target() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "UnknownReferenceTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [unknownBuildReferenceTarget]),
+            testAction: nil,
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            result,
+            [LintingIssue(
+                reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
+                severity: .warning
+            )]
+        )
+    }
+
+    func test_lint_when_scheme_has_known_target() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "KnownReferenceTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [unknownBuildReferenceTarget]),
+            testAction: nil,
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "KnownReferenceTarget"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            result,
+            []
+        )
+    }
+
     func test_lint_when_no_version_available() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -1614,15 +1713,23 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             targets: [targetA, targetB],
             schemes: [
-                .test(testAction: .test(
-                    coverage: true,
-                    codeCoverageTargets: [
-                        TargetReference(
-                            projectPath: temporaryPath,
-                            name: "TargetA"
-                        ),
-                    ]
-                )),
+                .test(
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        coverage: true,
+                        codeCoverageTargets: [
+                            TargetReference(
+                                projectPath: temporaryPath,
+                                name: "TargetA"
+                            ),
+                        ]
+                    ),
+                    runAction: nil,
+                    archiveAction: nil,
+                    profileAction: nil,
+                    analyzeAction: nil
+                ),
             ]
         )
 
