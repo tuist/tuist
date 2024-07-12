@@ -15,6 +15,7 @@ const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
 const projectDescriptionSidebar = {
   text: "Project Description",
+  collapsed: true,
   items: [],
 };
 
@@ -104,38 +105,24 @@ const cliSidebar = {
 
 const guideSidebar = [
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tuist ${tuistIcon()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</div>`,
     link: "/",
     items: [
       {
-        text: "Installation",
-        collapsed: true,
-        items: [
-          {
-            text: "CLI",
-            link: "/guide/tuist/installation/cli",
-          },
-          {
-            text: "Server (on-premise)",
-            link: "/guide/tuist/installation/server",
-          },
-        ],
+        text: "Install Tuist",
+        link: "/guide/quick-start/install-tuist",
       },
       {
-        text: "Commands",
-        collapsed: true,
-        items: [
-          { text: "Generate", link: "/guide/tuist/commands/generate" },
-          { text: "Build", link: "/guide/tuist/commands/build" },
-          { text: "Test", link: "/guide/tuist/commands/test" },
-          { text: "Run", link: "/guide/tuist/commands/run" },
-          { text: "Graph", link: "/guide/tuist/commands/graph" },
-          { text: "Clean", link: "/guide/tuist/commands/clean" },
-        ],
+        text: "Create a project",
+        link: "/guide/quick-start/create-a-project",
       },
       {
-        text: "From v3 to v4",
-        link: "/guide/tuist/from-v3-to-v4",
+        text: "Add dependencies",
+        link: "/guide/quick-start/add-dependencies",
+      },
+      {
+        text: "Gather insights",
+        link: "/guide/quick-start/gather-insights",
       },
     ],
   },
@@ -426,12 +413,23 @@ export default defineConfig({
             projectDescriptionSidebar,
             {
               text: "Examples",
+              collapsed: true,
               items: examplesDataLoader.load().map((item) => {
                 return {
                   text: item.title,
                   link: `/reference/examples/${item.name}`,
                 };
               }),
+            },
+            {
+              text: "Migrations",
+              collapsed: true,
+              items: [
+                {
+                  text: "From v3 to v4",
+                  link: "/reference/migrations/from-v3-to-v4",
+                },
+              ],
             },
           ],
         },

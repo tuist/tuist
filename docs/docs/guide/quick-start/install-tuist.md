@@ -1,9 +1,9 @@
 ---
-title: CLI
-description: Learn how to install Tuist in local and CI environments.
+title: Install Tuist
+description: Learn how to install Tuist in your environment.
 ---
 
-# CLI
+# Install Tuist
 
 The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 

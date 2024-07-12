@@ -9,10 +9,7 @@ In the world of app development, particularly for platforms like Apple's, organi
 
 **Tuist is a toolchain designed to accelerate and enhance app development.** We integrate seamlessly with official tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the overall developer experience. In essence, Tuist serves as your virtual platform team. We're with you every step of the way - from the spark of an app idea to its user launch - tackling challenges as they arise.
 
-> [!NOTE] SUPPORTED PLATFORMS
-> **Tuist currently supports all Apple platforms**, but we're working on expanding it to Android, React Native, and Flutter.
-
-Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and **a service** that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
+Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
 
 
 ## Why would I use Tuist?
@@ -27,15 +24,6 @@ Why choose Tuist? Here are compelling reasons:
 
 If you want to know more about Tuist, the project, and the company, you can check out our [handbook](https://handbook.tuist.io/), which contains detailed information about our vision, values, and the team behind Tuist.
 
-## Features and supported platforms
-
-| Feature | Description | Apple platforms | Requirements |
-| ------- | ----- | ------ | --- |
-| [Projects](/guide/project) | Define Xcode projects using a Swift-based DSL. | ✅ | None |
-| Cache | Cache build artifacts to speed up incremental builds. | ✅ | A Tuist project |
-| Tests | Speed up test execution and manage flakiness in your test suite. | ✅ | A Tuist project |
-| Runs | Collect and analyze data from your projects and builds to make informed decisions. | ✅ | A Tuist project |
-
 ## Get started
 
-You are most likely here because your Xcode project has become too complex to manage and have continuous issues with it. If so, we recommend [installing Tuist](/guide/tuist/installation) and get familiar with [the cost of convenience](/guide/project/cost-of-convenience), which will help you understand the benefits of using Tuist for defining your projects.
+You are most likely here because your Xcode project has become too complex to manage and have continuous issues with it. If so, we recommend [installing Tuist](/guide/quick-start/installation) and get familiar with [the cost of convenience](/guide/project/cost-of-convenience), which will help you understand the benefits of using Tuist for defining your projects.
