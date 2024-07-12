@@ -118,6 +118,75 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    public func authenticate(_ input: Operations.authenticate.Input) async throws
+        -> Operations.authenticate.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.authenticate.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(template: "/api/auth", parameters: [])
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.authenticate.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.authenticate.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.AuthenticationTokens.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.authenticate.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.authenticate.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -239,7 +308,7 @@ public struct Client: APIProtocol {
                     )
                     let body: Operations.refreshToken.Output.Ok.Body =
                         try converter.getResponseBodyAsJSON(
-                            Operations.refreshToken.Output.Ok.Body.jsonPayload.self,
+                            Components.Schemas.AuthenticationTokens.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )

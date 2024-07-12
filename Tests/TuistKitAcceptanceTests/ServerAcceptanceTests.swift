@@ -21,8 +21,11 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
         let id = try XCTUnwrap(
-            TestingLogHandler.collected[.info, <=].components(separatedBy: .newlines).dropLast().last?
-                .components(separatedBy: .whitespaces).first
+            TestingLogHandler.collected[.info, <=]
+                .components(separatedBy: .newlines)
+                .dropLast().last?
+                .components(separatedBy: .whitespaces)
+                .first
         )
         try await run(ProjectTokensRevokeCommand.self, id, fullHandle)
         TestingLogHandler.reset()
@@ -42,12 +45,13 @@ class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        environment.tuistVariables[Constants.EnvironmentVariables.token] = ProcessInfo.processInfo
-            .environment[Constants.EnvironmentVariables.token]
         try setUpFixture(.iosAppWithFrameworks)
         organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         projectHandle = String(UUID().uuidString.prefix(12).lowercased())
         fullHandle = "\(organizationHandle)/\(projectHandle)"
+        let email = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
+        let password = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
+        try await run(AuthCommand.self, "--email", email, "--password", password)
         try await run(OrganizationCreateCommand.self, organizationHandle)
         try await run(ProjectCreateCommand.self, fullHandle)
     }
@@ -55,6 +59,7 @@ class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
     override func tearDown() async throws {
         try await run(ProjectDeleteCommand.self, fullHandle)
         try await run(OrganizationDeleteCommand.self, organizationHandle)
+        try run(LogoutCommand.self)
         try await super.tearDown()
     }
 }

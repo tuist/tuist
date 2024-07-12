@@ -200,6 +200,8 @@ public enum EnvKey: String, CaseIterable {
 
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
+    case authEmail = "TUIST_AUTH_EMAIL"
+    case authPassword = "TUIST_AUTH_PASSWORD"
 
     // SESSION
     case sessionPath = "TUIST_SESSION_PATH"
