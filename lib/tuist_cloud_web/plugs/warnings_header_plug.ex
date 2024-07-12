@@ -4,25 +4,36 @@ defmodule TuistCloudWeb.WarningsHeaderPlug do
   which are then sent as a base64 encoded JSON in the `x-cloud-warnings` header.
   """
   use TuistCloudWeb, :controller
+  alias TuistCloudWeb.Headers
 
   @assign_key :warnings
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    register_before_send(conn, fn conn ->
-      warnings = conn.assigns[@assign_key] || []
+    register_before_send(conn, &call_before_send/1)
+  end
 
-      case length(warnings) do
-        0 ->
-          conn
+  defp call_before_send(conn) do
+    warnings = conn.assigns[@assign_key] || []
+    cli_version = Headers.get_cli_version(conn)
 
-        _ ->
-          conn
+    cond do
+      is_nil(cli_version) ->
+        conn
 
-          # put_resp_header(conn, "x-tuist-cloud-warnings", Base.encode64(Jason.encode!(warnings)))
-      end
-    end)
+      # There was a bug fixed in version 4.11.0 caused by the client-logic not base64-decoding
+      # the header.
+      not Enum.empty?(warnings) and cli_version >= Version.parse!("4.11.0") ->
+        put_resp_header(
+          conn,
+          "x-tuist-cloud-warnings",
+          Base.encode64(Jason.encode!(warnings))
+        )
+
+      true ->
+        conn
+    end
   end
 
   def put_warning(conn, warning) do
