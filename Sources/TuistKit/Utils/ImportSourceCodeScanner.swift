@@ -23,14 +23,12 @@ final class ImportSourceCodeScanner {
         let range = NSRange(text.startIndex ..< text.endIndex, in: text)
         let matches = regex.matches(in: text, options: [], range: range)
 
-        let modules = matches.compactMap { match -> String? in
+        return matches.compactMap { match -> String? in
             if let range = Range(match.range(at: 1), in: text) {
                 return String(text[range])
             }
             return nil
         }
-
-        return modules
     }
 
     func extractAllImportsObjc(from text: String) throws -> [String] {
@@ -46,22 +44,13 @@ final class ImportSourceCodeScanner {
             )
         )
 
-        var imports = [String]()
-
-        for match in matches {
-            var extracted: String?
-
+        return matches.compactMap { match in
             if let range = Range(match.range(at: 1), in: text) {
-                extracted = String(text[range])
+                return String(text[range])
             } else if let range = Range(match.range(at: 2), in: text) {
-                extracted = String(text[range])
+                return String(text[range])
             }
-
-            if let extracted {
-                imports.append(extracted)
-            }
+            return nil
         }
-
-        return imports
     }
 }

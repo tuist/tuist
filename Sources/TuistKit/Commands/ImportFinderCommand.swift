@@ -1,12 +1,8 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import GraphViz
 import Path
-import TuistGenerator
-import TuistLoader
 import TuistSupport
-import XcodeGraph
 
 public struct ImportFinderCommand: AsyncParsableCommand {
     public init() {}

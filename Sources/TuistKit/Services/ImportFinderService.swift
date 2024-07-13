@@ -92,7 +92,7 @@ final class ImportFinderService {
         guard let sourceCode = try? String(contentsOf: source.path.url) else {
             return []
         }
-        
+
         do {
             return try ImportSourceCodeScanner().extractImports(
                 from: sourceCode,
