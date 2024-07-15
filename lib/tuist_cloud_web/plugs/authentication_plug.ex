@@ -5,6 +5,7 @@ defmodule TuistCloudWeb.AuthenticationPlug do
   @moduledoc """
   A plug that deals with authentication of requests.
   """
+  alias TuistCloudWeb.Headers
   alias TuistCloud.Projects
   alias TuistCloudWeb.WarningsHeaderPlug
   alias TuistCloud.Accounts.User
@@ -43,8 +44,11 @@ defmodule TuistCloudWeb.AuthenticationPlug do
       %Project{} = project ->
         %{account: account} = Projects.get_project_account_by_project_id(project.id)
 
+        cli_version = Headers.get_cli_version(conn)
+
         conn =
-          if token |> Projects.legacy_token?() do
+          if token |> Projects.legacy_token?() and not is_nil(cli_version) and
+               cli_version >= Version.parse!("4.21.0") do
             conn
             |> WarningsHeaderPlug.put_warning(
               "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."
