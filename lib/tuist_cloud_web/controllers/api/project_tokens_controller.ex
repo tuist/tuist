@@ -201,7 +201,8 @@ defmodule TuistCloudWeb.API.ProjectTokensController do
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+         Error},
+      bad_request: {"The provided token ID is not valid", "application/json", Error}
     }
   )
 
@@ -221,26 +222,11 @@ defmodule TuistCloudWeb.API.ProjectTokensController do
         preloads: [:account]
       )
 
-    token =
-      if is_nil(project) do
-        nil
-      else
-        Projects.get_project_token_by_id(project, token_id)
-      end
-
     cond do
       is_nil(project) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "The project #{account_handle}/#{project_handle} was not found"})
-
-      is_nil(token) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{
-          message:
-            "The #{account_handle}/#{project_handle} project token #{token_id} was not found"
-        })
 
       not Authorization.can(current_user, :delete, project.account, :token) ->
         conn
@@ -249,12 +235,31 @@ defmodule TuistCloudWeb.API.ProjectTokensController do
           message: "The authenticated subject is not authorized to perform this action"
         })
 
-      true ->
-        Projects.revoke_project_token(token)
-
+      not TuistCloud.UUIDv7.valid?(token_id) ->
         conn
-        |> put_status(:no_content)
-        |> json(%{})
+        |> put_status(:bad_request)
+        |> json(%{
+          message:
+            "The provided token ID #{token_id} is not valid. Make sure to pass a valid identifier."
+        })
+
+      true ->
+        token = Projects.get_project_token_by_id(project, token_id)
+
+        if is_nil(token) do
+          conn
+          |> put_status(:not_found)
+          |> json(%{
+            message:
+              "The #{account_handle}/#{project_handle} project token #{token_id} was not found"
+          })
+        else
+          Projects.revoke_project_token(token)
+
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
+        end
     end
   end
 end

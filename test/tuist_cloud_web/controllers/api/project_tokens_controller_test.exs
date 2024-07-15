@@ -307,5 +307,35 @@ defmodule TuistCloudWeb.API.ProjectTokensControllerTest do
                  "The #{project.account.name}/#{project.name} project token 0fcc7a05-4f0d-490d-8545-1fe3171a2880 was not found"
              }
     end
+
+    test "returns bad request when a token is invalid", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          preloads: [:account]
+        )
+
+      conn =
+        conn
+        |> TuistCloudWeb.Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/projects/#{project.account.name}/#{project.name}/tokens/invalid-token")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response == %{
+               "message" =>
+                 "The provided token ID invalid-token is not valid. Make sure to pass a valid identifier."
+             }
+    end
   end
 end
