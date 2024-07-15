@@ -2,12 +2,7 @@ import Foundation
 import XCTest
 @testable import TuistSupport
 
-//
-//  Created by Eric Firestone on 3/22/16.
-//  Copyright © 2016 Square, Inc. All rights reserved.
-//  Released under the Apache v2 License.
-//
-//  Adapted from https://gist.github.com/blakemerryman/76312e1cbf8aec248167
+//  Inspired by: https://gist.github.com/efirestone/ce01ae109e08772647eb061b3bb387c3
 
 final class GlobTests: XCTestCase {
     let tmpFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
