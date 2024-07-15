@@ -4,11 +4,16 @@ import examplesDataLoader from "../docs/reference/examples/examples.data";
 import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { comingSoonBadge } from "./badges.mjs";
 import {
   cubeOutlineIcon,
   cube02Icon,
   cube01Icon,
   barChartSquare02Icon,
+  code02Icon,
+  dataIcon,
+  checkCircleIcon,
+  tuistIcon,
 } from "./icons.mjs";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
@@ -21,24 +26,6 @@ const projectDescriptionSidebar = {
 
 function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-function requiresProjectBadge() {
-  return `<div style="background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Tuist Project</div>`;
-}
-
-function requiresAccount() {
-  return `<div style="background: var(--vp-c-success-soft); color: var(--vp-c-success-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Account required</div>`;
-}
-
-function appleIcon(size = 15) {
-  return `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>`;
-}
-
-function tuistIcon(size = 15) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M21 16V7.2C21 6.0799 21 5.51984 20.782 5.09202C20.5903 4.71569 20.2843 4.40973 19.908 4.21799C19.4802 4 18.9201 4 17.8 4H6.2C5.07989 4 4.51984 4 4.09202 4.21799C3.71569 4.40973 3.40973 4.71569 3.21799 5.09202C3 5.51984 3 6.0799 3 7.2V16M4.66667 20H19.3333C19.9533 20 20.2633 20 20.5176 19.9319C21.2078 19.7469 21.7469 19.2078 21.9319 18.5176C22 18.2633 22 17.9533 22 17.3333C22 17.0233 22 16.8683 21.9659 16.7412C21.8735 16.3961 21.6039 16.1265 21.2588 16.0341C21.1317 16 20.9767 16 20.6667 16H3.33333C3.02334 16 2.86835 16 2.74118 16.0341C2.39609 16.1265 2.12654 16.3961 2.03407 16.7412C2 16.8683 2 17.0233 2 17.3333C2 17.9533 2 18.2633 2.06815 18.5176C2.25308 19.2078 2.79218 19.7469 3.48236 19.9319C3.73669 20 4.04669 20 4.66667 20Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
 }
 
 [("structs", "enums", "extensions", "typealiases")].forEach((category) => {
@@ -132,23 +119,58 @@ const guideSidebar = [
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</div>`,
-    items: [],
+    items: [
+      {
+        text: "Create a new project",
+        link: "/guide/start/new-project",
+      },
+      {
+        text: "Migrate",
+        collapsed: true,
+        items: [
+          {
+            text: "An Xcode project",
+            link: "/guide/start/migrate/xcode-project",
+          },
+          {
+            text: "A Swift Package",
+            link: "/guide/start/migrate/swift-package",
+          },
+          {
+            text: "An XcodeGen project",
+            link: "/guide/start/migrate/xcodegen-project",
+          },
+          {
+            text: "A Bazel project",
+            link: "/guide/start/migrate/bazel-project",
+          },
+        ],
+      },
+    ],
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${cube02Icon()}</div>`,
     items: [
       {
-        text: "Projects",
+        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Code ${code02Icon()}</div>`,
+        items: [],
+      },
+      {
+        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</div>`,
+        items: [],
+      },
+      {
+        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</div>`,
         items: [],
       },
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</div>`,
     items: [],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</div>`,
     items: [],
   },
   // {

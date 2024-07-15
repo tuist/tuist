@@ -1,12 +1,12 @@
 ---
-title: Migrate from XcodeGen
+title: Migrate an XcodeGen project
 description: Learn how to migrate your projects from XcodeGen to Tuist.
 next: 
     text: "Directory structure"
     link: /guide/project/directory-structure
 ---
 
-# Migrate from XcodeGen
+# Migrate an XcodeGen project
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool that uses YAML as [a configuration format](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) to define Xcode projects. Many organizations **adopted it trying to escape from the frequent Git conflicts that arise when working with Xcode projects.** However, frequent Git conflicts is just one of the many problems that organizations experience. Xcode exposes developers with a lot of intricacies and implicit configurations that make it hard to maintain and optimize projects at scale. XcodeGen falls short there by design because it's a tool that generates Xcode projects, not a project manager. If you need a tool that helps you beyond generating Xcode projects, you might want to consider Tuist.
 
@@ -79,6 +79,3 @@ import ProjectDescriptionHelpers // [!code highlight]
 let project = Project(name: "MyProject",
                       targets: Target.featureTargets(name: "MyFeature")) // [!code highlight]
 ```
-
-> [!NOTE] XCODEPROJGENERATOR
-> We have plans to extract the project generation logic from Tuist into its own Swift Package, `XcodeProjGenerator`, which anyone can build their own generation tool on top of.
