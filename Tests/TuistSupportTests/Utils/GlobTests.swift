@@ -1,57 +1,19 @@
 import Foundation
 import XCTest
 @testable import TuistSupport
+@testable import TuistSupportTesting
 
 //  Inspired by: https://gist.github.com/efirestone/ce01ae109e08772647eb061b3bb387c3
 
-final class GlobTests: XCTestCase {
+final class GlobTests: TuistTestCase {
     let tmpFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
     var tmpDir: URL!
 
     override func setUp() {
         super.setUp()
 
-        let uuid = ProcessInfo.processInfo.globallyUniqueString
-        tmpDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(uuid, isDirectory: true)
-
-        createDirectoriesForTmpFiles(basePath: tmpDir)
-
-        for file in tmpFiles {
-            let path = tmpDir.appendingPathComponent(file).path
-            if !FileManager.default.createFile(atPath: path, contents: Data()) {
-                XCTFail("Could not create temporary file at path: '\(path)'")
-            }
-        }
-    }
-
-    override func tearDown() {
-        if let tmpDir {
-            do {
-                try FileManager.default.removeItem(at: tmpDir)
-            } catch {
-                XCTFail("Could not remove temporary directory: \(error)")
-            }
-        }
-        super.tearDown()
-    }
-
-    private func createDirectoriesForTmpFiles(basePath _: URL) {
-        // Create directories for tmpFiles
-        for file in tmpFiles {
-            if file.contains("/") {
-                var filePathComponents = file.split(separator: "/")
-                filePathComponents.removeLast()
-                let dirPath = tmpDir.appendingPathComponent(filePathComponents.joined(separator: "/"))
-
-                print(dirPath)
-
-                do {
-                    try FileManager.default.createDirectory(at: dirPath, withIntermediateDirectories: true, attributes: nil)
-                } catch {
-                    XCTFail("Could not create temporary directory for testing: \(error)")
-                }
-            }
-        }
+        tmpDir = try! temporaryPath().url
+        try! createFiles(tmpFiles, content: "")
     }
 
     private func test(pattern: String, behavior: Glob.Behavior, expected: [String]) {
