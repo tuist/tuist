@@ -27,6 +27,7 @@ public enum TuistAcceptanceFixtures {
     case iosWppWithCustomResourceParserOptions
     case iosAppWithCustomScheme
     case iosAppWithExtensions
+    case iosAppWithDynamicFrameworksLinkingStaticFrameworks
     case iosAppWithFrameworkAndResources
     case iosAppWithFrameworkAndDisabledResources
     case iosAppWithFrameworkLinkingStaticFramework
@@ -119,6 +120,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_custom_configuration"
         case .iosAppWithCustomDevelopmentRegion:
             return "ios_app_with_custom_development_region"
+        case .iosAppWithDynamicFrameworksLinkingStaticFrameworks:
+            return "ios_app_with_dynamic_frameworks_linking_static_frameworks"
         case .iosWppWithCustomResourceParserOptions:
             return "ios_app_with_custom_resource_parser_options"
         case .iosAppWithCustomScheme:
