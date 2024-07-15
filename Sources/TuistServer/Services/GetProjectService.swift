@@ -16,13 +16,12 @@ enum GetProjectServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case invalidHandle(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound, .unauthorized, .invalidHandle:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -31,8 +30,6 @@ enum GetProjectServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not get the project due to an unknown Tuist response of \(statusCode)."
-        case let .invalidHandle(fullHandle):
-            return "The project full handle \(fullHandle) is not in the format of account-handle/project-handle."
         case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
@@ -40,27 +37,32 @@ enum GetProjectServiceError: FatalError {
 }
 
 public final class GetProjectService: GetProjectServicing {
-    public init() {}
+    private let fullHandleService: FullHandleServicing
+
+    public convenience init() {
+        self.init(
+            fullHandleService: FullHandleService()
+        )
+    }
+
+    init(
+        fullHandleService: FullHandleServicing
+    ) {
+        self.fullHandleService = fullHandleService
+    }
 
     public func getProject(
         fullHandle: String,
         serverURL: URL
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
-        let components = fullHandle.components(separatedBy: "/")
-        guard components.count == 2
-        else {
-            throw GetProjectServiceError.invalidHandle(fullHandle)
-        }
-
-        let accountHandle = components[0]
-        let projectHandle = components[1]
+        let handles = try fullHandleService.parse(fullHandle)
 
         let response = try await client.showProject(
             .init(
                 path: .init(
-                    account_name: accountHandle,
-                    project_name: projectHandle
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
                 )
             )
         )

@@ -130,7 +130,7 @@ final class CleanService {
             let serverURL = try serverURLService.url(configServerURL: config.url)
             try await cleanCacheService.cleanCache(
                 serverURL: serverURL,
-                fullName: fullHandle
+                fullHandle: fullHandle
             )
 
             logger.notice("Successfully cleaned the remote storage.")

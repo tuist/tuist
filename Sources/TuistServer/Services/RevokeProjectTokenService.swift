@@ -1,16 +1,18 @@
 import Foundation
 import Mockable
+import OpenAPIURLSession
 import TuistSupport
 
 @Mockable
-public protocol CleanCacheServicing {
-    func cleanCache(
-        serverURL: URL,
-        fullHandle: String
+public protocol RevokeProjectTokenServicing {
+    func revokeProjectToken(
+        projectTokenId: String,
+        fullHandle: String,
+        serverURL: URL
     ) async throws
 }
 
-enum CleanCacheServiceError: FatalError {
+enum RevokeProjectTokenServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -20,7 +22,7 @@ enum CleanCacheServiceError: FatalError {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .unauthorized:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -28,14 +30,14 @@ enum CleanCacheServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project clean failed due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+            return "We could not revoke the project token due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
 }
 
-public final class CleanCacheService: CleanCacheServicing {
+public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -50,43 +52,44 @@ public final class CleanCacheService: CleanCacheServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func cleanCache(
-        serverURL: URL,
-        fullHandle: String
+    public func revokeProjectToken(
+        projectTokenId: String,
+        fullHandle: String,
+        serverURL: URL
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.cleanCache(
+        let response = try await client.revokeProjectToken(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
+                    project_handle: handles.projectHandle,
+                    id: projectTokenId
                 )
             )
         )
-
         switch response {
         case .noContent:
             // noop
             break
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
+        case let .notFound(notFound):
+            switch notFound.body {
             case let .json(error):
-                throw CleanCacheServiceError.notFound(error.message)
+                throw RevokeProjectTokenServiceError.notFound(error.message)
             }
-        case let .forbidden(forbiddenResponse):
-            switch forbiddenResponse.body {
+        case let .forbidden(forbidden):
+            switch forbidden.body {
             case let .json(error):
-                throw CleanCacheServiceError.forbidden(error.message)
+                throw RevokeProjectTokenServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw RevokeProjectTokenServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw CleanCacheServiceError.unknownError(statusCode)
+            throw RevokeProjectTokenServiceError.unknownError(statusCode)
         }
     }
 }

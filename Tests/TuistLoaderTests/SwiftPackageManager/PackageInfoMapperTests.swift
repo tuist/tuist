@@ -1705,7 +1705,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Target1",
-                            settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
+                            settings: [
+                                .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"]),
+                                .init(
+                                    tool: .c,
+                                    name: .headerSearchPath,
+                                    condition: nil,
+                                    value: ["White Space Folder/value"]
+                                ),
+                            ]
                         ),
                     ],
                     platforms: [.ios],
@@ -1723,7 +1731,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value",
+                                                                 "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\""]]
                     ),
                 ]
             )
@@ -3543,6 +3552,69 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .target(name: "MacTarget"),
                             .target(name: "CommonTarget"),
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try fileHandler.createFolder(sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try fileHandler.createFolder(testsPath)
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "Target", condition: nil),
+                                .product(name: "External", package: "External", moduleAliases: nil, condition: nil),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .test(
+                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                settings: .settings(),
+                targets: [
+                    .test("Target", basePath: basePath),
+                    .test(
+                        "TargetTests",
+                        basePath: basePath,
+                        product: .unitTests,
+                        customSources: .custom(.sourceFilesList(globs: [
+                            "\(testsPath.pathString)/**",
+                        ])),
+                        dependencies: [
+                            .target(name: "Target"),
+                            .external(name: "External", condition: nil),
                         ]
                     ),
                 ]

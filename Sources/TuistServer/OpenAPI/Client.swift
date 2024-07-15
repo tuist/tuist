@@ -190,6 +190,78 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    public func refreshToken(_ input: Operations.refreshToken.Input) async throws
+        -> Operations.refreshToken.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.refreshToken.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/auth/refresh_token",
+                    parameters: []
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.refreshToken.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.refreshToken.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.refreshToken.Output.Ok.Body.jsonPayload.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.refreshToken.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.refreshToken.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -2044,8 +2116,8 @@ public struct Client: APIProtocol {
     }
     /// Returns a project based on the handle.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
     public func showProject(_ input: Operations.showProject.Input) async throws
         -> Operations.showProject.Output
     {
@@ -2055,7 +2127,7 @@ public struct Client: APIProtocol {
             serializer: { input in
                 let path = try converter.renderedRequestPath(
                     template: "/api/projects/{}/{}",
-                    parameters: [input.path.account_name, input.path.project_name]
+                    parameters: [input.path.account_handle, input.path.project_handle]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
@@ -2127,8 +2199,8 @@ public struct Client: APIProtocol {
     }
     /// Cleans cache for a given project
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_name}/{project_name}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)`.
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     public func cleanCache(_ input: Operations.cleanCache.Input) async throws
         -> Operations.cleanCache.Output
     {
@@ -2138,7 +2210,7 @@ public struct Client: APIProtocol {
             serializer: { input in
                 let path = try converter.renderedRequestPath(
                     template: "/api/projects/{}/{}/cache/clean",
-                    parameters: [input.path.account_name, input.path.project_name]
+                    parameters: [input.path.account_handle, input.path.project_handle]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
                 suppressMutabilityWarning(&request)
@@ -2187,6 +2259,251 @@ public struct Client: APIProtocol {
                         substring: "application/json"
                     )
                     let body: Operations.cleanCache.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    public func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws
+        -> Operations.listProjectTokens.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listProjectTokens.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}/tokens",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.listProjectTokens.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjectTokens.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.listProjectTokens.Output.Ok.Body.jsonPayload.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.listProjectTokens.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjectTokens.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.listProjectTokens.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjectTokens.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.listProjectTokens.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjectTokens.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    public func createProjectToken(_ input: Operations.createProjectToken.Input) async throws
+        -> Operations.createProjectToken.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.createProjectToken.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}/tokens",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.createProjectToken.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createProjectToken.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.createProjectToken.Output.Ok.Body.jsonPayload.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.createProjectToken.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createProjectToken.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.createProjectToken.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createProjectToken.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.createProjectToken.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.createProjectToken.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    public func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws
+        -> Operations.revokeProjectToken.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.revokeProjectToken.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}/tokens/{}",
+                    parameters: [
+                        input.path.account_handle, input.path.project_handle, input.path.id,
+                    ]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers: Operations.revokeProjectToken.Output.NoContent.Headers = .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 401:
+                    let headers: Operations.revokeProjectToken.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.revokeProjectToken.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.revokeProjectToken.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.revokeProjectToken.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.revokeProjectToken.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.revokeProjectToken.Output.NotFound.Body =
                         try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
