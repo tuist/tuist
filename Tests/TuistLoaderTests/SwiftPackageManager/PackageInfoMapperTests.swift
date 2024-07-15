@@ -1705,7 +1705,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Target1",
-                            settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
+                            settings: [
+                                .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"]),
+                                .init(
+                                    tool: .c,
+                                    name: .headerSearchPath,
+                                    condition: nil,
+                                    value: ["White Space Folder/value"]
+                                ),
+                            ]
                         ),
                     ],
                     platforms: [.ios],
@@ -1723,7 +1731,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value",
+                                                                 "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\""]]
                     ),
                 ]
             )
