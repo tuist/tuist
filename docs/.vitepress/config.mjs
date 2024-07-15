@@ -1,310 +1,12 @@
 import { defineConfig } from "vitepress";
-import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
-import examplesDataLoader from "../docs/reference/examples/examples.data";
-import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
-import { comingSoonBadge } from "./badges.mjs";
 import {
-  cubeOutlineIcon,
-  cube02Icon,
-  cube01Icon,
-  barChartSquare02Icon,
-  code02Icon,
-  dataIcon,
-  checkCircleIcon,
-  tuistIcon,
-} from "./icons.mjs";
+  guidesSidebar,
+  contributorsSidebar,
+  referencesSidebar,
+} from "./sidebars.mjs";
 
-const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
-
-const projectDescriptionSidebar = {
-  text: "Project Description",
-  collapsed: true,
-  items: [],
-};
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-[("structs", "enums", "extensions", "typealiases")].forEach((category) => {
-  if (projectDescriptionTypesData.find((item) => item.category === category)) {
-    projectDescriptionSidebar.items.push({
-      text: capitalize(category),
-      collapsed: true,
-      items: projectDescriptionTypesData
-        .filter((item) => item.category === category)
-        .map((item) => ({
-          text: item.title,
-          link: `/reference/project-description/${item.identifier}`,
-        })),
-    });
-  }
-});
-
-function generateNestedSidebarItems(items) {
-  const nestedItems = {};
-
-  items.forEach((item) => {
-    const category = item.category;
-    if (!nestedItems[category]) {
-      nestedItems[category] = {
-        text: capitalize(category),
-        collapsed: true,
-        items: [],
-      };
-    }
-    nestedItems[category].items.push({
-      text: item.title,
-      link: `/reference/cli/${item.command}`,
-    });
-  });
-
-  function isLinkItem(item) {
-    return typeof item.link === "string";
-  }
-
-  function convertToArray(obj) {
-    return Object.values(obj).reduce((acc, item) => {
-      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
-        acc.push(item);
-      } else {
-        acc.push({
-          text: item.text,
-          collapsed: true,
-          items: convertToArray(item.items),
-        });
-      }
-      return acc;
-    }, []);
-  }
-
-  return convertToArray(nestedItems);
-}
-
-const cliData = cliDataLoader.load();
-
-const cliSidebar = {
-  text: "CLI",
-  items: generateNestedSidebarItems(cliData),
-};
-
-const guideSidebar = [
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</div>`,
-    link: "/",
-    items: [
-      {
-        text: "Install Tuist",
-        link: "/guide/quick-start/install-tuist",
-      },
-      {
-        text: "Create a project",
-        link: "/guide/quick-start/create-a-project",
-      },
-      {
-        text: "Add dependencies",
-        link: "/guide/quick-start/add-dependencies",
-      },
-      {
-        text: "Gather insights",
-        link: "/guide/quick-start/gather-insights",
-      },
-      {
-        text: "Optimize workflows",
-        link: "/guide/quick-start/optimize-workflows",
-      },
-    ],
-  },
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</div>`,
-    items: [
-      {
-        text: "Create a new project",
-        link: "/guide/start/new-project",
-      },
-      {
-        text: "Migrate",
-        collapsed: true,
-        items: [
-          {
-            text: "An Xcode project",
-            link: "/guide/start/migrate/xcode-project",
-          },
-          {
-            text: "A Swift Package",
-            link: "/guide/start/migrate/swift-package",
-          },
-          {
-            text: "An XcodeGen project",
-            link: "/guide/start/migrate/xcodegen-project",
-          },
-          {
-            text: "A Bazel project",
-            link: "/guide/start/migrate/bazel-project",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${cube02Icon()}</div>`,
-    items: [
-      {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Code ${code02Icon()}</div>`,
-        items: [],
-      },
-      {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</div>`,
-        items: [],
-      },
-      {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</div>`,
-        items: [],
-      },
-    ],
-  },
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</div>`,
-    items: [],
-  },
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</div>`,
-    items: [],
-  },
-  // {
-  //   text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${appleIcon()}</div>`,
-  //   collapsed: true,
-  //   link: "/guide/project",
-  //   items: [
-  //     {
-  //       text: "Adoption",
-  //       collapsed: true,
-  //       items: [
-  //         {
-  //           text: "Create a project",
-  //           link: "/guide/project/adoption/new-project",
-  //         },
-  //         {
-  //           text: "Use it with a Swift Package",
-  //           link: "/guide/project/adoption/swift-package",
-  //         },
-  //         {
-  //           text: "Migrate from .xcodeproj",
-  //           link: "/guide/project/adoption/migrate-from-xcodeproj",
-  //         },
-  //         {
-  //           text: "Migrate local Swift Packages",
-  //           link: "/guide/project/adoption/migrate-local-swift-packages",
-  //         },
-  //         {
-  //           text: "Migrate from XcodeGen",
-  //           link: "/guide/project/adoption/migrate-from-xcodegen",
-  //         },
-  //         {
-  //           text: "Migrate from Bazel",
-  //           link: "/guide/project/adoption/migrate-from-bazel",
-  //         },
-  //       ],
-  //     },
-  //     {
-  //       text: "Manifests",
-  //       link: "/guide/project/manifests",
-  //     },
-  //     {
-  //       text: "Directory structure",
-  //       link: "/guide/project/directory-structure",
-  //     },
-  //     { text: "Editing", link: "/guide/project/editing" },
-  //     { text: "Dependencies", link: "/guide/project/dependencies" },
-  //     { text: "Code sharing", link: "/guide/project/code-sharing" },
-  //     {
-  //       text: "Synthesized files",
-  //       link: "/guide/project/synthesized-files",
-  //     },
-  //     {
-  //       text: "Dynamic configuration",
-  //       link: "/guide/project/dynamic-configuration",
-  //     },
-  //     {
-  //       text: "Templates",
-  //       link: "/guide/project/templates",
-  //     },
-  //     {
-  //       text: "Plugins",
-  //       link: "/guide/project/plugins",
-  //     },
-  //     {
-  //       text: "Hashing",
-  //       link: "/guide/project/hashing",
-  //     },
-  //     {
-  //       text: "The modular architecture",
-  //       link: "/guide/project/tma-architecture",
-  //     },
-  //     {
-  //       text: "The cost of convenience",
-  //       link: "/guide/project/cost-of-convenience",
-  //     },
-  //   ],
-  // },
-  // {
-  //   text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
-  //   link: "/guide/cache",
-  //   items: [],
-  // },
-  // {
-  //   text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Tests ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
-  //   items: [
-  //     {
-  //       text: "Smart runner",
-  //       link: "/guide/tests/smart-runner",
-  //     },
-  //     {
-  //       text: "Flakiness",
-  //       link: "/guide/tests/flakiness",
-  //     },
-  //   ],
-  // },
-  // {
-  //   text: `<div><div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Runs ${appleIcon()}</div>${requiresProjectBadge()} ${requiresAccount()}</div>`,
-  //   items: [
-  //     {
-  //       text: "Analytics",
-  //     },
-  //   ],
-  // },
-  // {
-  //   text: "Tuist Cloud",
-  //   items: [
-  //     {
-  //       text: "What is Tuist Cloud?",
-  //       link: "/cloud/what-is-cloud",
-  //     },
-  //     {
-  //       text: "Get started",
-  //       link: "/cloud/get-started",
-  //     },
-  //     {
-  //       text: "Selective testing",
-  //       link: "/cloud/selective-testing",
-  //     },
-  //     {
-  //       text: "On-premise",
-  //       link: "/cloud/on-premise",
-  //       items: [
-  //         {
-  //           text: "Metrics",
-  //           link: "/cloud/on-premise/metrics",
-  //         },
-  //       ],
-  //     },
-  //   ],
-  // },
-];
-
-// https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
@@ -370,7 +72,7 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/project/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/project/tma-architecture 301
-/guide/introduction/cost-of-convenience /guide/project/cost-of-convenience 301
+/guides/develop/projects/cost-of-convenience /guide/project/cost-of-convenience 301
 /guide/introduction/from-v3-to-v4 /guide/tuist/from-v3-to-v4 301
 /guide/introduction/installation /guide/tuist/installation/cli 301
 /guide/introduction/adopting-tuist/new-project /guide/project/adoption/new-project 301
@@ -399,10 +101,10 @@ export default defineConfig({
       provider: "local",
     },
     nav: [
-      { text: "Guide", link: "/" },
+      { text: "Guides", link: "/" },
       {
-        text: "Reference",
-        link: "/reference/project-description/structs/project",
+        text: "References",
+        link: "/references/project-description/structs/project",
       },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
@@ -411,60 +113,10 @@ export default defineConfig({
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
     },
     sidebar: {
-      "/contributors": [
-        {
-          text: "Contributors",
-          items: [
-            {
-              text: "Get started",
-              link: "/contributors/get-started",
-            },
-            {
-              text: "Issue reporting",
-              link: "/contributors/issue-reporting",
-            },
-            {
-              text: "Code reviews",
-              link: "/contributors/code-reviews",
-            },
-            {
-              text: "Principles",
-              link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/guide/": guideSidebar,
-      "/": guideSidebar,
-      "/reference/": [
-        {
-          text: "Reference",
-          items: [
-            cliSidebar,
-            projectDescriptionSidebar,
-            {
-              text: "Examples",
-              collapsed: true,
-              items: examplesDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/examples/${item.name}`,
-                };
-              }),
-            },
-            {
-              text: "Migrations",
-              collapsed: true,
-              items: [
-                {
-                  text: "From v3 to v4",
-                  link: "/reference/migrations/from-v3-to-v4",
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      "/contributors": contributorsSidebar,
+      "/guides/": guidesSidebar,
+      "/": guidesSidebar,
+      "/references/": referencesSidebar,
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },

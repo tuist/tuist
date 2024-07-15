@@ -33,7 +33,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-Check out [the project "Adopting Tuist" guide](https://docs.tuist.io/guide/introduction/adopting-tuist/new-project) to learn more about Tuist and all its features.
+Check out [the project "Create a new project" guide](https://docs.tuist.io/guides/start/new-project) to learn more about Tuist and all its features.
 
 ## 📝 Documentation
 
