@@ -18,7 +18,7 @@ tuist auth
 You can then create a project by running:
 
 ```bash
-tuist project create MyApp -o my-handle
+tuist project create my-handle/MyApp
 
 # Tuist project tuist/myapp was successfully created 🎉
 ```
