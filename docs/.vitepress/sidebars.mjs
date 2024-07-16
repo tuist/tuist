@@ -290,19 +290,21 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Integrate ${cloudBlank02Icon()} ${comingSoonBadge()}</div>`,
+        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</div>`,
+        link: "guides/develop/workflows",
         items: [],
       },
     ],
   },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</div>`,
+    link: "guides/share",
     items: [],
   },
-  {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</div>`,
-    items: [],
-  },
+  // {
+  //   text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</div>`,
+  //   items: [],
+  // },
   {
     text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</div>`,
     collapsed: true,
