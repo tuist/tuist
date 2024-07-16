@@ -145,7 +145,7 @@ export const contributorsSidebar = [
 
 export const guidesSidebar = [
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</div>`,
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</span>`,
     link: "/",
     items: [
       {
@@ -171,7 +171,7 @@ export const guidesSidebar = [
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</div>`,
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</span>`,
     items: [
       {
         text: "Create a new project",
@@ -206,10 +206,10 @@ export const guidesSidebar = [
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Develop ${cube02Icon()}</div>`,
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Develop ${cube02Icon()}</span>`,
     items: [
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${code02Icon()}</div>`,
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${code02Icon()}</span>`,
         collapsed: true,
         link: "guides/develop/projects",
         items: [
@@ -264,7 +264,7 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</div>`,
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</span>`,
         link: "guides/develop/build",
         collapsed: true,
         items: [
@@ -275,7 +275,7 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</div>`,
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</span>`,
         link: "guides/develop/test",
         collapsed: true,
         items: [
@@ -290,7 +290,7 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()}</div>`,
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
         link: "guides/develop/workflows",
         collapsed: true,
         items: [],
@@ -298,17 +298,17 @@ export const guidesSidebar = [
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</div>`,
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</span>`,
     link: "guides/share",
     collapsed: true,
     items: [],
   },
-  // {
-  //   text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</div>`,
-  //   items: [],
-  // },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</div>`,
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,
+    items: [],
+  },
+  {
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</span>`,
     collapsed: true,
     items: [
       {
