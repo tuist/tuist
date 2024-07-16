@@ -6,8 +6,12 @@ defmodule Tuist.Authorization do
   alias Tuist.Accounts
   alias Tuist.Accounts.{User, Account}
 
-  def can(%User{} = user, :read, %Project{} = project, :cache) do
+  def can(%User{} = user, :read, %Project{visibility: :private} = project, :cache) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def can(%User{}, :read, %Project{visibility: :public}, :cache) do
+    true
   end
 
   def can(%User{} = user, :create, %Account{} = account, :project) do
