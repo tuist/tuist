@@ -29,7 +29,7 @@ Tuist offers answers to these questions, leveraging the power of project generat
 
 ## How does it work?
 
-To get started with Tuist, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+To get started with Tuist Projects, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
 
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
