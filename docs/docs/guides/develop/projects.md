@@ -5,27 +5,7 @@ description: Learn about Tuist's DSL for defining Xcode projects.
 
 # Projects
 
-As Xcode projects grow, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
-
-Some organizations choose to bypass the compiler by abstracting the platform using JavaScript-based dynamic runtimes, such as [React Native](https://reactnative.dev/). While this approach may be effective, it [complicates access to the platform's native features](https://shopify.engineering/building-app-clip-react-native). Other organizations opt for **modularizing the codebase**, which helps establish clear boundaries, making the codebase easier to work with and improving the reliability of build times. However, the Xcode project format is not designed for modularity and results in implicit configurations that few understand and frequent conflicts. This leads to a bad bus factor, and although incremental builds may improve, developers might still frequently clear Xcode's build cache (i.e., derived data) when builds fail. To address this, some organizations choose to **abandon Xcode's build system** and adopt alternatives like [Buck](https://buck.build/) or [Bazel](https://bazel.build/). However, this comes with a [high complexity and maintenance burden](https://bazel.build/migrate/xcode).
-
-
-## Tuist Projects
-
-Tuist Projects is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to **simplify the complexities of modularization**, **optimize workflows** like build or test across various environments, and facilitate and **democratize the evolution of Xcode projects**.
-
-## Project generation as a foundation
-
-Xcode, its underlying build system, and the structure of Xcode projects are closely intertwined, often leading to inflexibility. This intrinsic design leaves developers with few avenues to address the inherent challenges presented by Apple. One such solution has been **project generation**, a method initially pioneered by [CocoaPods](https://cocoapods.org) to introduce dependency management into the Objective-C ecosystem.
-
-Tuist also adopts project generation, which might suggest that this approach is its primary objective. Indeed, many development teams have turned to project generation to mitigate the long-standing issue of team collaboration-induced conflicts. But for Tuist, **project generation isn't the endgame**. Instead, it serves as a foundational tool to tackle a broader range of challenges, including:
-
-- How can developers modify the modular structure of a project with assurance against runtime errors, ensuring it aligns with team best practices?
-- What's the best way to add or remove targets from the dependency graph without worrying about the ripple effects on the graph, such as dynamically copying frameworks into bundles?
-- How can developers decouple the time of tasks—like coding, building, and testing—from the overall size of the project?
-- How can teams ensure the sustained health and integrity of the project, cultivating a conducive environment for developers?
-
-Tuist offers answers to these questions, leveraging the power of project generation. It encapsulates years of insights gathered from diverse Xcode projects, positioning itself as an invaluable ally for your platform team.
+Tuist Projects is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization**, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
 
 ## How does it work?
 
@@ -34,8 +14,15 @@ To get started with Tuist Projects, all you need is to define your project using
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
 - **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
-- **Build:** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
-- **Test:** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
+- **[Build](/guides/develop/build):** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
+- **[Test](/guides/develop/test):** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
+
+## Challenges with Xcode projects
+
+As Xcode projects grow, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
+
+Some organizations choose to bypass the compiler by abstracting the platform using JavaScript-based dynamic runtimes, such as [React Native](https://reactnative.dev/). While this approach may be effective, it [complicates access to the platform's native features](https://shopify.engineering/building-app-clip-react-native). Other organizations opt for **modularizing the codebase**, which helps establish clear boundaries, making the codebase easier to work with and improving the reliability of build times. However, the Xcode project format is not designed for modularity and results in implicit configurations that few understand and frequent conflicts. This leads to a bad bus factor, and although incremental builds may improve, developers might still frequently clear Xcode's build cache (i.e., derived data) when builds fail. To address this, some organizations choose to **abandon Xcode's build system** and adopt alternatives like [Buck](https://buck.build/) or [Bazel](https://bazel.build/). However, this comes with a [high complexity and maintenance burden](https://bazel.build/migrate/xcode).
+
 
 ## Alternatives
 
