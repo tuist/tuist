@@ -1,6 +1,6 @@
 ---
 title: What is Tuist?
-description: Learn about Tuist, a tool that simplifies the complexities of modularization, optimizes workflows, and democratizes the evolution of Xcode projects.
+description: Learn about Tuist, a toolchain to empower teams to build better apps faster.
 ---
 
 # Tuist
