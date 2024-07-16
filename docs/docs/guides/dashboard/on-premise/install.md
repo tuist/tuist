@@ -227,6 +227,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
     ports:
       - '5432:5432'
     volumes: 
