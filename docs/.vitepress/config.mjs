@@ -42,24 +42,24 @@ export default defineConfig({
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `    
-/documentation/tuist/installation /guide/cli/installation 301
+/documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
-/documentation/tuist/command-line-interface /guide/tuist/commands/generate 301
+/documentation/tuist/command-line-interface /guide/automation/generate 301
 /documentation/tuist/dependencies /guide/project/dependencies 301
 /documentation/tuist/sharing-code-across-manifests /guide/project/code-sharing 301
 /documentation/tuist/synthesized-files /guide/project/synthesized-files 301
-/documentation/tuist/migration-guidelines /guide/project/adoption/migrate-from-xcodeproj 301
-/tutorials/tuist-tutorials /guide/project/adoption/new-project 301
-/tutorials/tuist/install  /guide/project/adoption/new-project 301
-/tutorials/tuist/create-project  /guide/project/adoption/new-project 301
-/tutorials/tuist/external-dependencies /guide/project/adoption/new-project 301
+/documentation/tuist/migration-guidelines /guide/introduction/adopting-tuist/migrate-from-xcodeproj 301
+/tutorials/tuist-tutorials /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/install  /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/create-project  /guide/introduction/adopting-tuist/new-project 301
+/tutorials/tuist/external-dependencies /guide/introduction/adopting-tuist/new-project 301
 /documentation/tuist/generation-environment /guide/project/dynamic-configuration 301
 /documentation/tuist/using-plugins /guide/project/plugins 301
 /documentation/tuist/creating-plugins /guide/project/plugins 301
 /documentation/tuist/task /guide/project/plugins 301
 /documentation/tuist/tuist-cloud /cloud/what-is-cloud 301
 /documentation/tuist/tuist-cloud-get-started /cloud/get-started 301
-/documentation/tuist/binary-caching /guide/cache 301
+/documentation/tuist/binary-caching /cloud/binary-caching 301
 /documentation/tuist/selective-testing /cloud/selective-testing 301
 /tutorials/tuist-cloud-tutorials /cloud/on-premise 301
 /tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
@@ -70,27 +70,8 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
-/guide/scale/ufeatures-architecture.html /guide/project/tma-architecture.html 301
-/guide/scale/ufeatures-architecture /guide/project/tma-architecture 301
-/guides/develop/projects/cost-of-convenience /guide/project/cost-of-convenience 301
-/guide/introduction/from-v3-to-v4 /guide/tuist/from-v3-to-v4 301
-/guide/introduction/installation /guide/tuist/installation/cli 301
-/guide/introduction/adopting-tuist/new-project /guide/project/adoption/new-project 301
-/guide/introduction/adopting-tuist/swift-package /guide/project/adoption/swift-package 301
-/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guide/project/adoption/migrate-from-xcodeproj 301
-/guide/introduction/adopting-tuist/migrate-local-swift-packages /guide/project/adoption/migrate-local-swift-packages 301
-/guide/introduction/adopting-tuist/migrate-from-xcodegen /guide/project/adoption/migrate-from-xcodegen 301
-/guide/introduction/adopting-tuist/migrate-from-bazel /guide/project/adoption/migrate-from-bazel 301
-/guide/tuist/installation /guide/tuist/installation/cli 301
-/cloud/on-premise /guide/tuist/installation/server 301
-/cloud/binary-caching /guide/cache 301
-/guide/automation/build /guide/tuist/commands/build 301
-/guide/automation/test /guide/tuist/commands/test 301
-/guide/automation/run /guide/tuist/commands/run 301
-/guide/automation/graph /guide/tuist/commands/graph 301
-/guide/automation/clean /guide/tuist/commands/clean 301
-/guide/scale/tma-architecture /guide/project/tma-architecture 301
-/cloud/hashing /guide/project/hashing 301
+/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
