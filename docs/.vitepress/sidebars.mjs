@@ -178,6 +178,10 @@ export const guidesSidebar = [
         link: "/guides/start/new-project",
       },
       {
+        text: "Try with a Swift Pacakge",
+        link: "/guides/start/swift-package",
+      },
+      {
         text: "Migrate",
         collapsed: true,
         items: [

@@ -72,6 +72,42 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+
+/guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
+/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
+/guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
+/guide/introduction/adopting-tuist/migrate-local-swift-packages /guides/start/migrate/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodegen /guides/start/migrate/xcodegen-project 301
+/guide/introduction/adopting-tuist/migrate-from-bazel /guides/start/migrate/bazel-project 301
+/guide/introduction/from-v3-to-v4 /references/migrations/from-v3-to-v4 301
+/guide/project/manifests /guides/develop/projects/manifests 301
+/guide/project/directory-structure /guides/develop/projects/directory-structure 301
+/guide/project/editing /guides/develop/projects/editing 301
+/guide/project/dependencies /guides/develop/projects/dependencies 301
+/guide/project/code-sharing /guides/develop/projects/code-sharing 301
+/guide/project/synthesized-files /guides/develop/projects/synthesized-files 301
+/guide/project/dynamic-configuration /guides/develop/projects/dynamic-configuration 301
+/guide/project/templates /guides/develop/projects/templates 301
+/guide/project/plugins /guides/develop/projects/plugins 301
+/guide/automation/generate / 301
+/guide/automation/build /guides/develop/build 301
+/guide/automation/test /guides/develop/test 301
+/guide/automation/run / 301
+/guide/automation/graph / 301
+/guide/automation/clean / 301
+/guide/scale/tma-architecture /guides/develop/projects/tma-architecture 301
+/cloud/what-is-cloud / 301
+/cloud/get-started / 301
+/cloud/binary-caching /guides/develop/build/cache 301
+/cloud/selective-testing /guides/develop/test/smart-runner 301
+/cloud/hashing /guides/develop/projects/hashing 301
+/cloud/on-premise /guides/dashboard/on-premise/install 301
+/cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
+/reference/project-description/* /references/project-description/:splat 301
+/reference/examples/* /references/examples/:splat 301
+
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
