@@ -1,4 +1,4 @@
-defmodule TuistCloudWeb.ConnCase do
+defmodule TuistWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule TuistCloudWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use TuistCloudWeb.ConnCase, async: true`, although
+  by setting `use TuistWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,19 +20,19 @@ defmodule TuistCloudWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint TuistCloudWeb.Endpoint
+      @endpoint TuistWeb.Endpoint
 
-      use TuistCloudWeb, :verified_routes
+      use TuistWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import TuistCloudWeb.ConnCase
+      import TuistWeb.ConnCase
     end
   end
 
   setup tags do
-    TuistCloud.DataCase.setup_sandbox(tags)
+    Tuist.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -45,7 +45,7 @@ defmodule TuistCloudWeb.ConnCase do
   test context.
   """
   def register_and_log_in_user(%{conn: conn}) do
-    user = TuistCloud.AccountsFixtures.user_fixture()
+    user = Tuist.AccountsFixtures.user_fixture()
     %{conn: log_in_user(conn, user), user: user}
   end
 
@@ -55,7 +55,7 @@ defmodule TuistCloudWeb.ConnCase do
   It returns an updated `conn`.
   """
   def log_in_user(conn, user) do
-    token = TuistCloud.Accounts.generate_user_session_token(user)
+    token = Tuist.Accounts.generate_user_session_token(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})

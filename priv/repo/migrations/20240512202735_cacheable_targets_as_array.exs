@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.CacheableTargetsAsArray do
+defmodule Tuist.Repo.Migrations.CacheableTargetsAsArray do
   use Ecto.Migration
 
   def up do

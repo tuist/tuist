@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.CreateUsersAuthTables do
+defmodule Tuist.Repo.Migrations.CreateUsersAuthTables do
   use Ecto.Migration
 
   def change do

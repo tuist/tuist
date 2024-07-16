@@ -28,7 +28,7 @@
     "html-eex": "html"
   },
   "rust-analyzer.linkedProjects": [
-    "native/tuistcloud_native/Cargo.toml"
+    "native/tuist_native/Cargo.toml"
   ],
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"

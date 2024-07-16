@@ -1,9 +1,9 @@
-defmodule TuistCloud.BillingFixtures do
+defmodule Tuist.BillingFixtures do
   @moduledoc false
 
-  alias TuistCloud.Repo
-  alias TuistCloud.Billing.Subscription
-  alias TuistCloud.TestUtilities
+  alias Tuist.Repo
+  alias Tuist.Billing.Subscription
+  alias Tuist.TestUtilities
 
   def subscription_fixture(opts \\ []) do
     plan = opts |> Keyword.get(:plan, :pro)
@@ -15,9 +15,9 @@ defmodule TuistCloud.BillingFixtures do
 
     account_id =
       Keyword.get_lazy(opts, :account_id, fn ->
-        organization_id = TuistCloud.AccountsFixtures.organization_fixture().id
+        organization_id = Tuist.AccountsFixtures.organization_fixture().id
 
-        Repo.get_by!(TuistCloud.Accounts.Account,
+        Repo.get_by!(Tuist.Accounts.Account,
           organization_id: organization_id
         ).id
       end)
@@ -28,7 +28,7 @@ defmodule TuistCloud.BillingFixtures do
       status: status,
       account_id: account_id,
       default_payment_method: default_payment_method,
-      inserted_at: Keyword.get(opts, :inserted_at, TuistCloud.Time.utc_now())
+      inserted_at: Keyword.get(opts, :inserted_at, Tuist.Time.utc_now())
     })
     |> Repo.insert!()
   end

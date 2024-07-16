@@ -23,7 +23,7 @@ FROM rust:1.79.0-bullseye as rust
 RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 WORKDIR /app
-COPY native/tuistcloud_native ./
+COPY native/tuist_native ./
 RUN cargo rustc --release
 
 FROM ${BUILDER_IMAGE} as builder
@@ -64,7 +64,7 @@ COPY assets assets
 RUN mix assets.deploy
 
 # Copy Rust native binary
-COPY --from=rust /app/target/release/libtuistcloud_native.so priv/native/libtuistcloud_native.so
+COPY --from=rust /app/target/release/libtuist_native.so priv/native/libtuist_native.so
 
 # Compile the release
 RUN mix compile --warnings-as-errors
@@ -99,7 +99,7 @@ ENV MIX_ENV=$MIX_ENV
 ENV TUIST_VERSION=$TUIST_VERSION
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist_cloud ./
+COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 COPY priv/secrets/secrets.yml.enc /app/priv/secrets/secrets.yml.enc
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
 ENV SECRETS_PATH=/app/priv/secrets/secrets.yml.enc

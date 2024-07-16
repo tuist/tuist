@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.RemoveCommandEventProjectIdFkey do
+defmodule Tuist.Repo.Migrations.RemoveCommandEventProjectIdFkey do
   use Ecto.Migration
 
   def up do

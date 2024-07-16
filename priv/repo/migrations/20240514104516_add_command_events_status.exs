@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddCommandEventsStatus do
+defmodule Tuist.Repo.Migrations.AddCommandEventsStatus do
   use Ecto.Migration
 
   def change do

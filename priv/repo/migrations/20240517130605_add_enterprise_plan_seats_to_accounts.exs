@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddEnterprisePlanSeatsToAccounts do
+defmodule Tuist.Repo.Migrations.AddEnterprisePlanSeatsToAccounts do
   use Ecto.Migration
 
   def change do

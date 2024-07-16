@@ -7,17 +7,17 @@
 # General application configuration
 import Config
 
-config :tuist_cloud,
-  ecto_repos: [TuistCloud.Repo],
+config :tuist,
+  ecto_repos: [Tuist.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :tuist_cloud, TuistCloudWeb.Endpoint,
+config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TuistCloudWeb.ErrorHTML, json: TuistCloudWeb.ErrorJSON],
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: TuistCloud.PubSub,
+  pubsub_server: Tuist.PubSub,
   live_view: [signing_salt: "laTbtzV8"]
 
 # Configures the mailer
@@ -27,12 +27,12 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :tuist_cloud, TuistCloud.Mailer, adapter: Bamboo.LocalAdapter
+config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.17.11",
-  tuist_cloud: [
+  tuist: [
     args:
       ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
@@ -49,10 +49,10 @@ config :phoenix, :json_library, Jason
 
 # Oban
 
-# TuistCloud.Slack.InternalDailyReportWorker
+# Tuist.Slack.InternalDailyReportWorker
 
-config :tuist_cloud, Oban,
-  repo: TuistCloud.Repo,
+config :tuist, Oban,
+  repo: Tuist.Repo,
   queues: [default: 10]
 
 config :ueberauth, Ueberauth,
@@ -66,14 +66,14 @@ config :ueberauth, Ueberauth,
 config :hammer,
   backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
 
-config :flop, repo: TuistCloud.Repo
+config :flop, repo: Tuist.Repo
 
 config :guardian, Guardian.DB,
-  repo: TuistCloud.Repo,
+  repo: Tuist.Repo,
   schema_name: "tokens",
   token_types: ["refresh"]
 
-config :tuist_cloud, :blocked_handles, [
+config :tuist, :blocked_handles, [
   "admin",
   "settings",
   "docs",

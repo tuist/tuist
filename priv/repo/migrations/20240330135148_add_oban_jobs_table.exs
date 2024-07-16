@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddObanJobsTable do
+defmodule Tuist.Repo.Migrations.AddObanJobsTable do
   use Ecto.Migration
 
   def up do

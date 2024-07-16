@@ -1,4 +1,4 @@
-defmodule TuistCloud.DataCase do
+defmodule Tuist.DataCase do
   @moduledoc """
   This module defines the setup for tests requiring
   access to the application's data layer.
@@ -10,7 +10,7 @@ defmodule TuistCloud.DataCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use TuistCloud.DataCase, async: true`, although
+  by setting `use Tuist.DataCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -19,19 +19,19 @@ defmodule TuistCloud.DataCase do
 
   using do
     quote do
-      alias TuistCloud.Repo
+      alias Tuist.Repo
 
-      use Oban.Testing, repo: TuistCloud.Repo
+      use Oban.Testing, repo: Tuist.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import TuistCloud.DataCase
+      import Tuist.DataCase
     end
   end
 
   setup tags do
-    TuistCloud.DataCase.setup_sandbox(tags)
+    Tuist.DataCase.setup_sandbox(tags)
     :ok
   end
 
@@ -39,7 +39,7 @@ defmodule TuistCloud.DataCase do
   Sets up the sandbox based on the test tags.
   """
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(TuistCloud.Repo, shared: not tags[:async])
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Tuist.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 

@@ -1,8 +1,8 @@
-defmodule TuistCloud.Repo.Migrations.OwnerToUserAndOrganization do
+defmodule Tuist.Repo.Migrations.OwnerToUserAndOrganization do
   use Ecto.Migration
 
-  alias TuistCloud.Accounts.Account
-  alias TuistCloud.Repo
+  alias Tuist.Accounts.Account
+  alias Tuist.Repo
 
   import Ecto.Query
 

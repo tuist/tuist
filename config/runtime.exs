@@ -12,29 +12,29 @@ import Config
 # If you use `mix release`, you need to explicitly enable the server
 # by passing the PHX_SERVER=true when you start it:
 #
-#     PHX_SERVER=true bin/tuist_cloud start
+#     PHX_SERVER=true bin/tuist start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :tuist_cloud, TuistCloudWeb.Endpoint, server: true
+  config :tuist, TuistWeb.Endpoint, server: true
 end
 
-env = TuistCloud.Environment.env()
-secrets = TuistCloud.Environment.decrypt_secrets()[env]
-secret_key_base = TuistCloud.Environment.secret_key_base(secrets)
+env = Tuist.Environment.env()
+secrets = Tuist.Environment.decrypt_secrets()[env]
+secret_key_base = Tuist.Environment.secret_key_base(secrets)
 
 if env != :test do
-  config :tuist_cloud, TuistCloudWeb.Endpoint, secret_key_base: secret_key_base
+  config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
 # The following adds "stdout" exporter in "dev" when TUIST_OPEN_TELEMETRY_ENABLED=1
-if TuistCloud.Environment.open_telemetry_enabled?(secrets) and env == :dev do
+if Tuist.Environment.open_telemetry_enabled?(secrets) and env == :dev do
   config :opentelemetry, traces_exporter: {:otel_exporter_stdout, []}
 end
 
 if [:prod, :stag, :can] |> Enum.member?(env) do
-  config :logger, level: TuistCloud.Environment.log_level()
+  config :logger, level: Tuist.Environment.log_level()
 
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -45,10 +45,10 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   parsed_url = URI.parse(database_url)
   [username, password] = parsed_url.userinfo |> String.split(":")
-  maybe_ipv6 = if TuistCloud.Environment.use_ipv6?(secrets) in ~w(true 1), do: [:inet6], else: []
+  maybe_ipv6 = if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1), do: [:inet6], else: []
 
   database_options = [
-    pool_size: TuistCloud.Environment.database_pool_size(secrets),
+    pool_size: Tuist.Environment.database_pool_size(secrets),
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,
@@ -57,7 +57,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   ]
 
   database_options =
-    if TuistCloud.Environment.use_ssl_for_database?() do
+    if Tuist.Environment.use_ssl_for_database?() do
       database_options
       |> Keyword.put(:ssl, true)
       |> Keyword.put(:ssl_opts,
@@ -69,15 +69,15 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       database_options
     end
 
-  config :tuist_cloud, TuistCloud.Repo, database_options
+  config :tuist, Tuist.Repo, database_options
 
   port = "8080"
-  config :tuist_cloud, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  app_url = TuistCloud.Environment.app_url(secrets)
+  app_url = Tuist.Environment.app_url(secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
-  config :tuist_cloud, TuistCloudWeb.Endpoint,
+  config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
     check_origin: [app_url],
     http: [
@@ -94,7 +94,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:
   #
-  #     config :tuist_cloud, TuistCloudWeb.Endpoint,
+  #     config :tuist, TuistWeb.Endpoint,
   #       https: [
   #         ...,
   #         port: 443,
@@ -116,7 +116,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  #     config :tuist_cloud, TuistCloudWeb.Endpoint,
+  #     config :tuist, TuistWeb.Endpoint,
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
@@ -127,7 +127,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   # Also, you may need to configure the Swoosh API client of your choice if you
   # are not using SMTP. Here is an example of the configuration:
   #
-  #     config :tuist_cloud, TuistCloud.Mailer,
+  #     config :tuist, Tuist.Mailer,
   #       adapter: Swoosh.Adapters.Mailgun,
   #       api_key: System.get_env("MAILGUN_API_KEY"),
   #       domain: System.get_env("MAILGUN_DOMAIN")
@@ -140,13 +140,13 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-appsignal_name = "Tuist Cloud Phoenix"
+appsignal_name = "Tuist"
 
-if !TuistCloud.Environment.on_premise?() do
+if !Tuist.Environment.on_premise?() do
   config :appsignal, :config,
-    otp_app: :tuist_cloud,
+    otp_app: :tuist,
     name: appsignal_name,
-    push_api_key: TuistCloud.Environment.app_signal_push_api_key(secrets),
+    push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
     env: env,
     active: [:prod, :stag, :can] |> Enum.member?(env),
     request_headers: ~w(
@@ -159,24 +159,24 @@ if !TuistCloud.Environment.on_premise?() do
     )
 else
   config :appsignal, :config,
-    otp_app: :tuist_cloud,
+    otp_app: :tuist,
     name: appsignal_name,
     env: env,
     active: false
 end
 
 # Stripe config
-if TuistCloud.Environment.stripe_configured?(secrets) do
+if Tuist.Environment.stripe_configured?(secrets) do
   config :stripity_stripe,
-    api_key: TuistCloud.Environment.stripe_api_key(secrets),
-    signing_secret: TuistCloud.Environment.stripe_endpoint_secret(secrets)
+    api_key: Tuist.Environment.stripe_api_key(secrets),
+    signing_secret: Tuist.Environment.stripe_endpoint_secret(secrets)
 end
 
 # License
-if TuistCloud.Environment.on_premise?() do
-  with {:license, {:ok, license}} <- {:license, TuistCloud.Native.license()},
-       {:expired, false} <- {:expired, TuistCloud.Native.License.expired?(license)} do
-    config :tuist_cloud, :license, license
+if Tuist.Environment.on_premise?() do
+  with {:license, {:ok, license}} <- {:license, Tuist.Native.license()},
+       {:expired, false} <- {:expired, Tuist.Native.License.expired?(license)} do
+    config :tuist, :license, license
   else
     {:license, {:error, error}} ->
       raise """
@@ -193,59 +193,59 @@ end
 # Omniauth
 
 config :ueberauth, Ueberauth.Strategy.Github.OAuth,
-  client_id: TuistCloud.Environment.github_oauth_id(secrets),
-  client_secret: TuistCloud.Environment.github_oauth_secret(secrets)
+  client_id: Tuist.Environment.github_oauth_id(secrets),
+  client_secret: Tuist.Environment.github_oauth_secret(secrets)
 
 config :ueberauth, Ueberauth.Strategy.Google.OAuth,
-  client_id: TuistCloud.Environment.google_oauth_client_id(secrets),
-  client_secret: TuistCloud.Environment.google_oauth_client_secret(secrets)
+  client_id: Tuist.Environment.google_oauth_client_id(secrets),
+  client_secret: Tuist.Environment.google_oauth_client_secret(secrets)
 
 config :ueberauth, Ueberauth.Strategy.Okta.OAuth,
-  site: TuistCloud.Environment.okta_site(secrets),
-  client_id: TuistCloud.Environment.okta_client_id(secrets),
-  client_secret: TuistCloud.Environment.okta_client_secret(secrets)
+  site: Tuist.Environment.okta_site(secrets),
+  client_id: Tuist.Environment.okta_client_id(secrets),
+  client_secret: Tuist.Environment.okta_client_secret(secrets)
 
 # Mailgun configuration
-if TuistCloud.Environment.mail_configured?(secrets) do
+if Tuist.Environment.mail_configured?(secrets) do
   base_uri =
     cond do
       env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"
       env in [:dev] -> "https://api.mailgun.net/v3"
     end
 
-  config :tuist_cloud, TuistCloud.Mailer,
+  config :tuist, Tuist.Mailer,
     adapter: Bamboo.MailgunAdapter,
-    api_key: TuistCloud.Environment.mailgun_api_key(secrets),
-    domain: TuistCloud.Environment.smtp_domain(secrets),
+    api_key: Tuist.Environment.mailgun_api_key(secrets),
+    domain: Tuist.Environment.smtp_domain(secrets),
     base_uri: base_uri
 end
 
 # Oban
-config :tuist_cloud, Oban,
+config :tuist, Oban,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
      crontab:
        [
-         {"@hourly", TuistCloud.CommandEvents.UpdateCacheEventCountWorker},
-         {"@daily", TuistCloud.Billing.UpdateRemoteCacheHitWorker}
+         {"@hourly", Tuist.CommandEvents.UpdateCacheEventCountWorker},
+         {"@daily", Tuist.Billing.UpdateRemoteCacheHitWorker}
        ] ++
-         if(not TuistCloud.Environment.on_premise?() and env == :prod,
-           do: [{"0 10 * * 1-5", TuistCloud.Ops.DailySlackReportWorker}],
+         if(not Tuist.Environment.on_premise?() and env == :prod,
+           do: [{"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker}],
            else: []
          )}
   ]
 
 # Prometheus
-config :tuist_cloud, TuistCloud.PromEx,
-  disabled: not TuistCloud.Environment.on_premise?(),
+config :tuist, Tuist.PromEx,
+  disabled: not Tuist.Environment.on_premise?(),
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
   metrics_server: :disabled
 
 # Guardian
-config :tuist_cloud, TuistCloud.Guardian,
+config :tuist, Tuist.Guardian,
   issuer: "tuist",
-  secret_key: TuistCloud.Environment.secret_key_tokens(secrets)
+  secret_key: Tuist.Environment.secret_key_tokens(secrets)

@@ -1,4 +1,4 @@
-name: Cloud Staging Deployment
+name: Staging Deployment
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ jobs:
   deploy:
     environment:
       name: staging
-      url: https://cloud-staging.tuist.io
+      url: https://staging.tuist.io
     name: Staging Deployment
     env:
       DOCKER_BUILDKIT: 1

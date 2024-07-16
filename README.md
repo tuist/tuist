@@ -18,4 +18,4 @@ This repository contains the source code of the server-side application that ext
 3. Run `mise run dev`
 
 > [!IMPORTANT]
-> If the execution of database migrations fails because the TimescaleDB extension is not installed, you'll have to [install the extension](https://docs.timescale.com/self-hosted/latest/install/installation-macos/#set-up-the-timescaledb-extension) in the `tuistcloud_development` database.
+> If the execution of database migrations fails because the TimescaleDB extension is not installed, you'll have to [install the extension](https://docs.timescale.com/self-hosted/latest/install/installation-macos/#set-up-the-timescaledb-extension) in the `tuist_development` database.

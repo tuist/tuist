@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.DataMigrations.Account.MigratingSchema do
+defmodule Tuist.Repo.DataMigrations.Account.MigratingSchema do
   use Ecto.Schema
 
   schema "accounts" do
@@ -17,14 +17,14 @@ defmodule TuistCloud.Repo.DataMigrations.Account.MigratingSchema do
   end
 end
 
-defmodule TuistCloud.Repo.Migrations.AddDefaultValuePlan do
-  alias TuistCloud.Accounts.Account
-  alias TuistCloud.Repo
+defmodule Tuist.Repo.Migrations.AddDefaultValuePlan do
+  alias Tuist.Accounts.Account
+  alias Tuist.Repo
   use Ecto.Migration
   import Ecto.Query
 
   def up do
-    from(a in TuistCloud.Repo.DataMigrations.Account.MigratingSchema, where: is_nil(a.plan))
+    from(a in Tuist.Repo.DataMigrations.Account.MigratingSchema, where: is_nil(a.plan))
     |> Repo.update_all(set: [plan: :none])
 
     alter table(:accounts) do

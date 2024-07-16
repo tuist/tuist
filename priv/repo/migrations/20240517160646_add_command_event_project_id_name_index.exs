@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddCommandEventProjectIdNameIndex do
+defmodule Tuist.Repo.Migrations.AddCommandEventProjectIdNameIndex do
   use Ecto.Migration
 
   def change do

@@ -1,7 +1,7 @@
-alias TuistCloud.Accounts
-alias TuistCloud.Projects
-alias TuistCloud.Projects.Project
-alias TuistCloud.CommandEvents
+alias Tuist.Accounts
+alias Tuist.Projects
+alias Tuist.Projects.Project
+alias Tuist.CommandEvents
 import Ecto.Query, only: [from: 2]
 
 email = "tuist@tuist.io"
@@ -162,7 +162,7 @@ for _event <- 1..10000 do
 end
 
 test_command_events =
-  from(c in CommandEvents.Event, where: c.name == "test") |> TuistCloud.Repo.all()
+  from(c in CommandEvents.Event, where: c.name == "test") |> Tuist.Repo.all()
 
 test_cases =
   1..100

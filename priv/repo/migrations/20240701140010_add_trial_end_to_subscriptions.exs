@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddTrialEndToSubscriptions do
+defmodule Tuist.Repo.Migrations.AddTrialEndToSubscriptions do
   use Ecto.Migration
 
   def change do

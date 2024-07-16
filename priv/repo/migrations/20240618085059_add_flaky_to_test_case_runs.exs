@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddFlakyToTestCaseRuns do
+defmodule Tuist.Repo.Migrations.AddFlakyToTestCaseRuns do
   use Ecto.Migration
 
   def change do

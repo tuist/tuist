@@ -6,7 +6,7 @@ if [ ! -z "$TUIST_USE_IPV6" ]; then
   export ECTO_IPV6="true"
 fi
 
-if [ ! -z "$TUIST_CLOUD_HOSTED" ]; then
+if [ ! -z "$TUIST_HOSTED" ]; then
   export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
   export RELEASE_DISTRIBUTION="name"
   export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"

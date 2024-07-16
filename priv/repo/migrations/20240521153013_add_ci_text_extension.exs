@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddCiTextExtension do
+defmodule Tuist.Repo.Migrations.AddCiTextExtension do
   use Ecto.Migration
 
   def up do

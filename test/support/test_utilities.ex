@@ -1,4 +1,4 @@
-defmodule TuistCloud.TestUtilities do
+defmodule Tuist.TestUtilities do
   @moduledoc ~S"""
   A module that provides functions for testing.
   """

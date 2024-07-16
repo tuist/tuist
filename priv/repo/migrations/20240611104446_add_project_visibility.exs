@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddProjectVisibility do
+defmodule Tuist.Repo.Migrations.AddProjectVisibility do
   use Ecto.Migration
 
   def change do
