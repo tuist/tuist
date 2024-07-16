@@ -5,7 +5,7 @@ description: Learn how to optimize workflows with Tuist.
 
 # Optimize workflows
 
-Because Tuist knows about your project through your description and the insights it collects, it can optimize your workflows to make them more efficient. Let's see some examples.
+Because Tuist knows your project through your description and the insights it collects, it can optimize your workflows to make them more efficient. Let's see some examples.
 
 ## Smart test runs
 
