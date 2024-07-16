@@ -290,14 +290,14 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</div>`,
+        text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()}</div>`,
         link: "guides/develop/workflows",
         items: [],
       },
     ],
   },
   {
-    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</div>`,
+    text: `<div style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</div>`,
     link: "guides/share",
     items: [],
   },
