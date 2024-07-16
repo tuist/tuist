@@ -27,15 +27,13 @@ Copy `tuist/myapp`, which represents the full handle of the project.
 
 ## Connect projects
 
-After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit`, and create a `Config.swift` file under Tuist with the following content:
+After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit` and edit the `Config.swift` file to include the full handle of the project:
 
 ```swift
 import ProjectDescription
 
-let config = Config(cloud: .cloud(projectId: "tuist/myapp"))
+let config = Config(fullHandle: "tuist/myapp")
 ```
-
-Where `projectId` is the full handle of the project you copied earlier.
 
 Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
 
