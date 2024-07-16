@@ -20,7 +20,7 @@ You can then create a project by running:
 ```bash
 tuist project create my-handle/MyApp
 
-# Tuist project tuist/myapp was successfully created 🎉
+# Tuist project my-handle/MyApp was successfully created 🎉
 ```
 
 Copy `my-handle/MyApp`, which represents the full handle of the project.
