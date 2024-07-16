@@ -556,9 +556,6 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization when new pricing model is enabled" do
       # Given
-      Environment
-      |> expect(:new_pricing_model?, fn -> true end)
-
       Billing
       |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
 
@@ -822,9 +819,6 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when new pricing model is enabled" do
       # Given
-      Environment
-      |> expect(:new_pricing_model?, fn -> true end)
-
       Billing
       |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
 

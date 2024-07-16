@@ -93,8 +93,7 @@ defmodule TuistWeb.LayoutLive do
      })
      |> assign(
        :can_read_billing,
-       Authorization.can(current_user, :read, selected_account, :billing) and
-         Tuist.Environment.new_pricing_model?()
+       Authorization.can(current_user, :read, selected_account, :billing)
      )
      |> assign_most_recent_release()
      |> assign(:selected_account, selected_account)

@@ -216,7 +216,7 @@ defmodule Tuist.Accounts do
       end)
       |> Repo.transaction()
 
-    if start_trial and Environment.new_pricing_model?() do
+    if start_trial do
       account = Accounts.get_account_from_organization(organization)
       Billing.start_trial(%{plan: :air, account: account})
     end
@@ -365,7 +365,7 @@ defmodule Tuist.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
-        if start_trial and Environment.new_pricing_model?() do
+        if start_trial do
           account = Accounts.get_account_from_user(user)
           Billing.start_trial(%{plan: :air, account: account})
         end

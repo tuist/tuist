@@ -14,15 +14,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
   def init(opts), do: opts
 
-  def call(conn, opts) do
-    call(conn, opts, Tuist.Environment.new_pricing_model?())
-  end
-
-  def call(conn, _, false) do
-    conn
-  end
-
-  def call(conn, _, true) do
+  def call(conn, _) do
     account = Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
 
     subscription = Billing.get_current_active_subscription(account)

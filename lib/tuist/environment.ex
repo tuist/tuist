@@ -69,10 +69,6 @@ defmodule Tuist.Environment do
     Date.diff(license_expiration_date(), Date.utc_today())
   end
 
-  def new_pricing_model?() do
-    false
-  end
-
   def version() do
     version = get([:version])
 

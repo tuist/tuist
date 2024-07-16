@@ -28,8 +28,6 @@ defmodule TuistWeb.LayoutLiveTest do
       socket
     end)
 
-    Tuist.Environment |> stub(:new_pricing_model?, fn -> true end)
-
     %{account: account} =
       organization =
       AccountsFixtures.organization_fixture(
