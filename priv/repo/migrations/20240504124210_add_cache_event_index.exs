@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddCacheEventIndex do
+defmodule Tuist.Repo.Migrations.AddCacheEventIndex do
   use Ecto.Migration
 
   def change do

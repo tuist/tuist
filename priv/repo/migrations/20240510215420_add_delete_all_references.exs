@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddDeleteAllReferences do
+defmodule Tuist.Repo.Migrations.AddDeleteAllReferences do
   use Ecto.Migration
 
   def up do

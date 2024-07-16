@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddCommandEventUserId do
+defmodule Tuist.Repo.Migrations.AddCommandEventUserId do
   use Ecto.Migration
 
   def change do

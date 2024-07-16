@@ -1,16 +1,16 @@
-defmodule TuistCloud.ProjectsFixtures do
+defmodule Tuist.ProjectsFixtures do
   @moduledoc false
 
-  import TuistCloud.TestUtilities
-  alias TuistCloud.Repo
-  alias TuistCloud.Projects
+  import Tuist.TestUtilities
+  alias Tuist.Repo
+  alias Tuist.Projects
 
   def project_fixture(opts \\ []) do
     account_id =
       Keyword.get_lazy(opts, :account_id, fn ->
-        organization_id = TuistCloud.AccountsFixtures.organization_fixture().id
+        organization_id = Tuist.AccountsFixtures.organization_fixture().id
 
-        Repo.get_by!(TuistCloud.Accounts.Account,
+        Repo.get_by!(Tuist.Accounts.Account,
           organization_id: organization_id
         ).id
       end)

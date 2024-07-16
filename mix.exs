@@ -1,9 +1,9 @@
-defmodule TuistCloud.MixProject do
+defmodule Tuist.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :tuist_cloud,
+      app: :tuist,
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -11,7 +11,7 @@ defmodule TuistCloud.MixProject do
       aliases: aliases(),
       deps: deps(),
       releases: [
-        tuist_cloud: [
+        tuist: [
           applications: [opentelemetry: :temporary]
         ]
       ]
@@ -23,7 +23,7 @@ defmodule TuistCloud.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {TuistCloud.Application, []},
+      mod: {Tuist.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -123,9 +123,9 @@ defmodule TuistCloud.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild tuist_cloud"],
+      "assets.build": ["esbuild tuist"],
       "assets.deploy": [
-        "esbuild tuist_cloud --minify",
+        "esbuild tuist --minify",
         "phx.digest"
       ]
     ]

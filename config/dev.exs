@@ -1,9 +1,9 @@
 import Config
 
 # Configure your database
-config :tuist_cloud, TuistCloud.Repo,
+config :tuist, Tuist.Repo,
   hostname: "localhost",
-  database: "tuistcloud_development",
+  database: "tuist_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -14,7 +14,7 @@ config :tuist_cloud, TuistCloud.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :tuist_cloud, TuistCloudWeb.Endpoint,
+config :tuist, TuistWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 8080],
@@ -22,7 +22,7 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:tuist_cloud, ~w(--sourcemap=inline --watch)]}
+    esbuild: {Esbuild, :install_and_run, [:tuist, ~w(--sourcemap=inline --watch)]}
   ]
 
 # ## SSL Support
@@ -49,18 +49,18 @@ config :tuist_cloud, TuistCloudWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :tuist_cloud, TuistCloudWeb.Endpoint,
+config :tuist, TuistWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
-      ~r"lib/tuist_cloud_web/(controllers|live|components)/.*(ex|heex)$"
+      ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$"
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :tuist_cloud, dev_routes: true
+config :tuist, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
@@ -75,7 +75,7 @@ config :phoenix, :plug_init_mode, :runtime
 # Include HEEx debug annotations as HTML comments in rendered markup
 config :phoenix_live_view, :debug_heex_annotations, true
 
-config :tuist_cloud, TuistCloud.Mailer, adapter: Bamboo.LocalAdapter
+config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 config :appsignal, :config, active: true
 

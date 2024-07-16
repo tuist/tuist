@@ -37,4 +37,4 @@ npm-debug.log
 
 .DS_Store
 master.key
-priv/native/libtuistcloud_native.so
+priv/native/libtuist_native.so

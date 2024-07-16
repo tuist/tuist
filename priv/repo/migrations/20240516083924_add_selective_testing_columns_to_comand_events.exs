@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddSelectiveTestingColumnsToComandEvents do
+defmodule Tuist.Repo.Migrations.AddSelectiveTestingColumnsToComandEvents do
   use Ecto.Migration
 
   def change do

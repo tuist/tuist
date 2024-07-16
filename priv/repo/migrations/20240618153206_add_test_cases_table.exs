@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.DataMigrations.TestCaseRuns.MigratingSchema do
+defmodule Tuist.Repo.DataMigrations.TestCaseRuns.MigratingSchema do
   use Ecto.Schema
 
   schema "test_case_runs" do
@@ -13,9 +13,9 @@ defmodule TuistCloud.Repo.DataMigrations.TestCaseRuns.MigratingSchema do
   end
 end
 
-defmodule TuistCloud.Repo.Migrations.AddTestCasesTable do
+defmodule Tuist.Repo.Migrations.AddTestCasesTable do
   use Ecto.Migration
-  alias TuistCloud.Repo.DataMigrations.TestCaseRuns.MigratingSchema
+  alias Tuist.Repo.DataMigrations.TestCaseRuns.MigratingSchema
 
   def up do
     create table(:test_cases) do
@@ -32,7 +32,7 @@ defmodule TuistCloud.Repo.Migrations.AddTestCasesTable do
     create unique_index(:test_cases, [:identifier])
     create index(:test_case_runs, [:identifier, :status, :module_hash])
 
-    TuistCloud.Repo.delete_all(MigratingSchema)
+    Tuist.Repo.delete_all(MigratingSchema)
 
     alter table(:test_case_runs) do
       remove :identifier

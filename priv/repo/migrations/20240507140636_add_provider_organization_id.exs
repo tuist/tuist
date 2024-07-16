@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddProviderOrganizationId do
+defmodule Tuist.Repo.Migrations.AddProviderOrganizationId do
   use Ecto.Migration
 
   def change do

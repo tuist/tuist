@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddTestCaseRuns do
+defmodule Tuist.Repo.Migrations.AddTestCaseRuns do
   use Ecto.Migration
 
   def change do

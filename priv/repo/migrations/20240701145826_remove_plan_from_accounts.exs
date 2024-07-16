@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.RemovePlanFromAccounts do
+defmodule Tuist.Repo.Migrations.RemovePlanFromAccounts do
   use Ecto.Migration
 
   def up do

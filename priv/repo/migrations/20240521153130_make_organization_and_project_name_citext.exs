@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.MakeOrganizationAndProjectNameCitext do
+defmodule Tuist.Repo.Migrations.MakeOrganizationAndProjectNameCitext do
   use Ecto.Migration
 
   def change do

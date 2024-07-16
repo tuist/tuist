@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.MakeUsersEmailCaseInsensitive do
+defmodule Tuist.Repo.Migrations.MakeUsersEmailCaseInsensitive do
   use Ecto.Migration
 
   def change do

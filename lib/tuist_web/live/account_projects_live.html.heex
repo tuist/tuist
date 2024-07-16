@@ -1,0 +1,80 @@
+<%= if not Enum.empty?(@projects) do %>
+  <div class="account__projects">
+    <h2 class="account__projects__title text--extraExtraLarge font--semibold">
+      <%= gettext("Projects") %>
+    </h2>
+
+    <div class="account__projects__panel">
+      <ul class="account__projects__panel__list">
+        <.link
+          :for={project <- @projects}
+          class="account__projects__panel__list__item"
+          navigate={~p"/#{@selected_account.name}/#{project.name}"}
+        >
+          <li>
+            <%= project.name %>
+          </li>
+        </.link>
+      </ul>
+    </div>
+  </div>
+<% else %>
+  <div class="account__projects__get-started">
+    <.decorative_background class="account__projects__get-started__background" />
+    <.stack class="account__projects__get-started__header" gap="3xl">
+      <img
+        class="account__projects__get-started__header__logo"
+        src="/images/tuist_logo_32x32@2x.png"
+        alt="Tuist Icon"
+      />
+      <.stack gap="lg">
+        <h2 class="account__projects__get-started__header__title font--semibold text--extraExtraLarge color--text-primary">
+          <%= gettext("Create a project") %>
+        </h2>
+        <p class="account__projects__get-started__header__text text--medium color--text-tertiary">
+          <%= gettext("Let's get you started.") %>
+        </p>
+      </.stack>
+    </.stack>
+
+    <.card class="account__projects__get-started__steps-card">
+      <.stack gap="2xl">
+        <.stack gap="l">
+          <.section_header title={gettext("Authenticate")} />
+          <p class="text--medium color--text-tertiary">
+            <%= gettext("To authenticate interactions with the server") %>
+          </p>
+        </.stack>
+        <code class="account__projects__code">
+          <span class="text-green-500 select-none">$&nbsp;</span><span class="account__projects__code__executable">tuist&nbsp;</span>auth
+        </code>
+      </.stack>
+    </.card>
+    <div class="account__projects__get-started__more-cards">
+      <.more_card
+        title={gettext("Documentation")}
+        subtitle={gettext("Dive in to learn more about Tuist.")}
+        link="https://docs.tuist.io/cloud/what-is-cloud.html"
+        link_text={gettext("Start learning")}
+      >
+        <:icon><.code_icon /></:icon>
+      </.more_card>
+      <.more_card
+        title={gettext("Our blog")}
+        subtitle={gettext("Read the latest posts on our blog.")}
+        link="https://tuist.io/blog"
+        link_text={gettext("View latest posts")}
+      >
+        <:icon><.book_open_icon /></:icon>
+      </.more_card>
+      <.more_card
+        title={gettext("Chat to us")}
+        subtitle={gettext("Can’t find what you’re looking for?.")}
+        link="https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw"
+        link_text={gettext("Join our Slack")}
+      >
+        <:icon><.message_chat_icon /></:icon>
+      </.more_card>
+    </div>
+  </div>
+<% end %>

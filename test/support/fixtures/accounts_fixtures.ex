@@ -1,8 +1,8 @@
-defmodule TuistCloud.AccountsFixtures do
+defmodule Tuist.AccountsFixtures do
   @moduledoc false
 
-  alias TuistCloud.Accounts
-  alias TuistCloud.TestUtilities
+  alias Tuist.Accounts
+  alias Tuist.TestUtilities
 
   def user_fixture(opts \\ []) do
     email = Keyword.get(opts, :email, unique_user_email())
@@ -22,7 +22,7 @@ defmodule TuistCloud.AccountsFixtures do
         start_trial: start_trial
       )
 
-    user |> TuistCloud.Repo.preload(preloads)
+    user |> Tuist.Repo.preload(preloads)
   end
 
   def organization_fixture(opts \\ []) do
@@ -42,10 +42,10 @@ defmodule TuistCloud.AccountsFixtures do
       customer_id: customer_id,
       start_trial: start_trial
     )
-    |> TuistCloud.Repo.preload(preloads)
+    |> Tuist.Repo.preload(preloads)
   end
 
-  def unique_user_email, do: "#{TestUtilities.unique_integer()}@cloud.tuist.io"
+  def unique_user_email, do: "#{TestUtilities.unique_integer()}@tuist.io"
   def valid_user_password, do: "hello world!"
 
   def valid_user_attributes(attrs \\ %{}) do

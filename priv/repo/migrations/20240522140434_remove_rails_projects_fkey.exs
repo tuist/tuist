@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.RemoveRailsProjectsFkey do
+defmodule Tuist.Repo.Migrations.RemoveRailsProjectsFkey do
   use Ecto.Migration
 
   def up do

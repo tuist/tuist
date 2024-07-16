@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.CreateGuardianDBTokensTable do
+defmodule Tuist.Repo.Migrations.CreateGuardianDBTokensTable do
   use Ecto.Migration
 
   def change do

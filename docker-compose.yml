@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: tuist_cloud
+    container_name: tuist
     depends_on:
       - db
     ports:
@@ -45,21 +45,18 @@ services:
       - "8080"
       - "443:443"
     environment:
-      # Base Tuist Env - https://docs.tuist.io/cloud/on-premise#base-environment-configuration
       TUIST_USE_SSL_FOR_DATABASE: "0"
       TUIST_LICENSE:  ""
-      TUIST_CLOUD_HOSTED: "0"
       DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
       TUIST_APP_URL: https://localhost:8080
       TUIST_SECRET_KEY_BASE: # ...
       WEB_CONCURRENCY: 80
 
       # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/cloud/on-premise#github
       TUIST_GITHUB_OAUTH_ID:
       TUIST_GITHUB_OAUTH_SECRET:
 
-      # Okta Auth - https://docs.tuist.io/cloud/on-premise#okta
+      # Okta Auth
       TUIST_OKTA_SITE:
       TUIST_OKTA_CLIENT_ID:
       TUIST_OKTA_CLIENT_SECRET:

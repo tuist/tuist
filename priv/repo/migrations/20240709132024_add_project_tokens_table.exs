@@ -1,4 +1,4 @@
-defmodule TuistCloud.Repo.Migrations.AddProjectTokensTable do
+defmodule Tuist.Repo.Migrations.AddProjectTokensTable do
   use Ecto.Migration
 
   def change do

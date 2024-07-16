@@ -1,4 +1,4 @@
-name: Cloud Canary Deployment
+name: Canary Deployment
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
   canary:
     environment:
       name: canary
-      url: https://cloud-canary.tuist.io
+      url: https://canary.tuist.io
     name: Canary Deployment
     env:
       DOCKER_BUILDKIT: 1
@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: tuist/tuist-cloud
+          repository: tuist/server
           token: ${{ secrets.TUIST_CLOUD_TOKEN }}
       - uses: jdx/mise-action@v2
       - name: Select Xcode
