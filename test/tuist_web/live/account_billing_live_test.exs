@@ -3,15 +3,11 @@ defmodule TuistWeb.AccountBillingLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
-  alias Tuist.Environment
   alias Tuist.Billing
   alias Tuist.Accounts
   alias Tuist.AccountsFixtures
 
   setup %{conn: conn} do
-    Environment
-    |> stub(:new_pricing_model?, fn -> true end)
-
     user = AccountsFixtures.user_fixture()
 
     %{account: account} =

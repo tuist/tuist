@@ -13,9 +13,6 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup do
     project = ProjectsFixtures.project_fixture() |> Repo.preload(:account)
 
-    Tuist.Environment
-    |> stub(:new_pricing_model?, fn -> true end)
-
     %{
       project: project,
       user: AccountsFixtures.user_fixture(preloads: [:account])

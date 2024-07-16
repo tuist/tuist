@@ -6,11 +6,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   alias Tuist.CommandEventsFixtures
   alias Tuist.ProjectsFixtures
   alias Tuist.Accounts
+  alias Tuist.Billing
   use TuistWeb.ConnCase, async: true
   use Mimic
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+    Billing |> stub(:start_trial, fn _ -> :ok end)
     %{user: user}
   end
 

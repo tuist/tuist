@@ -4,6 +4,7 @@ alias Tuist.Projects.Project
 alias Tuist.CommandEvents
 import Ecto.Query, only: [from: 2]
 
+# Stubs
 email = "tuist@tuist.io"
 password = "tuistrocks"
 
@@ -13,7 +14,11 @@ account =
 account =
   if is_nil(account) do
     {:ok, account} =
-      Accounts.create_user(email, password: password, confirmed_at: NaiveDateTime.utc_now())
+      Accounts.create_user(email,
+        password: password,
+        confirmed_at: NaiveDateTime.utc_now(),
+        start_trial: false
+      )
 
     account
   else
@@ -57,7 +62,7 @@ org_account =
   if Accounts.get_organization_account_by_name("tuist-org") do
     Accounts.get_organization_account_by_name("tuist-org").organization
   else
-    Accounts.create_organization(%{name: "tuist-org", creator: user})
+    Accounts.create_organization(%{name: "tuist-org", creator: user}, start_trial: false)
   end
 
 _org_project =

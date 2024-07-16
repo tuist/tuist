@@ -1,15 +1,9 @@
 defmodule TuistWeb.AccountBillingLive do
-  alias Tuist.Environment
   alias Tuist.Billing
   alias Tuist.Accounts
   use TuistWeb, :live_view
 
   def mount(%{"account_handle" => account_handle} = params, session, %{assigns: %{}} = socket) do
-    if not Environment.new_pricing_model?() do
-      raise TuistWeb.Errors.NotFoundError,
-            gettext("The billing page is not available at the moment.")
-    end
-
     owner = Accounts.get_account_by_handle(account_handle)
 
     user_token = session["user_token"]
