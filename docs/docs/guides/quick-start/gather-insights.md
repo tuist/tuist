@@ -32,7 +32,7 @@ After creating the project on the server, you'll have to connect it to your loca
 ```swift
 import ProjectDescription
 
-let config = Config(fullHandle: "tuist/myapp")
+let config = Config(fullHandle: "my-handle/MyApp")
 ```
 
 Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
