@@ -125,6 +125,10 @@ export default defineConfig({
       },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
+      {
+        component: "Button",
+        props: { title: "Log in", href: "https://cloud.tuist.io/users/log_in" },
+      },
     ],
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
