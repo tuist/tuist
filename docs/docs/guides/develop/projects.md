@@ -12,7 +12,7 @@ Some organizations choose to bypass the compiler by abstracting the platform usi
 
 ## Tuist Projects
 
-Tuist Projects is a viable alternative that aids in surmounting these challenges while maintaining complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and utilizes Xcode project generation to offer teams a modularization-focused declarative API. Tuist uses the project declaration to **simplify the complexities of modularization**, **optimize workflows** like build or test across various environments, and facilitate and **democratize the evolution of Xcode projects**.
+Tuist Projects is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to **simplify the complexities of modularization**, **optimize workflows** like build or test across various environments, and facilitate and **democratize the evolution of Xcode projects**.
 
 ## Project generation as a foundation
 
