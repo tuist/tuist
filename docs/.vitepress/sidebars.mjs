@@ -292,21 +292,17 @@ export const guidesSidebar = [
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
         link: "guides/develop/workflows",
-        collapsed: true,
-        items: [],
       },
     ],
   },
   {
     text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</span>`,
     link: "guides/share",
-    collapsed: true,
-    items: [],
   },
-  {
-    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,
-    items: [],
-  },
+  // {
+  //   text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,
+  //   items: [],
+  // },
   {
     text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</span>`,
     collapsed: true,
