@@ -37,7 +37,7 @@ To start working on the project, we can follow the steps below:
 
 ## Edit the project
 
-If you needed to edit the project, for example to add dependencies or adjust targets, you can use the [`tuist edit` command](/guide/project/editing). This is barely used, but it's good to know that it exists.
+If you needed to edit the project, for example to add dependencies or adjust targets, you can use the [`tuist edit` command](/guides/develop/projects/editing). This is barely used, but it's good to know that it exists.
 
 ## Run Tuist
 
@@ -56,7 +56,7 @@ You'll also have to set the working directory to the root of the project being g
 
 ### From the terminal
 
-Although `tuist` provides a [run command](/guide/automation/run) it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
+Although `tuist` provides a `tuist run` it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
 
 ```bash
 swift build --product ProjectDescription
