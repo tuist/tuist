@@ -120,6 +120,17 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.can(user, :read, project, :cache) == false
   end
 
+  test "can.read.project.cache when the subject is a user that doesn't belong to the project organization and the project is public" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.can(user, :read, project, :cache) == true
+  end
+
   test "can.create.project.cache when the subject is a user that belongs to the project organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
