@@ -23,7 +23,7 @@ tuist project create my-handle/MyApp
 # Tuist project tuist/myapp was successfully created 🎉
 ```
 
-Copy `tuist/myapp`, which represents the full handle of the project.
+Copy `my-handle/MyApp`, which represents the full handle of the project.
 
 ## Connect projects
 
