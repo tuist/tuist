@@ -28,6 +28,7 @@ To start working on the project, we can follow the steps below:
 - [Install](https://mise.jdx.dev/getting-started.html) Mise to provision the development environment.
 - Run `mise install` to install the system dependencies needed by Tuist
 - Run `tuist install` to install the external dependencies needed by Tuist
+- (Optional) Run `tuist auth` to get access to the [Tuist Cache](/guides/develop/build/cache)
 - Run `tuist generate` to generate the Tuist Xcode project using Tuist itself
 
 **The generated project opens automatically**. If you need to open again without generating it, run open `Tuist.xcworkspace` (or use Finder).
