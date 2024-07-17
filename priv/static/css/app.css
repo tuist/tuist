@@ -1,7 +1,7 @@
-@import "./tokens.css";
-@import "./utilities.css";
-@import "./layouts.css";
-@import "./components.css";
+@import "./app/tokens.css";
+@import "./shared/utilities.css";
+@import "./app/layouts.css";
+@import "./app/components.css";
 
 body {
   margin: 0;

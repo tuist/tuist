@@ -1,4 +1,4 @@
-defmodule TuistWeb.CoreComponents do
+defmodule TuistWeb.AppComponents do
   @moduledoc """
   Provides core UI components.
 
