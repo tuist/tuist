@@ -95,8 +95,10 @@ RUN chown nobody /app
 
 # set runner ENV
 ARG MIX_ENV=prod
+ARG APP_REVISION
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_VERSION=$TUIST_VERSION
+ENV APP_REVISION=$APP_REVISION
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
