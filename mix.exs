@@ -123,9 +123,10 @@ defmodule Tuist.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild tuist"],
+      "assets.build": ["esbuild app", "esbuild marketing"],
       "assets.deploy": [
-        "esbuild tuist --minify",
+        "esbuild app --minify",
+        "esbuild marketing --minify",
         "phx.digest"
       ]
     ]

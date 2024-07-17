@@ -52,7 +52,7 @@ defmodule TuistWeb do
   def live_view do
     quote do
       use Phoenix.LiveView
-      import TuistWeb.LayoutComponents
+      import TuistWeb.AppLayoutComponents
 
       unquote(html_helpers())
     end
@@ -84,11 +84,11 @@ defmodule TuistWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       # Core UI components and translation
-      import TuistWeb.CoreComponents
+      import TuistWeb.AppComponents
       import TuistWeb.HeadlessComponents
-      import TuistWeb.AuthComponents
+      import TuistWeb.AppAuthComponents
       import TuistWeb.Components.IconComponents
-      import TuistWeb.CommandEventComponents
+      import TuistWeb.AppCommandEventComponents
       import TuistWeb.Gettext
 
       # Shortcut for generating JS commands

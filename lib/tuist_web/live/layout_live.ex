@@ -10,7 +10,7 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.Projects
   alias Tuist.Github
   import Phoenix.Component
-  import TuistWeb.LayoutComponents
+  import TuistWeb.AppLayoutComponents
 
   def on_mount(
         :project,

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title>
+      <%= assigns[:page_title] || "Tuist" %>
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags />
+    <TuistWeb.LayoutComponents.head_x_meta_tags />
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/css/marketing.css"} />
+    <script defer phx-track-static type="module" src={~p"/assets/marketing.js"}>
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <TuistWeb.LayoutComponents.head_analytics_scripts />
+  </head>
+  <body>
+    <%= @inner_content %>
+  </body>
+</html>

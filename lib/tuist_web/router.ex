@@ -5,15 +5,28 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
 
+  @include_marketing_routes Mix.env() == :dev
+
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
 
-  pipeline :browser do
+  pipeline :browser_app do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Layouts, :root}
+    plug :put_root_layout, html: {TuistWeb.Layouts, :app}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug Ueberauth
+    plug :fetch_current_user
+  end
+
+  pipeline :browser_marketing do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Layouts, :marketing}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug Ueberauth
@@ -45,8 +58,17 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
+  # Marketing
+  if @include_marketing_routes do
+    scope "/" do
+      pipe_through [:open_api, :browser_marketing]
+
+      get "/", TuistWeb.MarketingController, :home
+    end
+  end
+
   scope "/" do
-    pipe_through [:open_api, :browser]
+    pipe_through [:open_api, :browser_app]
 
     get "/ready", TuistWeb.PageController, :ready
     get "/api/docs", TuistWeb.APIController, :docs
@@ -137,7 +159,7 @@ defmodule TuistWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
-      pipe_through :browser
+      pipe_through :browser_app
 
       live_dashboard "/dashboard", metrics: TuistWeb.Telemetry
       forward "/sent_emails", Bamboo.SentEmailViewerPlug
@@ -147,7 +169,7 @@ defmodule TuistWeb.Router do
   ## Authentication routes
 
   scope "/", TuistWeb do
-    pipe_through [:browser, :redirect_if_user_is_authenticated]
+    pipe_through [:browser_app, :redirect_if_user_is_authenticated]
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
@@ -161,7 +183,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
-    pipe_through [:browser, :require_authenticated_user, :analytics]
+    pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
@@ -171,7 +193,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
-    pipe_through [:browser]
+    pipe_through [:browser_app]
 
     delete "/users/log_out", UserSessionController, :delete
 
@@ -183,13 +205,13 @@ defmodule TuistWeb.Router do
   end
 
   scope "/users/auth", TuistWeb do
-    pipe_through :browser
+    pipe_through :browser_app
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
   end
 
   scope "/auth", TuistWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser_app, :require_authenticated_user]
 
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
@@ -204,7 +226,7 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [
       :open_api,
-      :browser,
+      :browser_app,
       :require_authenticated_user,
       :analytics,
       TuistWeb.AutoRedirectToProjectPlug
@@ -228,7 +250,7 @@ defmodule TuistWeb.Router do
   scope "/:account_handle/:project_handle", TuistWeb do
     pipe_through [
       :open_api,
-      :browser,
+      :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
       :analytics,

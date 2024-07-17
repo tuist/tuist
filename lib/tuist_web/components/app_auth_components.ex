@@ -1,10 +1,10 @@
-defmodule TuistWeb.AuthComponents do
+defmodule TuistWeb.AppAuthComponents do
   @moduledoc """
   Auth components for Tuist
   """
 
   use Phoenix.Component
-  import TuistWeb.CoreComponents
+  import TuistWeb.AppComponents
 
   attr(:title, :string, required: true)
   attr(:subtitle, :string, required: true)

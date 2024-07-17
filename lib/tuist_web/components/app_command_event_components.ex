@@ -1,10 +1,10 @@
-defmodule TuistWeb.CommandEventComponents do
+defmodule TuistWeb.AppCommandEventComponents do
   @moduledoc """
   Components for presenting command events
   """
 
   use Phoenix.Component
-  import TuistWeb.CoreComponents
+  import TuistWeb.AppComponents
   import TuistWeb.Components.IconComponents
   import TuistWeb.Gettext
 

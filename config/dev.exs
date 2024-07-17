@@ -22,7 +22,8 @@ config :tuist, TuistWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:tuist, ~w(--sourcemap=inline --watch)]}
+    esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
+    esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]}
   ]
 
 # ## SSL Support
