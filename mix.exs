@@ -12,7 +12,10 @@ defmodule Tuist.MixProject do
       deps: deps(),
       releases: [
         tuist: [
-          applications: [opentelemetry: :temporary]
+          applications: [
+            opentelemetry_exporter: :permanent,
+            opentelemetry: :temporary
+          ]
         ]
       ]
     ]
