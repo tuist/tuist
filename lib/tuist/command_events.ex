@@ -718,29 +718,40 @@ defmodule Tuist.CommandEvents do
     |> Repo.insert!()
   end
 
+  defp get_action_test_plan_run_summaries(action, %{
+         command_event: command_event
+       }) do
+    test_plan_summaries_object_key =
+      get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
+
+    if Storage.object_exists?(test_plan_summaries_object_key) do
+      {:ok, test_plan_summaries_string} =
+        Storage.get_object_as_string(test_plan_summaries_object_key)
+
+      {:ok, test_plan_summaries} = test_plan_summaries_string |> Jason.decode()
+      test_plan_summaries |> get_actions_test_plan_run_summaries()
+    else
+      %{summaries: []}
+    end
+  end
+
   def get_test_summary(%Event{} = command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
 
     if Storage.object_exists?(invocation_record_key) do
-      {:ok, invocation_record} =
-        Storage.get_object_as_string(invocation_record_key)
-        |> Jason.decode()
+      {:ok, invocation_record_string} = Storage.get_object_as_string(invocation_record_key)
+      {:ok, invocation_record} = invocation_record_string |> Jason.decode()
 
       invocation_record = get_actions_invocation_record(invocation_record)
 
       test_case_run_summaries =
         invocation_record.actions
         |> Enum.filter(fn action -> action.scheme_command_name == "Test" end)
-        |> Enum.map(fn action ->
-          {:ok, test_plan_summaries} =
-            Storage.get_object_as_string(
-              get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
-            )
-            |> Jason.decode()
-
-          test_plan_summaries
-          |> get_actions_test_plan_run_summaries()
-        end)
+        |> Enum.map(
+          &get_action_test_plan_run_summaries(&1, %{
+            command_event: command_event
+          })
+        )
         |> Enum.flat_map(& &1.summaries)
 
       project_tests =

@@ -125,7 +125,7 @@ defmodule Tuist.StorageTest do
       end)
 
       # When
-      assert Storage.get_object_as_string("object-key") == object
+      assert Storage.get_object_as_string("object-key") == {:ok, object}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration},
