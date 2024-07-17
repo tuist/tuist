@@ -7,9 +7,6 @@ console_command = "/app/bin/rails console"
 [experimental]
   auto_rollback = true
 
-[deploy]
-  release_command = '/app/bin/migrate'
-
 [env]
   PORT = "8080"
   MIX_ENV="prod"
