@@ -126,8 +126,17 @@ export default defineConfig({
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
       {
-        component: "Button",
-        props: { title: "Log in", href: "https://cloud.tuist.io/users/log_in" },
+        text: "Server",
+        items: [
+          {
+            text: "Dashboard",
+            link: "https://cloud.tuist.io",
+          },
+          {
+            text: "API Documentation",
+            link: "https://cloud.tuist.io/api/docs",
+          },
+        ],
       },
     ],
     editLink: {
