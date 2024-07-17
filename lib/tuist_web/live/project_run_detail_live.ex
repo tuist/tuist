@@ -10,13 +10,16 @@ defmodule TuistWeb.ProjectRunDetailLive do
         preloads: [user: :account, project: :account]
       )
 
+    local_cache_target_hits = command_event.local_cache_target_hits || []
+    remote_cache_target_hits = command_event.remote_cache_target_hits || []
+
     cache_misses =
       command_event.cacheable_targets --
-        (command_event.local_cache_target_hits ++ command_event.remote_cache_target_hits)
+        (local_cache_target_hits ++ remote_cache_target_hits)
 
     cacheable_targets =
-      (Enum.map(command_event.local_cache_target_hits, &%{name: &1, cache_hit: :local}) ++
-         Enum.map(command_event.remote_cache_target_hits, &%{name: &1, cache_hit: :remote}) ++
+      (Enum.map(local_cache_target_hits, &%{name: &1, cache_hit: :local}) ++
+         Enum.map(remote_cache_target_hits, &%{name: &1, cache_hit: :remote}) ++
          Enum.map(cache_misses, &%{name: &1, cache_hit: :miss}))
       |> Enum.sort_by(& &1.name)
 
