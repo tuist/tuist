@@ -16,6 +16,15 @@ defmodule Tuist.Release do
     end
   end
 
+  def rollback() do
+    load_app()
+    version = System.fetch_env!("ROLLBACK_VERSION") |> String.to_integer()
+
+    for repo <- repos() do
+      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
+    end
+  end
+
   def rollback(repo, version) do
     load_app()
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
