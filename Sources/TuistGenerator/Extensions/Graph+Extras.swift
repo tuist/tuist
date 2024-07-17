@@ -41,7 +41,7 @@ extension XcodeGraph.Graph {
         )
 
         return filteredTargetsAndDependencies.reduce(into: [GraphTarget: Set<GraphDependency>]()) { result, target in
-            if skipExternalDependencies, target.project.isExternal { return }
+            if skipExternalDependencies, target.project.type == .remotePackage { return }
 
             guard let targetDependencies = graphTraverser
                 .dependencies[.target(name: target.target.name, path: target.path)]
@@ -52,7 +52,7 @@ extension XcodeGraph.Graph {
 
             result[target] = targetDependencies
                 .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal(projects) { return false }
+                    if skipExternalDependencies, dependency.isRemote(projects) { return false }
                     return true
                 }
         }
@@ -60,10 +60,10 @@ extension XcodeGraph.Graph {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
+    fileprivate func isRemote(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
         case let .target(_, path):
-            return projects[path]?.isExternal ?? false
+            return projects[path]?.type == .remotePackage
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro:
             return true
         }

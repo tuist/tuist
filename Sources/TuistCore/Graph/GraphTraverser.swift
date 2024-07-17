@@ -676,13 +676,18 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+        directTargetDependencies(path: path, name: name)
+            .filter { $0.graphTarget.project.type == .remotePackage || $0.graphTarget.project.type == .localPackage }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(graph.projects.flatMap { path, project -> [GraphTarget] in
-            guard project.isExternal else { return [] }
-            return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+            switch project.type {
+            case .tuistProject:
+                return []
+            case .remotePackage, .localPackage:
+                return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+            }
         })
     }
 
@@ -1190,7 +1195,7 @@ public class GraphTraverser: GraphTraversing {
 
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            if excludingExternalTargets, project.isExternal { return [] }
+            if excludingExternalTargets, project.type == .remotePackage || project.type == .localPackage { return [] }
             return project.targets.values.map { target in
                 GraphTarget(path: projectPath, target: target, project: project)
             }

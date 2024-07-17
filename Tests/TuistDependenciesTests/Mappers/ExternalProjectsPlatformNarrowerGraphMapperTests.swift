@@ -31,7 +31,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         let project = Project.test(path: directory, targets: [appTarget])
-        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], isExternal: true)
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .remotePackage)
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
@@ -75,7 +75,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         let project = Project.test(path: directory, targets: [appTarget])
-        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], isExternal: true)
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .remotePackage)
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
@@ -136,7 +136,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [directExternalPackage, transitiveExternalPackage],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -196,7 +196,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalMacroFramework, externalMacroExecutable],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)

@@ -5,11 +5,11 @@ import TuistSupport
 public struct DependenciesGraph: Equatable, Codable {
     public struct ExternalProject: Equatable, Codable {
         public let project: Project
-        public let type: PackageType
+        public let sourcePackageType: PackageType
 
-        public init(project: Project, type: PackageType) {
+        public init(project: Project, sourcePackageType: PackageType) {
             self.project = project
-            self.type = type
+            self.sourcePackageType = sourcePackageType
         }
     }
 

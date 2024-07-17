@@ -164,7 +164,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             ) {
                 result[.path(packageInfo.folder.pathString)] = .init(
                     project: manifest,
-                    type: packageInfo.packageType
+                    sourcePackageType: packageInfo.packageType
                 )
             }
         }

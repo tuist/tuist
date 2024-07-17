@@ -14,7 +14,7 @@ public protocol ManifestModelConverting {
         path: AbsolutePath,
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        isExternal: Bool
+        type: ProjectType
     ) throws -> XcodeGraph.Project
     func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> XcodeGraph.DependenciesGraph
 }
@@ -51,7 +51,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         path: AbsolutePath,
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        isExternal: Bool
+        type: ProjectType
     ) throws -> XcodeGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try XcodeGraph.Project.from(
@@ -60,7 +60,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             plugins: plugins,
             externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator,
-            isExternal: isExternal
+            type: type
         )
     }
 
@@ -98,18 +98,18 @@ public final class ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: manifest.externalProjects
                 .map { externalProject in
                     let projectPath = try AbsolutePath(validating: externalProject.key.pathString)
-                    let isExternal: Bool = switch externalProject.value.type {
+                    let projectType: ProjectType = switch externalProject.value.sourcePackageType {
                     case .remote:
-                        true
+                        .remotePackage
                     case .local:
-                        false
+                        .localPackage
                     }
                     var project = try convert(
                         manifest: externalProject.value.project,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
-                        isExternal: isExternal
+                        type: projectType
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)

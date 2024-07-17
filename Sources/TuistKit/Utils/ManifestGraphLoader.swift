@@ -196,7 +196,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
                 path: $0.path,
                 plugins: plugins,
                 externalDependencies: externalDependencies,
-                isExternal: false
+                type: .tuistProject
             )
         }
     }

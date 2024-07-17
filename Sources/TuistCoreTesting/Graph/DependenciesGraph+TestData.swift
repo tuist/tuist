@@ -151,7 +151,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: type
+                    sourcePackageType: type
                 ),
             ]
         )
@@ -233,7 +233,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: type
+                    sourcePackageType: type
                 ),
             ]
         )
@@ -292,7 +292,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: type
+                    sourcePackageType: type
                 ),
             ]
         )
@@ -353,7 +353,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: .remote(artifactPaths: [:])
+                    sourcePackageType: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -492,7 +492,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: .remote(artifactPaths: [:])
+                    sourcePackageType: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -610,7 +610,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: .remote(artifactPaths: [:])
+                    sourcePackageType: .remote(artifactPaths: [:])
                 ),
             ]
         )
@@ -668,7 +668,7 @@ extension TuistCore.DependenciesGraph {
                         targets: targets,
                         resourceSynthesizers: .default
                     ),
-                    type: .remote(artifactPaths: [:])
+                    sourcePackageType: .remote(artifactPaths: [:])
                 ),
             ]
         )

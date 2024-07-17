@@ -52,7 +52,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -83,7 +83,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -126,7 +126,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -156,7 +156,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -184,7 +184,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -322,7 +322,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let model = try subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.externalProjects.values.first?.isExternal, true)
+        XCTAssertEqual(model.externalProjects.values.first?.type, .remotePackage)
     }
 
     func test_loadDependenciesGraph_withLocalSPM() throws {
@@ -337,7 +337,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let model = try subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.externalProjects.values.first?.isExternal, false)
+        XCTAssertEqual(model.externalProjects.values.first?.type, .localPackage)
     }
 }
 

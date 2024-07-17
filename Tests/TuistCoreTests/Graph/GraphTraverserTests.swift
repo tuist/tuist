@@ -4365,7 +4365,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
     }
 
     func test_orphanExternalDependencies() throws {
-        // Given
+        // GivenexternalTargetSupportedPlatformsexternalTargetSupportedPlatforms
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
@@ -4376,7 +4376,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct, transitivePackageProduct, packageDevProduct],
-            isExternal: true
+            type: .remotePackage
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
         let transitivePackageProductDependency = GraphDependency.target(
@@ -4400,7 +4400,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
-    func test_targetsWithExternalDependencies() {
+    func test_targetsWithExternalDependencies_whenRemotePackageDependency() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
@@ -4413,7 +4413,40 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct],
-            isExternal: true
+            type: .remotePackage
+        )
+        let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project, packageProject.path: packageProject],
+            dependencies: [
+                appDependency: Set([frameworkDependency]),
+                frameworkDependency: Set([directPackageProductDependency]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).targetsWithExternalDependencies()
+
+        // Then
+        XCTAssertEqual(got, Set([GraphTarget(path: project.path, target: framework, project: project)]))
+    }
+
+    func test_targetsWithExternalDependencies_whenLocalPackageDependency() {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
+        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app, framework])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: project.path)
+
+        let directPackageProduct = Target.test(name: "DirectPackage", destinations: [.iPhone], product: .app)
+        let packageProject = Project.test(
+            path: try! AbsolutePath(validating: "/Package"),
+            name: "Package",
+            targets: [directPackageProduct],
+            type: .localPackage
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
 
@@ -4441,21 +4474,43 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: project.path)
 
-        let directPackageProduct = Target.test(name: "DirectPackage", destinations: [.iPhone], product: .app)
-        let packageProject = Project.test(
-            path: try! AbsolutePath(validating: "/Package"),
-            name: "Package",
-            targets: [directPackageProduct],
-            isExternal: true
+        let directRemotePackageProduct = Target.test(name: "DirectRemotePackage", destinations: [.iPhone], product: .app)
+        let remotePackageProject = Project.test(
+            path: try! AbsolutePath(validating: "/RemotePackage"),
+            name: "RemotePackage",
+            targets: [directRemotePackageProduct],
+            type: .remotePackage
         )
-        let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
+        let directRemotePackageProductDependency = GraphDependency.target(
+            name: directRemotePackageProduct.name,
+            path: remotePackageProject.path
+        )
+
+        let directLocalPackageProduct = Target.test(name: "DirectLocalPackage", destinations: [.iPhone], product: .app)
+        let localPackageProject = Project.test(
+            path: try! AbsolutePath(validating: "/LocalPackage"),
+            name: "LocalPackage",
+            targets: [directLocalPackageProduct],
+            type: .localPackage
+        )
+        let directLocalPackageProductDependency = GraphDependency.target(
+            name: directLocalPackageProduct.name,
+            path: localPackageProject.path
+        )
 
         let graph = Graph.test(
             path: project.path,
-            projects: [project.path: project, packageProject.path: packageProject],
+            projects: [
+                project.path: project,
+                remotePackageProject.path: remotePackageProject,
+                localPackageProject.path: localPackageProject,
+            ],
             dependencies: [
                 appDependency: Set([frameworkDependency]),
-                frameworkDependency: Set([directPackageProductDependency]),
+                frameworkDependency: Set([
+                    directRemotePackageProductDependency,
+                    directLocalPackageProductDependency,
+                ]),
             ]
         )
 
@@ -4463,10 +4518,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allExternalTargets()
 
         // Then
-        XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: directPackageProduct, project: packageProject)]))
+        XCTAssertEqual(got, Set([
+            GraphTarget(path: remotePackageProject.path, target: directRemotePackageProduct, project: remotePackageProject),
+            GraphTarget(path: localPackageProject.path, target: directLocalPackageProduct, project: localPackageProject),
+        ]))
     }
 
-    func test_externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter() async throws {
+    func test_externalTargetSupportedPlatforms_when_remote_package_dependency_without_platform_filter() async throws {
         // Given
         let directory = try temporaryPath()
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -4487,7 +4545,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalPackage, externalPackageTargetB],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4523,7 +4581,64 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
-    func test_test_externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
+    func test_externalTargetSupportedPlatforms_when_local_package_dependency_without_platform_filter() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
+            product: .framework
+        )
+        let externalPackageTargetB = Target.test(
+            name: "PackageB",
+            destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalPackage, externalPackageTargetB],
+            type: .localPackage
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+        let externalPackageBDependency = GraphDependency.target(name: externalPackageTargetB.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+                externalPackageDependency: Set([externalPackageBDependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(from: externalPackageDependency, to: externalPackageBDependency): .when([.ios, .macos])!,
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
+
+        // Then
+        XCTAssertNil(got[GraphTarget(path: project.path, target: appTarget, project: project)])
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)],
+            Set([.iOS])
+        )
+    }
+
+    func test_externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
         let directory = try temporaryPath()
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -4544,7 +4659,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [directExternalPackage, transitiveExternalPackage],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4597,7 +4712,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalMacroFramework, externalMacroExecutable],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4652,7 +4767,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalFramework],
-            isExternal: true
+            type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
