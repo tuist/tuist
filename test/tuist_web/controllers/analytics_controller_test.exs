@@ -452,10 +452,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
-            CommandEventsFixtures.invocation_record_fixture()
+            {:ok, CommandEventsFixtures.invocation_record_fixture()}
 
           ^test_plan_object_key ->
-            CommandEventsFixtures.test_plan_object_fixture()
+            {:ok, CommandEventsFixtures.test_plan_object_fixture()}
         end
       end)
 

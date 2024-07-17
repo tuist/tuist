@@ -4,10 +4,19 @@ use rustler::{NifStruct, NifTaggedEnum, NifTuple};
 use s3::serde_types::Part;
 use s3::Bucket;
 use s3::Region;
+use s3::error::S3Error as S3SDKError;
 use serde::{Deserialize, Serialize};
 use std::str;
 use std::time::Duration;
 use std::collections::HashMap;
+
+
+#[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
+enum S3Error {
+    Raw(String),
+    HTTP(u16, String),
+}
+
 #[derive(NifStruct, Debug, Serialize, Deserialize)]
 #[module = "Tuist.Native.S3AccessKeyPair"]
 struct AccessKeyPair {
@@ -23,7 +32,7 @@ enum S3Credentials {
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3DownloadPresignedURLResult {
-    Error(String),
+    Error(S3Error),
     Ok(String),
 }
 
@@ -56,19 +65,19 @@ pub fn s3_download_presigned_url(
 ) -> S3DownloadPresignedURLResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3DownloadPresignedURLResult::Error(err),
+        Err(err) => return S3DownloadPresignedURLResult::Error(S3Error::Raw(err.to_string())),
     };
 
     let url = match bucket.presign_get_blocking(&options.object_key, options.expires_in, None) {
         Ok(url) => url,
-        Err(err) => return S3DownloadPresignedURLResult::Error(err.to_string()),
+        Err(err) => return S3DownloadPresignedURLResult::Error(map_sdk_error_to_native_error(&err)),
     };
     S3DownloadPresignedURLResult::Ok(url)
 }
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3ExistsResult {
-    Error(String),
+    Error(S3Error),
     Ok(bool),
 }
 
@@ -85,15 +94,16 @@ struct S3ExistsOptions {
 pub fn s3_exists(options: S3ExistsOptions) -> S3ExistsResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3ExistsResult::Error(err),
+        Err(err) => return S3ExistsResult::Error(S3Error::Raw(err.to_string())),
     };
 
     S3ExistsResult::Ok(bucket.head_object_blocking(options.object_key).is_ok())
 }
 
+
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3GetObjectResult {
-    Error(String),
+    Error(S3Error),
     Ok(String),
 }
 
@@ -110,23 +120,23 @@ struct S3GetObjectOptions {
 pub fn s3_get_object_as_string(options: S3GetObjectOptions) -> S3GetObjectResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3GetObjectResult::Error(err),
+        Err(err) => return S3GetObjectResult::Error(S3Error::Raw(err.to_string())),
     };
 
     let object = match bucket.get_object_blocking(options.object_key) {
         Ok(object) => object,
-        Err(err) => return S3GetObjectResult::Error(err.to_string()),
+        Err(err) => return S3GetObjectResult::Error(map_sdk_error_to_native_error(&err)),
     };
 
     match object.to_string() {
         Ok(object_string) => return S3GetObjectResult::Ok(object_string),
-        Err(err) => return S3GetObjectResult::Error(err.to_string()),
+        Err(err) => return S3GetObjectResult::Error(S3Error::Raw(err.to_string())),
     };
 }
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3MultipartStartResult {
-    Error(String),
+    Error(S3Error),
     Ok(String),
 }
 
@@ -139,17 +149,18 @@ struct S3MultipartStartOptions {
     bucket_name: String,
 }
 
+
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn s3_multipart_start(options: S3MultipartStartOptions) -> S3MultipartStartResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3MultipartStartResult::Error(err),
+        Err(err) => return S3MultipartStartResult::Error(S3Error::Raw(err.to_string())),
     };
 
     match bucket.initiate_multipart_upload_blocking(&options.object_key, "application/octet-stream")
     {
         Ok(upload) => S3MultipartStartResult::Ok(upload.upload_id),
-        Err(err) => return S3MultipartStartResult::Error(err.to_string()),
+        Err(err) => return S3MultipartStartResult::Error(map_sdk_error_to_native_error(&err)),
     }
 }
 
@@ -167,7 +178,7 @@ struct S3MultipartGenerateURLOptions {
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3MultipartGenerateURLResult {
-    Error(String),
+    Error(S3Error),
     Ok(String),
 }
 
@@ -177,7 +188,7 @@ pub fn s3_multipart_generate_url(
 ) -> S3MultipartGenerateURLResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3MultipartGenerateURLResult::Error(err),
+        Err(err) => return S3MultipartGenerateURLResult::Error(S3Error::Raw(err.to_string())),
     };
     let url = match bucket.presign_put_blocking(
         &options.object_key,
@@ -189,7 +200,7 @@ pub fn s3_multipart_generate_url(
         ])),
     ) {
         Ok(url) => url,
-        Err(err) => return S3MultipartGenerateURLResult::Error(err.to_string()),
+        Err(err) => return S3MultipartGenerateURLResult::Error(map_sdk_error_to_native_error(&err)),
     };
     S3MultipartGenerateURLResult::Ok(url)
 }
@@ -205,7 +216,7 @@ struct S3SizeOptions {
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3SizeResult {
-    Error(String),
+    Error(S3Error),
     Ok(i64),
 }
 
@@ -213,15 +224,15 @@ enum S3SizeResult {
 pub fn s3_size(options: S3SizeOptions) -> S3SizeResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3SizeResult::Error(err),
+        Err(err) => return S3SizeResult::Error(S3Error::Raw(err.to_string())),
     };
 
     let size = match bucket.head_object_blocking(&options.object_key) {
         Ok((object, _)) => object.content_length,
-        Err(err) => return S3SizeResult::Error(err.to_string()),
+        Err(err) => return S3SizeResult::Error(map_sdk_error_to_native_error(&err)),
     };
     match size {
-        None => return S3SizeResult::Error("Object not found".to_string()),
+        None => return S3SizeResult::Error(S3Error::Raw("Object not found".to_string())),
         Some(size) => S3SizeResult::Ok(size),
     }
 }
@@ -245,7 +256,7 @@ struct S3MultipartCompleteUploadOptionsPart {
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3MultipartCompleteUploadResult {
-    Error(String),
+    Error(S3Error),
     Ok,
 }
 
@@ -255,7 +266,7 @@ pub fn s3_multipart_complete_upload(
 ) -> S3MultipartCompleteUploadResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3MultipartCompleteUploadResult::Error(err),
+        Err(err) => return S3MultipartCompleteUploadResult::Error(S3Error::Raw(err.to_string())),
     };
 
     let mut parts: Vec<Part> = Vec::new();
@@ -269,7 +280,7 @@ pub fn s3_multipart_complete_upload(
     match bucket.complete_multipart_upload_blocking(&options.object_key, &options.upload_id, parts)
     {
         Ok(_) => S3MultipartCompleteUploadResult::Ok,
-        Err(err) => S3MultipartCompleteUploadResult::Error(err.to_string()),
+        Err(err) => S3MultipartCompleteUploadResult::Error(map_sdk_error_to_native_error(&err)),
     }
 }
 
@@ -284,7 +295,7 @@ struct S3DeleteAllObjectsOptions {
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3DeleteAllObjectsResult {
-    Error(String),
+    Error(S3Error),
     Ok,
 }
 
@@ -292,7 +303,7 @@ enum S3DeleteAllObjectsResult {
 pub fn s3_delete_all_objects(options: S3DeleteAllObjectsOptions) -> S3DeleteAllObjectsResult {
     let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
         Ok(bucket) => bucket,
-        Err(err) => return S3DeleteAllObjectsResult::Error(err),
+        Err(err) => return S3DeleteAllObjectsResult::Error(S3Error::Raw(err.to_string())),
     };
 
     match bucket.list_blocking(options.prefix, Some("/".to_string())) {
@@ -337,4 +348,11 @@ fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<
         Err(err) => return Err(err.to_string()),
     };
     return Ok(bucket);
+}
+
+fn map_sdk_error_to_native_error(error: &S3SDKError) -> S3Error {
+    match error {
+        S3SDKError::HttpFailWithBody(status_code, message) => S3Error::HTTP(*status_code, message.clone()),
+        error => S3Error::Raw(error.to_string()),
+    }
 }

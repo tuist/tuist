@@ -128,17 +128,14 @@ defmodule Tuist.Storage do
   end
 
   def get_object_as_string(object_key) do
-    {time, object} =
+    {time, result} =
       Tuist.Performance.measure_time_in_milliseconds(fn ->
-        {:ok, object} =
-          Native.s3_get_object_as_string(%S3GetObjectOptions{
-            bucket_name: Environment.s3_bucket_name(),
-            region: native_region(),
-            object_key: object_key,
-            credentials: native_credentials()
-          })
-
-        object
+        Native.s3_get_object_as_string(%S3GetObjectOptions{
+          bucket_name: Environment.s3_bucket_name(),
+          region: native_region(),
+          object_key: object_key,
+          credentials: native_credentials()
+        })
       end)
 
     Logger.debug("Object retrieved in #{time} ms.")
@@ -149,7 +146,7 @@ defmodule Tuist.Storage do
       %{object_key: object_key}
     )
 
-    object
+    result
   end
 
   def multipart_start(object_key) do

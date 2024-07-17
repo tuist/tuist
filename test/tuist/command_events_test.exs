@@ -916,10 +916,10 @@ defmodule Tuist.CommandEventsTest do
       |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
-            CommandEventsFixtures.invocation_record_fixture()
+            {:ok, CommandEventsFixtures.invocation_record_fixture()}
 
           ^test_plan_object_key ->
-            CommandEventsFixtures.test_plan_object_fixture()
+            {:ok, CommandEventsFixtures.test_plan_object_fixture()}
         end
       end)
 
@@ -984,6 +984,54 @@ defmodule Tuist.CommandEventsTest do
                    }
                  }
                }
+             }
+    end
+
+    test "gets test summary when there's no result bundle" do
+      # Given
+      command_event =
+        CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(project: :account)
+
+      base_path =
+        "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
+
+      invocation_record_object_key =
+        "#{base_path}/invocation_record.json"
+
+      test_plan_object_key =
+        "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
+
+      Storage
+      |> stub(:object_exists?, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            true
+
+          ^test_plan_object_key ->
+            false
+        end
+      end)
+
+      Storage
+      |> stub(:get_object_as_string, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            {:ok, CommandEventsFixtures.invocation_record_fixture()}
+
+          ^test_plan_object_key ->
+            {:ok, CommandEventsFixtures.test_plan_object_fixture()}
+        end
+      end)
+
+      # When
+      got = CommandEvents.get_test_summary(command_event)
+
+      assert got == %TestSummary{
+               failed_tests_count: 0,
+               successful_tests_count: 0,
+               total_tests_count: 0,
+               project_tests: %{}
              }
     end
   end
