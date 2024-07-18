@@ -22,6 +22,10 @@ let template = Template(
             templatePath: "Package.stencil"
         ),
         .file(
+            path: projectPath + "/Tuist/Config.swift",
+            templatePath: "Config.stencil"
+        ),
+        .file(
             path: appPath + "/Sources/\(classNameAttribute)App.swift",
             templatePath: "app.stencil"
         ),
