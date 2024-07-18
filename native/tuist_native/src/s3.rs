@@ -1,15 +1,27 @@
+use aws_credential_types::{
+    provider::{future, ProvideCredentials},
+    Credentials as S3SDKCredentials,
+};
+use aws_sdk_s3::types::ObjectIdentifier;
+use aws_sdk_s3::{
+    config::SharedCredentialsProvider,
+    operation::delete_objects::{DeleteObjectsError, DeleteObjectsOutput},
+};
+use aws_sdk_s3::{
+    error::SdkError, operation::list_objects_v2::ListObjectsV2Error,
+    operation::list_objects_v2::ListObjectsV2Output, Client,
+};
 use awscreds::Credentials;
 use rustler;
 use rustler::{NifStruct, NifTaggedEnum, NifTuple};
+use s3::error::S3Error as S3SDKError;
 use s3::serde_types::Part;
 use s3::Bucket;
 use s3::Region;
-use s3::error::S3Error as S3SDKError;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::str;
 use std::time::Duration;
-use std::collections::HashMap;
-
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3Error {
@@ -52,7 +64,6 @@ struct S3DownloadPresignedURLOptions {
     bucket_name: String,
 }
 
-
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3Region {
     Auto,
@@ -70,7 +81,9 @@ pub fn s3_download_presigned_url(
 
     let url = match bucket.presign_get_blocking(&options.object_key, options.expires_in, None) {
         Ok(url) => url,
-        Err(err) => return S3DownloadPresignedURLResult::Error(map_sdk_error_to_native_error(&err)),
+        Err(err) => {
+            return S3DownloadPresignedURLResult::Error(map_sdk_error_to_native_error(&err))
+        }
     };
     S3DownloadPresignedURLResult::Ok(url)
 }
@@ -99,7 +112,6 @@ pub fn s3_exists(options: S3ExistsOptions) -> S3ExistsResult {
 
     S3ExistsResult::Ok(bucket.head_object_blocking(options.object_key).is_ok())
 }
-
 
 #[derive(NifTaggedEnum, Debug, Serialize, Deserialize)]
 enum S3GetObjectResult {
@@ -148,7 +160,6 @@ struct S3MultipartStartOptions {
     region: S3Region,
     bucket_name: String,
 }
-
 
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn s3_multipart_start(options: S3MultipartStartOptions) -> S3MultipartStartResult {
@@ -200,7 +211,9 @@ pub fn s3_multipart_generate_url(
         ])),
     ) {
         Ok(url) => url,
-        Err(err) => return S3MultipartGenerateURLResult::Error(map_sdk_error_to_native_error(&err)),
+        Err(err) => {
+            return S3MultipartGenerateURLResult::Error(map_sdk_error_to_native_error(&err))
+        }
     };
     S3MultipartGenerateURLResult::Ok(url)
 }
@@ -299,24 +312,144 @@ enum S3DeleteAllObjectsResult {
     Ok,
 }
 
+async fn list_next(
+    client: &Client,
+    bucket: &str,
+    prefix: &str,
+    cont_token: &Option<String>,
+) -> Result<ListObjectsV2Output, SdkError<ListObjectsV2Error>> {
+    client
+        .list_objects_v2()
+        .bucket(bucket)
+        .prefix(prefix)
+        .set_continuation_token(cont_token.to_owned())
+        .send()
+        .await
+}
+
+async fn delete_objects(
+    client: &Client,
+    bucket: &str,
+    object_keys: Vec<ObjectIdentifier>,
+) -> Result<DeleteObjectsOutput, SdkError<DeleteObjectsError>> {
+    client
+        .delete_objects()
+        .delete(
+            aws_sdk_s3::types::Delete::builder()
+                .set_objects(Some(object_keys))
+                .build()
+                .unwrap(),
+        )
+        .bucket(bucket)
+        .send()
+        .await
+}
+
+fn object_keys(
+    list_output: &ListObjectsV2Output,
+) -> Vec<ObjectIdentifier> {
+    list_output
+        .contents()
+        .iter()
+        .map(|obj| {
+            ObjectIdentifier::builder()
+                .set_key(Some(obj.key().unwrap_or_default().to_string()))
+                .build()
+                .unwrap()
+        })
+        .collect()
+}
+
 #[rustler::nif(schedule = "DirtyCpu")]
 pub fn s3_delete_all_objects(options: S3DeleteAllObjectsOptions) -> S3DeleteAllObjectsResult {
-    let bucket = match bucket(options.bucket_name, options.credentials, options.region) {
-        Ok(bucket) => bucket,
-        Err(err) => return S3DeleteAllObjectsResult::Error(S3Error::Raw(err.to_string())),
-    };
+    let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    match bucket.list_blocking(options.prefix, Some("/".to_string())) {
-        Ok(objects) => {
-            for object in objects {
-                for obj in object.contents {
-                    _ = bucket.delete_object_blocking(&obj.key)
+    runtime.block_on(async {
+        let client = client(options.credentials, options.region).await;
+
+        let mut cont_token = None;
+
+        loop {
+            match list_next(&client, &options.bucket_name, &options.prefix, &cont_token).await {
+                Ok(list_output) => {
+                    match delete_objects(&client, &options.bucket_name, object_keys(&list_output)).await {
+                        Ok(_) => {
+                            if list_output.is_truncated().unwrap() {
+                                cont_token =
+                                    list_output.next_continuation_token().map(|s| s.to_string());
+                            } else {
+                                break S3DeleteAllObjectsResult::Ok;
+                            }
+                        }
+                        Err(error) => {
+                            break S3DeleteAllObjectsResult::Error(S3Error::Raw(error.to_string()));
+                        }
+                    }
+                }
+                Err(error) => {
+                    break S3DeleteAllObjectsResult::Error(S3Error::Raw(error.to_string()));
                 }
             }
         }
-        Err(_) => (),
+    })
+}
+
+#[derive(Debug)]
+struct CredentialProvider {
+    access_key_pair: AccessKeyPair,
+}
+
+impl ProvideCredentials for CredentialProvider {
+    fn provide_credentials<'a>(&'a self) -> future::ProvideCredentials<'a>
+    where
+        Self: 'a,
+    {
+        future::ProvideCredentials::new(self.load_credentials())
     }
-    S3DeleteAllObjectsResult::Ok
+}
+
+impl CredentialProvider {
+    async fn load_credentials(&self) -> aws_credential_types::provider::Result {
+        Ok(S3SDKCredentials::new(
+            &self.access_key_pair.access_key,
+            &self.access_key_pair.secret_key,
+            None,
+            None,
+            "Tuist",
+        ))
+    }
+}
+
+async fn client(credentials: S3Credentials, region: S3Region) -> Client {
+    let (region_string, endpoint_url) = match region {
+        S3Region::Auto => ("auto".to_string(), Option::None),
+        S3Region::Fixed { region, endpoint } => (region, Option::Some(endpoint)),
+    };
+
+    let config = match credentials {
+        S3Credentials::AccessKey(access_key_pair) => {
+            let credentials_provider = Some(SharedCredentialsProvider::new(CredentialProvider {
+                access_key_pair: access_key_pair,
+            }));
+
+            let mut builder = aws_sdk_s3::Config::builder()
+                .region(aws_sdk_s3::config::Region::new(region_string));
+
+            builder = match endpoint_url {
+                Some(endpoint) => builder.endpoint_url(endpoint),
+                None => builder,
+            };
+            builder
+                .set_credentials_provider(credentials_provider)
+                .clone()
+                .build()
+        }
+        S3Credentials::Environment => {
+            let aws_config = aws_config::load_from_env().await;
+            aws_sdk_s3::Config::new(&aws_config)
+        }
+    };
+    aws_sdk_s3::Client::from_conf(config)
 }
 
 fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<Bucket, String> {
@@ -334,16 +467,18 @@ fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<
         },
     };
     let s3_region: Region = match region {
-        S3Region::Fixed {region, endpoint} => Region::Custom {
+        S3Region::Fixed { region, endpoint } => Region::Custom {
             region: region,
             endpoint: endpoint,
         },
         S3Region::Auto => match Region::from_default_env() {
             Ok(region) => region,
             Err(err) => return Err(err.to_string()),
-        }
+        },
     };
-    let bucket = match Bucket::new(&name, s3_region, credentials).and_then(|bucket| bucket.with_request_timeout(Duration::from_secs(90))) {
+    let bucket = match Bucket::new(&name, s3_region, credentials)
+        .and_then(|bucket| bucket.with_request_timeout(Duration::from_secs(90)))
+    {
         Ok(bucket) => bucket,
         Err(err) => return Err(err.to_string()),
     };
@@ -352,7 +487,9 @@ fn bucket(name: String, credentials: S3Credentials, region: S3Region) -> Result<
 
 fn map_sdk_error_to_native_error(error: &S3SDKError) -> S3Error {
     match error {
-        S3SDKError::HttpFailWithBody(status_code, message) => S3Error::HTTP(*status_code, message.clone()),
+        S3SDKError::HttpFailWithBody(status_code, message) => {
+            S3Error::HTTP(*status_code, message.clone())
+        }
         error => S3Error::Raw(error.to_string()),
     }
 }
