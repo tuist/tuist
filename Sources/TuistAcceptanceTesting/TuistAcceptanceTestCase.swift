@@ -3,6 +3,7 @@ import Path
 import TuistCore
 @_exported import TuistKit
 import XcodeGraph
+import XcodeProj
 import XCTest
 
 @testable import TuistSupport
@@ -11,6 +12,9 @@ import XCTest
 public enum Destination {
     case simulator, device
 }
+
+// swiftlint:disable:next force_try
+public let cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
 
 open class TuistAcceptanceTestCase: XCTestCase {
     public var xcodeprojPath: AbsolutePath!
@@ -30,13 +34,19 @@ open class TuistAcceptanceTestCase: XCTestCase {
             LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)
         }
 
-        derivedDataDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
+        derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        sourceRootPath = try! AbsolutePath(
+        sourceRootPath = try AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
             ]!
+        )
+
+        setenv(
+            "XDG_CACHE_HOME",
+            cacheDirectory.path.pathString,
+            1
         )
 
         do {
@@ -189,6 +199,48 @@ open class TuistAcceptanceTestCase: XCTestCase {
         var contents = try FileHandler.shared.readTextFile(filePath)
         contents += "\n"
         try FileHandler.shared.write(contents, path: filePath, atomically: true)
+    }
+
+    public func XCTAssertXCFrameworkLinked(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        else {
+            XCTFail(
+                "Target \(targetName) doesn't link the xcframework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
+    public func XCTAssertXCFrameworkNotLinked(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        if try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        {
+            XCTFail(
+                "Target \(targetName) links the xcframework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
     }
 }
 
