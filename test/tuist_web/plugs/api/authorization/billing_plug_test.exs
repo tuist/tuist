@@ -100,6 +100,37 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
+  test "returns the same connection if the plan is air and the trial ends in more than 3 days",
+       %{
+         conn: conn,
+         project: project
+       } do
+    # Given
+    account = project.account
+
+    Billing
+    |> stub(:get_current_active_subscription, fn ^account ->
+      %Subscription{plan: :air, trial_end: ~U[2021-01-01 00:00:00Z]}
+    end)
+
+    Tuist.Time
+    |> stub(:utc_now, fn -> ~U[2020-12-20 00:00:00Z] end)
+
+    project = project |> Repo.reload() |> Repo.preload(:account)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    got = conn |> BillingPlug.call(plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
   test "returns connection with a warning if the plan is air and the trial ends in less than 3 days",
        %{
          conn: conn,

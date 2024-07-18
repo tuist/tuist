@@ -56,6 +56,9 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
             |> WarningsHeaderPlug.put_warning(
               "Your trial period ends in #{days_until_end_of_trial} days. Please update your billing information to avoid service interruption: #{url(~p"/#{account.name}/billing")}"
             )
+
+          true ->
+            conn
         end
     end
   end
