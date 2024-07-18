@@ -35,31 +35,3 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         )
     }
 }
-
-// MARK: - Helpers
-
-class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
-    var fullHandle: String = ""
-    var organizationHandle: String = ""
-    var projectHandle: String = ""
-
-    override func setUp() async throws {
-        try await super.setUp()
-        try setUpFixture(.iosAppWithFrameworks)
-        organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
-        projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-        fullHandle = "\(organizationHandle)/\(projectHandle)"
-        let email = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
-        let password = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
-        try await run(AuthCommand.self, "--email", email, "--password", password)
-        try await run(OrganizationCreateCommand.self, organizationHandle)
-        try await run(ProjectCreateCommand.self, fullHandle)
-    }
-
-    override func tearDown() async throws {
-        try await run(ProjectDeleteCommand.self, fullHandle)
-        try await run(OrganizationDeleteCommand.self, organizationHandle)
-        try run(LogoutCommand.self)
-        try await super.tearDown()
-    }
-}

@@ -56,26 +56,44 @@ final class AuthService: AuthServicing {
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         if email != nil || password != nil {
-            let email = email ?? userInputReader.readString(asking: "Email:")
-            let password = password ?? userInputReader.readString(asking: "Password:")
-
-            let authenticationTokens = try await authenticateService.authenticate(
+            try await authenticateWithEmailAndPassword(
                 email: email,
                 password: password,
                 serverURL: serverURL
             )
-
-            try serverCredentialsStore.store(
-                credentials: ServerCredentials(
-                    token: nil,
-                    accessToken: authenticationTokens.accessToken,
-                    refreshToken: authenticationTokens.refreshToken
-                ),
-                serverURL: serverURL
-            )
-            logger.notice("Credentials stored successfully.", metadata: .success)
         } else {
-            try await serverSessionController.authenticate(serverURL: serverURL)
+            try await authenticateWithBrowserLogin(serverURL: serverURL)
         }
+    }
+
+    private func authenticateWithEmailAndPassword(
+        email: String?,
+        password: String?,
+        serverURL: URL
+    ) async throws {
+        let email = email ?? userInputReader.readString(asking: "Email:")
+        let password = password ?? userInputReader.readString(asking: "Password:")
+
+        let authenticationTokens = try await authenticateService.authenticate(
+            email: email,
+            password: password,
+            serverURL: serverURL
+        )
+
+        try serverCredentialsStore.store(
+            credentials: ServerCredentials(
+                token: nil,
+                accessToken: authenticationTokens.accessToken,
+                refreshToken: authenticationTokens.refreshToken
+            ),
+            serverURL: serverURL
+        )
+        logger.notice("Credentials stored successfully.", metadata: .success)
+    }
+
+    private func authenticateWithBrowserLogin(
+        serverURL: URL
+    ) async throws {
+        try await serverSessionController.authenticate(serverURL: serverURL)
     }
 }
