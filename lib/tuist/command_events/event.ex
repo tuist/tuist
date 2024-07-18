@@ -23,13 +23,14 @@ defmodule Tuist.CommandEvents.Event do
     field :swift_version, :string
     field :macos_version, :string
     # Binaries
-    field :cacheable_targets, {:array, :string}
-    field :local_cache_target_hits, {:array, :string}
-    field :remote_cache_target_hits, {:array, :string}
+    field :cacheable_targets, {:array, :string}, default: []
+    field :local_cache_target_hits, {:array, :string}, default: []
+    field :remote_cache_target_hits, {:array, :string}, default: []
+
     # Tests
-    field :test_targets, {:array, :string}
-    field :local_test_target_hits, {:array, :string}
-    field :remote_test_target_hits, {:array, :string}
+    field :test_targets, {:array, :string}, default: []
+    field :local_test_target_hits, {:array, :string}, default: []
+    field :remote_test_target_hits, {:array, :string}, default: []
 
     field :is_ci, :boolean
     field :client_id, :string
