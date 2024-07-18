@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 
@@ -7,6 +8,7 @@ public enum XcodeBuildDestination: Equatable {
     case mac
 }
 
+@Mockable
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
     /// - Parameters:

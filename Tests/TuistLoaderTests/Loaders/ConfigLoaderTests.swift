@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import ProjectDescription
 import TuistCore
@@ -11,14 +12,16 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ConfigLoaderTests: TuistUnitTestCase {
-    private var rootDirectoryLocator = MockRootDirectoryLocator()
-    private var manifestLoader = MockManifestLoader()
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
+    private var manifestLoader: MockManifestLoading!
     private var subject: ConfigLoader!
     private var registeredPaths: [AbsolutePath: Bool] = [:]
     private var registeredConfigs: [AbsolutePath: Result<ProjectDescription.Config, Error>] = [:]
 
     override func setUp() {
         super.setUp()
+        rootDirectoryLocator = .init()
+        manifestLoader = .init()
         subject = ConfigLoader(
             manifestLoader: manifestLoader,
             rootDirectoryLocator: rootDirectoryLocator,
@@ -27,19 +30,21 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         fileHandler.stubExists = { [weak self] path in
             self?.registeredPaths[path] == true
         }
-        manifestLoader.loadConfigStub = { [weak self] path in
-            guard let self,
-                  let config = registeredConfigs[path]
-            else {
-                throw ManifestLoaderError.manifestNotFound(.config, path)
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willProduce { [weak self] path in
+                guard let self,
+                      let config = registeredConfigs[path]
+                else {
+                    throw ManifestLoaderError.manifestNotFound(.config, path)
+                }
+                return try config.get()
             }
-            return try config.get()
-        }
     }
 
     override func tearDown() {
         subject = nil
-        manifestLoader.loadConfigStub = nil
+        manifestLoader = nil
         fileHandler.stubExists = nil
         super.tearDown()
     }
@@ -50,6 +55,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Given
         let path: AbsolutePath = "/some/random/path"
         stub(path: path, exists: false)
+        stub(rootDirectory: "/project")
 
         // When
         let result = try subject.loadConfig(path: path)
@@ -66,6 +72,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             config: .test(),
             at: path.parentDirectory
         )
+        stub(rootDirectory: "/project")
 
         // When
         let result = try subject.loadConfig(path: path)
@@ -73,7 +80,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -86,6 +94,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
         stub(configError: TestError.testError, at: "/project/Tuist")
+        stub(rootDirectory: "/project")
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.loadConfig(path: path), TestError.testError)
@@ -113,7 +122,64 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(),
+            path: "/project/Tuist/Config.swift"
+        ))
+    }
+
+    func test_loadConfig_with_full_handle_and_url() throws {
+        // Given
+        stub(rootDirectory: "/project")
+        stub(path: "/project/Tuist/Config.swift", exists: true)
+        stub(
+            config: .test(
+                fullHandle: "tuist/tuist",
+                url: "https://test.cloud.tuist.io"
+            ),
+            at: "/project/Tuist"
+        )
+
+        // When
+        let result = try subject.loadConfig(path: "/project")
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Config(
+            compatibleXcodeVersions: .all,
+            fullHandle: "tuist/tuist",
+            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(),
+            path: "/project/Tuist/Config.swift"
+        ))
+    }
+
+    func test_loadConfig_with_deprecated_cloud() throws {
+        // Given
+        stub(rootDirectory: "/project")
+        stub(path: "/project/Tuist/Config.swift", exists: true)
+        stub(
+            config: ProjectDescription.Config(
+                cloud: .cloud(
+                    projectId: "tuist/tuist",
+                    url: "https://test.cloud.tuist.io"
+                )
+            ),
+            at: "/project/Tuist"
+        )
+
+        // When
+        let result = try subject.loadConfig(path: "/project")
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Config(
+            compatibleXcodeVersions: .all,
+            fullHandle: "tuist/tuist",
+            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -136,7 +202,9 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     }
 
     private func stub(rootDirectory: AbsolutePath) {
-        rootDirectoryLocator.locateStub = rootDirectory
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
     }
 
     private enum TestError: Error, Equatable {

@@ -23,8 +23,8 @@ open class TuistAcceptanceTestCase: XCTestCase {
     private var derivedDataDirectory: TemporaryDirectory!
     private var fixtureTemporaryDirectory: TemporaryDirectory!
 
-    override open func setUp() {
-        super.setUp()
+    override open func setUp() async throws {
+        try await super.setUp()
 
         DispatchQueue.once(token: "io.tuist.test.logging") {
             LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)

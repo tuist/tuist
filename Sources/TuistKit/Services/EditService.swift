@@ -56,7 +56,7 @@ final class EditService {
 
         if !permanent {
             let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
-            let cacheDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
+            let cacheDirectory = try cacheDirectoryProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
             guard let selectedXcode = try XcodeController.shared.selected() else {
@@ -69,7 +69,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.pretty("Opening Xcode to edit the project.")
+            logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {

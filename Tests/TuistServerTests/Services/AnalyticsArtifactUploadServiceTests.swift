@@ -132,6 +132,14 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             )
             .willReturn("upload-id")
 
+        given(completeAnalyticsArtifactsUploadsService)
+            .completeAnalyticsArtifactsUploads(
+                modules: .any,
+                commandEventId: .any,
+                serverURL: .value(serverURL)
+            )
+            .willReturn()
+
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .value(resultBundle.parentDirectory.appending(component: "\(testResultBundleObjectId).json")),

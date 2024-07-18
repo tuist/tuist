@@ -6,7 +6,7 @@ import TuistSupport
 public protocol CleanCacheServicing {
     func cleanCache(
         serverURL: URL,
-        fullName: String
+        fullHandle: String
     ) async throws
 }
 
@@ -14,12 +14,13 @@ enum CleanCacheServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden:
+        case .notFound, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -27,25 +28,42 @@ enum CleanCacheServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project clean failed due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message):
+            return "The project clean failed due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
 }
 
 public final class CleanCacheService: CleanCacheServicing {
-    public init() {}
+    private let fullHandleService: FullHandleServicing
+
+    public convenience init() {
+        self.init(
+            fullHandleService: FullHandleService()
+        )
+    }
+
+    init(
+        fullHandleService: FullHandleServicing
+    ) {
+        self.fullHandleService = fullHandleService
+    }
 
     public func cleanCache(
         serverURL: URL,
-        fullName: String
+        fullHandle: String
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
-        let components = fullName.components(separatedBy: "/")
+        let client = Client.authenticated(serverURL: serverURL)
+        let handles = try fullHandleService.parse(fullHandle)
 
         let response = try await client.cleanCache(
-            .init(path: .init(account_name: components[0], project_name: components[1]))
+            .init(
+                path: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
+                )
+            )
         )
 
         switch response {
@@ -61,6 +79,11 @@ public final class CleanCacheService: CleanCacheServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw CleanCacheServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CleanCacheServiceError.unknownError(statusCode)

@@ -24,15 +24,22 @@ let package = Package(
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "MyPackage",
-            targets: ["MyPackage"]
+            targets: [
+                "MyPackage",
+                "MyCommonPackage",
+            ]
         ),
         .library(
             name: "MyUIKitPackage",
-            targets: ["MyUIKitPackage"]
+            targets: [
+                "MyUIKitPackage",
+                "MyCommonPackage",
+            ]
         ),
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
+        .package(url: "https://github.com/AliSoftware/OHHTTPStubs.git", exact: "9.1.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -42,6 +49,9 @@ let package = Package(
             dependencies: [
                 "MyPackage",
             ]
+        ),
+        .target(
+            name: "MyCommonPackage"
         ),
         .target(
             name: "MyPackage",
@@ -57,7 +67,19 @@ let package = Package(
         ),
         .testTarget(
             name: "MyPackageTests",
-            dependencies: ["MyPackage"]
+            dependencies: [
+                "MyPackage",
+                "MyCommonPackage",
+                .product(name: "OHHTTPStubs", package: "OHHTTPStubs"),
+                .product(name: "OHHTTPStubsSwift", package: "OHHTTPStubs"),
+            ]
+        ),
+        .testTarget(
+            name: "MyUIKitPackageTests",
+            dependencies: [
+                "MyUIKitPackage",
+                "MyCommonPackage",
+            ]
         ),
     ]
 )

@@ -135,7 +135,7 @@ final class ProjectEditor: ProjectEditing {
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: try cacheDirectory.tuistCacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 

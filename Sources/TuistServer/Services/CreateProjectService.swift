@@ -6,22 +6,22 @@ import TuistSupport
 @Mockable
 public protocol CreateProjectServicing {
     func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject
+    ) async throws -> ServerProject
 }
 
 enum CreateProjectServiceError: FatalError {
     case unknownError(Int)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .badRequest:
+        case .forbidden, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -30,7 +30,7 @@ enum CreateProjectServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be created due to an unknown Cloud response of \(statusCode)."
-        case let .forbidden(message), let .badRequest(message):
+        case let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -40,18 +40,16 @@ public final class CreateProjectService: CreateProjectServicing {
     public init() {}
 
     public func createProject(
-        name: String,
-        organization: String?,
+        fullHandle: String,
         serverURL: URL
-    ) async throws -> CloudProject {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerProject {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createProject(
             .init(
                 body: .json(
                     .init(
-                        name: name,
-                        organization: organization
+                        full_handle: fullHandle
                     )
                 )
             )
@@ -60,7 +58,7 @@ public final class CreateProjectService: CreateProjectServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudProject(project)
+                return ServerProject(project)
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
@@ -73,6 +71,11 @@ public final class CreateProjectService: CreateProjectServicing {
             switch badRequestResponse.body {
             case let .json(error):
                 throw CreateProjectServiceError.badRequest(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

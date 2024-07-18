@@ -70,10 +70,12 @@ public enum Constants {
         public static let osLog = "TUIST_CONFIG_OS_LOG"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
-        public static let token = "TUIST_CONFIG_CLOUD_TOKEN"
+        public static let token = "TUIST_CONFIG_TOKEN"
+        @available(*, deprecated, message: "Use `token` instead")
+        public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
     }
 
     public enum URLs {
-        public static let production = "https://cloud.tuist.io/"
+        public static let production = URL(string: "https://cloud.tuist.io")!
     }
 }

@@ -101,13 +101,19 @@ components:
       title: ArtifactUploadID
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.ArtifactUploadId
-    AuthenticationToken:
-      description: Token to authenticate the user with.
+    AuthenticationTokens:
+      description: A new user access token to authenticate the user with.
       properties:
-        token:
-          description: User authentication token
+        access_token:
+          description: User access token
           type: string
-      title: AuthenticationToken
+        refresh_token:
+          description: User refresh token
+          type: string
+      required:
+        - access_token
+        - refresh_token
+      title: AuthenticationTokens
       type: object
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
@@ -285,7 +291,10 @@ components:
         plan:
           description: The plan associated with the organization
           enum:
-            - team
+            - air
+            - pro
+            - enterprise
+            - none
           type: string
         sso_organization_id:
           description: The organization ID associated with the SSO provider
@@ -341,6 +350,17 @@ components:
       title: OrganizationMember
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.OrganizationMember
+    OrganizationUsage:
+      description: The usage of an organization.
+      properties:
+        current_month_remote_cache_hits:
+          description: The number of remote cache hits in the current month
+          type: number
+      required:
+        - current_month_remote_cache_hits
+      title: OrganizationUsage
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.OrganizationUsage
     Project:
       properties:
         full_name:
@@ -350,6 +370,7 @@ components:
           description: ID of the project
           type: number
         token:
+          deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
           type: string
       required:
@@ -359,6 +380,43 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistCloudWeb.API.Schemas.Project
+    ProjectFullToken:
+      description: A new project token.
+      properties:
+        token:
+          description: The generated project token.
+          type: string
+      required:
+        - token
+      title: ProjectFullToken
+      type: object
+    ProjectToken:
+      description: A token to authenticate API requests as a project.
+      properties:
+        id:
+          description: The token unique identifier.
+          type: string
+        inserted_at:
+          description: The timestamp of when the token was created.
+          format: date-time
+          type: string
+      required:
+        - id
+        - inserted_at
+      title: ProjectToken
+      type: object
+      x-struct: Elixir.TuistCloudWeb.API.Schemas.ProjectToken
+    Tokens:
+      description: A list of project tokens.
+      properties:
+        tokens:
+          items:
+            $ref: '#/components/schemas/ProjectToken'
+          type: array
+      required:
+        - tokens
+      title: Tokens
+      type: object
     User:
       description: A user.
       properties:
@@ -383,7 +441,7 @@ components:
       scheme: bearer
       type: http
 info:
-  title: Tuist Cloud
+  title: Tuist
   version: 0.1.0
 openapi: 3.0.0
 paths:
@@ -493,6 +551,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommandEvent'
           description: The command event was created
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -520,10 +584,17 @@ paths:
               schema:
                 description: Token to authenticate the user with.
                 properties:
+                  access_token:
+                    description: A short-lived token to authenticate API requests as user.
+                    type: string
+                  refresh_token:
+                    description: A token to generate new access tokens when they expire.
+                    type: string
                   token:
+                    deprecated: true
                     description: User authentication token
                     type: string
-                title: AuthenticationToken
+                title: AuthenticationTokens
                 type: object
           description: The device code is authenticated
         202:
@@ -539,6 +610,52 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The request was not accepted, e.g., when the device code is expired
       summary: Get a specific device code.
+      tags: []
+  /api/auth/refresh_token:
+    post:
+      callbacks: {}
+      description: This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+      operationId: refreshToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                refresh_token:
+                  description: User refresh token
+                  type: string
+              required:
+                - refresh_token
+              type: object
+        description: Token params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new user access token to authenticate the user with.
+                properties:
+                  access_token:
+                    description: User access token
+                    type: string
+                  refresh_token:
+                    description: User refresh token
+                    type: string
+                required:
+                  - access_token
+                  - refresh_token
+                title: AuthenticationTokens
+                type: object
+          description: A new a pair of tokens was generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+      summary: Request new tokens.
       tags: []
   /api/cache:
     get:
@@ -577,6 +694,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CacheArtifactDownloadURL'
           description: The artifact exists and is downloadable
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -646,6 +769,12 @@ paths:
                 title: CacheArtifactExistence
                 type: object
           description: The artifact exists
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -751,6 +880,12 @@ paths:
                 title: CacheArtifactMultipartUploadCompletion
                 type: object
           description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -820,6 +955,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -877,6 +1018,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
@@ -919,6 +1066,12 @@ paths:
                 title: OrganizationList
                 type: object
           description: The list of organizations
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -974,9 +1127,13 @@ paths:
             type: string
       responses:
         204:
-          content:
-            application/json: {}
           description: The organization was deleted
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1009,6 +1166,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Organization'
           description: The organization
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1065,6 +1228,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1121,6 +1290,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The organization could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1165,6 +1340,12 @@ paths:
           content:
             application/json: {}
           description: The invitation was cancelled
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1216,6 +1397,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The user could not be invited due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1259,6 +1446,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be removed due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1319,6 +1512,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The member could not be updated due to a validation error
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1332,6 +1531,45 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The organization or the user with the given name was not found
       summary: Updates a member in an organization
+      tags: []
+  /api/organizations/{organization_name}/usage:
+    get:
+      callbacks: {}
+      description: Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+      operationId: showOrganizationUsage
+      parameters:
+        - description: The name of the organization to show.
+          in: path
+          name: organization_name
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationUsage'
+          description: The organization usage
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization with the given name was not found
+      summary: Shows the usage of an organization
       tags: []
   /api/projects:
     get:
@@ -1352,6 +1590,12 @@ paths:
                   - projects
                 type: object
           description: List of projects
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
       summary: List projects the authenticated user has access to.
       tags: []
     post:
@@ -1363,14 +1607,18 @@ paths:
           application/json:
             schema:
               properties:
+                full_handle:
+                  description: The full handle of the project that should be created.
+                  example: tuist/tuist
+                  type: string
                 name:
+                  deprecated: true
                   description: The name of the project that should be created.
                   type: string
                 organization:
+                  deprecated: true
                   description: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                   type: string
-              required:
-                - name
               type: object
         description: Projects params
         required: false
@@ -1387,6 +1635,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The account was not found
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1395,20 +1649,20 @@ paths:
           description: The authenticated subject is not authorized to perform this action
       summary: Create a new project.
       tags: []
-  /api/projects/{account_name}/{project_name}:
+  /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
       operationId: showProject
       parameters:
         - description: The name of the account that the project belongs to.
           in: path
-          name: account_name
+          name: account_handle
           required: true
           schema:
             type: string
         - description: The name of the project to show
           in: path
-          name: project_name
+          name: project_handle
           required: true
           schema:
             type: string
@@ -1419,6 +1673,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The project to show
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1433,26 +1693,32 @@ paths:
           description: The project was not found
       summary: Returns a project based on the handle.
       tags: []
-  /api/projects/{account_name}/{project_name}/cache/clean:
+  /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
       operationId: cleanCache
       parameters:
         - description: The name of the account that the project belongs to.
           in: path
-          name: account_name
+          name: account_handle
           required: true
           schema:
             type: string
         - description: The name of the project to clean cache for
           in: path
-          name: project_name
+          name: project_handle
           required: true
           schema:
             type: string
       responses:
         204:
           description: The cache has been successfully cleaned
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1467,6 +1733,158 @@ paths:
           description: The project was not found
       summary: Cleans cache for a given project
       tags: []
+  /api/projects/{account_handle}/{project_handle}/tokens:
+    get:
+      callbacks: {}
+      description: This endpoint returns all tokens for a given project.
+      operationId: listProjectTokens
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A list of project tokens.
+                properties:
+                  tokens:
+                    items:
+                      $ref: '#/components/schemas/ProjectToken'
+                    type: array
+                required:
+                  - tokens
+                title: Tokens
+                type: object
+          description: A list of project tokens.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to list tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List all project tokens.
+      tags: []
+    post:
+      callbacks: {}
+      description: This endpoint returns a new project token.
+      operationId: createProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new project token.
+                properties:
+                  token:
+                    description: The generated project token.
+                    type: string
+                required:
+                  - token
+                title: ProjectFullToken
+                type: object
+          description: A project token was generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to issue new tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Create a new project token.
+      tags: []
+  /api/projects/{account_handle}/{project_handle}/tokens/{id}:
+    delete:
+      callbacks: {}
+      operationId: revokeProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The ID of the project token
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: The project token was revoked
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project token was not found
+      summary: Revokes a project token.
+      tags: []
   /api/projects/{id}:
     delete:
       callbacks: {}
@@ -1477,10 +1895,16 @@ paths:
           name: id
           required: true
           schema:
-            type: number
+            type: integer
       responses:
         204:
           description: The project was successfully deleted.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1525,6 +1949,12 @@ paths:
       responses:
         204:
           description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1569,6 +1999,12 @@ paths:
       responses:
         204:
           description: The command event artifact uploads were successfully finished
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1617,6 +2053,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactMultipartUploadURL'
           description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
@@ -1657,6 +2099,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ArtifactUploadID'
           description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
         403:
           content:
             application/json:

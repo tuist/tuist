@@ -1,3 +1,4 @@
+import MockableTest
 import Path
 import TuistCore
 import TuistSupport
@@ -5,16 +6,15 @@ import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class TemplateLoaderTests: TuistUnitTestCase {
     var subject: TemplateLoader!
-    var manifestLoader: MockManifestLoader!
+    var manifestLoader: MockManifestLoading!
 
     override func setUp() {
         super.setUp()
-        manifestLoader = MockManifestLoader()
+        manifestLoader = .init()
         subject = TemplateLoader(manifestLoader: manifestLoader)
     }
 
@@ -27,9 +27,14 @@ final class TemplateLoaderTests: TuistUnitTestCase {
     func test_loadTemplate_when_not_found() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        manifestLoader.loadTemplateStub = { path in
-            throw ManifestLoaderError.manifestNotFound(path)
-        }
+        given(manifestLoader)
+            .loadTemplate(at: .any)
+            .willProduce { path in
+                throw ManifestLoaderError.manifestNotFound(path)
+            }
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn(())
 
         // Then
         XCTAssertThrowsSpecific(
@@ -41,15 +46,21 @@ final class TemplateLoaderTests: TuistUnitTestCase {
     func test_loadTemplate_files() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        manifestLoader.loadTemplateStub = { _ in
-            ProjectDescription.Template(
-                description: "desc",
-                items: [ProjectDescription.Template.Item(
-                    path: "generateOne",
-                    contents: .file("fileOne")
-                )]
+        given(manifestLoader)
+            .loadTemplate(at: .any)
+            .willReturn(
+                ProjectDescription.Template(
+                    description: "desc",
+                    items: [ProjectDescription.Template.Item(
+                        path: "generateOne",
+                        contents: .file("fileOne")
+                    )]
+                )
             )
-        }
+
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn(())
 
         // When
         let got = try subject.loadTemplate(at: temporaryPath, plugins: .none)

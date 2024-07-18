@@ -21,6 +21,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
     func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws
         -> Operations.getDeviceCode.Output
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    func refreshToken(_ input: Operations.refreshToken.Input) async throws
+        -> Operations.refreshToken.Output
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -145,6 +153,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
         -> Operations.removeOrganizationMember.Output
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws
+        -> Operations.showOrganizationUsage.Output
     /// List projects the authenticated user has access to.
     ///
     /// - Remark: HTTP `GET /api/projects`.
@@ -159,16 +175,38 @@ public protocol APIProtocol: Sendable {
         -> Operations.createProject.Output
     /// Returns a project based on the handle.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
     func showProject(_ input: Operations.showProject.Input) async throws
         -> Operations.showProject.Output
     /// Cleans cache for a given project
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_name}/{project_name}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)`.
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws
         -> Operations.cleanCache.Output
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws
+        -> Operations.listProjectTokens.Output
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    func createProjectToken(_ input: Operations.createProjectToken.Input) async throws
+        -> Operations.createProjectToken.Output
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws
+        -> Operations.revokeProjectToken.Output
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
@@ -462,20 +500,31 @@ public enum Components {
                 case status
             }
         }
-        /// Token to authenticate the user with.
+        /// A new user access token to authenticate the user with.
         ///
-        /// - Remark: Generated from `#/components/schemas/AuthenticationToken`.
-        public struct AuthenticationToken: Codable, Equatable, Hashable, Sendable {
-            /// User authentication token
+        /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
+        public struct AuthenticationTokens: Codable, Equatable, Hashable, Sendable {
+            /// User access token
             ///
-            /// - Remark: Generated from `#/components/schemas/AuthenticationToken/token`.
-            public var token: Swift.String?
-            /// Creates a new `AuthenticationToken`.
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
+            public var access_token: Swift.String
+            /// User refresh token
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
+            public var refresh_token: Swift.String
+            /// Creates a new `AuthenticationTokens`.
             ///
             /// - Parameters:
-            ///   - token: User authentication token
-            public init(token: Swift.String? = nil) { self.token = token }
-            public enum CodingKeys: String, CodingKey { case token }
+            ///   - access_token: User access token
+            ///   - refresh_token: User refresh token
+            public init(access_token: Swift.String, refresh_token: Swift.String) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+            }
         }
         /// The URL to download the artifact from the cache.
         ///
@@ -894,22 +943,31 @@ public enum Components {
             public enum planPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
                 _AutoLosslessStringConvertible, CaseIterable
             {
-                case team
+                case air
+                case pro
+                case enterprise
+                case none
                 /// Parsed a raw value that was not defined in the OpenAPI document.
                 case undocumented(String)
                 public init?(rawValue: String) {
                     switch rawValue {
-                    case "team": self = .team
+                    case "air": self = .air
+                    case "pro": self = .pro
+                    case "enterprise": self = .enterprise
+                    case "none": self = .none
                     default: self = .undocumented(rawValue)
                     }
                 }
                 public var rawValue: String {
                     switch self {
                     case let .undocumented(string): return string
-                    case .team: return "team"
+                    case .air: return "air"
+                    case .pro: return "pro"
+                    case .enterprise: return "enterprise"
+                    case .none: return "none"
                     }
                 }
-                public static var allCases: [planPayload] { [.team] }
+                public static var allCases: [planPayload] { [.air, .pro, .enterprise, .none] }
             }
             /// The plan associated with the organization
             ///
@@ -1071,6 +1129,23 @@ public enum Components {
                 case role
             }
         }
+        /// The usage of an organization.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
+        public struct OrganizationUsage: Codable, Equatable, Hashable, Sendable {
+            /// The number of remote cache hits in the current month
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
+            public var current_month_remote_cache_hits: Swift.Double
+            /// Creates a new `OrganizationUsage`.
+            ///
+            /// - Parameters:
+            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
+            public init(current_month_remote_cache_hits: Swift.Double) {
+                self.current_month_remote_cache_hits = current_month_remote_cache_hits
+            }
+            public enum CodingKeys: String, CodingKey { case current_month_remote_cache_hits }
+        }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Equatable, Hashable, Sendable {
             /// The full name of the project (e.g. tuist/tuist)
@@ -1084,7 +1159,7 @@ public enum Components {
             /// The token that should be used to authenticate the project. For CI only.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
-            public var token: Swift.String
+            @available(*, deprecated) public var token: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
@@ -1101,6 +1176,60 @@ public enum Components {
                 case id
                 case token
             }
+        }
+        /// A new project token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
+        public struct ProjectFullToken: Codable, Equatable, Hashable, Sendable {
+            /// The generated project token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectFullToken/token`.
+            public var token: Swift.String
+            /// Creates a new `ProjectFullToken`.
+            ///
+            /// - Parameters:
+            ///   - token: The generated project token.
+            public init(token: Swift.String) { self.token = token }
+            public enum CodingKeys: String, CodingKey { case token }
+        }
+        /// A token to authenticate API requests as a project.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ProjectToken`.
+        public struct ProjectToken: Codable, Equatable, Hashable, Sendable {
+            /// The token unique identifier.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectToken/id`.
+            public var id: Swift.String
+            /// The timestamp of when the token was created.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectToken/inserted_at`.
+            public var inserted_at: Foundation.Date
+            /// Creates a new `ProjectToken`.
+            ///
+            /// - Parameters:
+            ///   - id: The token unique identifier.
+            ///   - inserted_at: The timestamp of when the token was created.
+            public init(id: Swift.String, inserted_at: Foundation.Date) {
+                self.id = id
+                self.inserted_at = inserted_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case inserted_at
+            }
+        }
+        /// A list of project tokens.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Tokens`.
+        public struct Tokens: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Tokens/tokens`.
+            public var tokens: [Components.Schemas.ProjectToken]
+            /// Creates a new `Tokens`.
+            ///
+            /// - Parameters:
+            ///   - tokens:
+            public init(tokens: [Components.Schemas.ProjectToken]) { self.tokens = tokens }
+            public enum CodingKeys: String, CodingKey { case tokens }
         }
         /// A user.
         ///
@@ -1437,6 +1566,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createCommandEvent.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createCommandEvent.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCommandEvent.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createCommandEvent.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createCommandEvent.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createCommandEvent.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -1544,16 +1704,38 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json`.
                     public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// A short-lived token to authenticate API requests as user.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/access_token`.
+                        public var access_token: Swift.String?
+                        /// A token to generate new access tokens when they expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/refresh_token`.
+                        public var refresh_token: Swift.String?
                         /// User authentication token
                         ///
                         /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/token`.
-                        public var token: Swift.String?
+                        @available(*, deprecated) public var token: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - access_token: A short-lived token to authenticate API requests as user.
+                        ///   - refresh_token: A token to generate new access tokens when they expire.
                         ///   - token: User authentication token
-                        public init(token: Swift.String? = nil) { self.token = token }
-                        public enum CodingKeys: String, CodingKey { case token }
+                        public init(
+                            access_token: Swift.String? = nil,
+                            refresh_token: Swift.String? = nil,
+                            token: Swift.String? = nil
+                        ) {
+                            self.access_token = access_token
+                            self.refresh_token = refresh_token
+                            self.token = token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case access_token
+                            case refresh_token
+                            case token
+                        }
                     }
                     case json(Operations.getDeviceCode.Output.Ok.Body.jsonPayload)
                 }
@@ -1640,6 +1822,171 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.getDeviceCode.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    public enum refreshToken {
+        public static let id: String = "refreshToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.refreshToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.refreshToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.refreshToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.refreshToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Token params
+                ///
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// User refresh token
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/refresh_token`.
+                    public var refresh_token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - refresh_token: User refresh token
+                    public init(refresh_token: Swift.String) { self.refresh_token = refresh_token }
+                    public enum CodingKeys: String, CodingKey { case refresh_token }
+                }
+                case json(Operations.refreshToken.Input.Body.jsonPayload)
+            }
+            public var body: Operations.refreshToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.refreshToken.Input.Path = .init(),
+                query: Operations.refreshToken.Input.Query = .init(),
+                headers: Operations.refreshToken.Input.Headers = .init(),
+                cookies: Operations.refreshToken.Input.Cookies = .init(),
+                body: Operations.refreshToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.refreshToken.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// A new user access token to authenticate the user with.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// User access token
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/access_token`.
+                        public var access_token: Swift.String
+                        /// User refresh token
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/refresh_token`.
+                        public var refresh_token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - access_token: User access token
+                        ///   - refresh_token: User refresh token
+                        public init(access_token: Swift.String, refresh_token: Swift.String) {
+                            self.access_token = access_token
+                            self.refresh_token = refresh_token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case access_token
+                            case refresh_token
+                        }
+                    }
+                    case json(Operations.refreshToken.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.refreshToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.refreshToken.Output.Ok.Headers = .init(),
+                    body: Operations.refreshToken.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A new a pair of tokens was generated
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.refreshToken.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.refreshToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.refreshToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.refreshToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.refreshToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.refreshToken.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -1751,6 +2098,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.downloadCacheArtifact.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadCacheArtifact.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadCacheArtifact.Output.Unauthorized.Headers = .init(),
+                    body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadCacheArtifact.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2005,6 +2383,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.cacheArtifactExists.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheArtifactExists.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheArtifactExists.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cacheArtifactExists.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2354,6 +2763,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.completeCacheArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2580,6 +3023,43 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.generateCacheArtifactMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.generateCacheArtifactMultipartUploadURL.Output.Unauthorized
+            )
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -2798,6 +3278,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.startCacheArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startCacheArtifactMultipartUpload.Output.Unauthorized)
             public struct PaymentRequired: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3006,6 +3520,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.listOrganizations.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listOrganizations.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listOrganizations.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listOrganizations.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listOrganizations.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listOrganizations.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3273,6 +3818,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showOrganization.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(showOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3524,6 +4100,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganization__2_.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganization__2_.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganization__2_.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganization__2_.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganization__2_.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/patch(updateOrganization (2))/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganization__2_.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3774,6 +4382,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganization.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.updateOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/put(updateOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -3909,11 +4548,9 @@ public enum Operations {
                 }
                 /// Received HTTP response headers
                 public var headers: Operations.deleteOrganization.Output.NoContent.Headers
-                @frozen public enum Body: Sendable, Equatable, Hashable {
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                }
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
                 /// Received HTTP response body
-                public var body: Operations.deleteOrganization.Output.NoContent.Body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
                 ///
                 /// - Parameters:
@@ -3921,7 +4558,7 @@ public enum Operations {
                 ///   - body: Received HTTP response body
                 public init(
                     headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
-                    body: Operations.deleteOrganization.Output.NoContent.Body
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
                 ) {
                     self.headers = headers
                     self.body = body
@@ -3933,6 +4570,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteOrganization.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganization.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4140,6 +4808,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createInvitation.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createInvitation.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createInvitation.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createInvitation.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createInvitation.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createInvitation)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createInvitation.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4316,6 +5015,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cancelInvitation.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelInvitation.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelInvitation.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelInvitation.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cancelInvitation.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cancelInvitation.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4557,6 +5287,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateOrganizationMember.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/put(updateOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationMember.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4751,6 +5513,38 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.removeOrganizationMember.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.removeOrganizationMember.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -4813,6 +5607,196 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.removeOrganizationMember.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    public enum showOrganizationUsage {
+        public static let id: String = "showOrganizationUsage"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.showOrganizationUsage.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.showOrganizationUsage.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.showOrganizationUsage.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.showOrganizationUsage.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.showOrganizationUsage.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.showOrganizationUsage.Input.Path,
+                query: Operations.showOrganizationUsage.Input.Query = .init(),
+                headers: Operations.showOrganizationUsage.Input.Headers = .init(),
+                cookies: Operations.showOrganizationUsage.Input.Cookies = .init(),
+                body: Operations.showOrganizationUsage.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.OrganizationUsage)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Ok.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization usage
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.showOrganizationUsage.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showOrganizationUsage.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.Forbidden.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.showOrganizationUsage.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showOrganizationUsage.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showOrganizationUsage.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showOrganizationUsage.Output.NotFound.Headers = .init(),
+                    body: Operations.showOrganizationUsage.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization with the given name was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.showOrganizationUsage.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -4915,6 +5899,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.listProjects.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjects.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjects.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjects.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listProjects.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjects.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -4953,24 +5968,35 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/POST/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The full handle of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/full_handle`.
+                    public var full_handle: Swift.String?
                     /// The name of the project that should be created.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/name`.
-                    public var name: Swift.String
+                    @available(*, deprecated) public var name: Swift.String?
                     /// Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/json/organization`.
-                    public var organization: Swift.String?
+                    @available(*, deprecated) public var organization: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                    public init(name: Swift.String, organization: Swift.String? = nil) {
+                    public init(
+                        full_handle: Swift.String? = nil,
+                        name: Swift.String? = nil,
+                        organization: Swift.String? = nil
+                    ) {
+                        self.full_handle = full_handle
                         self.name = name
                         self.organization = organization
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case full_handle
                         case name
                         case organization
                     }
@@ -5063,6 +6089,37 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createProject.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5102,22 +6159,22 @@ public enum Operations {
     }
     /// Returns a project based on the handle.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
     public enum showProject {
         public static let id: String = "showProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var account_name: Swift.String
-                public var project_name: Swift.String
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_name:
-                ///   - project_name:
-                public init(account_name: Swift.String, project_name: Swift.String) {
-                    self.account_name = account_name
-                    self.project_name = project_name
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.showProject.Input.Path
@@ -5188,10 +6245,41 @@ public enum Operations {
             }
             /// The project to show
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showProject.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.showProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.showProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.showProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.showProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5219,7 +6307,7 @@ public enum Operations {
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.showProject.Output.Forbidden)
@@ -5250,7 +6338,7 @@ public enum Operations {
             }
             /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.showProject.Output.NotFound)
@@ -5262,22 +6350,22 @@ public enum Operations {
     }
     /// Cleans cache for a given project
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_name}/{project_name}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)`.
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     public enum cleanCache {
         public static let id: String = "cleanCache"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var account_name: Swift.String
-                public var project_name: Swift.String
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_name:
-                ///   - project_name:
-                public init(account_name: Swift.String, project_name: Swift.String) {
-                    self.account_name = account_name
-                    self.project_name = project_name
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.cleanCache.Input.Path
@@ -5346,10 +6434,41 @@ public enum Operations {
             }
             /// The cache has been successfully cleaned
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/204`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cleanCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cleanCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cleanCache.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5377,7 +6496,7 @@ public enum Operations {
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.cleanCache.Output.Forbidden)
@@ -5408,10 +6527,622 @@ public enum Operations {
             }
             /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.cleanCache.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    public enum listProjectTokens {
+        public static let id: String = "listProjectTokens"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listProjectTokens.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.listProjectTokens.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.listProjectTokens.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listProjectTokens.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listProjectTokens.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.listProjectTokens.Input.Path,
+                query: Operations.listProjectTokens.Input.Query = .init(),
+                headers: Operations.listProjectTokens.Input.Headers = .init(),
+                cookies: Operations.listProjectTokens.Input.Cookies = .init(),
+                body: Operations.listProjectTokens.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// A list of project tokens.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/json/tokens`.
+                        public var tokens: [Components.Schemas.ProjectToken]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tokens:
+                        public init(tokens: [Components.Schemas.ProjectToken]) {
+                            self.tokens = tokens
+                        }
+                        public enum CodingKeys: String, CodingKey { case tokens }
+                    }
+                    case json(Operations.listProjectTokens.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Ok.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A list of project tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listProjectTokens.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjectTokens.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Forbidden.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listProjectTokens.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.NotFound.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listProjectTokens.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    public enum createProjectToken {
+        public static let id: String = "createProjectToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createProjectToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createProjectToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.createProjectToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createProjectToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.createProjectToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.createProjectToken.Input.Path,
+                query: Operations.createProjectToken.Input.Query = .init(),
+                headers: Operations.createProjectToken.Input.Headers = .init(),
+                cookies: Operations.createProjectToken.Input.Cookies = .init(),
+                body: Operations.createProjectToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// A new project token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// The generated project token.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json/token`.
+                        public var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - token: The generated project token.
+                        public init(token: Swift.String) { self.token = token }
+                        public enum CodingKeys: String, CodingKey { case token }
+                    }
+                    case json(Operations.createProjectToken.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Ok.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A project token was generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createProjectToken.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createProjectToken.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Forbidden.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createProjectToken.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.NotFound.Headers = .init(),
+                    body: Operations.createProjectToken.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createProjectToken.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    public enum revokeProjectToken {
+        public static let id: String = "revokeProjectToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                public var id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                ///   - id:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.revokeProjectToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.revokeProjectToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.revokeProjectToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.revokeProjectToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.revokeProjectToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.revokeProjectToken.Input.Path,
+                query: Operations.revokeProjectToken.Input.Query = .init(),
+                headers: Operations.revokeProjectToken.Input.Headers = .init(),
+                cookies: Operations.revokeProjectToken.Input.Cookies = .init(),
+                body: Operations.revokeProjectToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.NoContent.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.revokeProjectToken.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.revokeProjectToken.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.Forbidden.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.revokeProjectToken.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.NotFound.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project token was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.revokeProjectToken.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -5426,12 +7157,12 @@ public enum Operations {
         public static let id: String = "deleteProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var id: Swift.Double
+                public var id: Swift.Int
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - id:
-                public init(id: Swift.Double) { self.id = id }
+                public init(id: Swift.Int) { self.id = id }
             }
             public var path: Operations.deleteProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
@@ -5503,6 +7234,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteProject.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteProject.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5694,6 +7456,43 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized
+            )
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -5874,6 +7673,40 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.completeAnalyticsArtifactsUploads.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeAnalyticsArtifactsUploads.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6069,6 +7902,44 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                        .Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Output
+                        .Unauthorized.Headers = .init(),
+                    body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+                        .Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(
+                Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized
+            )
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6238,6 +8109,40 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.startAnalyticsArtifactMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized)
             public struct Forbidden: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.

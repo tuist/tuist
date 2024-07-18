@@ -282,6 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "Nimble", // https://github.com/Quick/Nimble
                     "NimbleObjectiveC", // https://github.com/Quick/Nimble
                     "Quick", // https://github.com/Quick/Quick
+                    "QuickObjCRuntime", // https://github.com/Quick/Quick
                     "RxTest", // https://github.com/ReactiveX/RxSwift
                     "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
@@ -338,7 +339,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .compactMap { target -> ProjectDescription.Target? in
                 return try map(
                     target: target,
-                    products: targetToProducts[target.name] ?? Set(),
+                    targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
                     packageType: packageType,
                     path: path,
@@ -391,7 +392,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
-        products: Set<PackageInfo.Product>,
+        targetToProducts: [String: Set<PackageInfo.Product>],
         packageInfo: PackageInfo,
         packageType: PackageType,
         path: AbsolutePath,
@@ -401,6 +402,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.SettingsDictionary]
     ) throws -> ProjectDescription.Target? {
+        // Ignores or passes a target based on the `type` and the `packageType`.
+        // After that, it assumes that no target is ignored.
         switch target.type {
         case .regular, .system, .macro:
             break
@@ -416,6 +419,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
+
+        let products = targetToProducts[target.name] ?? Set()
 
         guard let product = ProjectDescription.Product.from(
             name: target.name,
@@ -461,40 +466,20 @@ public final class PackageInfoMapper: PackageInfoMapping {
         switch target.type {
         case .macro, .executable:
             destinations = Set([.mac])
+        case .test:
+            var testDestinations = Set(XcodeGraph.Destination.allCases)
+            for dependencyTarget in target.dependencies {
+                if let dependencyProducts = targetToProducts[dependencyTarget.name] {
+                    let dependencyDestinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                    testDestinations.formIntersection(dependencyDestinations)
+                }
+            }
+            destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:
             switch packageType {
             case .local:
-                let productDestinations: Set<ProjectDescription.Destination> = Set(
-                    products.flatMap { product in
-                        if product.type == .executable {
-                            return Set([XcodeGraph.Destination.mac])
-                        }
-                        return productDestinations[product.name] ?? Set(Destination.allCases)
-                    }
-                    .map {
-                        switch $0 {
-                        case .iPhone:
-                            return .iPhone
-                        case .iPad:
-                            return .iPad
-                        case .mac:
-                            return .mac
-                        case .macWithiPadDesign:
-                            return .macWithiPadDesign
-                        case .macCatalyst:
-                            return .macCatalyst
-                        case .appleWatch:
-                            return .appleWatch
-                        case .appleTv:
-                            return .appleTv
-                        case .appleVision:
-                            return .appleVision
-                        case .appleVisionWithiPadDesign:
-                            return .appleVisionWithiPadDesign
-                        }
-                    }
-                )
-                destinations = Set(Destination.allCases).intersection(productDestinations)
+                let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
+                destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
             case .external:
                 destinations = Set(Destination.allCases)
             }
@@ -614,6 +599,21 @@ public final class PackageInfoMapper: PackageInfoMapping {
             headers: headers,
             dependencies: dependencies,
             settings: settings
+        )
+    }
+
+    /// Returns a union of products' destinations.
+    private func unionDestinationsOfProducts(
+        _ products: Set<PackageInfo.Product>,
+        in productToDestinations: [String: XcodeGraph.Destinations]
+    ) -> XcodeGraph.Destinations {
+        Set(
+            products.flatMap { product in
+                if product.type == .executable {
+                    return Set([XcodeGraph.Destination.mac])
+                }
+                return productToDestinations[product.name] ?? Set(Destination.allCases)
+            }
         )
     }
 }
@@ -1160,6 +1160,35 @@ extension ProjectDescription.DefaultSettings {
     }
 }
 
+extension ProjectDescription.Destinations {
+    fileprivate static func from(destinations: XcodeGraph.Destinations) -> Self {
+        Set(
+            destinations.map {
+                switch $0 {
+                case .iPhone:
+                    return .iPhone
+                case .iPad:
+                    return .iPad
+                case .mac:
+                    return .mac
+                case .macWithiPadDesign:
+                    return .macWithiPadDesign
+                case .macCatalyst:
+                    return .macCatalyst
+                case .appleWatch:
+                    return .appleWatch
+                case .appleTv:
+                    return .appleTv
+                case .appleVision:
+                    return .appleVision
+                case .appleVisionWithiPadDesign:
+                    return .appleVisionWithiPadDesign
+                }
+            }
+        )
+    }
+}
+
 extension PackageInfo {
     fileprivate func projectSettings(
         swiftToolsVersion: TSCUtility.Version?,
@@ -1238,6 +1267,20 @@ extension PackageInfo.Target {
     func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
         let mainPath = try basePath(packageFolder: packageFolder)
         return mainPath.appending(try RelativePath(validating: publicHeadersPath ?? "include"))
+    }
+}
+
+extension PackageInfo.Target.Dependency {
+    /// The literal name of the dependency.
+    var name: String {
+        switch self {
+        case let .target(name: name, _):
+            return name
+        case let .product(name: name, _, _, _):
+            return name
+        case let .byName(name: name, _):
+            return name
+        }
     }
 }
 

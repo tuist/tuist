@@ -72,8 +72,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -85,7 +83,7 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test TuistUnitTests --result-bundle-path /tmp/tuist/test-result-bundle
+        script: mise x -- tuist test TuistUnitTests
     triggering:
       << : *branch_triggering
   cache:
@@ -98,8 +96,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -161,8 +157,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -178,7 +172,7 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test TuistAutomationAcceptanceTests --result-bundle-path /tmp/tuist/automation-acceptance-test-result-bundle
+        script: mise x -- tuist test TuistAutomationAcceptanceTests
     triggering:
       << : *branch_triggering
   
@@ -192,8 +186,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -209,7 +201,7 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test --result-bundle-path /tmp/tuist/dependencies-acceptance-test-result-bundle TuistDependenciesAcceptanceTests
+        script: mise x -- tuist test TuistDependenciesAcceptanceTests
     triggering:
       << : *branch_triggering
 
@@ -223,8 +215,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -240,12 +230,12 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test TuistGeneratorAcceptanceTests --result-bundle-path /tmp/tuist/generator-acceptance-test-result-bundle
+        script: mise x -- tuist test TuistGeneratorAcceptanceTests
     triggering:
       << : *branch_triggering
 
-  tuist_acceptance_tests:
-    name: Tuist acceptance tests
+  tuist_kit_acceptance_tests:
+    name: TuistKit acceptance tests
     max_build_duration: 60
     environment:
       xcode: 15.3
@@ -254,8 +244,6 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -271,6 +259,6 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test tuistAcceptanceTests --result-bundle-path /tmp/tuist/tuist-acceptance-test-result-bundle
+        script: mise x -- tuist test TuistKitAcceptanceTests
     triggering:
       << : *branch_triggering

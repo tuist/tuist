@@ -1,8 +1,10 @@
 @_exported import ArgumentParser
 import Foundation
+import OpenAPIRuntime
 import Path
 import TuistAnalytics
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -26,7 +28,13 @@ public struct TuistCommand: AsyncParsableCommand {
                 RunCommand.self,
                 ScaffoldCommand.self,
                 TestCommand.self,
-                CloudCommand.self,
+                AuthCommand.self,
+                SessionCommand.self,
+                LogoutCommand.self,
+                CleanCommand.self,
+                ProjectCommand.self,
+                OrganizationCommand.self,
+                AnalyticsCommand.self,
             ]
         )
     }
@@ -44,9 +52,10 @@ public struct TuistCommand: AsyncParsableCommand {
 
         let backend: TuistAnalyticsBackend?
         let config = try ConfigLoader().loadConfig(path: path)
-        if let cloud = config.cloud {
-            backend = TuistAnalyticsCloudBackend(
-                config: cloud
+        if let fullHandle = config.fullHandle {
+            backend = TuistAnalyticsServerBackend(
+                fullHandle: fullHandle,
+                url: config.url
             )
         } else {
             backend = nil
@@ -86,6 +95,11 @@ public struct TuistCommand: AsyncParsableCommand {
         } catch let error as FatalError {
             WarningController.shared.flush()
             errorHandler.fatal(error: error)
+            _exit(exitCode(for: error).rawValue)
+        } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
+            WarningController.shared.flush()
+            // swiftlint:disable:next force_cast
+            logger.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
             _exit(exitCode(for: error).rawValue)
         } catch {
             WarningController.shared.flush()
