@@ -11,6 +11,18 @@ struct AuthCommand: AsyncParsableCommand {
     }
 
     @Option(
+        help: "Email to authenticate with.",
+        envKey: .authEmail
+    )
+    var email: String?
+
+    @Option(
+        help: "Password to authenticate with.",
+        envKey: .authPassword
+    )
+    var password: String?
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
@@ -19,6 +31,10 @@ struct AuthCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await AuthService().authenticate(directory: path)
+        try await AuthService().authenticate(
+            email: email,
+            password: password,
+            directory: path
+        )
     }
 }
