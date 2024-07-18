@@ -358,12 +358,8 @@ class TargetLinter: TargetLinting {
 
         for path in paths {
             if !FileHandler.shared.exists(path) {
-                lintingIssues.append(LintingIssue(reason: "No files found at: \(path)", severity: .warning))
+                lintingIssues.append(LintingIssue(reason: "No items found at path: \(path.pathString)", severity: .warning))
                 continue
-            }
-
-            if FileHandler.shared.isFolder(path) && !FileHandler.shared.exists(path) {
-                lintingIssues.append(LintingIssue(reason: "No folder found at: \(path)", severity: .warning))
             }
         }
         return lintingIssues
