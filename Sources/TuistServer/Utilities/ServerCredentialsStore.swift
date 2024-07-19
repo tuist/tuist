@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TuistSupport
+import FileSystem
 
 public struct ServerCredentials: Codable, Equatable {
     /// Deprecated authentication token.
@@ -47,7 +48,7 @@ public protocol ServerCredentialsStoring: Sendable {
 
     /// Deletes the credentials for the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
-    func delete(serverURL: URL) throws
+    func delete(serverURL: URL) async throws
 }
 
 enum ServerCredentialsStoreError: FatalError {
@@ -80,6 +81,7 @@ enum ServerCredentialsStoreError: FatalError {
 
 public final class ServerCredentialsStore: ServerCredentialsStoring {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSystem
     private let configDirectory: AbsolutePath?
 
     /// Default initializer.
@@ -87,9 +89,10 @@ public final class ServerCredentialsStore: ServerCredentialsStoring {
         self.init(fileHandler: FileHandler.shared)
     }
 
-    init(fileHandler: FileHandling, configDirectory: AbsolutePath? = nil) {
+    init(fileHandler: FileHandling, fileSystem: FileSystem = FileSystem(), configDirectory: AbsolutePath? = nil) {
         self.fileHandler = fileHandler
         self.configDirectory = configDirectory
+        self.fileSystem = fileSystem
     }
 
     // MARK: - CredentialsStoring
@@ -125,10 +128,10 @@ public final class ServerCredentialsStore: ServerCredentialsStoring {
         return credentials
     }
 
-    public func delete(serverURL: URL) throws {
+    public func delete(serverURL: URL) async throws {
         let path = try credentialsFilePath(serverURL: serverURL)
         if fileHandler.exists(path) {
-            try fileHandler.delete(path)
+            try await fileSystem.remove(.init(validating: path.pathString))
         }
     }
 
