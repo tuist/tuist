@@ -7,7 +7,7 @@ public protocol TemplateGitLoading {
     /// - Parameters:
     ///     - templateURL: Git repository url
     ///     - closure: Closure to perform work on loaded template
-    func loadTemplate(from templateURL: String, closure: (TuistCore.Template) throws -> Void) throws
+    func loadTemplate(from templateURL: String, closure: @escaping (TuistCore.Template) async throws -> Void) async throws
 }
 
 public final class TemplateGitLoader: TemplateGitLoading {
@@ -38,18 +38,19 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.templateLocationParser = templateLocationParser
     }
 
-    public func loadTemplate(from templateURL: String, closure: (TuistCore.Template) throws -> Void) throws {
+    public func loadTemplate(from templateURL: String, closure: @escaping (TuistCore.Template) async throws -> Void) async throws {
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
         let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+
+        try await fileHandler.inTemporaryDirectory { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
-            try fileHandler.createFolder(templatePath)
-            try gitHandler.clone(url: repoURL, to: templatePath)
+            try self.fileHandler.createFolder(templatePath)
+            try self.gitHandler.clone(url: repoURL, to: templatePath)
             if let repoBranch {
-                try gitHandler.checkout(id: repoBranch, in: templatePath)
+                try self.gitHandler.checkout(id: repoBranch, in: templatePath)
             }
-            let template = try templateLoader.loadTemplate(at: templatePath, plugins: .none)
-            try closure(template)
+            let template = try self.templateLoader.loadTemplate(at: templatePath, plugins: .none)
+            try await closure(template)
         }
     }
 }

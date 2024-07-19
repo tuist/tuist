@@ -4,6 +4,7 @@ import PathKit
 import StencilSwiftKit
 import TuistCore
 import TuistSupport
+import FileSystem
 
 /// Interface for generating content defined in template manifest
 public protocol TemplateGenerating {
@@ -16,18 +17,23 @@ public protocol TemplateGenerating {
         template: Template,
         to destinationPath: AbsolutePath,
         attributes: [String: Template.Attribute.Value]
-    ) throws
+    ) async throws
 }
 
 public final class TemplateGenerator: TemplateGenerating {
+    
+    private let fileSystem: FileSystem
+    
     // Public initializer
-    public init() {}
+    public init(fileSystem: FileSystem = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func generate(
         template: Template,
         to destinationPath: AbsolutePath,
         attributes: [String: Template.Attribute.Value]
-    ) throws {
+    ) async throws {
         let renderedItems = try renderItems(
             template: template,
             attributes: attributes
@@ -37,7 +43,7 @@ public final class TemplateGenerator: TemplateGenerating {
             destinationPath: destinationPath
         )
 
-        try generateItems(
+        try await generateItems(
             renderedItems: renderedItems,
             attributes: attributes,
             destinationPath: destinationPath
@@ -104,7 +110,7 @@ public final class TemplateGenerator: TemplateGenerating {
         renderedItems: [Template.Item],
         attributes: [String: Template.Attribute.Value],
         destinationPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let environment = stencilSwiftEnvironment()
         for renderedItem in renderedItems {
             let renderedContents: String?
@@ -135,7 +141,7 @@ public final class TemplateGenerator: TemplateGenerating {
                     try FileHandler.shared.createFolder(destinationDirectoryPath.parentDirectory)
                 }
                 if FileHandler.shared.exists(destinationDirectoryPath) {
-                    try FileHandler.shared.delete(destinationDirectoryPath)
+                    try await fileSystem.remove(.init(validating: destinationDirectoryPath.pathString))
                 }
                 try FileHandler.shared.copy(from: path, to: destinationDirectoryPath)
                 renderedContents = nil

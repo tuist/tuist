@@ -100,7 +100,7 @@ final class ScaffoldService {
             template: template
         )
 
-        try templateGenerator.generate(
+        try await templateGenerator.generate(
             template: template,
             to: path,
             attributes: parsedAttributes

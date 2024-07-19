@@ -72,7 +72,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
             if processedArguments.first == InitCommand.configuration.commandName {
-                try InitCommand.preprocess(processedArguments)
+                try await InitCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
