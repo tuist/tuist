@@ -54,6 +54,10 @@ extension XcodeGraph.Target {
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let mergedBinaryType = try XcodeGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
 
+        let scripts = try manifest.scripts.map {
+            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+        
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
             manifest: manifest,
             targetName: name,
@@ -82,10 +86,6 @@ extension XcodeGraph.Target {
         let coreDataModels = try manifest.coreDataModels.map {
             try XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
         } + resourcesCoreDatas.map { try XcodeGraph.CoreDataModel.from(path: $0) }
-
-        let scripts = try manifest.scripts.map {
-            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
-        }
 
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
