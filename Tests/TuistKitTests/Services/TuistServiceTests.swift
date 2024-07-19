@@ -89,8 +89,8 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         var _error: Error?
-        do  {
-            try await self.subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
+        do {
+            try await subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
         } catch {
             _error = error
         }

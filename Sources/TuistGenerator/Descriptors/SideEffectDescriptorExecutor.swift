@@ -45,7 +45,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try FileHandler.shared.touch(file.path)
             }
         case .absent:
-            try await fileSystem.remove(.init(validating: file.path.pathString))
+            try await fileSystem.remove(file.path)
         }
     }
 
@@ -57,7 +57,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             }
         case .absent:
             if FileHandler.shared.exists(directory.path) {
-                try await fileSystem.remove(.init(validating: directory.path.pathString))
+                try await fileSystem.remove(directory.path)
             }
         }
     }

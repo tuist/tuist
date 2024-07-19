@@ -131,7 +131,7 @@ public final class ServerCredentialsStore: ServerCredentialsStoring {
     public func delete(serverURL: URL) async throws {
         let path = try credentialsFilePath(serverURL: serverURL)
         if fileHandler.exists(path) {
-            try await fileSystem.remove(.init(validating: path.pathString))
+            try await fileSystem.remove(path)
         }
     }
 

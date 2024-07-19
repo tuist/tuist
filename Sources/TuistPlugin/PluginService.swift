@@ -299,7 +299,7 @@ public final class PluginService: PluginServicing {
 
             do {
                 if FileHandler.shared.exists(downloadZipPath) {
-                    try await self.fileSystem.remove(.init(validating: downloadZipPath.pathString))
+                    try await self.fileSystem.remove(downloadZipPath)
                 }
                 try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
@@ -327,8 +327,8 @@ public final class PluginService: PluginServicing {
             }
 
             try? await fileUnarchiver.delete()
-            try? await self.fileSystem.remove(.init(validating: downloadPath.pathString))
-            try? await self.fileSystem.remove(.init(validating: downloadZipPath.pathString))
+            try? await self.fileSystem.remove(downloadPath)
+            try? await self.fileSystem.remove(downloadZipPath)
 
             if let error = _error { throw error }
         }

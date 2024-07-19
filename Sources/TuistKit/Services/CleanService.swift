@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -61,6 +62,8 @@ final class CleanService {
     private let configLoader: ConfigLoading
     private let serverURLService: ServerURLServicing
     private let cleanCacheService: CleanCacheServicing
+    private let fileSystem: FileSystem
+
     init(
         fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
@@ -68,7 +71,8 @@ final class CleanService {
         manifestFilesLocator: ManifestFilesLocating,
         configLoader: ConfigLoading,
         serverURLService: ServerURLServicing,
-        cleanCacheService: CleanCacheServicing
+        cleanCacheService: CleanCacheServicing,
+        fileSystem: FileSystem
     ) {
         self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -77,6 +81,7 @@ final class CleanService {
         self.configLoader = configLoader
         self.serverURLService = serverURLService
         self.cleanCacheService = cleanCacheService
+        self.fileSystem = fileSystem
     }
 
     public convenience init() {
@@ -87,7 +92,8 @@ final class CleanService {
             manifestFilesLocator: ManifestFilesLocator(),
             configLoader: ConfigLoader(),
             serverURLService: ServerURLService(),
-            cleanCacheService: CleanCacheService()
+            cleanCacheService: CleanCacheService(),
+            fileSystem: FileSystem()
         )
     }
 
@@ -117,7 +123,7 @@ final class CleanService {
             if let directory,
                fileHandler.exists(directory)
             {
-                try FileHandler.shared.delete(directory)
+                try await fileSystem.remove(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             } else {
                 logger.notice("There's nothing to clean for \(category.defaultValueDescription)")

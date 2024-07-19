@@ -35,6 +35,6 @@ public class FileUnarchiver: FileUnarchiving {
     }
 
     public func delete() async throws {
-        try await fileSystem.remove(.init(validating: temporaryDirectory.pathString))
+        try await fileSystem.remove(temporaryDirectory)
     }
 }

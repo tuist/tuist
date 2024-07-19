@@ -38,7 +38,10 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.templateLocationParser = templateLocationParser
     }
 
-    public func loadTemplate(from templateURL: String, closure: @escaping (TuistCore.Template) async throws -> Void) async throws {
+    public func loadTemplate(
+        from templateURL: String,
+        closure: @escaping (TuistCore.Template) async throws -> Void
+    ) async throws {
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
         let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
 

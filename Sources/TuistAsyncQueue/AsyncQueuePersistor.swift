@@ -52,7 +52,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     func delete(filename: String) async throws {
         let path = directory.appending(component: filename)
         guard FileHandler.shared.exists(path) else { return }
-        try await fileSystem.remove(.init(validating: path.pathString))
+        try await fileSystem.remove(path)
     }
 
     func readAll() async throws -> [AsyncQueueEventTuple] {
@@ -67,7 +67,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
             else {
                 /// Changing the naming convention is a breaking change. When detected
                 /// we delete the event.
-                try? await fileSystem.remove(.init(validating: eventPath.pathString))
+                try? await fileSystem.remove(eventPath)
                 continue
             }
             do {
@@ -81,7 +81,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 )
                 events.append(event)
             } catch {
-                try? await fileSystem.remove(.init(validating: eventPath.pathString))
+                try? await fileSystem.remove(eventPath)
             }
         }
         return events

@@ -1,8 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import FileSystem
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
@@ -58,7 +58,6 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
-    
 
     /// Initializes the builder with its attributes.
     /// - Parameters:
@@ -108,7 +107,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) async throws -> [ProjectDescriptionHelpersModule] {
         return try await projectDescriptionHelperPlugins.concurrentMap { plugin in
-            try await self.buildHelpers(name: plugin.name, in: plugin.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+            try await self.buildHelpers(
+                name: plugin.name,
+                in: plugin.path,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths
+            )
         }
     }
 
@@ -167,8 +170,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
         let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
 
-        builtHelpers.mutate({ $0[path] = projectDescriptionHelpersModule })
-        
+        builtHelpers.mutate { $0[path] = projectDescriptionHelpersModule }
+
         if FileHandler.shared.exists(helpersModuleCachePath) {
             return projectDescriptionHelpersModule
         }

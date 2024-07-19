@@ -54,7 +54,10 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_init_fails_when_template_not_found() async throws {
         let templateName = "template"
-        await XCTAssertThrowsSpecific({ try await self.subject.testRun(templateName: templateName) }, InitServiceError.templateNotFound(templateName))
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.testRun(templateName: templateName) },
+            InitServiceError.templateNotFound(templateName)
+        )
     }
 
     func test_init_default_when_no_template() async throws {

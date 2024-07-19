@@ -300,7 +300,7 @@ final class ManifestLoaderTests: TuistTestCase {
         // When / Then
         var _error: Error?
         do {
-            _ = try await self.subject.loadProject(at: temporaryPath)
+            _ = try await subject.loadProject(at: temporaryPath)
         } catch {
             _error = error
         }
@@ -309,7 +309,10 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_load_missingManifest() async throws {
         let temporaryPath = try temporaryPath()
-        await  XCTAssertThrowsSpecific({ try await self.subject.loadProject(at: temporaryPath) }, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadProject(at: temporaryPath) },
+            ManifestLoaderError.manifestNotFound(.project, temporaryPath)
+        )
     }
 
     func test_manifestsAt() throws {
@@ -338,13 +341,16 @@ final class ManifestLoaderTests: TuistTestCase {
         let data = try fileHandler.readFile(configPath)
 
         // When
-        await XCTAssertThrowsSpecific({ try await self.subject.loadConfig(at: temporaryPath) }, ManifestLoaderError.manifestLoadingFailed(
-            path: temporaryPath.appending(component: "Config.swift"),
-            data: data,
-            context: """
-            The encoded data for the manifest is corrupted.
-            The given data was not valid JSON.
-            """
-        ))
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadConfig(at: temporaryPath) },
+            ManifestLoaderError.manifestLoadingFailed(
+                path: temporaryPath.appending(component: "Config.swift"),
+                data: data,
+                context: """
+                The encoded data for the manifest is corrupted.
+                The given data was not valid JSON.
+                """
+            )
+        )
     }
 }

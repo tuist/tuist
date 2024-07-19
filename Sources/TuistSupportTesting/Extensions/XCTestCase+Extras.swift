@@ -121,7 +121,7 @@ extension XCTestCase {
         }
         XCTFail("No error was thrown", file: file, line: line)
     }
-    
+
     public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
         _ closure: () async throws -> some Any,
         _ error: Error,

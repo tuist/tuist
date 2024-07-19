@@ -46,7 +46,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
 
         // When
         let paths = try await Array(0 ..< 3).concurrentMap { _ in
-            try await self.subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: [])
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: []
+            )
         }
 
         // Then
@@ -77,7 +81,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
 
         // When
         let paths = try await Array(0 ..< 3).concurrentMap { _ in
-            try await self.subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: plugins)
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: plugins
+            )
         }
 
         // Then

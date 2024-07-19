@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -9,6 +10,7 @@ final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
+    private let fileSystem: FileSystem
 
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
@@ -16,11 +18,13 @@ final class PluginArchiveService {
             fileHandler: FileHandler.shared
         ),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.manifestLoader = manifestLoader
         self.fileArchiverFactory = fileArchiverFactory
+        self.fileSystem = fileSystem
     }
 
     func run(path: String?) async throws {
@@ -91,7 +95,7 @@ final class PluginArchiveService {
         let temporaryZipPath = try archiver.zip(name: zipName)
         let zipPath = path.appending(component: zipName)
         if FileHandler.shared.exists(zipPath) {
-            try FileHandler.shared.delete(zipPath)
+            try await fileSystem.remove(zipPath)
         }
         try FileHandler.shared.copy(
             from: temporaryZipPath,

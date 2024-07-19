@@ -165,7 +165,7 @@ public final class TargetBuilder: TargetBuilding {
         for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)
             if FileHandler.shared.exists(productOutputPath) {
-                try await fileSystem.remove(.init(validating: productOutputPath.pathString))
+                try await fileSystem.remove(productOutputPath)
             }
 
             try FileHandler.shared.copy(from: product, to: productOutputPath)
