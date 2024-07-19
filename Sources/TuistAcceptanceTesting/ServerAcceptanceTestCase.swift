@@ -26,7 +26,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
 
             let config = Config(
                 fullHandle: "\(fullHandle)",
-                url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://cloud-canary.tuist.io")"
+                url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://canary.tuist.io")"
             )
             """,
             path: fixturePath.appending(components: "Tuist", "Config.swift"),
