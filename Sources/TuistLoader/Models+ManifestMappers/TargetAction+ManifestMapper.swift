@@ -71,8 +71,16 @@ extension XcodeGraph.TargetScript {
             }
             let absolutePath = try generatorPaths.resolve(path: path)
             let base = try AbsolutePath(validating: absolutePath.dirname)
+            try processFile(at: absolutePath)
             return try base.throwingGlob(absolutePath.basename)
         }.reduce([], +)
+    }
+    
+    private static func processFile(at outputPath: AbsolutePath) throws {
+        let fileHandler = FileHandler.shared
+        if !fileHandler.exists(outputPath) {
+            try fileHandler.touch(outputPath)
+        }
     }
 }
 
