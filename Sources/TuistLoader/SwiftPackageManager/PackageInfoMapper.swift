@@ -470,11 +470,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
             destinations = Set([.mac])
         case .test:
             var testDestinations = Set(XcodeGraph.Destination.allCases)
-            let dependencyNames = target.dependencies.map(\.name)
-            for dependencyName in dependencyNames {
-                let dependencyProducts = targetToProducts[dependencyName] ?? Set()
-                let destinations = unionDestinationsOfProducts(dependencyProducts, in: packageSettings.productDestinations)
-                testDestinations.formIntersection(destinations)
+            for dependencyTarget in target.dependencies {
+                if let dependencyProducts = targetToProducts[dependencyTarget.name] {
+                    let dependencyDestinations = unionDestinationsOfProducts(
+                        dependencyProducts,
+                        in: packageSettings.productDestinations
+                    )
+                    testDestinations.formIntersection(dependencyDestinations)
+                }
             }
             destinations = ProjectDescription.Destinations.from(destinations: testDestinations)
         default:

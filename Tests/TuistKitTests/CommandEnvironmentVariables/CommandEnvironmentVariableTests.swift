@@ -622,15 +622,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
     }
 
-    func testCloudProjectTokenCommandUsesEnvVars() throws {
+    func testProjectTokensCreateCommandUsesEnvVars() throws {
         setVariable(.projectTokenFullHandle, value: "tuist-org/tuist")
         setVariable(.projectTokenPath, value: "/path/to/token")
 
-        let commandWithEnvVars = try ProjectTokenCommand.parse([])
+        let commandWithEnvVars = try ProjectTokensCreateCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/token")
 
-        let commandWithArgs = try ProjectTokenCommand.parse([
+        let commandWithArgs = try ProjectTokensCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/token/path",
         ])

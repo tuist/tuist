@@ -29,6 +29,19 @@ class UserInputReaderTests: XCTestCase {
         // Then
         XCTAssertEqual(result, Int(String(fakeReadLine.input.last!)))
     }
+
+    func test_read_string() {
+        // Given
+        let reader: UserInputReader = .init { _ in
+            return "string-value"
+        }
+
+        // When
+        let result = reader.readString(asking: "prompt")
+
+        // Then
+        XCTAssertEqual(result, "string-value")
+    }
 }
 
 // Custom string reader to simulate user input

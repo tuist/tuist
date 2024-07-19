@@ -1801,11 +1801,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             architectures: [.arm64]
         )
+        let dependencyPrecompiledXCFramework = GraphDependency.testXCFramework(linking: .static)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyPrecompiledDynamicBinaryA),
             dependencyPrecompiledDynamicBinaryA:
-                Set(arrayLiteral: dependencyPrecompiledDynamicBinaryB),
+                Set([dependencyPrecompiledDynamicBinaryB, dependencyPrecompiledXCFramework]),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -1829,6 +1830,58 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(embeddable, [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
+        ])
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
+    ) throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> Static XCFramework (B)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: "/test/StaticFrameworkA.xcframework",
+            linking: .static
+        )
+        let dependencyStaticXCFrameworkB = GraphDependency.testXCFramework(
+            path: "/test/StaticFrameworkB.xcframework",
+            linking: .static
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+            dependencyStaticXCFrameworkA: Set(arrayLiteral: dependencyStaticXCFrameworkB),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            GraphDependencyReference(dependencyDynamicXCFramework),
+            GraphDependencyReference(dependencyStaticXCFrameworkA),
+            GraphDependencyReference(dependencyStaticXCFrameworkB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertBetterEqual(embeddable, [
+            GraphDependencyReference(dependencyDynamicXCFramework),
         ])
     }
 

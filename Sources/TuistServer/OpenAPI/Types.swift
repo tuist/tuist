@@ -13,6 +13,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws
         -> Operations.createCommandEvent.Output
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    func authenticate(_ input: Operations.authenticate.Input) async throws
+        -> Operations.authenticate.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -21,6 +29,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
     func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws
         -> Operations.getDeviceCode.Output
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    func refreshToken(_ input: Operations.refreshToken.Input) async throws
+        -> Operations.refreshToken.Output
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -167,16 +183,38 @@ public protocol APIProtocol: Sendable {
         -> Operations.createProject.Output
     /// Returns a project based on the handle.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
     func showProject(_ input: Operations.showProject.Input) async throws
         -> Operations.showProject.Output
     /// Cleans cache for a given project
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_name}/{project_name}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)`.
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws
         -> Operations.cleanCache.Output
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws
+        -> Operations.listProjectTokens.Output
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    func createProjectToken(_ input: Operations.createProjectToken.Input) async throws
+        -> Operations.createProjectToken.Output
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws
+        -> Operations.revokeProjectToken.Output
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
@@ -470,20 +508,31 @@ public enum Components {
                 case status
             }
         }
-        /// Token to authenticate the user with.
+        /// API tokens to authenticate with.
         ///
-        /// - Remark: Generated from `#/components/schemas/AuthenticationToken`.
-        public struct AuthenticationToken: Codable, Equatable, Hashable, Sendable {
-            /// User authentication token
+        /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
+        public struct AuthenticationTokens: Codable, Equatable, Hashable, Sendable {
+            /// API access token.
             ///
-            /// - Remark: Generated from `#/components/schemas/AuthenticationToken/token`.
-            public var token: Swift.String?
-            /// Creates a new `AuthenticationToken`.
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
+            public var access_token: Swift.String
+            /// API refresh token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
+            public var refresh_token: Swift.String
+            /// Creates a new `AuthenticationTokens`.
             ///
             /// - Parameters:
-            ///   - token: User authentication token
-            public init(token: Swift.String? = nil) { self.token = token }
-            public enum CodingKeys: String, CodingKey { case token }
+            ///   - access_token: API access token.
+            ///   - refresh_token: API refresh token.
+            public init(access_token: Swift.String, refresh_token: Swift.String) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+            }
         }
         /// The URL to download the artifact from the cache.
         ///
@@ -780,6 +829,43 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case name
                 case _type = "type"
+            }
+        }
+        /// Token to authenticate the user with.
+        ///
+        /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens`.
+        public struct DeviceCodeAuthenticationTokens: Codable, Equatable, Hashable, Sendable {
+            /// A short-lived token to authenticate API requests as user.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/access_token`.
+            public var access_token: Swift.String?
+            /// A token to generate new access tokens when they expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/refresh_token`.
+            public var refresh_token: Swift.String?
+            /// User authentication token
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/token`.
+            @available(*, deprecated) public var token: Swift.String?
+            /// Creates a new `DeviceCodeAuthenticationTokens`.
+            ///
+            /// - Parameters:
+            ///   - access_token: A short-lived token to authenticate API requests as user.
+            ///   - refresh_token: A token to generate new access tokens when they expire.
+            ///   - token: User authentication token
+            public init(
+                access_token: Swift.String? = nil,
+                refresh_token: Swift.String? = nil,
+                token: Swift.String? = nil
+            ) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+                case token
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -1118,7 +1204,7 @@ public enum Components {
             /// The token that should be used to authenticate the project. For CI only.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
-            public var token: Swift.String
+            @available(*, deprecated) public var token: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
@@ -1135,6 +1221,60 @@ public enum Components {
                 case id
                 case token
             }
+        }
+        /// A new project token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
+        public struct ProjectFullToken: Codable, Equatable, Hashable, Sendable {
+            /// The generated project token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectFullToken/token`.
+            public var token: Swift.String
+            /// Creates a new `ProjectFullToken`.
+            ///
+            /// - Parameters:
+            ///   - token: The generated project token.
+            public init(token: Swift.String) { self.token = token }
+            public enum CodingKeys: String, CodingKey { case token }
+        }
+        /// A token to authenticate API requests as a project.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ProjectToken`.
+        public struct ProjectToken: Codable, Equatable, Hashable, Sendable {
+            /// The token unique identifier.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectToken/id`.
+            public var id: Swift.String
+            /// The timestamp of when the token was created.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectToken/inserted_at`.
+            public var inserted_at: Foundation.Date
+            /// Creates a new `ProjectToken`.
+            ///
+            /// - Parameters:
+            ///   - id: The token unique identifier.
+            ///   - inserted_at: The timestamp of when the token was created.
+            public init(id: Swift.String, inserted_at: Foundation.Date) {
+                self.id = id
+                self.inserted_at = inserted_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case inserted_at
+            }
+        }
+        /// A list of project tokens.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Tokens`.
+        public struct Tokens: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Tokens/tokens`.
+            public var tokens: [Components.Schemas.ProjectToken]
+            /// Creates a new `Tokens`.
+            ///
+            /// - Parameters:
+            ///   - tokens:
+            public init(tokens: [Components.Schemas.ProjectToken]) { self.tokens = tokens }
+            public enum CodingKeys: String, CodingKey { case tokens }
         }
         /// A user.
         ///
@@ -1539,6 +1679,156 @@ public enum Operations {
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
     }
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    public enum authenticate {
+        public static let id: String = "authenticate"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.authenticate.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.authenticate.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.authenticate.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.authenticate.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Authentication params.
+                ///
+                /// - Remark: Generated from `#/paths/api/auth/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The email to authenticate with.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/POST/json/email`.
+                    public var email: Swift.String
+                    /// The password to authenticate with.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/POST/json/password`.
+                    public var password: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - email: The email to authenticate with.
+                    ///   - password: The password to authenticate with.
+                    public init(email: Swift.String, password: Swift.String) {
+                        self.email = email
+                        self.password = password
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case email
+                        case password
+                    }
+                }
+                case json(Operations.authenticate.Input.Body.jsonPayload)
+            }
+            public var body: Operations.authenticate.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.authenticate.Input.Path = .init(),
+                query: Operations.authenticate.Input.Query = .init(),
+                headers: Operations.authenticate.Input.Headers = .init(),
+                cookies: Operations.authenticate.Input.Cookies = .init(),
+                body: Operations.authenticate.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.authenticate.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.AuthenticationTokens)
+                }
+                /// Received HTTP response body
+                public var body: Operations.authenticate.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.authenticate.Output.Ok.Headers = .init(),
+                    body: Operations.authenticate.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Successfully authenticated and returned new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.authenticate.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.authenticate.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.authenticate.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.authenticate.Output.Unauthorized.Headers = .init(),
+                    body: Operations.authenticate.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Invalid email or password.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.authenticate.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -1609,16 +1899,38 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json`.
                     public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// A short-lived token to authenticate API requests as user.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/access_token`.
+                        public var access_token: Swift.String?
+                        /// A token to generate new access tokens when they expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/refresh_token`.
+                        public var refresh_token: Swift.String?
                         /// User authentication token
                         ///
                         /// - Remark: Generated from `#/paths/api/auth/device_code/{device_code}/GET/json/token`.
-                        public var token: Swift.String?
+                        @available(*, deprecated) public var token: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - access_token: A short-lived token to authenticate API requests as user.
+                        ///   - refresh_token: A token to generate new access tokens when they expire.
                         ///   - token: User authentication token
-                        public init(token: Swift.String? = nil) { self.token = token }
-                        public enum CodingKeys: String, CodingKey { case token }
+                        public init(
+                            access_token: Swift.String? = nil,
+                            refresh_token: Swift.String? = nil,
+                            token: Swift.String? = nil
+                        ) {
+                            self.access_token = access_token
+                            self.refresh_token = refresh_token
+                            self.token = token
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case access_token
+                            case refresh_token
+                            case token
+                        }
                     }
                     case json(Operations.getDeviceCode.Output.Ok.Body.jsonPayload)
                 }
@@ -1705,6 +2017,145 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.getDeviceCode.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    public enum refreshToken {
+        public static let id: String = "refreshToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.refreshToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.refreshToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.refreshToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.refreshToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Token params
+                ///
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// User refresh token
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/refresh_token`.
+                    public var refresh_token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - refresh_token: User refresh token
+                    public init(refresh_token: Swift.String) { self.refresh_token = refresh_token }
+                    public enum CodingKeys: String, CodingKey { case refresh_token }
+                }
+                case json(Operations.refreshToken.Input.Body.jsonPayload)
+            }
+            public var body: Operations.refreshToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.refreshToken.Input.Path = .init(),
+                query: Operations.refreshToken.Input.Query = .init(),
+                headers: Operations.refreshToken.Input.Headers = .init(),
+                cookies: Operations.refreshToken.Input.Cookies = .init(),
+                body: Operations.refreshToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.refreshToken.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.AuthenticationTokens)
+                }
+                /// Received HTTP response body
+                public var body: Operations.refreshToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.refreshToken.Output.Ok.Headers = .init(),
+                    body: Operations.refreshToken.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Succcessfully generated new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.refreshToken.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.refreshToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.refreshToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.refreshToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.refreshToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.refreshToken.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -5877,22 +6328,22 @@ public enum Operations {
     }
     /// Returns a project based on the handle.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
     public enum showProject {
         public static let id: String = "showProject"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var account_name: Swift.String
-                public var project_name: Swift.String
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_name:
-                ///   - project_name:
-                public init(account_name: Swift.String, project_name: Swift.String) {
-                    self.account_name = account_name
-                    self.project_name = project_name
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.showProject.Input.Path
@@ -5963,7 +6414,7 @@ public enum Operations {
             }
             /// The project to show
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.showProject.Output.Ok)
@@ -5994,7 +6445,7 @@ public enum Operations {
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.showProject.Output.Unauthorized)
@@ -6025,7 +6476,7 @@ public enum Operations {
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.showProject.Output.Forbidden)
@@ -6056,7 +6507,7 @@ public enum Operations {
             }
             /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(showProject)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.showProject.Output.NotFound)
@@ -6068,22 +6519,22 @@ public enum Operations {
     }
     /// Cleans cache for a given project
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_name}/{project_name}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)`.
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     public enum cleanCache {
         public static let id: String = "cleanCache"
         public struct Input: Sendable, Equatable, Hashable {
             public struct Path: Sendable, Equatable, Hashable {
-                public var account_name: Swift.String
-                public var project_name: Swift.String
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_name:
-                ///   - project_name:
-                public init(account_name: Swift.String, project_name: Swift.String) {
-                    self.account_name = account_name
-                    self.project_name = project_name
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.cleanCache.Input.Path
@@ -6152,7 +6603,7 @@ public enum Operations {
             }
             /// The cache has been successfully cleaned
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/204`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
@@ -6183,7 +6634,7 @@ public enum Operations {
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.cleanCache.Output.Unauthorized)
@@ -6214,7 +6665,7 @@ public enum Operations {
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.cleanCache.Output.Forbidden)
@@ -6245,10 +6696,622 @@ public enum Operations {
             }
             /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/cache/clean/put(cleanCache)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.cleanCache.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    public enum listProjectTokens {
+        public static let id: String = "listProjectTokens"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listProjectTokens.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.listProjectTokens.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.listProjectTokens.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listProjectTokens.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listProjectTokens.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.listProjectTokens.Input.Path,
+                query: Operations.listProjectTokens.Input.Query = .init(),
+                headers: Operations.listProjectTokens.Input.Headers = .init(),
+                cookies: Operations.listProjectTokens.Input.Cookies = .init(),
+                body: Operations.listProjectTokens.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// A list of project tokens.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/json/tokens`.
+                        public var tokens: [Components.Schemas.ProjectToken]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tokens:
+                        public init(tokens: [Components.Schemas.ProjectToken]) {
+                            self.tokens = tokens
+                        }
+                        public enum CodingKeys: String, CodingKey { case tokens }
+                    }
+                    case json(Operations.listProjectTokens.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Ok.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A list of project tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listProjectTokens.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Unauthorized.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjectTokens.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.Forbidden.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listProjectTokens.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjectTokens.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjectTokens.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjectTokens.Output.NotFound.Headers = .init(),
+                    body: Operations.listProjectTokens.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listProjectTokens.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    public enum createProjectToken {
+        public static let id: String = "createProjectToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createProjectToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createProjectToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.createProjectToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createProjectToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.createProjectToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.createProjectToken.Input.Path,
+                query: Operations.createProjectToken.Input.Query = .init(),
+                headers: Operations.createProjectToken.Input.Headers = .init(),
+                cookies: Operations.createProjectToken.Input.Cookies = .init(),
+                body: Operations.createProjectToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// A new project token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// The generated project token.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/json/token`.
+                        public var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - token: The generated project token.
+                        public init(token: Swift.String) { self.token = token }
+                        public enum CodingKeys: String, CodingKey { case token }
+                    }
+                    case json(Operations.createProjectToken.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Ok.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A project token was generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createProjectToken.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createProjectToken.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.Forbidden.Headers = .init(),
+                    body: Operations.createProjectToken.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createProjectToken.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProjectToken.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProjectToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProjectToken.Output.NotFound.Headers = .init(),
+                    body: Operations.createProjectToken.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createProjectToken.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    public enum revokeProjectToken {
+        public static let id: String = "revokeProjectToken"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                public var id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                ///   - id:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.revokeProjectToken.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.revokeProjectToken.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.revokeProjectToken.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.revokeProjectToken.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.revokeProjectToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.revokeProjectToken.Input.Path,
+                query: Operations.revokeProjectToken.Input.Query = .init(),
+                headers: Operations.revokeProjectToken.Input.Headers = .init(),
+                cookies: Operations.revokeProjectToken.Input.Cookies = .init(),
+                body: Operations.revokeProjectToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.NoContent.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.revokeProjectToken.Output.NoContent)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.Unauthorized.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.revokeProjectToken.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.Forbidden.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.revokeProjectToken.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.NotFound.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project token was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.revokeProjectToken.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

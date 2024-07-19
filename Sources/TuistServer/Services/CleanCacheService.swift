@@ -6,7 +6,7 @@ import TuistSupport
 public protocol CleanCacheServicing {
     func cleanCache(
         serverURL: URL,
-        fullName: String
+        fullHandle: String
     ) async throws
 }
 
@@ -36,17 +36,34 @@ enum CleanCacheServiceError: FatalError {
 }
 
 public final class CleanCacheService: CleanCacheServicing {
-    public init() {}
+    private let fullHandleService: FullHandleServicing
+
+    public convenience init() {
+        self.init(
+            fullHandleService: FullHandleService()
+        )
+    }
+
+    init(
+        fullHandleService: FullHandleServicing
+    ) {
+        self.fullHandleService = fullHandleService
+    }
 
     public func cleanCache(
         serverURL: URL,
-        fullName: String
+        fullHandle: String
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
-        let components = fullName.components(separatedBy: "/")
+        let handles = try fullHandleService.parse(fullHandle)
 
         let response = try await client.cleanCache(
-            .init(path: .init(account_name: components[0], project_name: components[1]))
+            .init(
+                path: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
+                )
+            )
         )
 
         switch response {

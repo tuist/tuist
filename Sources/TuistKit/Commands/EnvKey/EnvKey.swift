@@ -144,6 +144,7 @@ public enum EnvKey: String, CaseIterable {
     // PROJECT TOKEN
     case projectTokenFullHandle = "TUIST_PROJECT_TOKEN_FULL_HANDLE"
     case projectTokenPath = "TUIST_PROJECT_TOKEN_PATH"
+    case projectTokenId = "TUIST_PROJECT_TOKEN_ID"
 
     // ORGANIZATION LIST
     case organizationListJson = "TUIST_ORGANIZATION_LIST_JSON"
@@ -199,6 +200,8 @@ public enum EnvKey: String, CaseIterable {
 
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
+    case authEmail = "TUIST_AUTH_EMAIL"
+    case authPassword = "TUIST_AUTH_PASSWORD"
 
     // SESSION
     case sessionPath = "TUIST_SESSION_PATH"

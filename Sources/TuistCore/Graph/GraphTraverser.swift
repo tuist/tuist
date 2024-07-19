@@ -366,14 +366,22 @@ public class GraphTraverser: GraphTraversing {
             .filter(\.isPrecompiled)
 
         let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0)
-            }
+            .flatMap { filterDependencies(from: $0) }
 
-        let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
+        let precompiledDynamicLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
-            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
-        references.formUnion(precompiledLibrariesAndFrameworks)
+        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
+            from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
+            test: { $0.xcframeworkDependency?.linking == .static },
+            skip: { $0.xcframeworkDependency == nil }
+        )
+
+        let precompiledLibrariesAndFrameworks =
+            (precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies)
+                .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+
+        references.formUnion(Set(precompiledLibrariesAndFrameworks))
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
@@ -1245,3 +1253,14 @@ public class GraphTraverser: GraphTraversing {
 }
 
 // swiftlint:enable type_body_length
+
+extension GraphDependency {
+    fileprivate var xcframeworkDependency: GraphDependency.XCFramework? {
+        switch self {
+        case let .xcframework(xcframework):
+            return xcframework
+        default:
+            return nil
+        }
+    }
+}
