@@ -295,7 +295,7 @@ public final class PluginService: PluginServicing {
             let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
             let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
 
-            var _error: Error?
+            var thrownError: Error?
 
             do {
                 if FileHandler.shared.exists(downloadZipPath) {
@@ -323,14 +323,14 @@ public final class PluginService: PluginServicing {
                         try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
                     }
             } catch {
-                _error = error
+                thrownError = error
             }
 
             try? await fileUnarchiver.delete()
             try? await self.fileSystem.remove(downloadPath)
             try? await self.fileSystem.remove(downloadZipPath)
 
-            if let error = _error { throw error }
+            if let thrownError { throw thrownError }
         }
     }
 
