@@ -163,38 +163,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         stub(rootDirectory: "/project")
         stub(path: "/project/Tuist/Config.swift", exists: true)
         stub(
-            config: .test(
-                fullHandle: "tuist/tuist",
-                url: "https://test.tuist.io",
-                generationOptions: .options(
-                    optionalAuthentication: true
-                )
-            ),
-            at: "/project/Tuist"
-        )
-
-        // When
-        let result = try await subject.loadConfig(path: "/project")
-
-        // Then
-        XCTAssertBetterEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
-            fullHandle: "tuist/tuist",
-            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(
-                optionalAuthentication: true
-            ),
-            path: "/project/Tuist/Config.swift"
-        ))
-    }
-
-    func test_loadConfig_with_deprecated_cloud() throws {
-        // Given
-        stub(rootDirectory: "/project")
-        stub(path: "/project/Tuist/Config.swift", exists: true)
-        stub(
             config: ProjectDescription.Config(
                 cloud: .cloud(
                     projectId: "tuist/tuist",
@@ -205,7 +173,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let result = try subject.loadConfig(path: "/project")
+        let result = try await subject.loadConfig(path: "/project")
 
         // Then
         XCTAssertBetterEqual(result, TuistCore.Config(
