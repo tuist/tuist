@@ -112,7 +112,8 @@ public struct Config: Equatable, Hashable {
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
             staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -120,7 +121,8 @@ public struct Config: Equatable, Hashable {
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
-                defaultConfiguration: defaultConfiguration
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication
             )
         }
     }
