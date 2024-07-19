@@ -57,7 +57,7 @@ extension XcodeGraph.Target {
         let scripts = try manifest.scripts.map {
             try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
         }
-        
+
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
             manifest: manifest,
             targetName: name,

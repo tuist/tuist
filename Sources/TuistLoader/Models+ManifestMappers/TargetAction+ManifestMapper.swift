@@ -75,7 +75,7 @@ extension XcodeGraph.TargetScript {
             return try base.throwingGlob(absolutePath.basename)
         }.reduce([], +)
     }
-    
+
     private static func processFile(at outputPath: AbsolutePath) throws {
         let fileHandler = FileHandler.shared
         if !fileHandler.exists(outputPath) {
