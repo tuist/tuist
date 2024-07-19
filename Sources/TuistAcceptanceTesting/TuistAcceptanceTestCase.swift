@@ -13,9 +13,6 @@ public enum Destination {
     case simulator, device
 }
 
-// swiftlint:disable:next force_try
-public let cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
-
 open class TuistAcceptanceTestCase: XCTestCase {
     public var xcodeprojPath: AbsolutePath!
     public var workspacePath: AbsolutePath!
@@ -41,12 +38,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
             validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
             ]!
-        )
-
-        setenv(
-            "XDG_CACHE_HOME",
-            cacheDirectory.path.pathString,
-            1
         )
 
         do {
