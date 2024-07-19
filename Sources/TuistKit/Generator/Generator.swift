@@ -61,10 +61,10 @@ public class Generator: Generating {
         let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
-        try writer.write(workspace: workspaceDescriptor)
+        try await writer.write(workspace: workspaceDescriptor)
 
         // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
         try await postGenerationActions(

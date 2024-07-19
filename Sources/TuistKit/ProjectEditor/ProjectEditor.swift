@@ -40,7 +40,7 @@ protocol ProjectEditing: AnyObject {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -107,7 +107,7 @@ final class ProjectEditor: ProjectEditing {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
         let tuistIgnoreEntries = try tuistIgnoreContent
             .split(separator: "\n")
@@ -206,7 +206,7 @@ final class ProjectEditor: ProjectEditing {
 
         let graphTraverser = GraphTraverser(graph: graph)
         let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
-        try writer.write(workspace: descriptor)
+        try await writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
     }
 

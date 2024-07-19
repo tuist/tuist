@@ -63,7 +63,7 @@ final class EditService {
                 throw EditServiceError.xcodeNotSelected
             }
 
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
@@ -73,7 +73,7 @@ final class EditService {
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: path,
                 onlyCurrentDirectory: onlyCurrentDirectory,

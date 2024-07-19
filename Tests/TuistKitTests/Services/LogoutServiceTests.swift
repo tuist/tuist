@@ -39,13 +39,13 @@ final class LogoutServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_logout() throws {
+    func test_logout() async throws {
         // Given
         given(serverSessionController)
             .logout(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then
-        try subject.logout(directory: nil)
+        try await subject.logout(directory: nil)
     }
 }

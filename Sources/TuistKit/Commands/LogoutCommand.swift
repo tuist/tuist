@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 
-struct LogoutCommand: ParsableCommand {
+struct LogoutCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "logout",
@@ -18,8 +18,8 @@ struct LogoutCommand: ParsableCommand {
     )
     var path: String?
 
-    func run() throws {
-        try LogoutService().logout(
+    func run() async throws {
+        try await LogoutService().logout(
             directory: path
         )
     }

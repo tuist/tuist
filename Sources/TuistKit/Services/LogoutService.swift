@@ -10,7 +10,7 @@ protocol LogoutServicing: AnyObject {
     /// the keychain
     func logout(
         directory: String?
-    ) throws
+    ) async throws
 }
 
 final class LogoutService: LogoutServicing {
@@ -30,7 +30,7 @@ final class LogoutService: LogoutServicing {
 
     func logout(
         directory: String?
-    ) throws {
+    ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
             directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
@@ -39,6 +39,6 @@ final class LogoutService: LogoutServicing {
         }
         let config = try configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        try serverSessionController.logout(serverURL: serverURL)
+        try await serverSessionController.logout(serverURL: serverURL)
     }
 }

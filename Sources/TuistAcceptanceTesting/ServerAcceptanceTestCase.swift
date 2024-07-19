@@ -37,7 +37,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
     override open func tearDown() async throws {
         try await run(ProjectDeleteCommand.self, fullHandle)
         try await run(OrganizationDeleteCommand.self, organizationHandle)
-        try run(LogoutCommand.self)
+        try await run(LogoutCommand.self)
         try await super.tearDown()
     }
 }

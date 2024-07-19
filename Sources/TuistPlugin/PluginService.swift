@@ -293,6 +293,7 @@ public final class PluginService: PluginServicing {
             // Currently, we assume the release path exists.
             let downloadPath = try await self.fileClient.download(url: releaseURL)
             let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
+            let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
 
             var _error: Error?
 
@@ -303,13 +304,10 @@ public final class PluginService: PluginServicing {
                 try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
                 // Unzip
-                let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
                 let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
                     try fileUnarchiver.unzip()
                 )
-                defer {
-                    try? fileUnarchiver.delete()
-                }
+
                 try FileHandler.shared.createFolder(pluginReleaseDirectory)
                 for unarchivedContent in unarchivedContents {
                     try FileHandler.shared.move(
@@ -328,6 +326,7 @@ public final class PluginService: PluginServicing {
                 _error = error
             }
 
+            try? await fileUnarchiver.delete()
             try? await self.fileSystem.remove(.init(validating: downloadPath.pathString))
             try? await self.fileSystem.remove(.init(validating: downloadZipPath.pathString))
 

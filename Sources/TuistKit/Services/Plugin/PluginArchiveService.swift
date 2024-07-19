@@ -23,7 +23,7 @@ final class PluginArchiveService {
         self.fileArchiverFactory = fileArchiverFactory
     }
 
-    func run(path: String?) throws {
+    func run(path: String?) async throws {
         let path = try self.path(path)
 
         let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
@@ -47,8 +47,8 @@ final class PluginArchiveService {
 
         let plugin = try manifestLoader.loadPlugin(at: path)
 
-        try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
-            try archiveProducts(
+        try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+            try await self.archiveProducts(
                 taskProducts: taskProducts,
                 path: path,
                 plugin: plugin,
@@ -72,7 +72,7 @@ final class PluginArchiveService {
         path: AbsolutePath,
         plugin: Plugin,
         in temporaryDirectory: AbsolutePath
-    ) throws {
+    ) async throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
             logger.notice("Building \(product)...")
@@ -97,7 +97,7 @@ final class PluginArchiveService {
             from: temporaryZipPath,
             to: zipPath
         )
-        try archiver.delete()
+        try await archiver.delete()
 
         logger.notice(
             "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",
