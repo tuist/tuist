@@ -1,8 +1,8 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistSupport
-import FileSystem
 
 public struct ServerCredentials: Codable, Equatable {
     /// Deprecated authentication token.

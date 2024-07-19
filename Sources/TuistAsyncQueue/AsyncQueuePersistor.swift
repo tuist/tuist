@@ -1,8 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import FileSystem
 
 // swiftlint:disable:next large_tuple
 public typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: Date, data: Data, filename: String)

@@ -1,9 +1,9 @@
+import FileSystem
 import Path
 import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystem
 
 public protocol TargetBuilding {
     /// Builds a provided target.

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -68,6 +69,7 @@ public final class PluginService: PluginServicing {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
+    private let fileSystem: FileSystem
 
     /// Creates a `PluginService`.
     /// - Parameters:
@@ -85,7 +87,8 @@ public final class PluginService: PluginServicing {
         gitHandler: GitHandling = GitHandler(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
-        fileClient: FileClienting = FileClient()
+        fileClient: FileClienting = FileClient(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -94,6 +97,7 @@ public final class PluginService: PluginServicing {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
+        self.fileSystem = fileSystem
     }
 
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
@@ -289,37 +293,45 @@ public final class PluginService: PluginServicing {
             // Currently, we assume the release path exists.
             let downloadPath = try await self.fileClient.download(url: releaseURL)
             let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
-            defer {
-                try? FileHandler.shared.delete(downloadPath)
-                try? FileHandler.shared.delete(downloadZipPath)
-            }
-            if FileHandler.shared.exists(downloadZipPath) {
-                try FileHandler.shared.delete(downloadZipPath)
-            }
-            try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
-            // Unzip
-            let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
-            let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
-                try fileUnarchiver.unzip()
-            )
-            defer {
-                try? fileUnarchiver.delete()
-            }
-            try FileHandler.shared.createFolder(pluginReleaseDirectory)
-            for unarchivedContent in unarchivedContents {
-                try FileHandler.shared.move(
-                    from: unarchivedContent,
-                    to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
-                )
-            }
+            var _error: Error?
 
-            // Mark files as executables (this information is lost during (un)archiving)
-            try FileHandler.shared.contentsOfDirectory(pluginReleaseDirectory)
-                .filter { $0.basename.hasPrefix("tuist-") }
-                .forEach {
-                    try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
+            do {
+                if FileHandler.shared.exists(downloadZipPath) {
+                    try await self.fileSystem.remove(.init(validating: downloadZipPath.pathString))
                 }
+                try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
+
+                // Unzip
+                let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+                let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
+                    try fileUnarchiver.unzip()
+                )
+                defer {
+                    try? fileUnarchiver.delete()
+                }
+                try FileHandler.shared.createFolder(pluginReleaseDirectory)
+                for unarchivedContent in unarchivedContents {
+                    try FileHandler.shared.move(
+                        from: unarchivedContent,
+                        to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
+                    )
+                }
+
+                // Mark files as executables (this information is lost during (un)archiving)
+                try FileHandler.shared.contentsOfDirectory(pluginReleaseDirectory)
+                    .filter { $0.basename.hasPrefix("tuist-") }
+                    .forEach {
+                        try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
+                    }
+            } catch {
+                _error = error
+            }
+
+            try? await self.fileSystem.remove(.init(validating: downloadPath.pathString))
+            try? await self.fileSystem.remove(.init(validating: downloadZipPath.pathString))
+
+            if let error = _error { throw error }
         }
     }
 
