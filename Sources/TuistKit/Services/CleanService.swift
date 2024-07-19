@@ -125,7 +125,7 @@ final class CleanService {
         }
 
         if remote {
-            let config = try configLoader.loadConfig(path: resolvedPath)
+            let config = try await configLoader.loadConfig(path: resolvedPath)
             guard let fullHandle = config.fullHandle else { return }
             let serverURL = try serverURLService.url(configServerURL: config.url)
             try await cleanCacheService.cleanCache(

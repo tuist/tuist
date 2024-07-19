@@ -168,7 +168,7 @@ final class ProjectEditor: ProjectEditing {
             plugins: plugins,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let builtPluginHelperModules = try buildRemotePluginModules(
+        let builtPluginHelperModules = try await buildRemotePluginModules(
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
             plugins: plugins,
@@ -237,9 +237,9 @@ final class ProjectEditor: ProjectEditing {
         projectDescriptionPath: AbsolutePath,
         plugins: Plugins,
         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
-    ) throws -> [ProjectDescriptionHelpersModule] {
+    ) async throws -> [ProjectDescriptionHelpersModule] {
         let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
-        return try projectDescriptionHelpersBuilder.buildPlugins(
+        return try await projectDescriptionHelpersBuilder.buildPlugins(
             at: path,
             projectDescriptionSearchPaths: ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath),
             projectDescriptionHelperPlugins: loadedPluginHelpers

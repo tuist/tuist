@@ -45,7 +45,7 @@ final class PluginArchiveService {
             return
         }
 
-        let plugin = try manifestLoader.loadPlugin(at: path)
+        let plugin = try await manifestLoader.loadPlugin(at: path)
 
         try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
             try await self.archiveProducts(

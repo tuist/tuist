@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 
-struct SessionCommand: ParsableCommand {
+struct SessionCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "session",
@@ -18,8 +18,8 @@ struct SessionCommand: ParsableCommand {
     )
     var path: String?
 
-    func run() throws {
-        try SessionService().printSession(
+    func run() async throws {
+        try await SessionService().printSession(
             directory: path
         )
     }

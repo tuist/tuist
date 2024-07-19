@@ -19,7 +19,7 @@ final class ManifestLoaderTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_loadConfig() throws {
+    func test_loadConfig() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -35,10 +35,10 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        _ = try subject.loadConfig(at: temporaryPath)
+        _ = try await subject.loadConfig(at: temporaryPath)
     }
 
-    func test_loadPlugin() throws {
+    func test_loadPlugin() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -50,10 +50,10 @@ final class ManifestLoaderTests: TuistTestCase {
         try content.write(to: manifestPath.url, atomically: true, encoding: .utf8)
 
         // When
-        _ = try subject.loadPlugin(at: temporaryPath)
+        _ = try await subject.loadPlugin(at: temporaryPath)
     }
 
-    func test_loadProject() throws {
+    func test_loadProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -69,7 +69,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadProject(at: temporaryPath)
+        let got = try await subject.loadProject(at: temporaryPath)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -148,7 +148,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_loadPackageSettings() throws {
+    func test_loadPackageSettings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -184,7 +184,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadPackageSettings(at: temporaryPath)
+        let got = try await subject.loadPackageSettings(at: temporaryPath)
 
         // Then
         XCTAssertEqual(
@@ -199,7 +199,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_loadPackageSettings_without_package_settings() throws {
+    func test_loadPackageSettings_without_package_settings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -224,7 +224,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadPackageSettings(at: temporaryPath)
+        let got = try await subject.loadPackageSettings(at: temporaryPath)
 
         // Then
         XCTAssertEqual(
@@ -233,7 +233,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_loadWorkspace() throws {
+    func test_loadWorkspace() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -249,13 +249,13 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadWorkspace(at: temporaryPath)
+        let got = try await subject.loadWorkspace(at: temporaryPath)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
     }
 
-    func test_loadTemplate() throws {
+    func test_loadTemplate() async throws {
         // Given
         let temporaryPath = try temporaryPath().appending(component: "folder")
         try fileHandler.createFolder(temporaryPath)
@@ -276,13 +276,13 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadTemplate(at: temporaryPath)
+        let got = try await subject.loadTemplate(at: temporaryPath)
 
         // Then
         XCTAssertEqual(got.description, "Template description")
     }
 
-    func test_load_invalidFormat() throws {
+    func test_load_invalidFormat() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -298,18 +298,18 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When / Then
-        XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
-        )
+        var _error: Error?
+        do {
+            _ = try await self.subject.loadProject(at: temporaryPath)
+        } catch {
+            _error = error
+        }
+        XCTAssertNotNil(_error)
     }
 
-    func test_load_missingManifest() throws {
+    func test_load_missingManifest() async throws {
         let temporaryPath = try temporaryPath()
-        XCTAssertThrowsError(
-            try subject.loadProject(at: temporaryPath)
-        ) { error in
-            XCTAssertEqual(error as? ManifestLoaderError, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
-        }
+        await  XCTAssertThrowsSpecific({ try await self.subject.loadProject(at: temporaryPath) }, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
     }
 
     func test_manifestsAt() throws {
@@ -329,7 +329,7 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertTrue(got.contains(.config))
     }
 
-    func test_manifestLoadError() throws {
+    func test_manifestLoadError() async throws {
         // Given
         let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
@@ -338,20 +338,13 @@ final class ManifestLoaderTests: TuistTestCase {
         let data = try fileHandler.readFile(configPath)
 
         // When
-        XCTAssertThrowsError(
-            try subject.loadConfig(at: temporaryPath)
-        ) { error in
-            XCTAssertEqual(
-                error as? ManifestLoaderError,
-                .manifestLoadingFailed(
-                    path: temporaryPath.appending(component: "Config.swift"),
-                    data: data,
-                    context: """
-                    The encoded data for the manifest is corrupted.
-                    The given data was not valid JSON.
-                    """
-                )
-            )
-        }
+        await XCTAssertThrowsSpecific({ try await self.subject.loadConfig(at: temporaryPath) }, ManifestLoaderError.manifestLoadingFailed(
+            path: temporaryPath.appending(component: "Config.swift"),
+            data: data,
+            context: """
+            The encoded data for the manifest is corrupted.
+            The given data was not valid JSON.
+            """
+        ))
     }
 }

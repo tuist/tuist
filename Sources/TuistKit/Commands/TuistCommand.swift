@@ -51,7 +51,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         let backend: TuistAnalyticsBackend?
-        let config = try ConfigLoader().loadConfig(path: path)
+        let config = try await ConfigLoader().loadConfig(path: path)
         if let fullHandle = config.fullHandle {
             backend = TuistAnalyticsServerBackend(
                 fullHandle: fullHandle,
@@ -85,7 +85,7 @@ public struct TuistCommand: AsyncParsableCommand {
         } catch {
             parsedError = error
             executeCommand = {
-                try executeTask(with: processedArguments)
+                try await executeTask(with: processedArguments)
             }
         }
 
@@ -116,8 +116,8 @@ public struct TuistCommand: AsyncParsableCommand {
         }
     }
 
-    private static func executeTask(with processedArguments: [String]) throws {
-        try TuistService().run(
+    private static func executeTask(with processedArguments: [String]) async throws {
+        try await TuistService().run(
             arguments: processedArguments,
             tuistBinaryPath: processArguments()!.first!
         )

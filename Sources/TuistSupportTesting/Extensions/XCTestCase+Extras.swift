@@ -121,6 +121,24 @@ extension XCTestCase {
         }
         XCTFail("No error was thrown", file: file, line: line)
     }
+    
+    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
+        _ closure: () async throws -> some Any,
+        _ error: Error,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(closureError, error, file: file, line: line)
+            return
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
+            return
+        }
+        XCTFail("No error was thrown", file: file, line: line)
+    }
 
     public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
         _ closure: @autoclosure () async throws -> some Any,

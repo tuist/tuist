@@ -31,20 +31,20 @@ final class TuistServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_when_command_not_found() throws {
+    func test_run_when_command_not_found() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.run(arguments: ["my-command"], tuistBinaryPath: ""),
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.run(arguments: ["my-command"], tuistBinaryPath: "") },
             TuistServiceError.taskUnavailable
         )
     }
 
-    func test_run_when_plugin_executable() throws {
+    func test_run_when_plugin_executable() async throws {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
@@ -71,11 +71,11 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "")
+            { try await self.subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "") }
         )
     }
 
-    func test_run_when_command_is_global() throws {
+    func test_run_when_command_is_global() async throws {
         // Given
         var whichCommand: String?
         system.whichStub = { invokedWhichCommand in
@@ -88,9 +88,13 @@ final class TuistServiceTests: TuistUnitTestCase {
             .willReturn(.default)
 
         // When/Then
-        XCTAssertNoThrow(
-            try subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
-        )
+        var _error: Error?
+        do  {
+            try await self.subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
+        } catch {
+            _error = error
+        }
+        XCTAssertNil(_error)
         XCTAssertEqual(whichCommand, "tuist-my-command")
     }
 }

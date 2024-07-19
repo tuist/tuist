@@ -66,7 +66,7 @@ final class ScaffoldService {
             template: templateName
         )
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
@@ -92,7 +92,7 @@ final class ScaffoldService {
             templateDirectories: templateDirectories,
             template: templateName
         )
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         let parsedAttributes = try parseAttributes(
             requiredTemplateOptions: requiredTemplateOptions,
@@ -120,7 +120,7 @@ final class ScaffoldService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         return try await pluginService.loadPlugins(using: config)
     }
 

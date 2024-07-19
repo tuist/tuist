@@ -153,12 +153,12 @@ public final class PluginService: PluginServicing {
                     return nil
                 }
             }
-        let localPluginManifests = try localPluginPaths.map(manifestLoader.loadPlugin)
+        let localPluginManifests = try await localPluginPaths.concurrentMap(manifestLoader.loadPlugin)
 
         let remotePluginPaths = try remotePluginPaths(using: config)
         let remotePluginRepositoryPaths = remotePluginPaths.map(\.repositoryPath)
-        let remotePluginManifests = try remotePluginRepositoryPaths
-            .map(manifestLoader.loadPlugin)
+        let remotePluginManifests = try await remotePluginRepositoryPaths
+            .concurrentMap(manifestLoader.loadPlugin)
         let pluginPaths = localPluginPaths + remotePluginRepositoryPaths
         let missingRemotePlugins = zip(remotePluginManifests, remotePluginRepositoryPaths)
             .filter { !FileHandler.shared.exists($0.1) }
@@ -283,7 +283,7 @@ public final class PluginService: PluginServicing {
             return
         }
 
-        let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
+        let plugin = try await manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
         guard let releaseURL = getPluginDownloadUrl(gitUrl: url, gitTag: gitTag, pluginName: plugin.name, releaseUrl: releaseUrl)
         else { throw PluginServiceError.invalidURL(url) }
 
