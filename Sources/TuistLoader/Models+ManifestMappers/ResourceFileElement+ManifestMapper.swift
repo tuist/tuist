@@ -34,7 +34,7 @@ extension XcodeGraph.ResourceFileElement {
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
 
-            if files.isEmpty && FileHandler.shared.isFolder(path) {
+            if files.isEmpty {
                 logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
             }
 

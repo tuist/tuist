@@ -25,7 +25,7 @@ extension XcodeGraph.CopyFileElement {
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
 
-            if files.isEmpty && FileHandler.shared.isFolder(path) {
+            if files.isEmpty {
                 logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
             }
 
