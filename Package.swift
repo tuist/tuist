@@ -304,7 +304,6 @@ var targets: [Target] = [
 
     let packageSettings = PackageSettings(
         productTypes: [
-            "SystemPackage": .staticFramework,
             "TSCBasic": .staticFramework,
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
@@ -312,7 +311,8 @@ var targets: [Target] = [
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
             "MockableTest": .staticFramework,
-        ]
+        ],
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
 
 #endif

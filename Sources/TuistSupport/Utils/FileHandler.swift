@@ -71,6 +71,7 @@ public protocol FileHandling: AnyObject {
     func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
     func createFolder(_ path: Path.AbsolutePath) throws
+    @available(*, deprecated, message: "Use remove() from FileSystem.FileSystem")
     func delete(_ path: Path.AbsolutePath) throws
     func isFolder(_ path: Path.AbsolutePath) -> Bool
     func touch(_ path: Path.AbsolutePath) throws
