@@ -88,4 +88,65 @@ class ManifestLinterTests: XCTestCase {
             severity: .error
         )))
     }
+
+    func test_lint_workspace_scheme_missingProjectPathInBuildAction() {
+        // Given
+
+        let buildAction = BuildAction.buildAction(targets: [.target("TargetA")])
+        let scheme = Scheme.scheme(name: "MyScheme", buildAction: buildAction)
+        let workspace = Workspace.test(schemes: [scheme])
+
+        // When
+        let results = subject.lint(workspace: workspace)
+
+        // Then
+        XCTAssertTrue(results.contains(LintingIssue(
+            reason: """
+            Workspace.swift: The target 'TargetA' in the scheme 'MyScheme' is missing the project path.
+            Please specify the project path using .project(path:, target:).
+
+            """,
+            severity: .error
+        )))
+    }
+
+    func test_lint_workspace_scheme_missingProjectPathInRunAction() {
+        // Given
+        let runAction = RunAction.runAction(expandVariableFromTarget: .target("TargetA"))
+        let scheme = Scheme.scheme(name: "MyScheme", runAction: runAction)
+        let workspace = Workspace.test(schemes: [scheme])
+
+        // When
+        let results = subject.lint(workspace: workspace)
+
+        // Then
+        XCTAssertTrue(results.contains(LintingIssue(
+            reason: """
+            Workspace.swift: The target 'TargetA' in the run action of the scheme 'MyScheme' is missing the project path.
+            Please specify the project path using .project(path:, target:).
+
+            """,
+            severity: .error
+        )))
+    }
+
+    func test_lint_workspace_scheme_missingProjectPathInProfileAction() {
+        // Given
+        let profileAction = ProfileAction.profileAction(executable: .target("TargetA"))
+        let scheme = Scheme.scheme(name: "MyScheme", profileAction: profileAction)
+        let workspace = Workspace.test(schemes: [scheme])
+
+        // When
+        let results = subject.lint(workspace: workspace)
+
+        // Then
+        XCTAssertTrue(results.contains(LintingIssue(
+            reason: """
+            Workspace.swift: The target 'TargetA' in the profile action of the scheme 'MyScheme' is missing the project path.
+            Please specify the project path using .project(path:, target:).
+
+            """,
+            severity: .error
+        )))
+    }
 }
