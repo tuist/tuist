@@ -1,5 +1,5 @@
 {
-  "originHash" : "bada3653cac421ca3adf819f2e601eba9dcc22153ed2fdfe30a6e0b28f0a4e40",
+  "originHash" : "c69f7b1c222885411d683175aeb35612b3b1528f2dfee24b7fb3da8652e2b41f",
   "pins" : [
     {
       "identity" : "aexml",
@@ -241,7 +241,7 @@
       "location" : "https://github.com/filipracki/XcodeGraph.git",
       "state" : {
         "branch" : "add-metal-diagnostics-options-to-run-action",
-        "revision" : "ff27e250ed770d25f05f323bd27289a4a017df72"
+        "revision" : "cd4af0fabf3889a77d322f8ab4fa8646718c969c"
       }
     },
     {
