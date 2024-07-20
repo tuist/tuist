@@ -2,6 +2,8 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import TuistCore
+import TuistLoader
 import TuistSupport
 
 public struct ImportFinderCommand: AsyncParsableCommand {
@@ -31,9 +33,15 @@ public struct ImportFinderCommand: AsyncParsableCommand {
     var targetName: String?
 
     public func run() async throws {
-        try await ImportFinderService().run(
-            path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
-            targetName: targetName ?? "Unknown"
+        let manifestLoader = ManifestLoaderFactory()
+            .createManifestLoader()
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
         )
+        let (graph, _, _) = try await manifestGraphLoader
+            .load(path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath)
+        try await GraphImplicitImportLintService(graph: graph).lint()
     }
 }

@@ -9,10 +9,37 @@ final class ImportSourceCodeScanner {
     func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> [String] {
         switch language {
         case .swift:
-            try extractAllImportsSwift(from: sourceCode)
+            try extractImportedModules(from: sourceCode)
         case .objc:
             try extractAllImportsObjc(from: sourceCode)
         }
+    }
+
+    func extractImportedModules(from code: String) throws -> [String] {
+        // Регулярное выражение для поиска строк импорта
+        let pattern = #"import\s+(?:struct\s+|enum\s+|class\s+)?([\w]+)"#
+
+        // Создаем массив для имен модулей
+        var modules: [String] = []
+
+        // Создаем регулярное выражение
+        let regex = try NSRegularExpression(pattern: pattern, options: [])
+
+        // Ищем совпадения в коде
+        let matches = regex.matches(in: code, options: [], range: NSRange(location: 0, length: code.utf16.count))
+
+        for match in matches {
+            if let moduleRange = Range(match.range(at: 1), in: code) {
+                let module = String(code[moduleRange])
+                // Разделяем по точке и берем только имя верхнеуровневого модуля
+                let topLevelModule = module.split(separator: ".").first.map(String.init)
+                if let topLevelModule, !modules.contains(topLevelModule) {
+                    modules.append(topLevelModule)
+                }
+            }
+        }
+
+        return modules
     }
 
     func extractAllImportsSwift(from text: String) throws -> [String] {
