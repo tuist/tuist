@@ -144,7 +144,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Lint Manifests
         let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
-        try workspaceLintingIssues.printAndThrowErrorsIfNeeded()
+        workspaceLintingIssues.printWarningsIfNeeded()
         let lintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
         try lintingIssues.printAndThrowErrorsIfNeeded()
 

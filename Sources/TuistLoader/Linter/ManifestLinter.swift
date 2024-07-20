@@ -58,26 +58,26 @@ public class ManifestLinter: ManifestLinting {
 
         for scheme in workspace.schemes {
             if let buildAction = scheme.buildAction {
-                issues.append(contentsOf: lintWorkspaceSchemeBuildActions(
+                issues.append(contentsOf: lintWorkspaceSchemeTargets(
                     buildAction.targets,
-                    scheme: scheme,
-                    workspace: workspace
+                    actionType: "buildAction",
+                    scheme: scheme
                 ))
             }
 
             if let runAction = scheme.runAction {
-                issues.append(contentsOf: lintWorkspaceSchemeRunActions(
+                issues.append(contentsOf: lintWorkspaceSchemeTarget(
                     runAction.expandVariableFromTarget,
-                    scheme: scheme,
-                    workspace: workspace
+                    actionType: "runAction",
+                    scheme: scheme
                 ))
             }
 
             if let profileAction = scheme.profileAction {
-                issues.append(contentsOf: lintWorkspaceSchemeProfileActions(
+                issues.append(contentsOf: lintWorkspaceSchemeTarget(
                     profileAction.executable,
-                    scheme: scheme,
-                    workspace: workspace
+                    actionType: "profileAction",
+                    scheme: scheme
                 ))
             }
         }
@@ -85,35 +85,28 @@ public class ManifestLinter: ManifestLinting {
         return issues
     }
 
-    private func lintWorkspaceSchemeBuildActions(
+    private func lintWorkspaceSchemeTargets(
         _ targets: [TargetReference],
-        scheme: Scheme, workspace _: ProjectDescription.Workspace
+        actionType: String,
+        scheme: Scheme
     ) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
-        targets.forEach { targetReference in
-            guard targetReference.projectPath == nil else { return }
-            issues.append(
-                LintingIssue(
-                    reason: """
-                    Workspace.swift: The target '\(targetReference.targetName)' in the scheme '\(
-                        scheme
-                            .name
-                    )' is missing the project path.
-                    Please specify the project path using .project(path:, target:).
-
-                    """,
-                    severity: .error
-                )
-            )
+        for targetReference in targets {
+            issues.append(contentsOf: lintWorkspaceSchemeTarget(
+                targetReference,
+                actionType: actionType,
+                scheme: scheme
+            ))
         }
 
         return issues
     }
 
-    private func lintWorkspaceSchemeRunActions(
+    private func lintWorkspaceSchemeTarget(
         _ targetReference: TargetReference?,
-        scheme: Scheme, workspace _: ProjectDescription.Workspace
+        actionType: String,
+        scheme: Scheme
     ) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
@@ -124,41 +117,13 @@ public class ManifestLinter: ManifestLinting {
         issues.append(
             LintingIssue(
                 reason: """
-                Workspace.swift: The target '\(targetReference.targetName)' in the run action of the scheme '\(
+                Workspace.swift: The target '\(targetReference.targetName)' in the \(actionType) of the scheme '\(
                     scheme
                         .name
                 )' is missing the project path.
                 Please specify the project path using .project(path:, target:).
-
                 """,
-                severity: .error
-            )
-        )
-
-        return issues
-    }
-
-    private func lintWorkspaceSchemeProfileActions(
-        _ targetReference: TargetReference?,
-        scheme: Scheme, workspace _: ProjectDescription.Workspace
-    ) -> [LintingIssue] {
-        var issues = [LintingIssue]()
-
-        guard let targetReference else { return issues }
-
-        guard targetReference.projectPath == nil else { return issues }
-
-        issues.append(
-            LintingIssue(
-                reason: """
-                Workspace.swift: The target '\(targetReference.targetName)' in the profile action of the scheme '\(
-                    scheme
-                        .name
-                )' is missing the project path.
-                Please specify the project path using .project(path:, target:).
-
-                """,
-                severity: .error
+                severity: .warning
             )
         )
 

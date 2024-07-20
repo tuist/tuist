@@ -106,7 +106,7 @@ class ManifestLinterTests: XCTestCase {
             Please specify the project path using .project(path:, target:).
 
             """,
-            severity: .error
+            severity: .warning
         )))
     }
 
@@ -126,7 +126,7 @@ class ManifestLinterTests: XCTestCase {
             Please specify the project path using .project(path:, target:).
 
             """,
-            severity: .error
+            severity: .warning
         )))
     }
 
@@ -146,7 +146,7 @@ class ManifestLinterTests: XCTestCase {
             Please specify the project path using .project(path:, target:).
 
             """,
-            severity: .error
+            severity: .warning
         )))
     }
 }
