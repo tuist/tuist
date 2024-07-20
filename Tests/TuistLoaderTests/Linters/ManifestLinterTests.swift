@@ -102,9 +102,8 @@ class ManifestLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(results.contains(LintingIssue(
             reason: """
-            Workspace.swift: The target 'TargetA' in the scheme 'MyScheme' is missing the project path.
+            Workspace.swift: The target 'TargetA' in the buildAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
-
             """,
             severity: .warning
         )))
@@ -122,9 +121,8 @@ class ManifestLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(results.contains(LintingIssue(
             reason: """
-            Workspace.swift: The target 'TargetA' in the run action of the scheme 'MyScheme' is missing the project path.
+            Workspace.swift: The target 'TargetA' in the runAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
-
             """,
             severity: .warning
         )))
@@ -142,9 +140,8 @@ class ManifestLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(results.contains(LintingIssue(
             reason: """
-            Workspace.swift: The target 'TargetA' in the profile action of the scheme 'MyScheme' is missing the project path.
+            Workspace.swift: The target 'TargetA' in the profileAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
-
             """,
             severity: .warning
         )))
