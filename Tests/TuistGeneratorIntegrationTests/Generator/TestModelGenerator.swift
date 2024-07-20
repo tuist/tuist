@@ -341,7 +341,8 @@ final class TestModelGenerator {
                     executable: nil,
                     filePath: nil,
                     arguments: createArguments(),
-                    diagnosticsOptions: SchemeDiagnosticsOptions()
+                    diagnosticsOptions: SchemeDiagnosticsOptions(),
+                    metalOptions: MetalOptions()
                 ),
                 archiveAction: ArchiveAction(
                     configurationName: "Debug",

@@ -414,14 +414,14 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", branch: "0.2.1"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
+        .package(url: "https://github.com/filipracki/XcodeProj.git", branch: "add-metal-diagnostics-options-to-launch-action"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "2.4.0"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.5.0")),
+        .package(url: "https://github.com/filipracki/XcodeGraph.git", branch: "add-metal-diagnostics-options-to-run-action"),
     ],
     targets: targets
 )
