@@ -69,7 +69,7 @@ final class GraphImplicitImportLintService {
         switch source.path.url.pathExtension {
         case "swift":
             language = .swift
-        case "objc":
+        case "h", "m", "cpp", "mm":
             language = .objc
         default:
             return []
