@@ -30,7 +30,7 @@ public struct RunAction: Equatable, Codable, Sendable {
 
     /// List of diagnostics options to set to the action.
     public var diagnosticsOptions: SchemeDiagnosticsOptions
-    
+
     /// List of metal options to set to the action
     public var metalOptions: MetalOptions
 
