@@ -4418,7 +4418,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
     }
 
     func test_orphanExternalDependencies() throws {
-        // GivenexternalTargetSupportedPlatformsexternalTargetSupportedPlatforms
+        // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
