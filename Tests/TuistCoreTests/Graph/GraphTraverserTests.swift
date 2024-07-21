@@ -4593,17 +4593,26 @@ final class GraphTraverserTests: TuistUnitTestCase {
             destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
             product: .framework
         )
+        let externalPackageTestTarget = Target.test(
+            name: "TestTarget",
+            destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
+            product: .unitTests
+        )
 
         let project = Project.test(path: directory, targets: [appTarget])
         let externalProject = Project.test(
             path: packagesDirectory,
-            targets: [externalPackage, externalPackageTargetB],
+            targets: [externalPackage, externalPackageTargetB, externalPackageTestTarget],
             type: .remotePackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
         let externalPackageBDependency = GraphDependency.target(name: externalPackageTargetB.name, path: externalProject.path)
+        let externalPackageTestDependency = GraphDependency.target(
+            name: externalPackageTestTarget.name,
+            path: externalProject.path
+        )
 
         let graph = Graph.test(
             projects: [
@@ -4613,6 +4622,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dependencies: [
                 appTargetDependency: Set([externalPackageDependency]),
                 externalPackageDependency: Set([externalPackageBDependency]),
+                externalPackageTestDependency: Set([externalPackageDependency]),
             ],
             dependencyConditions: [
                 GraphEdge(from: externalPackageDependency, to: externalPackageBDependency): .when([.ios, .macos])!,
@@ -4624,6 +4634,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertNil(got[GraphTarget(path: project.path, target: appTarget, project: project)])
+        XCTAssertNil(got[GraphTarget(path: externalProject.path, target: externalPackageTestTarget, project: externalProject)])
         XCTAssertEqual(
             got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
             Set([.iOS])
@@ -4650,17 +4661,26 @@ final class GraphTraverserTests: TuistUnitTestCase {
             destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
             product: .framework
         )
+        let externalPackageTestTarget = Target.test(
+            name: "TestTarget",
+            destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac],
+            product: .unitTests
+        )
 
         let project = Project.test(path: directory, targets: [appTarget])
         let externalProject = Project.test(
             path: packagesDirectory,
-            targets: [externalPackage, externalPackageTargetB],
+            targets: [externalPackage, externalPackageTargetB, externalPackageTestTarget],
             type: .localPackage
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
         let externalPackageBDependency = GraphDependency.target(name: externalPackageTargetB.name, path: externalProject.path)
+        let externalPackageTestDependency = GraphDependency.target(
+            name: externalPackageTestTarget.name,
+            path: externalProject.path
+        )
 
         let graph = Graph.test(
             projects: [
@@ -4670,6 +4690,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dependencies: [
                 appTargetDependency: Set([externalPackageDependency]),
                 externalPackageDependency: Set([externalPackageBDependency]),
+                externalPackageTestDependency: Set([externalPackageDependency]),
             ],
             dependencyConditions: [
                 GraphEdge(from: externalPackageDependency, to: externalPackageBDependency): .when([.ios, .macos])!,
@@ -4687,6 +4708,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)],
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackageTestTarget, project: externalProject)],
             Set([.iOS])
         )
     }
@@ -4985,6 +5010,44 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [
             "\(precompiledMacroPath.pathString)#\(precompiledMacroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
+    }
+
+    func test_allLocalPackageTargets() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+
+        let localPackageTarget1 = Target.test(name: "LocalPackageTarget1", product: .framework)
+        let localPackageTarget2 = Target.test(name: "LocalPackageTarget2", product: .framework)
+        let localPackageProjectPath = temporaryPath.appending(component: "LocalPackageProject")
+        let localPackageProject = Project.test(
+            path: localPackageProjectPath,
+            targets: [localPackageTarget1, localPackageTarget2],
+            type: .localPackage
+        )
+
+        let remotePackageTarget1 = Target.test(name: "RemotePackageTarget1", product: .framework)
+        let remotePackageProjectPath = temporaryPath.appending(component: "RemotePackageProject")
+        let remotePackageProject = Project.test(
+            path: remotePackageProjectPath,
+            targets: [remotePackageTarget1],
+            type: .remotePackage
+        )
+
+        let graph = Graph.test(
+            projects: [
+                localPackageProjectPath: localPackageProject,
+                remotePackageProjectPath: remotePackageProject,
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allLocalPackageTargets()
+
+        // Then
+        XCTAssertBetterEqual(got, Set([
+            GraphTarget(path: localPackageProjectPath, target: localPackageTarget1, project: localPackageProject),
+            GraphTarget(path: localPackageProjectPath, target: localPackageTarget2, project: localPackageProject),
+        ]))
     }
 
     // MARK: - Helpers

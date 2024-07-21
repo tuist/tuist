@@ -949,6 +949,22 @@ public class GraphTraverser: GraphTraversing {
         }
 
         targetsWithExternalDependencies.forEach { traverse(target: $0, parentPlatforms: $0.target.supportedPlatforms) }
+
+        let allLocalPakcageTestTargets = allLocalPackageTargets()
+            .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
+        for testTarget in allLocalPakcageTestTargets {
+            var supportedPlatforms = testTarget.target.supportedPlatforms
+            let dependencies = directTargetDependencies(path: testTarget.path, name: testTarget.target.name)
+            for dependency in dependencies {
+                if let narrowedPlatforms = platforms[dependency.graphTarget] {
+                    supportedPlatforms = supportedPlatforms.intersection(narrowedPlatforms)
+                } else {
+                    supportedPlatforms = supportedPlatforms.intersection(dependency.target.supportedPlatforms)
+                }
+            }
+            platforms[testTarget] = supportedPlatforms
+        }
+
         return platforms
     }
 
@@ -1188,6 +1204,19 @@ public class GraphTraverser: GraphTraversing {
                 condition: condition
             )
         }
+    }
+
+    /// Returns all the targets of local packages which also contained test targets.
+    /// - Returns: A set containing all the targets of local packages.
+    func allLocalPackageTargets() -> Set<GraphTarget> {
+        let localPackageProjects = graph.projects.filter { $0.value.type == .localPackage }
+        return Set<GraphTarget>(
+            localPackageProjects.flatMap { path, project in
+                project.targets.values.map { target in
+                    GraphTarget(path: path, target: target, project: project)
+                }
+            }
+        )
     }
 
     private func isDependencyResourceBundle(dependency: GraphDependency) -> Bool {
