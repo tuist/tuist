@@ -1,6 +1,0 @@
-framework module LocalXCFramework {
-  umbrella header "LocalXCFramework.h"
-  export *
-
-  module * { export * }
-}
