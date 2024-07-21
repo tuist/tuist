@@ -4453,6 +4453,58 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
+    func test_allOrphanRemoteTargets_whenLocalPackageHasOrphanTargets() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+
+        let localDirectPackageProduct = Target.test(name: "LocalDirectPackage", product: .framework)
+        let localOrphanPackageProduct = Target.test(name: "LocalOrphanPackage", product: .framework)
+        let localPackageProject = Project.test(
+            path: try! AbsolutePath(validating: "/LocalPackage"),
+            name: "LocalPackage",
+            targets: [localDirectPackageProduct, localOrphanPackageProduct],
+            type: .localPackage
+        )
+        let localDirectPackageProductDependency = GraphDependency.target(
+            name: localDirectPackageProduct.name,
+            path: localPackageProject.path
+        )
+
+        let remoteDirectPackageProduct = Target.test(name: "RemoteDirectPackage", product: .framework)
+        let remoteOrphanPackageProduct = Target.test(name: "RemoteOrphanPackage", product: .framework)
+        let remotePackageProject = Project.test(
+            path: try! AbsolutePath(validating: "/RemotePackage"),
+            name: "RemotePackage",
+            targets: [remoteDirectPackageProduct, remoteOrphanPackageProduct],
+            type: .remotePackage
+        )
+        let remoteDirectPackageProductDependency = GraphDependency.target(
+            name: remoteDirectPackageProduct.name,
+            path: remotePackageProject.path
+        )
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+                localPackageProject.path: localPackageProject,
+                remotePackageProject.path: remotePackageProject,
+            ],
+            dependencies: [appDependency: Set([localDirectPackageProductDependency, remoteDirectPackageProductDependency])]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allOrphanRemoteTargets()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            Set([GraphTarget(path: remotePackageProject.path, target: remoteOrphanPackageProduct, project: remotePackageProject)])
+        )
+    }
+
     func test_targetsWithExternalDependencies_whenRemotePackageDependency() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)

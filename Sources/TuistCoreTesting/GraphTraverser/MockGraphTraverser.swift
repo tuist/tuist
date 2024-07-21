@@ -645,6 +645,15 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedAllOrphanExternalTargetsResult
     }
 
+    var invokedAllOrphanRemoteTargets = false
+    var invokedAllOrphanRemoteTargetsCount = 0
+    var stubbedAllOrphanRemoteTargetsResult: Set<GraphTarget>! = []
+    func allOrphanRemoteTargets() -> Set<XcodeGraph.GraphTarget> {
+        invokedAllOrphanRemoteTargets = true
+        invokedAllOrphanRemoteTargetsCount += 1
+        return stubbedAllOrphanRemoteTargetsResult
+    }
+
     var invokedTargetsWithExternalDependencies = false
     var invokedTargetsWithExternalDependenciesCount = 0
     var stubbedTargetsWithExternalDependenciesResult: Set<GraphTarget>! = []

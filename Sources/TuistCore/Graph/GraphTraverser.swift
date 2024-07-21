@@ -722,6 +722,11 @@ public class GraphTraverser: GraphTraversing {
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
+    public func allOrphanRemoteTargets() -> Set<GraphTarget> {
+        let allLocalPackageTargets = allLocalPackageTargets()
+        return allOrphanExternalTargets().subtracting(allLocalPackageTargets)
+    }
+
     // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
         func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<Path.AbsolutePath> {

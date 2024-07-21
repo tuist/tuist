@@ -6,12 +6,12 @@ import XCTest
 @testable import TuistDependencies
 @testable import TuistSupportTesting
 
-final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
-    var subject: PruneOrphanExternalTargetsGraphMapper!
+final class PruneOrphanRemoteTargetsGraphMapperTests: TuistUnitTestCase {
+    var subject: PruneOrphanRemoteTargetsGraphMapper!
 
     override func setUp() {
         super.setUp()
-        subject = PruneOrphanExternalTargetsGraphMapper()
+        subject = PruneOrphanRemoteTargetsGraphMapper()
     }
 
     override func tearDown() {
@@ -19,7 +19,7 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_when_external_targets_to_prune() async throws {
+    func test_map_when_remote_targets_to_prune() async throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
