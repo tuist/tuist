@@ -112,7 +112,6 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 60
     if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
-    needs: acceptance-tests
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
