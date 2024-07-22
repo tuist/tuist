@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import MockableTest
 import Path
@@ -37,7 +38,8 @@ final class CleanServiceTests: TuistUnitTestCase {
             manifestFilesLocator: manifestFilesLocator,
             configLoader: configLoader,
             serverURLService: serverURLService,
-            cleanCacheService: cleanCacheService
+            cleanCacheService: cleanCacheService,
+            fileSystem: FileSystem()
         )
     }
 

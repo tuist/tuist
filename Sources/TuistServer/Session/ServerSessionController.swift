@@ -14,7 +14,7 @@ public protocol ServerSessionControlling: AnyObject {
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
-    func logout(serverURL: URL) throws
+    func logout(serverURL: URL) async throws
 }
 
 public final class ServerSessionController: ServerSessionControlling {
@@ -105,9 +105,9 @@ public final class ServerSessionController: ServerSessionControlling {
         }
     }
 
-    public func logout(serverURL: URL) throws {
+    public func logout(serverURL: URL) async throws {
         logger.notice("Removing session for server with URL \(serverURL.absoluteString)")
-        try credentialsStore.delete(serverURL: serverURL)
+        try await credentialsStore.delete(serverURL: serverURL)
         logger.notice("Session deleted successfully", metadata: .success)
     }
 

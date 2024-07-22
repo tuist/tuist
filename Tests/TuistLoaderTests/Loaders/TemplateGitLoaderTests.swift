@@ -32,7 +32,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_loadTemplatePath_isSameWithClonedRepository() throws {
+    func test_loadTemplatePath_isSameWithClonedRepository() async throws {
         // Given
         var clonedRepositoryPath: AbsolutePath?
         gitHandler.cloneToStub = { _, path in
@@ -48,7 +48,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.loadTemplate(from: "https://url/to/repo.git", closure: { _ in })
+        try await subject.loadTemplate(from: "https://url/to/repo.git", closure: { _ in })
 
         // Then
         XCTAssertNotNil(pathToLoadTemplateFrom)

@@ -135,7 +135,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_logout_deletesLegacyCredentials() throws {
+    func test_logout_deletesLegacyCredentials() async throws {
         // Given
         let credentials = ServerCredentials(
             token: "token",
@@ -152,7 +152,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        try subject.logout(serverURL: serverURL)
+        try await subject.logout(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -161,7 +161,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_logout_deletesCredentials() throws {
+    func test_logout_deletesCredentials() async throws {
         // Given
         let credentials = ServerCredentials(
             token: nil,
@@ -178,7 +178,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        try subject.logout(serverURL: serverURL)
+        try await subject.logout(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""

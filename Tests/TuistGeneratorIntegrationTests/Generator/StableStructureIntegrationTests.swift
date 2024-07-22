@@ -12,7 +12,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class StableXcodeProjIntegrationTests: TuistTestCase {
-    func testXcodeProjStructureDoesNotChangeAfterRegeneration() throws {
+    func testXcodeProjStructureDoesNotChangeAfterRegeneration() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         var capturedProjects = [[XcodeProj]]()
@@ -43,7 +43,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
             // unfortunately they are not equatable, however once serialized & deserialized back they are
-            try writer.write(workspace: workspaceDescriptor)
+            try await writer.write(workspace: workspaceDescriptor)
             let xcworkspace = try XCWorkspace(path: workspaceDescriptor.xcworkspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: xcworkspace)
             let sharedSchemes = try findSharedSchemes(in: xcworkspace)

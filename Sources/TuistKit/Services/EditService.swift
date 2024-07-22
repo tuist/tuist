@@ -63,7 +63,7 @@ final class EditService {
                 throw EditServiceError.xcodeNotSelected
             }
 
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
@@ -73,7 +73,7 @@ final class EditService {
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: path,
                 onlyCurrentDirectory: onlyCurrentDirectory,
@@ -94,7 +94,7 @@ final class EditService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
-        guard let config = try? configLoader.loadConfig(path: path) else {
+        guard let config = try? await configLoader.loadConfig(path: path) else {
             logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
             return .none
         }
