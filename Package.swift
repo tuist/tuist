@@ -103,7 +103,7 @@ var targets: [Target] = [
             "ZIPFoundation",
             "ProjectDescription",
             "Mockable",
-            "FileSystem"
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -143,7 +143,7 @@ var targets: [Target] = [
             swiftGenKitDependency,
             "StencilSwiftKit",
             "Mockable",
-            "FileSystem"
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -167,7 +167,7 @@ var targets: [Target] = [
             "StencilSwiftKit",
             "Stencil",
             "Mockable",
-            "FileSystem"
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -183,7 +183,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "TuistSupport",
             "Mockable",
-            "FileSystem"
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -228,7 +228,7 @@ var targets: [Target] = [
             "Mockable",
             pathDependency,
             "Queuer",
-            "FileSystem"
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
