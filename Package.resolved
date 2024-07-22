@@ -241,7 +241,7 @@
       "location" : "https://github.com/filipracki/XcodeGraph.git",
       "state" : {
         "branch" : "add-metal-diagnostics-options-to-run-action",
-        "revision" : "cd4af0fabf3889a77d322f8ab4fa8646718c969c"
+        "revision" : "272c368d15b1802d96ce794051e276123a1f029a"
       }
     },
     {
