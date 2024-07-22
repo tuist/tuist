@@ -304,7 +304,7 @@ var targets: [Target] = [
 
     let packageSettings = PackageSettings(
         productTypes: [
-            "FileSystem", .staticFramework,
+            "FileSystem": .staticFramework,
             "TSCBasic": .staticFramework,
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
