@@ -49,7 +49,7 @@ public protocol SwiftPackageManagerGraphLoading {
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) throws -> TuistCore.DependenciesGraph
+    ) async throws -> TuistCore.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
@@ -77,7 +77,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) throws -> TuistCore.DependenciesGraph {
+    ) async throws -> TuistCore.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
@@ -101,7 +101,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 info: PackageInfo
             )
         ]
-        packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
+        packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
@@ -120,7 +120,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
+            let packageInfo = try await self.manifestLoader.loadPackage(at: packageFolder)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in

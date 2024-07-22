@@ -17,7 +17,7 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_crud_with_legacy_token() throws {
+    func test_crud_with_legacy_token() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
@@ -30,11 +30,11 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         // When/Then
         try subject.store(credentials: credentials, serverURL: serverURL)
         XCTAssertEqual(try subject.read(serverURL: serverURL), credentials)
-        try subject.delete(serverURL: serverURL)
+        try await subject.delete(serverURL: serverURL)
         XCTAssertEqual(try subject.read(serverURL: serverURL), nil)
     }
 
-    func test_crud() throws {
+    func test_crud() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
@@ -47,7 +47,7 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         // When/Then
         try subject.store(credentials: credentials, serverURL: serverURL)
         XCTAssertEqual(try subject.read(serverURL: serverURL), credentials)
-        try subject.delete(serverURL: serverURL)
+        try await subject.delete(serverURL: serverURL)
         XCTAssertEqual(try subject.read(serverURL: serverURL), nil)
     }
 }

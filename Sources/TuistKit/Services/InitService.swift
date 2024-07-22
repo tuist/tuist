@@ -63,7 +63,7 @@ class InitService {
     func loadTemplateOptions(
         templateName: String,
         path: String?
-    ) throws -> (
+    ) async throws -> (
         required: [String],
         optional: [String]
     ) {
@@ -72,7 +72,7 @@ class InitService {
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName) { template in
+            try await templateGitLoader.loadTemplate(from: templateName) { template in
                 attributes = template.attributes
             }
         } else {
@@ -81,7 +81,7 @@ class InitService {
                 template: templateName
             )
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             attributes = template.attributes
         }
 
@@ -108,7 +108,7 @@ class InitService {
         templateName: String?,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
-    ) throws {
+    ) async throws {
         let platform = try self.platform(platform)
         let path = try self.path(path)
         let name = try self.name(name, path: path)
@@ -117,8 +117,8 @@ class InitService {
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName, closure: { template in
-                let parsedAttributes = try parseAttributes(
+            try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
+                let parsedAttributes = try self.parseAttributes(
                     name: name,
                     platform: platform,
                     tuistVersion: tuistVersion,
@@ -127,7 +127,7 @@ class InitService {
                     template: template
                 )
 
-                try templateGenerator.generate(
+                try await self.templateGenerator.generate(
                     template: template,
                     to: path,
                     attributes: parsedAttributes
@@ -138,7 +138,7 @@ class InitService {
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
@@ -148,7 +148,7 @@ class InitService {
                 template: template
             )
 
-            try templateGenerator.generate(
+            try await templateGenerator.generate(
                 template: template,
                 to: path,
                 attributes: parsedAttributes

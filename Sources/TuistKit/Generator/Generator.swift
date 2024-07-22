@@ -55,16 +55,16 @@ public class Generator: Generating {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
-        try lint(graphTraverser: graphTraverser)
+        try await lint(graphTraverser: graphTraverser)
 
         // Generate
         let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
-        try writer.write(workspace: workspaceDescriptor)
+        try await writer.write(workspace: workspaceDescriptor)
 
         // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
         try await postGenerationActions(
@@ -91,8 +91,8 @@ public class Generator: Generating {
         return (graph, sideEffectDescriptors)
     }
 
-    private func lint(graphTraverser: GraphTraversing) throws {
-        let config = try configLoader.loadConfig(path: graphTraverser.path)
+    private func lint(graphTraverser: GraphTraversing) async throws {
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
 
         let environmentIssues = try environmentLinter.lint(config: config)
         try environmentIssues.printAndThrowErrorsIfNeeded()
@@ -104,7 +104,7 @@ public class Generator: Generating {
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        let config = try configLoader.loadConfig(path: graphTraverser.path)
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
 
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,

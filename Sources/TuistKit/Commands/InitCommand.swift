@@ -12,7 +12,7 @@ import XcodeGraph
 private typealias Platform = XcodeGraph.Platform
 private typealias Product = XcodeGraph.Product
 
-public struct InitCommand: ParsableCommand, HasTrackableParameters {
+public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -78,13 +78,13 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
         }
     }
 
-    public func run() throws {
+    public func run() async throws {
         InitCommand.analyticsDelegate?.addParameters(
             [
                 "platform": AnyCodable(platform ?? "unknown"),
             ]
         )
-        try InitService().run(
+        try await InitService().run(
             name: name,
             platform: platform,
             path: path,
@@ -102,7 +102,7 @@ extension InitCommand {
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
 
     /// We do not know template's option in advance -> we need to dynamically add them
-    static func preprocess(_ arguments: [String]? = nil) throws {
+    static func preprocess(_ arguments: [String]? = nil) async throws {
         guard let arguments,
               arguments.contains("--template") ||
               arguments.contains("-t")
@@ -125,7 +125,7 @@ extension InitCommand {
               templateName != "default"
         else { return }
 
-        let (required, optional) = try InitService().loadTemplateOptions(
+        let (required, optional) = try await InitService().loadTemplateOptions(
             templateName: templateName,
             path: command.path
         )
