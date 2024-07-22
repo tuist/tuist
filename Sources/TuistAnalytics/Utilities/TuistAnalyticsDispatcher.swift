@@ -21,7 +21,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public func dispatch(event: AsyncQueueEvent, completion: @escaping () async throws -> Void) throws {
         guard let commandEvent = event as? CommandEvent else { return }
 
-        Task.detached {
+        Task {
             _ = try? await backend?.send(commandEvent: commandEvent)
             try await completion()
         }
