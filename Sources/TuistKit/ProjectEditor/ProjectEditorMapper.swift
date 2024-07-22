@@ -353,7 +353,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .tuistProject
         )
     }
 
@@ -444,7 +444,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .tuistProject
         )
     }
 

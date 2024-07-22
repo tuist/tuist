@@ -85,9 +85,10 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         )
     }
 
-    public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistCore.PackageSettings)
-        throws -> LoadedWorkspace
-    {
+    public func loadAndMergePackageProjects(
+        in loadedWorkspace: LoadedWorkspace,
+        packageSettings: TuistCore.PackageSettings
+    ) throws -> LoadedWorkspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
         let packagePaths = try projectSearchPaths.map {
@@ -102,7 +103,10 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 .pathString.contains(".build/checkouts")
         }
 
-        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
+        let packageProjects = try loadPackageProjects(
+            paths: packagePaths,
+            packageSettings: packageSettings
+        )
 
         let projects = loadedWorkspace.projects.merging(
             packageProjects.projects,
@@ -132,10 +136,9 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 let packageInfo = try manifestLoader.loadPackage(at: $0)
                 return try packageInfoMapper.map(
                     packageInfo: packageInfo,
-                    path: $0,
+                    packageFolder: $0,
                     packageType: .local,
-                    packageSettings: packageSettings,
-                    packageToProject: [:]
+                    packageSettings: packageSettings
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

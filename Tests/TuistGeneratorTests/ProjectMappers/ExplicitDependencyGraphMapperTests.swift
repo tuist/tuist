@@ -65,7 +65,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     targets: [
                         externalFrameworkC,
                     ],
-                    isExternal: true
+                    type: .remotePackage
                 ),
             ],
             dependencies: [
@@ -274,7 +274,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     targets: [
                         externalFrameworkB,
                     ],
-                    isExternal: true
+                    type: .remotePackage
                 ),
             ],
             dependencies: [

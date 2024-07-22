@@ -331,7 +331,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .remotePackage
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -346,7 +350,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .tuistProject
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -361,7 +369,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .remotePackage
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -375,7 +387,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .tuistProject
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -389,7 +405,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .remotePackage
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -399,7 +419,8 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         verifyObjcBundleAccessor(
             for: target,
             gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects
+            gotSideEffects: gotSideEffects,
+            projectPath: project.path
         )
     }
 
@@ -408,7 +429,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .tuistProject
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -458,7 +483,20 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             XCTFail("Expected file descriptor")
             return
         }
-        let expectedPath = expectedTuistBundleSwiftFilePath(for: target)
+
+        let expectedPath: AbsolutePath
+        switch project.type {
+        case .remotePackage:
+            expectedPath = .root
+                .appending(component: Constants.DerivedDirectory.dependenciesDerivedDirectory)
+                .appending(component: target.name)
+                .appending(component: Constants.DerivedDirectory.sources)
+                .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
+
+        case .localPackage, .tuistProject:
+            expectedPath = expectedTuistBundleSwiftFilePath(for: target)
+        }
+
         let expectedContents = ResourcesProjectMapper
             .fileContent(
                 targetName: target.name,
@@ -473,12 +511,21 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     private func verifyObjcBundleAccessor(
         for target: Target,
         gotTarget: Target,
-        gotSideEffects: [SideEffectDescriptor]
+        gotSideEffects: [SideEffectDescriptor],
+        projectPath: AbsolutePath
     ) {
+        let headerPath = AbsolutePath.root.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                target.name,
+                Constants.DerivedDirectory.sources,
+                "TuistBundle+\(target.name).h",
+            ]
+        )
         XCTAssertEqual(
             gotTarget.settings?.base["GCC_PREFIX_HEADER"],
             .string(
-                "$(SRCROOT)/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
+                "$(SRCROOT)/\(headerPath.relative(to: projectPath).pathString)"
             )
         )
         XCTAssertEqual(gotTarget.sources.count, 2)

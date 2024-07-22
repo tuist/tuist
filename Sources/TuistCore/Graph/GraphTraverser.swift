@@ -684,13 +684,18 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+        directTargetDependencies(path: path, name: name)
+            .filter { $0.graphTarget.project.type == .remotePackage || $0.graphTarget.project.type == .localPackage }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(graph.projects.flatMap { path, project -> [GraphTarget] in
-            guard project.isExternal else { return [] }
-            return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+            switch project.type {
+            case .tuistProject:
+                return []
+            case .remotePackage, .localPackage:
+                return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+            }
         })
     }
 
@@ -715,6 +720,11 @@ public class GraphTraverser: GraphTraversing {
             }
         let allExternalTargets = allExternalTargets()
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
+    }
+
+    public func allOrphanRemoteTargets() -> Set<GraphTarget> {
+        let allLocalPackageTargets = allLocalPackageTargets()
+        return allOrphanExternalTargets().subtracting(allLocalPackageTargets)
     }
 
     // swiftlint:disable:next function_body_length
@@ -944,6 +954,22 @@ public class GraphTraverser: GraphTraversing {
         }
 
         targetsWithExternalDependencies.forEach { traverse(target: $0, parentPlatforms: $0.target.supportedPlatforms) }
+
+        let allLocalPakcageTestTargets = allLocalPackageTargets()
+            .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
+        for testTarget in allLocalPakcageTestTargets {
+            var supportedPlatforms = testTarget.target.supportedPlatforms
+            let dependencies = directTargetDependencies(path: testTarget.path, name: testTarget.target.name)
+            for dependency in dependencies {
+                if let narrowedPlatforms = platforms[dependency.graphTarget] {
+                    supportedPlatforms = supportedPlatforms.intersection(narrowedPlatforms)
+                } else {
+                    supportedPlatforms = supportedPlatforms.intersection(dependency.target.supportedPlatforms)
+                }
+            }
+            platforms[testTarget] = supportedPlatforms
+        }
+
         return platforms
     }
 
@@ -1185,6 +1211,19 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    /// Returns all the targets of local packages which also contained test targets.
+    /// - Returns: A set containing all the targets of local packages.
+    func allLocalPackageTargets() -> Set<GraphTarget> {
+        let localPackageProjects = graph.projects.filter { $0.value.type == .localPackage }
+        return Set<GraphTarget>(
+            localPackageProjects.flatMap { path, project in
+                project.targets.values.map { target in
+                    GraphTarget(path: path, target: target, project: project)
+                }
+            }
+        )
+    }
+
     private func isDependencyResourceBundle(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .bundle:
@@ -1198,7 +1237,7 @@ public class GraphTraverser: GraphTraversing {
 
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            if excludingExternalTargets, project.isExternal { return [] }
+            if excludingExternalTargets, project.type == .remotePackage || project.type == .localPackage { return [] }
             return project.targets.values.map { target in
                 GraphTarget(path: projectPath, target: target, project: project)
             }

@@ -81,7 +81,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
+        if project.type == .remotePackage,
            target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources
@@ -179,7 +179,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         // Add public accessors only for non external projects
-        if !project.isExternal, !target.sourcesContainsPublicResourceClassName {
+        if !(project.type == .remotePackage), !target.sourcesContainsPublicResourceClassName {
             content += publicBundleAccessorString(for: target)
         }
 

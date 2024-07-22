@@ -41,7 +41,7 @@ final class ProjectGroupsTests: XCTestCase {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .tuistProject
         )
         pbxproj = PBXProj()
     }

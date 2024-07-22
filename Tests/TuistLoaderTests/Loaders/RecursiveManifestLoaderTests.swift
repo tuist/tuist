@@ -302,10 +302,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         try stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
         given(packageInfoMapper).map(
             packageInfo: .value(packageA),
-            path: .any,
+            packageFolder: .any,
             packageType: .any,
-            packageSettings: .any,
-            packageToProject: .any
+            packageSettings: .any
         )
         .willReturn(
             .test(name: "PackageA")
@@ -313,7 +312,10 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         // When
         var manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
-        manifests = try subject.loadAndMergePackageProjects(in: manifests, packageSettings: .test())
+        manifests = try subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test()
+        )
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [

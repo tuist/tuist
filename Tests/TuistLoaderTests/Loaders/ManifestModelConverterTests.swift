@@ -6,6 +6,7 @@ import TuistSupport
 import XCTest
 
 @testable import ProjectDescription
+@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -13,6 +14,7 @@ import XCTest
 class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
+    typealias DependenciesGraphManifest = TuistCore.DependenciesGraph
     typealias TargetManifest = ProjectDescription.Target
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
@@ -50,7 +52,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -81,7 +83,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -124,7 +126,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -154,7 +156,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -182,7 +184,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .tuistProject
         )
 
         // Then
@@ -309,8 +311,39 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         XCTAssertEqual(model.projects, [])
     }
 
-    // MARK: - Helpers
+    func test_loadDependenciesGraph_withExternalSPM() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
+        let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
+        let subject = makeSubject(with: makeManifestLoader())
 
+        // When
+        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.externalProjects.values.first?.type, .remotePackage)
+    }
+
+    func test_loadDependenciesGraph_withLocalSPM() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        try fileHandler.createFolder(temporaryPath.appending(components: ["ADependency", "Sources", "ALibrary"]))
+        try fileHandler.createFolder(temporaryPath.appending(components: ["ADependency", "Sources", "ALibraryUtils"]))
+        let manifest = DependenciesGraphManifest.aDependency(spmFolder: .path(temporaryPath.pathString))
+        let subject = makeSubject(with: makeManifestLoader())
+
+        // When
+        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.externalProjects.values.first?.type, .localPackage)
+    }
+}
+
+// MARK: - Helpers
+
+extension ManifestModelConverterTests {
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
             manifestLoader: manifestLoader
@@ -318,7 +351,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func makeManifestLoader(
-        with projects: [AbsolutePath: ProjectDescription.Project],
+        with projects: [AbsolutePath: ProjectDescription.Project] = [:],
         configs: [AbsolutePath: ProjectDescription.Config] = [:]
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()

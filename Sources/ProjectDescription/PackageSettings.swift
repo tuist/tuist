@@ -47,25 +47,39 @@ public struct PackageSettings: Codable, Equatable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
+    /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
+    ///
+    /// The default value is false.
+    ///
+    /// - Note: When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
+    /// test targets are always included regardless of the value of this property.
+    public var includeLocalPackageTestTargets: Bool
+
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
-    ///     - productTypes: The custom `Product` types to be used for SPM targets.
-    ///     - productDestinations: Custom destinations to be used for SPM products.
-    ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///    - productTypes: The custom `Product` types to be used for SPM targets.
+    ///    - productDestinations: Custom destinations to be used for SPM products.
+    ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
+    ///    - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///    - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///    - includeLocalPackageTestTargets: A Boolean value that indicates whether the test targets of
+    ///    local swift packages are included in the generated project.
+    ///    When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
+    ///    test targets are always included regardless of the value of this property.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        includeLocalPackageTestTargets: Bool = false
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
         dumpIfNeeded(self)
     }
 }

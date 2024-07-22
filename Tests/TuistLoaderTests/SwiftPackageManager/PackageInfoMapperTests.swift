@@ -2697,6 +2697,54 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenBinaryTargetPathByNameDependencyInLocalPackage_mapsToXcFramework() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let xcframeworkPath = basePath.appending(try RelativePath(validating: "artifacts/Dependency1.xcframework"))
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Dependency1", type: .binary, path: xcframeworkPath.pathString),
+                    ]
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                options: .options(automaticSchemesOptions: .enabled(), disableSynthesizedResourceAccessors: true),
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.xcframework(path: .path(xcframeworkPath.pathString))]
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenExternalProductDependency_mapsToProjectDependencies() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
@@ -3314,7 +3362,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTarget() throws {
+    func testMap_whenRemoteSwiftPackageHasTestTargets() throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target1"]))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target2"]))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
+        try fileHandler.createFolder(basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .remote(artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target1", "Target2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                        .test(name: "Target2"),
+                        .test(
+                            name: "Target1Tests",
+                            type: .test,
+                            dependencies: [.target(name: "Target1", condition: nil)]
+                        ),
+                        .test(
+                            name: "Target2Tests",
+                            type: .test,
+                            dependencies: [.target(name: "Target2", condition: nil)]
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath),
+                    .test("Target2", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenLocalSwiftPackageHasTestTargetWithNotIncludeLocalPackageTestTargets() throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3328,8 +3425,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
-                    name: "Package",
+                "Package": .test(
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
                     ],
@@ -3340,11 +3436,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ],
-                    platforms: [.ios],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
             ]
         )
@@ -3353,7 +3445,53 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual(
             project,
             .test(
-                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                settings: .settings(),
+                targets: [
+                    .test("Target", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenLocalSwiftPackageHasTestTarget() throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try fileHandler.createFolder(sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try fileHandler.createFolder(testsPath)
+
+        // When
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .test(
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -3375,7 +3513,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() throws {
+    func testMap_whenLocalSwiftPackageHasTestTargetWithExplicitProductDestinations() throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3389,8 +3527,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
-                    name: "Package",
+                "Package": .test(
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
                     ],
@@ -3401,15 +3538,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ],
-                    platforms: [.ios, .macos],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["Product": [.iPhone, .iPad]]
+                productDestinations: ["Product": [.iPhone, .iPad]],
+                includeLocalPackageTestTargets: true
             )
         )
 
@@ -3417,7 +3551,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual(
             project,
             .test(
-                name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -3446,7 +3579,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
+    func testMap_whenLocalSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
         // Given
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target"]))
@@ -3463,8 +3596,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
-                    name: "Package",
+                "Package": .test(
                     products: [
                         .init(
                             name: "Product",
@@ -3497,15 +3629,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .target(name: "CommonTarget", condition: nil),
                             ]
                         ),
-                    ],
-                    platforms: [.ios, .macos],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["MacProduct": [.mac]]
+                productDestinations: ["MacProduct": [.mac]],
+                includeLocalPackageTestTargets: true
             )
         )
 
@@ -3513,7 +3642,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual(
             project,
             .test(
-                name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -3590,7 +3718,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ]
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
         )
 
         // Then
@@ -3672,12 +3801,9 @@ extension PackageInfoMapping {
 
         return try map(
             packageInfo: packageInfos[package]!,
-            path: basePath.appending(component: package),
-            packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
-            packageSettings: packageSettings,
-            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
-                ($0, basePath.appending(component: $0))
-            })
+            packageFolder: basePath.appending(component: package),
+            packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
+            packageSettings: packageSettings
         )
     }
 }
@@ -3713,7 +3839,7 @@ extension PackageInfo.Target {
 
 extension ProjectDescription.Project {
     fileprivate static func test(
-        name: String,
+        name: String = "Package",
         options: Options = .options(
             automaticSchemesOptions: .disabled,
             disableBundleAccessors: false,
