@@ -850,7 +850,7 @@ extension ProjectDescription.ResourceFileElements {
         // Check for empty resource files
         guard !resourceFileElements.isEmpty else { return nil }
 
-        return .resources(resourceFileElements)
+        return .resources(resourceFileElements.spm_uniqueElements())
     }
 
     // These files are automatically added as resource if they are inside targets directory.
