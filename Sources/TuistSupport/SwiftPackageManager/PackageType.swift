@@ -5,6 +5,6 @@ import Path
 public enum PackageType: Equatable, Codable {
     /// A local Swift package.
     case local
-    /// The type of a remote Swift Package.
+    /// A remote Swift package.
     case remote(artifactPaths: [String: AbsolutePath])
 }
