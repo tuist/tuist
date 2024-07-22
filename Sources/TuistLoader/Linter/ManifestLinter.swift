@@ -57,45 +57,11 @@ public class ManifestLinter: ManifestLinting {
         var issues = [LintingIssue]()
 
         for scheme in workspace.schemes {
-            if let buildAction = scheme.buildAction {
-                issues.append(contentsOf: lintWorkspaceSchemeTargets(
-                    buildAction.targets,
-                    actionType: "buildAction",
-                    scheme: scheme
-                ))
-            }
-
-            if let runAction = scheme.runAction {
-                issues.append(contentsOf: lintWorkspaceSchemeTarget(
-                    runAction.expandVariableFromTarget,
-                    actionType: "runAction",
-                    scheme: scheme
-                ))
-            }
-
-            if let profileAction = scheme.profileAction {
-                issues.append(contentsOf: lintWorkspaceSchemeTarget(
-                    profileAction.executable,
-                    actionType: "profileAction",
-                    scheme: scheme
-                ))
-            }
-        }
-
-        return issues
-    }
-
-    private func lintWorkspaceSchemeTargets(
-        _ targets: [TargetReference],
-        actionType: String,
-        scheme: Scheme
-    ) -> [LintingIssue] {
-        var issues = [LintingIssue]()
-
-        for targetReference in targets {
-            issues.append(contentsOf: lintWorkspaceSchemeTarget(
-                targetReference,
-                actionType: actionType,
+            issues.append(contentsOf: lintSchemeActions(
+                buildAction: scheme.buildAction,
+                runAction: scheme.runAction,
+                profileAction: scheme.profileAction,
+                testAction: scheme.testAction,
                 scheme: scheme
             ))
         }
@@ -103,18 +69,97 @@ public class ManifestLinter: ManifestLinting {
         return issues
     }
 
-    private func lintWorkspaceSchemeTarget(
-        _ targetReference: TargetReference?,
-        actionType: String,
+    private func lintSchemeActions(
+        buildAction: BuildAction?,
+        runAction: RunAction?,
+        profileAction: ProfileAction?,
+        testAction: TestAction?,
         scheme: Scheme
     ) -> [LintingIssue] {
         var issues = [LintingIssue]()
 
-        guard let targetReference else { return issues }
+        if let buildAction {
+            issues.append(contentsOf: lintExecutionActionTargets(
+                buildAction.preActions,
+                actionType: "buildAction",
+                scheme: scheme
+            ))
+            issues.append(contentsOf: lintExecutionActionTargets(
+                buildAction.postActions,
+                actionType: "buildAction",
+                scheme: scheme
+            ))
+            issues.append(contentsOf: lintSchemeTargets(buildAction.targets, actionType: "buildAction", scheme: scheme))
+        }
 
-        guard targetReference.projectPath == nil else { return issues }
+        if let runAction {
+            issues.append(contentsOf: lintExecutionActionTargets(runAction.preActions, actionType: "runAction", scheme: scheme))
+            issues.append(contentsOf: lintExecutionActionTargets(runAction.postActions, actionType: "runAction", scheme: scheme))
+            issues.append(contentsOf: lintSchemeTarget(runAction.executable, actionType: "runAction", scheme: scheme))
+            issues.append(contentsOf: lintSchemeTarget(
+                runAction.expandVariableFromTarget,
+                actionType: "runAction",
+                scheme: scheme
+            ))
+        }
 
-        issues.append(
+        if let profileAction {
+            issues.append(contentsOf: lintExecutionActionTargets(
+                profileAction.preActions,
+                actionType: "profileAction",
+                scheme: scheme
+            ))
+            issues.append(contentsOf: lintExecutionActionTargets(
+                profileAction.postActions,
+                actionType: "profileAction",
+                scheme: scheme
+            ))
+            issues.append(contentsOf: lintSchemeTarget(profileAction.executable, actionType: "profileAction", scheme: scheme))
+        }
+
+        if let testAction {
+            issues.append(contentsOf: lintExecutionActionTargets(testAction.preActions, actionType: "testAction", scheme: scheme))
+            issues.append(contentsOf: lintExecutionActionTargets(
+                testAction.postActions,
+                actionType: "testAction",
+                scheme: scheme
+            ))
+            issues.append(contentsOf: lintSchemeTargets(
+                testAction.targets.map(\.target),
+                actionType: "testAction",
+                scheme: scheme
+            ))
+        }
+
+        return issues
+    }
+
+    private func lintExecutionActionTargets(
+        _ actions: [ExecutionAction],
+        actionType: String,
+        scheme: Scheme
+    ) -> [LintingIssue] {
+        let targets = actions.compactMap(\.target)
+        return lintSchemeTargets(targets, actionType: actionType, scheme: scheme)
+    }
+
+    private func lintSchemeTargets(
+        _ targets: [TargetReference],
+        actionType: String,
+        scheme: Scheme
+    ) -> [LintingIssue] {
+        return targets.flatMap { lintSchemeTarget($0, actionType: actionType, scheme: scheme) }
+    }
+
+    private func lintSchemeTarget(
+        _ targetReference: TargetReference?,
+        actionType: String,
+        scheme: Scheme
+    ) -> [LintingIssue] {
+        guard let targetReference else { return [] }
+        guard targetReference.projectPath == nil else { return [] }
+
+        return [
             LintingIssue(
                 reason: """
                 Workspace.swift: The target '\(targetReference.targetName)' in the \(actionType) of the scheme '\(
@@ -123,11 +168,9 @@ public class ManifestLinter: ManifestLinting {
                 )' is missing the project path.
                 Please specify the project path using .project(path:, target:).
                 """,
-                severity: .warning
-            )
-        )
-
-        return issues
+                severity: .error
+            ),
+        ]
     }
 
     private func lintDuplicates(project: ProjectDescription.Project) -> [LintingIssue] {
