@@ -6,7 +6,7 @@ console_command = "/app/bin/rails console"
 
 [experimental]
   auto_rollback = true
-  entrypoint = ["sh", "-C", "/app/bin/server"]
+  cmd = ["sh", "-C", "/app/bin/server"]
 
 [deploy]
   release_command = '/app/bin/migrate'
