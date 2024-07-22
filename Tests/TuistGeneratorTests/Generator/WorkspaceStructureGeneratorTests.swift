@@ -388,7 +388,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func inTemporaryDirectory(_: @escaping (AbsolutePath) async throws -> Void) async throws {}
 
-        func files(in _: AbsolutePath, nameFilter _: Set<String>?, extensionFilter _: Set<String>?) -> Set<AbsolutePath> {
+        func files(
+            in _: AbsolutePath,
+            directoryFilter _: Set<AbsolutePath>?,
+            nameFilter _: Set<String>?,
+            extensionFilter _: Set<String>?
+        ) -> Set<AbsolutePath> {
             []
         }
 

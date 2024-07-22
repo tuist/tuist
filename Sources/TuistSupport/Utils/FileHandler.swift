@@ -66,7 +66,12 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
-    func files(in path: Path.AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<Path.AbsolutePath>
+    func files(
+        in path: Path.AbsolutePath,
+        directoryFilter: Set<Path.AbsolutePath>?,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
     func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath]
     func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
@@ -239,6 +244,7 @@ public class FileHandler: FileHandling {
 
     public func files(
         in path: Path.AbsolutePath,
+        directoryFilter: Set<Path.AbsolutePath>?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath> {
@@ -251,6 +257,13 @@ public class FileHandler: FileHandling {
         )
 
         func filter(candidateURL: URL) -> Bool {
+            if let directoryFilter {
+                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
+                let candidateNotInExcludedDirectory = directoryFilter.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
+                guard candidateNotInExcludedDirectory else {
+                    return false
+                }
+            }
             if let extensionFilter {
                 guard extensionFilter.contains(candidateURL.pathExtension) else {
                     return false

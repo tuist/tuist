@@ -106,6 +106,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
         let tuistManifestsFilePaths = FileHandler.shared.files(
             in: path,
+            directoryFilter: nil,
             nameFilter: fileNamesCandidates,
             extensionFilter: ["swift"]
         ).filter {

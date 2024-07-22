@@ -843,7 +843,19 @@ extension ProjectDescription.ResourceFileElements {
         // Add default resources path if necessary
         // They are handled like a `.process` rule
         if sources == nil {
-            resourceFileElements += try defaultResourcePaths(from: path)
+            // Already included resources should not be added as default resource
+            let excludedPaths: Set<AbsolutePath> = Set(
+                resourceFileElements.map {
+                    switch $0 {
+                    case let .folderReference(path: path, _, _):
+                        AbsolutePath(stringLiteral: path.pathString)
+                    case let .glob(pattern: path, _, _, _):
+                        // TODO: What's the correct way to remove the ** pattern from the string?
+                        AbsolutePath(stringLiteral: path.pathString).parentDirectory
+                    }
+                }
+            )
+            resourceFileElements += try defaultResourcePaths(from: path, excludingPaths: excludedPaths)
                 .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
@@ -864,8 +876,13 @@ extension ProjectDescription.ResourceFileElements {
         "strings",
     ])
 
-    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        Array(FileHandler.shared.files(in: path, nameFilter: nil, extensionFilter: defaultSpmResourceFileExtensions))
+    private static func defaultResourcePaths(from path: AbsolutePath, excludingPaths: Set<AbsolutePath>?) -> [AbsolutePath] {
+        Array(FileHandler.shared.files(
+            in: path,
+            directoryFilter: excludingPaths,
+            nameFilter: nil,
+            extensionFilter: defaultSpmResourceFileExtensions
+        ))
     }
 }
 
