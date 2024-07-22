@@ -70,6 +70,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "TuistServer",
+            "FileSystem",
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         ],
         swiftSettings: [
@@ -102,6 +103,7 @@ var targets: [Target] = [
             "ZIPFoundation",
             "ProjectDescription",
             "Mockable",
+            "FileSystem"
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -141,6 +143,7 @@ var targets: [Target] = [
             swiftGenKitDependency,
             "StencilSwiftKit",
             "Mockable",
+            "FileSystem"
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -164,6 +167,7 @@ var targets: [Target] = [
             "StencilSwiftKit",
             "Stencil",
             "Mockable",
+            "FileSystem"
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -179,6 +183,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "TuistSupport",
             "Mockable",
+            "FileSystem"
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -223,6 +228,7 @@ var targets: [Target] = [
             "Mockable",
             pathDependency,
             "Queuer",
+            "FileSystem"
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -277,6 +283,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistScaffold",
             "Mockable",
+            "FileSystem",
             pathDependency,
         ],
         swiftSettings: [
@@ -288,6 +295,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
+            "FileSystem",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
