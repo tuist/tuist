@@ -88,26 +88,20 @@ defmodule Tuist.CommandEvents.Event do
     |> validate_inclusion(:status, [:success, :failure])
   end
 
-  defmacro this_month_fragment() do
-    quote do
-      fragment(
-        "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
-        c.created_at,
-        ^Tuist.Time.utc_now()
-      )
-    end
-  end
-
   def get_current_month_remote_cache_hits_count_query(%Account{id: account_id}) do
+    today = Tuist.Time.utc_now()
+    beginning_of_month = Timex.beginning_of_month(today)
+
     from c in __MODULE__,
       join: p in Project,
-      on: p.id == c.project_id,
-      where: p.account_id == ^account_id,
-      where: this_month_fragment(),
+      on: p.id == c.project_id and p.account_id == ^account_id,
+      where:
+        c.created_at >= ^beginning_of_month and
+          c.created_at < ^today,
       select:
         count(
           fragment(
-            "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
+            "CASE WHEN COALESCE(? <> '{}', false) OR COALESCE(? <> '{}', false) THEN 1 END",
             c.remote_cache_target_hits,
             c.remote_test_target_hits
           )
