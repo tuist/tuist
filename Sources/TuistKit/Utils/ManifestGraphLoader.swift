@@ -100,7 +100,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let plugins = try await loadPlugins(at: path)
 
         // Load Workspace
-        var allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path)
         let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
@@ -113,12 +113,12 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
-            let loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
+            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
 
-            let manifest = try swiftPackageManagerGraphLoader.load(
+            let manifest = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings
             )
@@ -131,7 +131,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Merge SPM graph
         if let packageSettings {
-            allManifests = try recursiveManifestLoader.loadAndMergePackageProjects(
+            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
                 packageSettings: packageSettings
             )
@@ -201,7 +201,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
     @discardableResult
     func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         let plugins = try await pluginsService.loadPlugins(using: config)
         try manifestLoader.register(plugins: plugins)
         return plugins

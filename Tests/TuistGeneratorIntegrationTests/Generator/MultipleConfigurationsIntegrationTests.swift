@@ -25,18 +25,22 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         }
     }
 
-    func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
+    func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
         // Given
         let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
 
         // When / Then
-        XCTAssertThrowsError(
-            try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
-        )
+        var _error: Error?
+        do {
+            try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        } catch {
+            _error = error
+        }
+        XCTAssertNotNil(_error)
     }
 
-    func testGenerateWhenSingleDebugConfigurationInProject() throws {
+    func testGenerateWhenSingleDebugConfigurationInProject() async throws {
         // Given
         let projectSettings = Settings(
             base: ["A": "A"],
@@ -44,7 +48,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
         assertProject(expectedConfigurations: ["Debug"])
@@ -54,7 +58,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("A", "A")) // from base
     }
 
-    func testGenerateWhenConfigurationSettingsOverrideXCConfig() throws {
+    func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -67,7 +71,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let projectSettings = Settings(configurations: [.debug: debugConfiguration])
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
         assertProject(expectedConfigurations: ["Debug"])
@@ -79,7 +83,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("C", "C")) // from settings
     }
 
-    func testGenerateWhenConfigurationSettingsOverrideBase() throws {
+    func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
         // Given
         let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -88,7 +92,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
         assertProject(expectedConfigurations: ["Debug"])
@@ -100,7 +104,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("C", "C")) // from settings
     }
 
-    func testGenerateWhenBuildConfigurationWithCustomName() throws {
+    func testGenerateWhenBuildConfigurationWithCustomName() async throws {
         // Given
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -112,7 +116,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
         assertProject(expectedConfigurations: ["Custom", "Release"])
@@ -129,7 +133,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertFalse(release.contains("C", "C")) // non-existing, only defined in Custom
     }
 
-    func testGenerateWhenTargetSettingsOverrideTargetXCConfig() throws {
+    func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -143,7 +147,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let targetSettings = Settings(configurations: [.debug: debugConfiguration])
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
         assertProject(expectedConfigurations: ["Debug"])
@@ -155,7 +159,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("C", "C")) // from target settings
     }
 
-    func testGenerateWhenMultipleConfigurations() throws {
+    func testGenerateWhenMultipleConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -179,7 +183,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         ])
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
         assertProject(expectedConfigurations: ["Debug", "ProjectRelease"])
@@ -209,7 +213,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
      - target base
      - target configuraiton settings
      */
-    func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() throws {
+    func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
         // Given
         let projectDebugFilePath = try createFile(path: "Configs/project_debug.xcconfig", content: """
         A=A_PROJECT_XCCONFIG
@@ -267,7 +271,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
         assertProject(expectedConfigurations: ["Debug"])
@@ -288,7 +292,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("TARGET", "YES")) // from target settings
     }
 
-    func testGenerateWhenCustomConfigurations() throws {
+    func testGenerateWhenCustomConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -308,7 +312,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         ])
 
         // When
-        try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
+        try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
         assertProject(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
@@ -336,7 +340,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
+    private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) async throws {
         let models = try createModels(projectSettings: projectSettings, targetSettings: targetSettings)
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
@@ -348,7 +352,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
         try linter.lint(graphTraverser: graphTraverser, config: config).printAndThrowErrorsIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
-        try writer.write(workspace: descriptor)
+        try await writer.write(workspace: descriptor)
     }
 
     private func setupTestProject() throws {

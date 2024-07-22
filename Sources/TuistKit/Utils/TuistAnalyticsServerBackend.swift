@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistAnalytics
@@ -15,6 +16,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let ciChecker: CIChecking
     private let cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
+    private let fileSystem: FileSystem
 
     public convenience init(
         fullHandle: String,
@@ -27,7 +29,8 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             fileHandler: FileHandler.shared,
             ciChecker: CIChecker(),
             cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactory(),
-            analyticsArtifactUploadService: AnalyticsArtifactUploadService()
+            analyticsArtifactUploadService: AnalyticsArtifactUploadService(),
+            fileSystem: FileSystem()
         )
     }
 
@@ -38,7 +41,8 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         fileHandler: FileHandling,
         ciChecker: CIChecking,
         cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring,
-        analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
+        analyticsArtifactUploadService: AnalyticsArtifactUploadServicing,
+        fileSystem: FileSystem
     ) {
         self.fullHandle = fullHandle
         self.url = url
@@ -47,6 +51,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         self.ciChecker = ciChecker
         self.cacheDirectoriesProviderFactory = cacheDirectoriesProviderFactory
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
+        self.fileSystem = fileSystem
     }
 
     public func send(commandEvent: CommandEvent) async throws {
@@ -77,7 +82,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         }
 
         if fileHandler.exists(runDirectory) {
-            try fileHandler.delete(runDirectory)
+            try await fileSystem.remove(runDirectory)
         }
 
         if #available(macOS 13.0, *), ciChecker.isCI() {
