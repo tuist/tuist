@@ -203,7 +203,7 @@ defmodule Tuist.StorageTest do
       end)
 
       # When
-      assert Storage.get_object_size("object-key") == size
+      assert Storage.get_object_size("object-key") == {:ok, size}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size},
