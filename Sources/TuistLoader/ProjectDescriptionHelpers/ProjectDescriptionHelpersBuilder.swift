@@ -176,13 +176,9 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             return projectDescriptionHelpersModule
         }
 
-        // If the same helpers directory has been previously compiled
-        // we delete it before compiling the new changes.
-        if FileHandler.shared.exists(helpersCachePath) {
-            try await fileSystem.remove(helpersCachePath)
+        if !FileHandler.shared.exists(helpersCachePath) {
+            try FileHandler.shared.createFolder(helpersModuleCachePath)
         }
-
-        try FileHandler.shared.createFolder(helpersModuleCachePath)
 
         let command = createCommand(
             moduleName: name,
