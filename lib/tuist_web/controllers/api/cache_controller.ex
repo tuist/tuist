@@ -471,15 +471,25 @@ defmodule TuistWeb.API.CacheController do
         end)
       )
 
-    CommandEvents.create_cache_event(%{
-      name: name,
-      event_type: :upload,
-      size: Storage.get_object_size(get_object_key(item)),
-      project_id: EnsureProjectPresencePlug.get_project(conn).id,
-      hash: hash
-    })
+    object_size = Storage.get_object_size(get_object_key(item))
 
-    conn |> json(%{status: "success", data: %{}})
+    case object_size do
+      {:ok, size} ->
+        CommandEvents.create_cache_event(%{
+          name: name,
+          event_type: :upload,
+          size: size,
+          project_id: EnsureProjectPresencePlug.get_project(conn).id,
+          hash: hash
+        })
+
+        conn |> json(%{status: "success", data: %{}})
+
+      {:error, {:http, status, message}} ->
+        conn
+        |> put_status(status)
+        |> json(%{message: message})
+    end
   end
 
   def multipart_complete(conn, _params) do

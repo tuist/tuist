@@ -197,28 +197,36 @@ defmodule Tuist.Storage do
   end
 
   def get_object_size(object_key) do
-    {time, size} =
+    {time, result} =
       Tuist.Performance.measure_time_in_milliseconds(fn ->
-        {:ok, size} =
-          Native.s3_size(%S3SizeOptions{
-            bucket_name: Environment.s3_bucket_name(),
-            region: native_region(),
-            object_key: object_key,
-            credentials: native_credentials()
-          })
-
-        size
+        Native.s3_size(%S3SizeOptions{
+          bucket_name: Environment.s3_bucket_name(),
+          region: native_region(),
+          object_key: object_key,
+          credentials: native_credentials()
+        })
       end)
 
     Logger.debug("Object size checked in #{time} ms.")
 
-    :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
-      %{duration: time, size: size},
-      %{object_key: object_key}
-    )
+    case result do
+      {:ok, size} ->
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
+          %{duration: time, size: size},
+          %{object_key: object_key}
+        )
 
-    size
+        {:ok, size}
+
+      {:error, {:raw, error}} ->
+        {:error, error}
+
+      {:error, {:http, status, _}} when status in 500..599 ->
+        {:error,
+         {:http, status,
+          "The storage service failed with the status code #{status} while obtaining the size of the object."}}
+    end
   end
 
   defp native_region() do

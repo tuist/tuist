@@ -160,7 +160,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Storage
       |> expect(:get_object_size, fn ^object_key ->
-        1024
+        {:ok, 1024}
       end)
 
       conn =
@@ -205,7 +205,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
 
       Storage
-      |> stub(:get_object_size, fn _ -> 1024 end)
+      |> stub(:get_object_size, fn _ -> {:ok, 1024} end)
 
       conn =
         conn
@@ -235,6 +235,54 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
       assert cache_event.size == 1024
+    end
+
+    test "returns an error if the object size can't be obtained", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Storage
+      |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
+
+      Storage
+      |> stub(:get_object_size, fn _ -> {:error, {:http, 500, "Test error"}} end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      CommandEvents.create_cache_event(%{
+        hash: hash,
+        name: name,
+        event_type: :upload,
+        project_id: project.id,
+        size: 1024
+      })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, 500)
+      assert response["message"] == "Test error"
     end
   end
 
