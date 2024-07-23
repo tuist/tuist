@@ -176,9 +176,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             return projectDescriptionHelpersModule
         }
 
-        if !FileHandler.shared.exists(helpersCachePath) {
-            try FileHandler.shared.createFolder(helpersModuleCachePath)
-        }
+        try FileHandler.shared.createFolder(helpersModuleCachePath)
 
         let command = createCommand(
             moduleName: name,
