@@ -37,8 +37,8 @@ class ListService {
 
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
-        let templates: [PrintableTemplate] = try templateDirectories.map { path in
-            let template = try templateLoader.loadTemplate(at: path, plugins: plugins)
+        let templates: [PrintableTemplate] = try await templateDirectories.concurrentMap { path in
+            let template = try await self.templateLoader.loadTemplate(at: path, plugins: plugins)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 
@@ -74,7 +74,7 @@ class ListService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         return try await pluginService.loadPlugins(using: config)
     }
 

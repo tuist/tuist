@@ -40,7 +40,7 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
 
         let ssoOrganization: SSOOrganization
         switch provider {

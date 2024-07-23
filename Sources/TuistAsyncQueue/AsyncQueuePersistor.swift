@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -8,7 +9,7 @@ public typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: D
 
 public protocol AsyncQueuePersisting {
     /// Reads all the persisted events and returns them.
-    func readAll() throws -> [AsyncQueueEventTuple]
+    func readAll() async throws -> [AsyncQueueEventTuple]
 
     /// Persiss a given event.
     /// - Parameter event: Event to be persisted.
@@ -16,11 +17,11 @@ public protocol AsyncQueuePersisting {
 
     /// Deletes the given event from disk.
     /// - Parameter event: Event to be deleted.
-    func delete<T: AsyncQueueEvent>(event: T) throws
+    func delete<T: AsyncQueueEvent>(event: T) async throws
 
     /// Deletes the given file name from disk.
     /// - Parameter filename: Name of the file to be deleted.
-    func delete(filename: String) throws
+    func delete(filename: String) async throws
 }
 
 final class AsyncQueuePersistor: AsyncQueuePersisting {
@@ -28,11 +29,13 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     let directory: AbsolutePath
     let jsonEncoder = JSONEncoder()
+    let fileSystem: FileSystem
 
     // MARK: - Init
 
-    init(directory: AbsolutePath = Environment.shared.queueDirectory) {
+    init(directory: AbsolutePath = Environment.shared.queueDirectory, fileSystem: FileSystem = FileSystem()) {
         self.directory = directory
+        self.fileSystem = fileSystem
     }
 
     func write(event: some AsyncQueueEvent) throws {
@@ -42,17 +45,17 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         try data.write(to: path.url)
     }
 
-    func delete(event: some AsyncQueueEvent) throws {
-        try delete(filename: filename(event: event))
+    func delete(event: some AsyncQueueEvent) async throws {
+        try await delete(filename: filename(event: event))
     }
 
-    func delete(filename: String) throws {
+    func delete(filename: String) async throws {
         let path = directory.appending(component: filename)
         guard FileHandler.shared.exists(path) else { return }
-        try FileHandler.shared.delete(path)
+        try await fileSystem.remove(path)
     }
 
-    func readAll() throws -> [AsyncQueueEventTuple] {
+    func readAll() async throws -> [AsyncQueueEventTuple] {
         let paths = FileHandler.shared.glob(directory, glob: "*.json")
         var events: [AsyncQueueEventTuple] = []
         for eventPath in paths {
@@ -64,7 +67,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
             else {
                 /// Changing the naming convention is a breaking change. When detected
                 /// we delete the event.
-                try? FileHandler.shared.delete(eventPath)
+                try? await fileSystem.remove(eventPath)
                 continue
             }
             do {
@@ -78,7 +81,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 )
                 events.append(event)
             } catch {
-                try? FileHandler.shared.delete(eventPath)
+                try? await fileSystem.remove(eventPath)
             }
         }
         return events

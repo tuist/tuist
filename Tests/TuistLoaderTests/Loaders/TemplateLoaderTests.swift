@@ -24,7 +24,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_loadTemplate_when_not_found() throws {
+    func test_loadTemplate_when_not_found() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         given(manifestLoader)
@@ -37,13 +37,13 @@ final class TemplateLoaderTests: TuistUnitTestCase {
             .willReturn(())
 
         // Then
-        XCTAssertThrowsSpecific(
-            try subject.loadTemplate(at: temporaryPath, plugins: .none),
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadTemplate(at: temporaryPath, plugins: .none) },
             ManifestLoaderError.manifestNotFound(temporaryPath)
         )
     }
 
-    func test_loadTemplate_files() throws {
+    func test_loadTemplate_files() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         given(manifestLoader)
@@ -63,7 +63,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
             .willReturn(())
 
         // When
-        let got = try subject.loadTemplate(at: temporaryPath, plugins: .none)
+        let got = try await subject.loadTemplate(at: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(got, TuistCore.Template(

@@ -22,20 +22,20 @@ final class XcodeProjWriterTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_writeProject() throws {
+    func test_writeProject() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath)
 
         // When
-        try subject.write(project: descriptor)
+        try await subject.write(project: descriptor)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(xcodeProjPath))
     }
 
-    func test_writeProject_fileSideEffects() throws {
+    func test_writeProject_fileSideEffects() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -52,7 +52,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         )
 
         // When
-        try subject.write(project: descriptor)
+        try await subject.write(project: descriptor)
 
         // Then
         let fileHandler = FileHandler.shared
@@ -60,7 +60,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         XCTAssertEqual(try fileHandler.readFile(filePath), contents)
     }
 
-    func test_writeProject_deleteFileSideEffects() throws {
+    func test_writeProject_deleteFileSideEffects() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -76,13 +76,13 @@ final class XcodeProjWriterTests: TuistTestCase {
         )
 
         // When
-        try subject.write(project: descriptor)
+        try await subject.write(project: descriptor)
 
         // Then
         XCTAssertFalse(fileHandler.exists(filePath))
     }
 
-    func test_generate_doesNotWipeUserData() throws {
+    func test_generate_doesNotWipeUserData() async throws {
         // Given
         let path = try temporaryPath()
         let paths = try createFiles([
@@ -98,14 +98,14 @@ final class XcodeProjWriterTests: TuistTestCase {
 
         // When
         for _ in 0 ..< 2 {
-            try subject.write(project: descriptor)
+            try await subject.write(project: descriptor)
         }
 
         // Then
         XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
     }
 
-    func test_generate_replacesProjectSharedSchemes() throws {
+    func test_generate_replacesProjectSharedSchemes() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -125,7 +125,7 @@ final class XcodeProjWriterTests: TuistTestCase {
                 xcodeprojPath: xcodeProjPath,
                 schemes: schemes
             )
-            try subject.write(project: descriptor)
+            try await subject.write(project: descriptor)
         }
 
         // Then
@@ -137,7 +137,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ])
     }
 
-    func test_generate_preservesProjectUserSchemes() throws {
+    func test_generate_preservesProjectUserSchemes() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -156,7 +156,7 @@ final class XcodeProjWriterTests: TuistTestCase {
                 xcodeprojPath: xcodeProjPath,
                 schemes: schemes
             )
-            try subject.write(project: descriptor)
+            try await subject.write(project: descriptor)
         }
 
         // Then
@@ -168,7 +168,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ])
     }
 
-    func test_generate_replacesWorkspaceSharedSchemes() throws {
+    func test_generate_replacesWorkspaceSharedSchemes() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
@@ -188,7 +188,7 @@ final class XcodeProjWriterTests: TuistTestCase {
                 xcworkspacePath: xcworkspacePath,
                 schemes: schemes
             )
-            try subject.write(workspace: descriptor)
+            try await subject.write(workspace: descriptor)
         }
 
         // Then
@@ -200,7 +200,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ])
     }
 
-    func test_generate_preservesWorkspaceUserSchemes() throws {
+    func test_generate_preservesWorkspaceUserSchemes() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
@@ -219,7 +219,7 @@ final class XcodeProjWriterTests: TuistTestCase {
                 xcworkspacePath: xcworkspacePath,
                 schemes: schemes
             )
-            try subject.write(workspace: descriptor)
+            try await subject.write(workspace: descriptor)
         }
 
         // Then
@@ -231,7 +231,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ])
     }
 
-    func test_generate_local_scheme() throws {
+    func test_generate_local_scheme() async throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -239,7 +239,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath, schemes: [userScheme])
 
         // When
-        try subject.write(project: descriptor)
+        try await subject.write(project: descriptor)
 
         // Then
         let fileHandler = FileHandler.shared

@@ -45,7 +45,7 @@ final class AnalyticsService: AnalyticsServicing {
         path: String?
     ) async throws {
         let path: AbsolutePath = try self.path(path)
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
 
         guard let fullHandle = config.fullHandle else { throw AnalyticsServiceError.fullHandleNotFound }
         try opener.open(

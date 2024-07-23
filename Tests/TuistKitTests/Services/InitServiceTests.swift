@@ -43,21 +43,24 @@ final class InitServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fails_when_directory_not_empty() throws {
+    func test_fails_when_directory_not_empty() async throws {
         // Given
         let path = FileHandler.shared.currentPath
         try FileHandler.shared.touch(path.appending(component: "dummy"))
 
         // Then
-        XCTAssertThrowsSpecific(try subject.testRun(), InitServiceError.nonEmptyDirectory(path))
+        await XCTAssertThrowsSpecific({ try await self.subject.testRun() }, InitServiceError.nonEmptyDirectory(path))
     }
 
-    func test_init_fails_when_template_not_found() throws {
+    func test_init_fails_when_template_not_found() async throws {
         let templateName = "template"
-        XCTAssertThrowsSpecific(try subject.testRun(templateName: templateName), InitServiceError.templateNotFound(templateName))
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.testRun(templateName: templateName) },
+            InitServiceError.templateNotFound(templateName)
+        )
     }
 
-    func test_init_default_when_no_template() throws {
+    func test_init_default_when_no_template() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -80,13 +83,13 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(name: "Name", platform: "macos")
+        try await subject.testRun(name: "Name", platform: "macos")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
     }
 
-    func test_init_default_platform() throws {
+    func test_init_default_platform() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -109,13 +112,13 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
     }
 
-    func test_init_default_with_unusual_name() throws {
+    func test_init_default_with_unusual_name() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -137,7 +140,7 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(name: "unusual name")
+        try await subject.testRun(name: "unusual name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
@@ -174,7 +177,7 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             name: "Name",
             platform: "macos",
             templateName: "https://url/to/repo.git",
@@ -223,7 +226,7 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
@@ -262,7 +265,7 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
@@ -277,8 +280,8 @@ extension InitService {
         templateName: String? = nil,
         requiredTemplateOptions: [String: String] = [:],
         optionalTemplateOptions: [String: String?] = [:]
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             name: name,
             platform: platform,
             path: path,
