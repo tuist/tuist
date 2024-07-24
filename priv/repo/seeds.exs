@@ -49,13 +49,11 @@ _public_project =
   end
 
 tuist_cloud_acceptance_tests_project =
-  with {:ok, project} <- Projects.get_project_by_slug("tuist/tuist-cloud-acceptance-tests") do
+  with {:ok, project} <- Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
     project
   else
     {:error, _} ->
-      Projects.create_project(%{name: "tuist-cloud-acceptance-tests", account: %{id: account.id}},
-        token: "tuist-cloud-acceptance-tests"
-      )
+      Projects.create_project(%{name: "ios_app_with_frameworks", account: %{id: account.id}})
   end
 
 org_account =
