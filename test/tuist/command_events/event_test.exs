@@ -53,6 +53,21 @@ defmodule Tuist.CommandEvents.EventTest do
       # Then
       assert got.valid? == true
     end
+
+    test "populates the remote_test_target_hits_count value automatically" do
+      # When
+      got =
+        Event.create_changeset(
+          %Event{},
+          command_event(
+            remote_test_target_hits: ["foo", "bar"],
+            remote_cache_target_hits: ["test"]
+          )
+        )
+
+      assert get_change(got, :remote_cache_target_hits_count) == 1
+      assert get_change(got, :remote_test_target_hits_count) == 2
+    end
   end
 
   defp command_event(attrs) do
@@ -67,7 +82,8 @@ defmodule Tuist.CommandEvents.EventTest do
       project_id: 1,
       cacheable_targets: "",
       local_cache_target_hits: "",
-      remote_cache_target_hits: "",
+      remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
+      remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
       is_ci: Keyword.get(attrs, :is_ci, false),
       user_id: Keyword.get(attrs, :user_id, 1),
       client_id: "client-id",
