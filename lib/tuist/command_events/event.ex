@@ -26,11 +26,13 @@ defmodule Tuist.CommandEvents.Event do
     field :cacheable_targets, {:array, :string}, default: []
     field :local_cache_target_hits, {:array, :string}, default: []
     field :remote_cache_target_hits, {:array, :string}, default: []
+    field :remote_cache_target_hits_count, :integer
 
     # Tests
     field :test_targets, {:array, :string}, default: []
     field :local_test_target_hits, {:array, :string}, default: []
     field :remote_test_target_hits, {:array, :string}, default: []
+    field :remote_test_target_hits_count, :integer
 
     field :is_ci, :boolean
     field :client_id, :string
@@ -85,32 +87,27 @@ defmodule Tuist.CommandEvents.Event do
           [:user_id]
         end
     )
+    |> put_change(
+      :remote_test_target_hits_count,
+      get_field(changeset, :remote_test_target_hits) |> length()
+    )
+    |> put_change(
+      :remote_cache_target_hits_count,
+      get_field(changeset, :remote_cache_target_hits) |> length()
+    )
     |> validate_inclusion(:status, [:success, :failure])
   end
 
-  defmacro this_month_fragment() do
-    quote do
-      fragment(
-        "date_trunc('month', ?::timestamptz) = date_trunc('month', ?::timestamptz)",
-        c.created_at,
-        ^Tuist.Time.utc_now()
-      )
-    end
-  end
-
   def get_current_month_remote_cache_hits_count_query(%Account{id: account_id}) do
+    today = Tuist.Time.utc_now()
+    beginning_of_month = Timex.beginning_of_month(today)
+
     from c in __MODULE__,
       join: p in Project,
-      on: p.id == c.project_id,
-      where: p.account_id == ^account_id,
-      where: this_month_fragment(),
-      select:
-        count(
-          fragment(
-            "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
-            c.remote_cache_target_hits,
-            c.remote_test_target_hits
-          )
-        )
+      on: p.id == c.project_id and p.account_id == ^account_id,
+      where: c.created_at >= ^beginning_of_month,
+      where: c.created_at < ^today,
+      where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
+      select: count(c.id)
   end
 end
