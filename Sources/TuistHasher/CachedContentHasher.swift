@@ -2,9 +2,9 @@ import Foundation
 import Path
 import TuistCore
 
-/// `CacheContentHasher`
+/// `CachedContentHasher`
 /// is a wrapper on top of `ContentHasher` that adds an in-memory cache to avoid re-computing the same hashes
-public final class CacheContentHasher: ContentHashing {
+public final class CachedContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
     // In memory cache for files that have already been hashed

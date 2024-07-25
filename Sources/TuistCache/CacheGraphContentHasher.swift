@@ -77,7 +77,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let hashes = try graphContentHasher.contentHashes(
             for: graph,
             include: {
-                isGraphTargetHashable(
+                self.isGraphTargetHashable(
                     $0,
                     graphTraverser: graphTraverser,
                     excludedTargets: excludedTargets

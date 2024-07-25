@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol GraphContentHashing {
     /// Hashes graph
     /// - Parameters:
@@ -12,7 +14,7 @@ public protocol GraphContentHashing {
     ///     - additionalStrings: Additional strings to be used when hashing graph
     func contentHashes(
         for graph: Graph,
-        include: (GraphTarget) -> Bool,
+        include: @escaping (GraphTarget) -> Bool,
         additionalStrings: [String]
     ) throws -> [GraphTarget: String]
 }

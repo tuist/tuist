@@ -2,21 +2,20 @@ import MockableTest
 import Path
 import TuistCore
 import TuistCoreTesting
-import TuistHasher
 import TuistSupport
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistCache
+@testable import TuistHasher
 
-final class CacheContentHasherTests: TuistUnitTestCase {
-    private var subject: CacheContentHasher!
+final class CachedContentHasherTests: TuistUnitTestCase {
+    private var subject: CachedContentHasher!
     private var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
         contentHasher = MockContentHashing()
-        subject = CacheContentHasher(contentHasher: contentHasher)
+        subject = CachedContentHasher(contentHasher: contentHasher)
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: ";") }

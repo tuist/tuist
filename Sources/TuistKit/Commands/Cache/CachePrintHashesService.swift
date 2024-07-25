@@ -14,7 +14,7 @@ final class CachePrintHashesService {
     private let configLoader: ConfigLoading
 
     convenience init(
-        contentHasher: ContentHashing = CacheContentHasher(),
+        contentHasher: ContentHashing = CachedContentHasher(),
         generatorFactory: GeneratorFactorying
     ) {
         self.init(
