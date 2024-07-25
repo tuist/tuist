@@ -20,7 +20,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var xcodebuildController: MockXcodeBuildControlling!
     private var buildGraphInspector: MockBuildGraphInspecting!
     private var simulatorController: MockSimulatorController!
-    private var contentHasher: MockContentHasher!
+    private var contentHasher: MockContentHashing!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var configLoader: MockConfigLoading!
@@ -50,9 +50,9 @@ final class TestServiceTests: TuistUnitTestCase {
         configLoader = .init()
         automationStorage = .init()
 
-        contentHasher.hashStub = { _ in
-            "hash"
-        }
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willReturn("hash")
 
         given(buildGraphInspector)
             .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
