@@ -6,24 +6,6 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-enum ImportFinderServiceError: FatalError, Equatable {
-    case targetNotFound(target: String)
-
-    var description: String {
-        switch self {
-        case let .targetNotFound(target):
-            "Target \(target) was not found"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .targetNotFound:
-            .abort
-        }
-    }
-}
-
 final class GraphImplicitImportLintService {
     private let graph: Graph
 
@@ -31,7 +13,7 @@ final class GraphImplicitImportLintService {
         self.graph = graph
     }
 
-    func lint() async throws {
+    func lint() async throws -> [Target: Set<String>] {
         let allTargets = graph
             .projects
             .map(\.value.targets)
@@ -39,18 +21,21 @@ final class GraphImplicitImportLintService {
             .map(\.value)
 
         let allTargetNames = Set(allTargets.map(\.name))
-        print("The following implicit imports have been detected through static code analysis:")
+
+        var allImports = [Target: Set<String>]()
+
         for target in allTargets {
-            let allImports = Set(try await handleTarget(target: target))
-            let targetImports = allImports.filter { allTargetNames.contains($0) }
-            guard !targetImports.isEmpty else { continue }
-            print("Target \(target.name) imports: \(targetImports.joined(separator: ", "))")
+            let targetImports = Set(try await handleTarget(target: target))
+            let targetProjectImports = Set(targetImports.filter { allTargetNames.contains($0) })
+            guard !targetProjectImports.isEmpty else { continue }
+            allImports[target] = targetProjectImports
         }
+        return allImports
     }
 
-    func handleTarget(target: XcodeGraph.Target) async throws -> [String] {
+    func handleTarget(target: XcodeGraph.Target) async throws -> Set<String> {
         return try await withThrowingTaskGroup(of: [String].self) { [weak self] group in
-            var imports = [String]()
+            var imports = Set<String>()
             guard let self else { return [] }
             for file in target.sources {
                 group.addTask {
@@ -58,7 +43,7 @@ final class GraphImplicitImportLintService {
                 }
             }
             for try await entity in group {
-                imports.append(contentsOf: entity)
+                imports.formUnion(entity)
             }
             return imports
         }
