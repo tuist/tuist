@@ -15,11 +15,11 @@ private let irrelevantBundleName = ""
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
-    var contentHasher: MockContentHasher!
+    var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
-        contentHasher = MockContentHasher()
+        contentHasher = .init()
         subject = ResourcesProjectMapper(contentHasher: contentHasher)
     }
 
