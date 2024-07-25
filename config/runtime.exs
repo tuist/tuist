@@ -229,7 +229,8 @@ config :tuist, Oban,
      crontab:
        [
          {"@hourly", Tuist.CommandEvents.UpdateCacheEventCountWorker},
-         {"@daily", Tuist.Billing.UpdateRemoteCacheHitWorker}
+         {"@daily", Tuist.Billing.UpdateRemoteCacheHitWorker},
+         {"@daily", Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorker}
        ] ++
          if(not Tuist.Environment.on_premise?() and env == :prod,
            do: [{"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker}],

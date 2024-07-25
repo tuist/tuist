@@ -15,7 +15,8 @@ defmodule TuistWeb.AccountBillingLiveTest do
         name: "tuist-org",
         customer_id: "customer_id",
         creator: user,
-        preloads: [:account]
+        preloads: [:account],
+        current_month_remote_cache_hits_count: 167
       )
 
     Billing
@@ -38,9 +39,6 @@ defmodule TuistWeb.AccountBillingLiveTest do
         }
       }
     end)
-
-    Accounts
-    |> stub(:get_current_month_remote_cache_hits_count, fn _ -> 167 end)
 
     conn =
       conn

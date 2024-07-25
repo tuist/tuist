@@ -3,8 +3,6 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   alias Tuist.Environment
   alias TuistWeb.Authentication
   alias Tuist.AccountsFixtures
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.ProjectsFixtures
   alias Tuist.Accounts
   alias Tuist.Billing
   use TuistWeb.ConnCase, async: true
@@ -196,20 +194,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         conn
         |> Authentication.put_current_user(user)
 
-      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
-      account = Accounts.get_account_from_organization(organization)
-      Accounts.add_user_to_organization(user, organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      organization =
+        AccountsFixtures.organization_fixture(
+          name: "tuist-org",
+          current_month_remote_cache_hits_count: 1
+        )
 
-      Tuist.Time |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      # Binary hit in current month
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-04-01 03:00:00],
-        remote_cache_target_hits: ["target1", "target2"]
-      )
+      Accounts.add_user_to_organization(user, organization)
 
       # When
       conn =

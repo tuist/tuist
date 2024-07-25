@@ -170,6 +170,9 @@ defmodule Tuist.Accounts do
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
     start_trial = opts |> Keyword.get(:start_trial, true)
 
+    current_month_remote_cache_hits_count =
+      opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
+
     {:ok, %{organization: organization}} =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(
@@ -185,6 +188,7 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             organization_id: organization_id,
             name: name,
+            current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
             customer_id:
               Keyword.get(
                 opts,
@@ -311,6 +315,9 @@ defmodule Tuist.Accounts do
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
     start_trial = opts |> Keyword.get(:start_trial, true)
 
+    current_month_remote_cache_hits_count =
+      opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
+
     name =
       (email
        |> String.split("@")
@@ -335,6 +342,7 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: name,
+            current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
             customer_id:
               Keyword.get(
                 opts,
@@ -402,11 +410,6 @@ defmodule Tuist.Accounts do
     else
       {:error, :account_name_taken}
     end
-  end
-
-  def get_current_month_remote_cache_hits_count(%Account{} = account) do
-    Tuist.CommandEvents.Event.get_current_month_remote_cache_hits_count_query(account)
-    |> Repo.one()
   end
 
   def get_customer_ids_with_remote_cache_hits_stream() do

@@ -129,28 +129,26 @@ for _event <- 1..10000 do
     |> Enum.reverse()
     |> Enum.take(Enum.random(0..(14 - length(remote_test_target_hits))))
 
-  CommandEvents.create_command_event(
-    %{
-      name: name,
-      duration: Enum.random(10000..100_000),
-      tuist_version: "4.1.0",
-      project_id: tuist_cloud_acceptance_tests_project.id,
-      cacheable_targets: cacheable_targets,
-      local_cache_target_hits: local_cache_target_hits,
-      remote_cache_target_hits: remote_cache_target_hits,
-      test_targets: test_targets,
-      local_test_target_hits: local_test_target_hits,
-      remote_test_target_hits: remote_test_target_hits,
-      swift_version: "5.2",
-      macos_version: "10.15",
-      subcommand: "",
-      command_arguments: [],
-      is_ci: is_ci,
-      user_id: user_id,
-      client_id: "client-id",
-      status: status,
-      error_message: nil
-    },
+  CommandEvents.create_command_event(%{
+    name: name,
+    duration: Enum.random(10000..100_000),
+    tuist_version: "4.1.0",
+    project_id: tuist_cloud_acceptance_tests_project.id,
+    cacheable_targets: cacheable_targets,
+    local_cache_target_hits: local_cache_target_hits,
+    remote_cache_target_hits: remote_cache_target_hits,
+    test_targets: test_targets,
+    local_test_target_hits: local_test_target_hits,
+    remote_test_target_hits: remote_test_target_hits,
+    swift_version: "5.2",
+    macos_version: "10.15",
+    subcommand: "",
+    command_arguments: [],
+    is_ci: is_ci,
+    user_id: user_id,
+    client_id: "client-id",
+    status: status,
+    error_message: nil,
     created_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
@@ -161,7 +159,7 @@ for _event <- 1..10000 do
           Enum.random(0..999_999)
         )
       )
-  )
+  })
 end
 
 test_command_events =

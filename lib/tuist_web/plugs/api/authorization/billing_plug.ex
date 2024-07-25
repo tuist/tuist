@@ -19,7 +19,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
     subscription = Billing.get_current_active_subscription(account)
 
-    case {subscription, Accounts.get_current_month_remote_cache_hits_count(account)} do
+    case {subscription, account.current_month_remote_cache_hits_count} do
       {nil, hits} when hits > @remote_cache_hits_threshold ->
         conn
         |> put_status(:payment_required)

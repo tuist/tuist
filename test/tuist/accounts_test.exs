@@ -1420,47 +1420,4 @@ defmodule Tuist.AccountsTest do
       assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
     end
   end
-
-  describe "get_current_month_remote_cache_hits_count" do
-    test "returns only the events from the current month when it's an account" do
-      # Given
-      Tuist.Time |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
-      %{account: account} =
-        project = ProjectsFixtures.project_fixture() |> Tuist.Repo.preload(:account)
-
-      # Binary hit in current month
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-04-01 03:00:00],
-        remote_cache_target_hits: ["target1", "target2"]
-      )
-
-      # Test hit in current month
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-04-01 03:00:00],
-        remote_test_target_hits: ["target1", "target2"]
-      )
-
-      # Past months
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        duration: 1500,
-        created_at: ~N[2024-01-02 03:00:00],
-        remote_cache_target_hits: ["target1", "target2"]
-      )
-
-      # When
-      got = Accounts.get_current_month_remote_cache_hits_count(account)
-
-      # Then
-      assert got == 2
-    end
-  end
 end

@@ -7,7 +7,6 @@ defmodule Tuist.CommandEvents.Event do
   import Ecto.Changeset
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
-  alias Tuist.Accounts.Account
 
   @derive {
     Flop.Schema,
@@ -22,7 +21,12 @@ defmodule Tuist.CommandEvents.Event do
     field :tuist_version, :string
     field :swift_version, :string
     field :macos_version, :string
-    # Binaries
+    field :is_ci, :boolean
+    field :client_id, :string
+    field :status, Ecto.Enum, values: [success: 0, failure: 1]
+    field :error_message, :string
+
+    # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
     field :local_cache_target_hits, {:array, :string}, default: []
     field :remote_cache_target_hits, {:array, :string}, default: []
@@ -34,10 +38,7 @@ defmodule Tuist.CommandEvents.Event do
     field :remote_test_target_hits, {:array, :string}, default: []
     field :remote_test_target_hits_count, :integer
 
-    field :is_ci, :boolean
-    field :client_id, :string
-    field :status, Ecto.Enum, values: [success: 0, failure: 1]
-    field :error_message, :string
+    # Associations
     belongs_to :project, Project
     belongs_to :user, User
 
@@ -65,9 +66,11 @@ defmodule Tuist.CommandEvents.Event do
         :cacheable_targets,
         :local_cache_target_hits,
         :remote_cache_target_hits,
+        :remote_cache_target_hits_count,
         :test_targets,
         :local_test_target_hits,
         :remote_test_target_hits,
+        :remote_test_target_hits_count,
         :is_ci,
         :user_id,
         :client_id,
@@ -96,18 +99,5 @@ defmodule Tuist.CommandEvents.Event do
       get_field(changeset, :remote_cache_target_hits) |> length()
     )
     |> validate_inclusion(:status, [:success, :failure])
-  end
-
-  def get_current_month_remote_cache_hits_count_query(%Account{id: account_id}) do
-    today = Tuist.Time.utc_now()
-    beginning_of_month = Timex.beginning_of_month(today)
-
-    from c in __MODULE__,
-      join: p in Project,
-      on: p.id == c.project_id and p.account_id == ^account_id,
-      where: c.created_at >= ^beginning_of_month,
-      where: c.created_at < ^today,
-      where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
-      select: count(c.id)
   end
 end

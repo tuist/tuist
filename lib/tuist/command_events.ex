@@ -596,8 +596,7 @@ defmodule Tuist.CommandEvents do
           client_id: client_id,
           status: status,
           error_message: error_message
-        },
-        attrs \\ []
+        } = event
       ) do
     command_event =
       %Event{}
@@ -613,15 +612,17 @@ defmodule Tuist.CommandEvents do
         cacheable_targets: cacheable_targets,
         local_cache_target_hits: local_cache_target_hits,
         remote_cache_target_hits: remote_cache_target_hits,
+        remote_cache_target_hits_count: Map.get(event, :remote_cache_target_hits_count, 0),
         test_targets: test_targets,
         local_test_target_hits: local_test_target_hits,
         remote_test_target_hits: remote_test_target_hits,
+        remote_test_target_hits_count: Map.get(event, :remote_test_target_hits_count, 0),
         is_ci: is_ci,
         user_id: user_id,
         client_id: client_id,
         status: status,
         error_message: error_message |> truncate_error_message(),
-        created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+        created_at: Map.get(event, :created_at, Time.utc_now())
       })
       |> Repo.insert!()
 

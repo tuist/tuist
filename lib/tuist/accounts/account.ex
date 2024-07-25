@@ -14,6 +14,8 @@ defmodule Tuist.Accounts.Account do
     field :cache_upload_event_count, :integer
     field :cache_download_event_count, :integer
     field :customer_id, :string
+    field :current_month_remote_cache_hits_count, :integer
+    field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
 
     has_many(:projects, Project, on_delete: :delete_all)
 
@@ -23,7 +25,13 @@ defmodule Tuist.Accounts.Account do
   def create_changeset(account, attrs) do
     changeset =
       account
-      |> cast(attrs, [:name, :user_id, :organization_id, :customer_id])
+      |> cast(attrs, [
+        :name,
+        :user_id,
+        :organization_id,
+        :customer_id,
+        :current_month_remote_cache_hits_count
+      ])
 
     user_id = get_field(changeset, :user_id)
 
@@ -63,6 +71,10 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:customer_id])
+    |> cast(attrs, [
+      :customer_id,
+      :current_month_remote_cache_hits_count,
+      :current_month_remote_cache_hits_count_updated_at
+    ])
   end
 end
