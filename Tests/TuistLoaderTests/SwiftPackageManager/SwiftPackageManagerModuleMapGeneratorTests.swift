@@ -7,7 +7,7 @@ import XCTest
 
 @testable import TuistLoader
 
-class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
+final class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     private var subject: SwiftPackageManagerModuleMapGenerator!
     private var contentHasher: MockContentHashing!
 
@@ -15,6 +15,13 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         super.setUp()
         contentHasher = MockContentHashing()
         subject = SwiftPackageManagerModuleMapGenerator(contentHasher: contentHasher)
+
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willProduce { $0 }
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { $0.pathString }
     }
 
     override func tearDown() {
