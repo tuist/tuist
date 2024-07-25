@@ -1,5 +1,4 @@
 defmodule TuistWeb.API.Authorization.BillingPlugTest do
-  alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias TuistWeb.API.Authorization.BillingPlug
@@ -10,12 +9,22 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias Tuist.Repo
   use Mimic
 
-  setup do
-    project = ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+  setup context do
+    current_month_remote_cache_hits_count =
+      context |> Map.get(:current_month_remote_cache_hits_count, 0)
+
+    %{account: account} =
+      user =
+      AccountsFixtures.user_fixture(
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
+        preloads: [:account]
+      )
+
+    project = ProjectsFixtures.project_fixture(account_id: account.id) |> Repo.preload(:account)
 
     %{
       project: project,
-      user: AccountsFixtures.user_fixture(preloads: [:account])
+      user: user
     }
   end
 
@@ -199,6 +208,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
              ]
   end
 
+  @tag current_month_remote_cache_hits_count: 201
   test "returns an error if the account has no active subscription and the current month remote cache hits count is over the threshold",
        %{
          conn: conn,
@@ -211,9 +221,6 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     |> stub(:get_current_active_subscription, fn ^account ->
       nil
     end)
-
-    Accounts
-    |> stub(:get_current_month_remote_cache_hits_count, fn ^account -> 201 end)
 
     project = project |> Repo.reload() |> Repo.preload(:account)
 
@@ -234,6 +241,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
+  @tag current_month_remote_cache_hits_count: 199
   test "returns the same connection if the account has no active subscription and the current month remote cache hits count is below the threshold",
        %{
          conn: conn,
@@ -246,9 +254,6 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     |> stub(:get_current_active_subscription, fn ^account ->
       nil
     end)
-
-    Accounts
-    |> stub(:get_current_month_remote_cache_hits_count, fn ^account -> 199 end)
 
     project = project |> Repo.reload() |> Repo.preload(:account)
 
