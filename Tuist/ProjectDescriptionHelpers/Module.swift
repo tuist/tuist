@@ -150,7 +150,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .cache:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
