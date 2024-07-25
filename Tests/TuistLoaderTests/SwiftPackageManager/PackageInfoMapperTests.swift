@@ -3057,7 +3057,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             "ViewInspector",
             "XCTVapor",
         ]
-        let allTargets = ["RxSwift"] + testTargets
+        let allTargets = ["RxSwift", "Alamofire"] + testTargets
         try allTargets
             .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
             .forEach { try fileHandler.createFolder($0) }
@@ -3093,6 +3093,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test("RxSwift", basePath: basePath, product: .framework),
+                    .test("Alamofire", basePath: basePath, product: .staticFramework),
                 ] + testTargets.map {
                     let customSettings: ProjectDescription.SettingsDictionary
                     var customProductName: String?

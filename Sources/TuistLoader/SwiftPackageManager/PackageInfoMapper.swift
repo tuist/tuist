@@ -269,6 +269,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "RxSwift", // https://github.com/ReactiveX/RxSwift
                 ].map {
                     ($0, .framework)
+                } + [
+                    "Alamofire" // https://github.com/Alamofire/Alamofire
+                ].map {
+                    ($0, .staticFramework)
                 }
             ),
             uniquingKeysWith: { userDefined, _ in userDefined }
