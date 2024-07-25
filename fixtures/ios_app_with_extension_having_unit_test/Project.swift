@@ -41,6 +41,6 @@ let project = Project(
             dependencies: [
                 .target(name: "AppExtension"),
             ]
-        )
+        ),
     ]
 )
