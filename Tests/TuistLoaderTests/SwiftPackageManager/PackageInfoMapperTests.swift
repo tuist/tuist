@@ -1,3 +1,4 @@
+import FileSystem
 import MockableTest
 import Path
 import ProjectDescription
@@ -13,10 +14,11 @@ import XCTest
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
     private var subject: PackageInfoMapper!
+    private var fileSystem: FileSystem!
 
     override func setUp() {
         super.setUp()
-
+        fileSystem = FileSystem()
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.9")
@@ -25,7 +27,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
-
+        fileSystem = nil
         super.tearDown()
     }
 
@@ -520,7 +522,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenAlternativeDefaultSources() throws {
+    func testMap_whenAlternativeDefaultSources() async throws {
         for alternativeDefaultSource in ["Source", "src", "srcs"] {
             let basePath = try temporaryPath()
             let sourcesPath = basePath.appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1"))
@@ -566,7 +568,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 )
             )
 
-            try fileHandler.delete(sourcesPath)
+            try await fileSystem.remove(sourcesPath)
         }
     }
 
@@ -1705,7 +1707,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Target1",
-                            settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
+                            settings: [
+                                .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"]),
+                                .init(
+                                    tool: .c,
+                                    name: .headerSearchPath,
+                                    condition: nil,
+                                    value: ["White Space Folder/value"]
+                                ),
+                            ]
                         ),
                     ],
                     platforms: [.ios],
@@ -1723,7 +1733,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value",
+                                                                 "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\""]]
                     ),
                 ]
             )

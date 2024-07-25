@@ -24,6 +24,7 @@ public struct Cloud: Codable, Equatable, Sendable {
     ///   - url: Base URL to the Cloud server.
     ///   - options: Cloud options.
     /// - Returns: A Cloud instance.
+    @available(*, deprecated, message: "Use the `fullHandle` and `url` properties directly in the `Config`")
     public static func cloud(projectId: String, url: String = "https://cloud.tuist.io", options: [Option] = []) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }

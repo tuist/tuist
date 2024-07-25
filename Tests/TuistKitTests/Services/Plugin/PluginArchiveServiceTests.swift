@@ -32,7 +32,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_when_no_task_products_defined() throws {
+    func test_run_when_no_task_products_defined() async throws {
         // Given
         swiftPackageManagerController.loadPackageInfoStub = { _ in
             PackageInfo.test(
@@ -47,7 +47,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: nil)
+        try await subject.run(path: nil)
 
         // Then
         XCTAssertPrinterContains(
@@ -57,7 +57,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run() throws {
+    func test_run() async throws {
         // Given
         let path = try temporaryPath()
         var invokedPackagePath: AbsolutePath?
@@ -106,7 +106,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         try fileHandler.createFolder(zipPath)
 
         // When
-        try subject.run(path: path.pathString)
+        try await subject.run(path: path.pathString)
 
         // Then
         XCTAssertEqual(invokedPackagePath, path)

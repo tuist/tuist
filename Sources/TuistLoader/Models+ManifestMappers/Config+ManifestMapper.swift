@@ -96,7 +96,8 @@ extension TuistCore.Config.GenerationOptions {
             staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
             enforceExplicitDependencies: manifest.enforceExplicitDependencies,
-            defaultConfiguration: manifest.defaultConfiguration
+            defaultConfiguration: manifest.defaultConfiguration,
+            optionalAuthentication: manifest.optionalAuthentication
         )
     }
 }

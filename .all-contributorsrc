@@ -1447,6 +1447,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "KaiOelfke",
+      "name": "Kai Oelfke",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1190948?v=4",
+      "profile": "https://www.kaioelfke.de",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

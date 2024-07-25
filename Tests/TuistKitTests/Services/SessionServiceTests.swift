@@ -39,13 +39,13 @@ final class SessionServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_printSession() throws {
+    func test_printSession() async throws {
         // Given
         given(serverSessionController)
             .printSession(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then
-        try subject.printSession(directory: nil)
+        try await subject.printSession(directory: nil)
     }
 }

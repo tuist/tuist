@@ -1,5 +1,66 @@
 # Changelog
 
+## 4.21.2 - 2024-07-19
+
+### Tuist
+
+#### Changed
+
+- Mark the Cloud static initializer as deprecated [#6531](https://github.com/tuist/tuist/pull/6531) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add email and password auth options for non-interactive login [#6507](https://github.com/tuist/tuist/pull/6507) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix token not found when using TUIST_CONFIG_TOKEN environment variable [#6528](https://github.com/tuist/tuist/pull/6528) by [@fortmarek](https://github.com/fortmarek)
+- Fix optionalAuthentication generation option in Config.swift [#6530](https://github.com/tuist/tuist/pull/6530) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.1 - 2024-07-17
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.0 - 2024-07-16
+
+### Tuist
+
+#### Changed
+
+- Flatten cloud commands to tuist [#6473](https://github.com/tuist/tuist/pull/6473) by [@fortmarek](https://github.com/fortmarek)
+- Flatten the tuist-cloud cache directory into the tuist cache directory [#6474](https://github.com/tuist/tuist/pull/6474) by [@fortmarek](https://github.com/fortmarek)
+- Deprecate cloud in Config in favor of fullHandle and url [#6475](https://github.com/tuist/tuist/pull/6475) by [@fortmarek](https://github.com/fortmarek)
+- Deprecate the usage TUIST_CONFIG_CLOUD_TOKEN in favor of TUIST_CONFIG_TOKEN [#6476](https://github.com/tuist/tuist/pull/6476) by [@fortmarek](https://github.com/fortmarek)
+- Add support for new, more secure project and user tokens [#6500](https://github.com/tuist/tuist/pull/6500) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Lint target references in a scheme [#6491](https://github.com/tuist/tuist/pull/6491) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Generate a `Tuist/Config.swift` by default when creating a new project [#6521](https://github.com/tuist/tuist/pull/6521) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix generate failing due to duplicate keys [#6469](https://github.com/tuist/tuist/pull/6469) by [@fortmarek](https://github.com/fortmarek)
+- Change tuist project subcommands to accept full handle [#6472](https://github.com/tuist/tuist/pull/6472) by [@fortmarek](https://github.com/fortmarek)
+- Fix missing test targets when generating an SPM package [#6483](https://github.com/tuist/tuist/pull/6483) by [@woin2ee](https://github.com/woin2ee)
+- Escape header search paths for external dependencies from SPM [#6513](https://github.com/tuist/tuist/pull/6513) by [@KaiOelfke](https://github.com/KaiOelfke)
+- Respect --verbose for machine readable commands [#6518](https://github.com/tuist/tuist/pull/6518) by [@fortmarek](https://github.com/fortmarek)
+- Fix linking static xcframeworks linked via dynamic xcframeworks [#6520](https://github.com/tuist/tuist/pull/6520) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.20.0 - 2024-07-02
 
 ### Tuist

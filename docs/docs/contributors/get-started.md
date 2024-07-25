@@ -28,6 +28,7 @@ To start working on the project, we can follow the steps below:
 - [Install](https://mise.jdx.dev/getting-started.html) Mise to provision the development environment.
 - Run `mise install` to install the system dependencies needed by Tuist
 - Run `tuist install` to install the external dependencies needed by Tuist
+- (Optional) Run `tuist auth` to get access to the [Tuist Cache](/guides/develop/build/cache)
 - Run `tuist generate` to generate the Tuist Xcode project using Tuist itself
 
 **The generated project opens automatically**. If you need to open again without generating it, run open `Tuist.xcworkspace` (or use Finder).
@@ -37,7 +38,7 @@ To start working on the project, we can follow the steps below:
 
 ## Edit the project
 
-If you needed to edit the project, for example to add dependencies or adjust targets, you can use the [`tuist edit` command](/guide/project/editing). This is barely used, but it's good to know that it exists.
+If you needed to edit the project, for example to add dependencies or adjust targets, you can use the [`tuist edit` command](/guides/develop/projects/editing). This is barely used, but it's good to know that it exists.
 
 ## Run Tuist
 
@@ -56,7 +57,7 @@ You'll also have to set the working directory to the root of the project being g
 
 ### From the terminal
 
-Although `tuist` provides a [run command](/guide/automation/run) it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
+Although `tuist` provides a `tuist run` it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
 
 ```bash
 swift build --product ProjectDescription

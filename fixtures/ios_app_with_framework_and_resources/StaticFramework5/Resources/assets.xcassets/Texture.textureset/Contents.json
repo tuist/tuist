@@ -1,0 +1,12 @@
+{
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "textures" : [
+    {
+      "filename" : "Universal.mipmapset",
+      "idiom" : "universal"
+    }
+  ]
+}
