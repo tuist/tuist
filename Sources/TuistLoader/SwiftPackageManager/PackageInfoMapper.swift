@@ -270,7 +270,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 ].map {
                     ($0, .framework)
                 } + [
-                    "Alamofire" // https://github.com/Alamofire/Alamofire
+                    "Alamofire", // https://github.com/Alamofire/Alamofire
                 ].map {
                     ($0, .staticFramework)
                 }
