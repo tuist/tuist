@@ -19,9 +19,6 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willProduce { $0 }
-        given(contentHasher)
-            .hash(path: .any)
-            .willProduce { $0.pathString }
     }
 
     override func tearDown() {
@@ -103,6 +100,13 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
         }
+
+        var hash: String? = nil
+
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { hash ?? $0.pathString }
+
         let got = try subject.generate(
             packageDirectory: "/Absolute/PackageDir",
             moduleName: "Module",
@@ -110,9 +114,8 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         )
 
         // Set hasher for path on disk
-        given(contentHasher)
-            .hash(path: .value(try AbsolutePath(validating: "/Absolute/PackageDir/Derived/Module.modulemap")))
-            .willReturn(expectedContent(for: moduleMap) ?? "")
+        hash = expectedContent(for: moduleMap)
+
         // generate a 2nd time to validate that we dont write content that is already on disk
         let _ = try subject.generate(
             packageDirectory: "/Absolute/PackageDir",
