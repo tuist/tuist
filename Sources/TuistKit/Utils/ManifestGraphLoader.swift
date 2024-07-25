@@ -143,7 +143,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         )
 
         // Lint Manifests
-        let lintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
+        let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        let lintingIssues = workspaceLintingIssues + projectLintingIssues
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models

@@ -1,18 +1,24 @@
+import MockableTest
 import Path
+import TuistCore
 import TuistCoreTesting
 import TuistSupportTesting
 import XCTest
 
 @testable import TuistLoader
 
-class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
+final class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     private var subject: SwiftPackageManagerModuleMapGenerator!
-    private var hasher: MockContentHasher!
+    private var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
-        hasher = MockContentHasher()
-        subject = SwiftPackageManagerModuleMapGenerator(contentHasher: hasher)
+        contentHasher = MockContentHashing()
+        subject = SwiftPackageManagerModuleMapGenerator(contentHasher: contentHasher)
+
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willProduce { $0 }
     }
 
     override func tearDown() {
@@ -94,6 +100,13 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(path, "/Absolute/PackageDir/Derived/Module.modulemap")
             XCTAssertTrue(atomically)
         }
+
+        var hash: String? = nil
+
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { hash ?? $0.pathString }
+
         let got = try subject.generate(
             packageDirectory: "/Absolute/PackageDir",
             moduleName: "Module",
@@ -101,8 +114,8 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         )
 
         // Set hasher for path on disk
-        hasher.stubHashForPath["/Absolute/PackageDir/Derived/Module.modulemap"] = try hasher
-            .hash(expectedContent(for: moduleMap) ?? "")
+        hash = expectedContent(for: moduleMap)
+
         // generate a 2nd time to validate that we dont write content that is already on disk
         let _ = try subject.generate(
             packageDirectory: "/Absolute/PackageDir",
