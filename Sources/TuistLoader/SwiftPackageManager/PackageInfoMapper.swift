@@ -880,7 +880,10 @@ extension ProjectDescription.ResourceFileElements {
         "strings",
     ])
 
-    private static func defaultResourcePaths(from path: AbsolutePath, filter: @escaping (Foundation.URL) -> Bool) -> [AbsolutePath] {
+    private static func defaultResourcePaths(
+        from path: AbsolutePath,
+        filter: @escaping (Foundation.URL) -> Bool
+    ) -> [AbsolutePath] {
         Array(FileHandler.shared.files(
             in: path,
             filter: filter,
