@@ -9,15 +9,7 @@ defmodule Tuist.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
       aliases: aliases(),
-      deps: deps(),
-      releases: [
-        tuist: [
-          applications: [
-            opentelemetry_exporter: :permanent,
-            opentelemetry: :temporary
-          ]
-        ]
-      ]
+      deps: deps()
     ]
   end
 
