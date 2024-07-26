@@ -126,7 +126,7 @@ defmodule TuistWeb.UserRegistrationLive do
          )
          |> redirect(to: ~p"/")}
 
-      {:error, :account_name_taken} ->
+      {:error, :account_handle_taken} ->
         {:noreply,
          socket
          |> put_flash(

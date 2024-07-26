@@ -5,7 +5,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
   alias Tuist.ProjectsFixtures
   alias Tuist.AccountsFixtures
 
-  describe "POST /projects/:account_name/:project_name/tokens" do
+  describe "POST /projects/:account_handle/:project_handle/tokens" do
     test "returns new project access token", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -78,7 +78,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
     end
   end
 
-  describe "GET /projects/:account_name/:project_name/tokens" do
+  describe "GET /projects/:account_handle/:project_handle/tokens" do
     test "returns all project tokens", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -193,7 +193,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
     end
   end
 
-  describe "DELETE /projects/:account_name/:project_name/tokens/:id" do
+  describe "DELETE /projects/:account_handle/:project_handle/tokens/:id" do
     test "revokes a project token", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
