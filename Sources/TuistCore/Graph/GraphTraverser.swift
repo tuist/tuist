@@ -167,7 +167,6 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        print(graph.dependencies)
         guard let target = graph.projects[path]?.targets[name] else { return [] }
         guard target.supportsResources else { return [] }
 
@@ -182,6 +181,9 @@ public class GraphTraverser: GraphTraversing {
             },
             skip: canHostResources
         )
+        // External bundles are copied only to targets that can embed products to follow SPM logic.
+        // This prevents scenarios when a bundle is copied to a dynamic framework and the SPM targets then can't find it.
+        // See this issue for more detalis: https://github.com/tuist/tuist/pull/6565
         let externalBundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
