@@ -855,8 +855,12 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try defaultResourcePaths(from: path, excludingPaths: excludedPaths)
-                .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
+            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
+                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
+                let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
+                return candidateNotInExcludedDirectory
+            }
+            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
@@ -876,10 +880,10 @@ extension ProjectDescription.ResourceFileElements {
         "strings",
     ])
 
-    private static func defaultResourcePaths(from path: AbsolutePath, excludingPaths: Set<AbsolutePath>?) -> [AbsolutePath] {
+    private static func defaultResourcePaths(from path: AbsolutePath, filter: @escaping (Foundation.URL) -> Bool) -> [AbsolutePath] {
         Array(FileHandler.shared.files(
             in: path,
-            directoryFilter: excludingPaths,
+            filter: filter,
             nameFilter: nil,
             extensionFilter: defaultSpmResourceFileExtensions
         ))

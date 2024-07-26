@@ -68,7 +68,7 @@ public protocol FileHandling: AnyObject {
     func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
     func files(
         in path: Path.AbsolutePath,
-        directoryFilter: Set<Path.AbsolutePath>?,
+        filter: ((URL) -> Bool)?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath>
@@ -243,7 +243,7 @@ public class FileHandler: FileHandling {
 
     public func files(
         in path: Path.AbsolutePath,
-        directoryFilter: Set<Path.AbsolutePath>?,
+        filter: ((URL) -> Bool)?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath> {
@@ -255,21 +255,19 @@ public class FileHandler: FileHandling {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
 
-        func filter(candidateURL: URL) -> Bool {
-            if let directoryFilter {
-                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
-                let candidateNotInExcludedDirectory = directoryFilter.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
-                guard candidateNotInExcludedDirectory else {
-                    return false
-                }
-            }
+        func filterCandidate(with url: URL) -> Bool {
             if let extensionFilter {
-                guard extensionFilter.contains(candidateURL.pathExtension) else {
+                guard extensionFilter.contains(url.pathExtension) else {
                     return false
                 }
             }
             if let nameFilter {
-                guard nameFilter.contains(candidateURL.lastPathComponent) else {
+                guard nameFilter.contains(url.lastPathComponent) else {
+                    return false
+                }
+            }
+            if let filter {
+                guard filter(url) else {
                     return false
                 }
             }
@@ -277,7 +275,7 @@ public class FileHandler: FileHandling {
         }
 
         while let candidateURL = enumerator?.nextObject() as? Foundation.URL {
-            guard filter(candidateURL: candidateURL) else {
+            guard filterCandidate(with: candidateURL) else {
                 continue
             }
             // Symlinks need to be resolved for resulting absolute URLs to point to the right place.

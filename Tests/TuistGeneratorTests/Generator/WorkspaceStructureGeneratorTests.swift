@@ -390,7 +390,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func files(
             in _: AbsolutePath,
-            directoryFilter _: Set<AbsolutePath>?,
+            filter _: ((URL) -> Bool)?,
             nameFilter _: Set<String>?,
             extensionFilter _: Set<String>?
         ) -> Set<AbsolutePath> {
