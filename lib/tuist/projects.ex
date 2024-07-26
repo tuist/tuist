@@ -2,6 +2,7 @@ defmodule Tuist.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
+  alias Tuist.Projects.Preview
   alias Tuist.Base64
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo
@@ -236,5 +237,13 @@ defmodule Tuist.Projects do
 
   def revoke_project_token(%ProjectToken{} = token) do
     Repo.delete(token)
+  end
+
+  def create_preview(%Project{} = project) do
+    %Preview{}
+    |> Preview.create_changeset(%{
+      project_id: project.id
+    })
+    |> Repo.insert!()
   end
 end

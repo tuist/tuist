@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def init(:command_event), do: :command_event
   def init(:cache), do: :cache
+  def init(:preview), do: :preview
 
   def call(conn, category) do
     action = get_action(conn)
