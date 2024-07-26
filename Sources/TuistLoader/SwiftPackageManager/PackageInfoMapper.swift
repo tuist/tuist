@@ -850,8 +850,7 @@ extension ProjectDescription.ResourceFileElements {
                     case let .folderReference(path: path, _, _):
                         AbsolutePath(stringLiteral: path.pathString)
                     case let .glob(pattern: path, _, _, _):
-                        // TODO: What's the correct way to remove the ** pattern from the string?
-                        AbsolutePath(stringLiteral: path.pathString).parentDirectory
+                        AbsolutePath(stringLiteral: path.pathString).upToLastNonGlob
                     }
                 }
             )
