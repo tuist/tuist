@@ -173,7 +173,7 @@ if Tuist.Environment.stripe_configured?(secrets) do
 end
 
 # License
-if Tuist.Environment.on_premise?() do
+if not Enum.member?([:dev, :test], env) do
   with {:license, {:ok, license}} <- {:license, Tuist.Native.license()},
        {:expired, false} <- {:expired, Tuist.Native.License.expired?(license)} do
     config :tuist, :license, license

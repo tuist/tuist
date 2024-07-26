@@ -71,6 +71,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile.onpremise
           push: true
           build-args: |
             TUIST_VERSION=${{ steps.version.outputs.version }}
