@@ -256,7 +256,8 @@ defmodule Tuist.Accounts do
           provider: provider,
           uid: id_in_provider,
           info: %{email: email}
-        } = auth
+        } = auth,
+        opts \\ []
       ) do
     oauth2_identity = get_oauth2_identity_by_provider_and_id(provider, id_in_provider)
 
@@ -275,7 +276,7 @@ defmodule Tuist.Accounts do
         |> Repo.update!()
       end
 
-      get_user_by_id(oauth2_identity.user_id)
+      get_user_by_id(oauth2_identity.user_id) |> Repo.preload(Keyword.get(opts, :preload, []))
     else
       oauth2_identity =
         create_oauth2_identity(%{
@@ -285,7 +286,7 @@ defmodule Tuist.Accounts do
           provider_organization_id: provider_organization_id
         })
 
-      get_user_by_id(oauth2_identity.user_id)
+      get_user_by_id(oauth2_identity.user_id) |> Repo.preload(Keyword.get(opts, :preload, []))
     end
   end
 
@@ -398,17 +399,22 @@ defmodule Tuist.Accounts do
     attempt = opts |> Keyword.get(:attempt, 0)
     suffix = opts |> Keyword.get(:suffix, "")
 
-    if Tuist.Ecto.Utils.unique_error?(changeset, :name) and attempt < 5 do
-      next_suffix = if suffix == "", do: 1, else: (suffix |> String.to_integer()) + 1
+    cond do
+      Tuist.Ecto.Utils.unique_error?(changeset, :name) and attempt < 5 ->
+        next_suffix = if suffix == "", do: 1, else: (suffix |> String.to_integer()) + 1
 
-      opts =
-        opts
-        |> Keyword.put(:attempt, attempt + 1)
-        |> Keyword.put(:suffix, "#{next_suffix}")
+        opts =
+          opts
+          |> Keyword.put(:attempt, attempt + 1)
+          |> Keyword.put(:suffix, "#{next_suffix}")
 
-      create_user(email, opts)
-    else
-      {:error, :account_name_taken}
+        create_user(email, opts)
+
+      Tuist.Ecto.Utils.unique_error?(changeset, :name) and attempt >= 5 ->
+        {:error, :account_handle_taken}
+
+      true ->
+        {:error, Tuist.Ecto.Utils.errors_on(changeset)}
     end
   end
 

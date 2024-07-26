@@ -627,6 +627,34 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "find_or_create_user_from_oauth2" do
+    test "handles creating another account with the same handle gracefully" do
+      # Given
+      first_oauth_identity = %{
+        provider: :github,
+        uid: 123,
+        info: %{email: "find_or_create_user_from_oauth2@tuist.io"}
+      }
+
+      second_oauth_identity = %{
+        provider: :github,
+        uid: 456,
+        info: %{email: "find_or_create_user_from_oauth2@tuist.test.io"}
+      }
+
+      # When
+      %{account: %{name: first_account_handle}} =
+        Accounts.find_or_create_user_from_oauth2(first_oauth_identity, preload: [:account])
+
+      %{account: %{name: second_account_handle}} =
+        Accounts.find_or_create_user_from_oauth2(second_oauth_identity, preload: [:account])
+
+      # Then
+      assert first_account_handle == "find_or_create_user_from_oauth2"
+      assert second_account_handle == "find_or_create_user_from_oauth21"
+    end
+  end
+
   describe "find_oauth2_identity/2" do
     test "returns github oauth2 identity when user also has a google identity" do
       # Given
@@ -870,7 +898,7 @@ defmodule Tuist.AccountsTest do
       Accounts.create_user("foo5@tuist.io")
 
       # When
-      {:error, :account_name_taken} = Accounts.create_user("foo@tuist.test")
+      {:error, :account_handle_taken} = Accounts.create_user("foo@tuist.test")
     end
 
     test "errors after creating user with an email that already exists" do
