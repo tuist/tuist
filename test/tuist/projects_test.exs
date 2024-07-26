@@ -1,4 +1,5 @@
 defmodule Tuist.ProjectsTest do
+  alias Tuist.Projects.Preview
   alias Tuist.Base64
   alias Tuist.Projects.ProjectToken
   alias Tuist.Billing
@@ -408,6 +409,19 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == false
+    end
+  end
+
+  describe "create_preview/1" do
+    test "creates a build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      Projects.create_preview(project)
+
+      # Then
+      Repo.all(Preview) |> Enum.map(& &1.project_id) |> assert([project.id])
     end
   end
 end

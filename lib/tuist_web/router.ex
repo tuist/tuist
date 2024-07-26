@@ -92,6 +92,13 @@ defmodule TuistWeb.Router do
         AnalyticsController,
         :complete_artifacts_uploads
 
+    scope "/:account_handle/:project_handle/previews" do
+      post "/start", PreviewsController, :multipart_start
+      post "/generate-url", PreviewsController, :multipart_generate_url
+      post "/complete", PreviewsController, :multipart_complete
+      get "/:preview_id", PreviewsController, :download
+    end
+
     get "/cache", CacheController, :download
     get "/cache/exists", CacheController, :exists
     post "/cache/multipart/start", CacheController, :multipart_start
@@ -270,6 +277,7 @@ defmodule TuistWeb.Router do
       live "/runs/:id", ProjectRunDetailLive
       live "/tests", ProjectTestsLive
       live "/tests/cases/:identifier", ProjectTestCaseDetailLive
+      get "/previews/:id", PreviewsController, :download
       # Used in tuist analytics command
       live "/analytics", ProjectDashboardLive
     end

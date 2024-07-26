@@ -1053,4 +1053,113 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.can(user, :delete, account, :token) == false
   end
+
+  test "can.create.project.preview when the subject is not the same project account being created" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+    project = ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+    # When
+    assert Authorization.can(user, :create, project, :preview) == false
+  end
+
+  test "can.create.project.preview when the subject is an admin of the project organization being created" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :create, project, :preview) == true
+  end
+
+  test "can.create.project.preview when the subject is a user of the project organization being created" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :create, project, :preview) == true
+  end
+
+  test "can.create.project.preview when the subject does not belong to the project organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :create, project, :preview) == false
+  end
+
+  test "can.read.project.preview when the subject is not the same project account being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+    project = ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+    # When
+    assert Authorization.can(user, :read, project, :preview) == false
+  end
+
+  test "can.read.project.preview when the subject is an admin of the project organization being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :read, project, :preview) == true
+  end
+
+  test "can.read.project.preview when the subject is a user of the project organization being read" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :read, project, :preview) == true
+  end
+
+  test "can.read.project.preview when the subject does not belong to the project organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :read, project, :preview) == false
+  end
+
+  test "can.read.project.preview when the subject does not belong to the project organization and the project is public" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+
+    # When
+    assert Authorization.can(user, :read, project, :preview) == true
+  end
+
+  test "can.read.project.preview when the subject is anonymous and the project is public" do
+    # Given
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+
+    # When
+    assert Authorization.can(nil, :read, project, :preview) == true
+  end
 end
