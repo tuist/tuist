@@ -490,17 +490,12 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
     }
 }
 
-final class GenerateAcceptanceTestiOSAppWithExtensionHavingUnitTestTarget: TuistAcceptanceTestCase {
-    func test_ios_app_with_extension_having_test_target() async throws {
-        try setUpFixture(.iosAppWithExtensionHavingUnitTest)
+final class GenerateAcceptanceTestiOSAppWithExtensionAndUnitTests: TuistAcceptanceTestCase {
+    func test_ios_app_with_extension_and_tests() async throws {
+        try setUpFixture(.iosAppWithExtensionAndTests)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+        try await run(BuildCommand.self)
 
-        try await XCTAssertProductWithDestinationContainsExtension(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            extension: "AppExtension"
-        )
         try await XCTAssertProductWithDestinationContainsExtension(
             "App.app",
             destination: "Debug-iphonesimulator",

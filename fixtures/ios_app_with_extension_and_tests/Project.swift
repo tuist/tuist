@@ -18,14 +18,19 @@ let project = Project(
             ),
             sources: ["App/Sources/**"],
             resources: ["App/Resources/**"],
-            dependencies: []
+            dependencies: [.target(name: "AppExtension")]
         ),
         .target(
             name: "AppExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.AppExtension",
-            infoPlist: .default,
+            bundleId: "io.tuist.App.AppExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPrincipalClass": "ExtensionViewController",
+                ],
+            ]),
             sources: ["AppExtension/**"],
             dependencies: []
         ),
@@ -33,10 +38,10 @@ let project = Project(
             name: "AppExtensionTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppExtensionTests",
+            bundleId: "io.tuist.App.AppExtensionTests",
             infoPlist: .default,
             sources: ["AppExtensionTests/**"],
-            dependencies: []
+            dependencies: [.target(name: "AppExtension")]
         ),
     ]
 )
