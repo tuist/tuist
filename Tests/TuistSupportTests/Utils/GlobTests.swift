@@ -17,27 +17,6 @@ final class GlobTests: TuistTestCase {
         try createFiles(temporaryFiles, content: "")
     }
 
-    private func test(pattern: String, expected: [String]) {
-        testWithPrefix("\(temporaryDirectory.url.path)/", pattern: pattern, expected: expected)
-
-        let originalPath = FileManager.default.currentDirectoryPath
-        FileManager.default.changeCurrentDirectoryPath(temporaryDirectory.url.path)
-        defer {
-            FileManager.default.changeCurrentDirectoryPath(originalPath)
-        }
-
-        testWithPrefix("./", pattern: pattern, expected: expected)
-    }
-
-    private func testWithPrefix(_ prefix: String, pattern: String, expected: [String]) {
-        let glob = Glob(pattern: "\(prefix)\(pattern)")
-        XCTAssertEqual(
-            glob.paths,
-            expected.map { "\(prefix)\($0)" },
-            "pattern \"\(pattern)\" failed with prefix \"\(prefix)\""
-        )
-    }
-
     func testNothingMatches() {
         let pattern = "nothing"
         XCTAssertEmpty(temporaryDirectory.glob(pattern))
@@ -53,82 +32,82 @@ final class GlobTests: TuistTestCase {
 
     // MARK: - Globstar - Bash v4
 
-    func testGlobstarBashV4NoSlash() {
+    func testGlobstarNoSlash() {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
-        test(
-            pattern: "**",
-            expected: [
-                "",
-                "bar",
-                "baz",
-                "dir1/",
-                "dir1/**(_:_:)/",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/",
-                "dir1/dir2/dir3/",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-                "foo",
-            ]
-        )
+        let expected: [String] = [
+            ".",
+            "bar",
+            "baz",
+            "dir1",
+            "dir1/**(_:_:)",
+            "dir1/**(_:_:)/file3.ext",
+            "dir1/dir2",
+            "dir1/dir2/dir3",
+            "dir1/dir2/dir3/file2.ext",
+            "dir1/file1.ext",
+            "foo",
+        ]
+
+        let result = temporaryDirectory.glob("**").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
     }
 
-    func testGlobstarBashV4WithSlash() {
+    func testGlobstarWithSlash() {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
-        test(
-            pattern: "**/",
-            expected: [
-                "",
-                "dir1/",
-                "dir1/**(_:_:)/",
-                "dir1/dir2/",
-                "dir1/dir2/dir3/",
-            ]
-        )
+        let expected: [String] = [
+            ".",
+            "dir1",
+            "dir1/**(_:_:)",
+            "dir1/dir2",
+            "dir1/dir2/dir3",
+        ]
+        
+        let result = temporaryDirectory.glob("**/").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
     }
 
-    func testGlobstarBashV4WithSlashAndWildcard() {
+    func testGlobstarWithSlashAndWildcard() {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
-        test(
-            pattern: "**/*",
-            expected: [
-                "bar",
-                "baz",
-                "dir1/",
-                "dir1/**(_:_:)/",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/",
-                "dir1/dir2/dir3/",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-                "foo",
-            ]
-        )
+        let expected: [String] = [
+            "bar",
+            "baz",
+            "dir1",
+            "dir1/**(_:_:)",
+            "dir1/**(_:_:)/file3.ext",
+            "dir1/dir2",
+            "dir1/dir2/dir3",
+            "dir1/dir2/dir3/file2.ext",
+            "dir1/file1.ext",
+            "foo",
+        ]
+        
+        let result = temporaryDirectory.glob("**/*").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
     }
 
-    func testPatternEndsWithGlobstarBashV4() {
-        test(
-            pattern: "dir1/**",
-            expected: [
-                "dir1/",
-                "dir1/**(_:_:)/",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/",
-                "dir1/dir2/dir3/",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-            ]
-        )
+    func testPatternEndsWithGlobstar() {
+        let expected: [String] = [
+            "dir1",
+            "dir1/**(_:_:)",
+            "dir1/**(_:_:)/file3.ext",
+            "dir1/dir2",
+            "dir1/dir2/dir3",
+            "dir1/dir2/dir3/file2.ext",
+            "dir1/file1.ext",
+        ]
+
+        let result = temporaryDirectory.glob("dir1/**").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
     }
 
-    func testDoubleGlobstarBashV4() {
-        test(
-            pattern: "**/dir2/**/*",
-            expected: [
-                "dir1/dir2/dir3/",
-                "dir1/dir2/dir3/file2.ext",
-            ]
-        )
+    func testDoubleGlobstar() {
+        let expected: [String] = [
+            "dir1/dir2/dir3",
+            "dir1/dir2/dir3/file2.ext",
+        ]
+
+        let result = temporaryDirectory.glob("**/dir2/**/*").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
     }
 
 }
