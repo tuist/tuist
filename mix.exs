@@ -95,7 +95,6 @@ defmodule Tuist.MixProject do
       {:opentelemetry, "~> 1.4"},
       {:opentelemetry_telemetry, "~> 1.1"},
       {:opentelemetry_api, "~> 1.3"},
-      {:opentelemetry_exporter, "~> 1.7"},
       {:opentelemetry_phoenix, "~> 1.2"},
       {:opentelemetry_bandit, "~> 0.1.4"},
       {:opentelemetry_ecto, "~> 1.2"},
