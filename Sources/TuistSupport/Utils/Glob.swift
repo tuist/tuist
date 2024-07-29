@@ -7,26 +7,11 @@
 import Foundation
 
 // swiftlint:disable:next identifier_name
-public let GlobBehaviorBashV3 = Glob.Behavior(
-    supportsGlobstar: false,
-    includesFilesFromRootOfGlobstar: false,
-    includesDirectoriesInResults: true,
-    includesFilesInResultsIfTrailingSlash: false
-)
-
-// swiftlint:disable:next identifier_name
 public let GlobBehaviorBashV4 = Glob.Behavior(
     supportsGlobstar: true, // Matches Bash v4 with "shopt -s globstar" option
     includesFilesFromRootOfGlobstar: true,
     includesDirectoriesInResults: true,
     includesFilesInResultsIfTrailingSlash: false
-)
-// swiftlint:disable:next identifier_name
-public let GlobBehaviorGradle = Glob.Behavior(
-    supportsGlobstar: true,
-    includesFilesFromRootOfGlobstar: true,
-    includesDirectoriesInResults: false,
-    includesFilesInResultsIfTrailingSlash: true
 )
 
 /**
@@ -66,16 +51,12 @@ public class Glob: Collection {
         }
     }
 
-    public static let defaultBehavior = GlobBehaviorBashV4
-
-    public let behavior: Behavior
+    public let behavior: Behavior = GlobBehaviorBashV4
     var paths = [String]()
     public var startIndex: Int { paths.startIndex }
     public var endIndex: Int { paths.endIndex }
 
-    public init(pattern: String, behavior: Behavior = Glob.defaultBehavior) {
-        self.behavior = behavior
-
+    public init(pattern: String) {
         var adjustedPattern = pattern
         let hasTrailingGlobstarSlash = pattern.hasSuffix("**/")
         var includeFiles = !hasTrailingGlobstarSlash

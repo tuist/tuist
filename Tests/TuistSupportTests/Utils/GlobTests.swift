@@ -16,8 +16,8 @@ final class GlobTests: TuistTestCase {
         try createFiles(temporaryFiles, content: "")
     }
 
-    private func test(pattern: String, behavior: Glob.Behavior, expected: [String]) {
-        testWithPrefix("\(temporaryDirectory.path)/", pattern: pattern, behavior: behavior, expected: expected)
+    private func test(pattern: String, expected: [String]) {
+        testWithPrefix("\(temporaryDirectory.path)/", pattern: pattern, expected: expected)
 
         let originalPath = FileManager.default.currentDirectoryPath
         FileManager.default.changeCurrentDirectoryPath(temporaryDirectory.path)
@@ -25,11 +25,11 @@ final class GlobTests: TuistTestCase {
             FileManager.default.changeCurrentDirectoryPath(originalPath)
         }
 
-        testWithPrefix("./", pattern: pattern, behavior: behavior, expected: expected)
+        testWithPrefix("./", pattern: pattern, expected: expected)
     }
 
-    private func testWithPrefix(_ prefix: String, pattern: String, behavior: Glob.Behavior, expected: [String]) {
-        let glob = Glob(pattern: "\(prefix)\(pattern)", behavior: behavior)
+    private func testWithPrefix(_ prefix: String, pattern: String, expected: [String]) {
+        let glob = Glob(pattern: "\(prefix)\(pattern)")
         XCTAssertEqual(
             glob.paths,
             expected.map { "\(prefix)\($0)" },
@@ -88,62 +88,12 @@ final class GlobTests: TuistTestCase {
         XCTAssertEqual(glob[0], "\(temporaryDirectory.path)/bar", "indexing")
     }
 
-    // MARK: - Globstar - Bash v3
-
-    func testGlobstarBashV3NoSlash() {
-        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
-        test(
-            pattern: "**",
-            behavior: GlobBehaviorBashV3,
-            expected: ["bar", "baz", "dir1/", "foo"]
-        )
-    }
-
-    func testGlobstarBashV3WithSlash() {
-        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
-        test(
-            pattern: "**/",
-            behavior: GlobBehaviorBashV3,
-            expected: ["dir1/"]
-        )
-    }
-
-    func testGlobstarBashV3WithSlashAndWildcard() {
-        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
-        test(
-            pattern: "**/*",
-            behavior: GlobBehaviorBashV3,
-            expected: ["dir1/**(_:_:)/", "dir1/dir2/", "dir1/file1.ext"]
-        )
-    }
-
-    func testPatternEndsWithGlobstarBashV3() {
-        test(
-            pattern: "dir1/**",
-            behavior: GlobBehaviorBashV3,
-            expected: [
-                "dir1/**(_:_:)/",
-                "dir1/dir2/",
-                "dir1/file1.ext",
-            ]
-        )
-    }
-
-    func testDoubleGlobstarBashV3() {
-        test(
-            pattern: "**/dir2/**/*",
-            behavior: GlobBehaviorBashV3,
-            expected: ["dir1/dir2/dir3/file2.ext"]
-        )
-    }
-
     // MARK: - Globstar - Bash v4
 
     func testGlobstarBashV4NoSlash() {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
         test(
             pattern: "**",
-            behavior: GlobBehaviorBashV4,
             expected: [
                 "",
                 "bar",
@@ -164,7 +114,6 @@ final class GlobTests: TuistTestCase {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
         test(
             pattern: "**/",
-            behavior: GlobBehaviorBashV4,
             expected: [
                 "",
                 "dir1/",
@@ -179,7 +128,6 @@ final class GlobTests: TuistTestCase {
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
         test(
             pattern: "**/*",
-            behavior: GlobBehaviorBashV4,
             expected: [
                 "bar",
                 "baz",
@@ -198,7 +146,6 @@ final class GlobTests: TuistTestCase {
     func testPatternEndsWithGlobstarBashV4() {
         test(
             pattern: "dir1/**",
-            behavior: GlobBehaviorBashV4,
             expected: [
                 "dir1/",
                 "dir1/**(_:_:)/",
@@ -214,7 +161,6 @@ final class GlobTests: TuistTestCase {
     func testDoubleGlobstarBashV4() {
         test(
             pattern: "**/dir2/**/*",
-            behavior: GlobBehaviorBashV4,
             expected: [
                 "dir1/dir2/dir3/",
                 "dir1/dir2/dir3/file2.ext",
@@ -222,96 +168,4 @@ final class GlobTests: TuistTestCase {
         )
     }
 
-    // MARK: - Globstar - Gradle
-
-    func testGlobstarGradleNoSlash() {
-        // Should be the equivalent of
-        // FileTree tree = project.fileTree((Object)'/tmp') {
-        //   include 'glob-test.7m0Lp/**'
-        // }
-        //
-        // Note that the sort order currently matches Bash and not Gradle
-        test(
-            pattern: "**",
-            behavior: GlobBehaviorGradle,
-            expected: [
-                "bar",
-                "baz",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-                "foo",
-            ]
-        )
-    }
-
-    func testGlobstarGradleWithSlash() {
-        // Should be the equivalent of
-        // FileTree tree = project.fileTree((Object)'/tmp') {
-        //   include 'glob-test.7m0Lp/**/'
-        // }
-        //
-        // Note that the sort order currently matches Bash and not Gradle
-        test(
-            pattern: "**/",
-            behavior: GlobBehaviorGradle,
-            expected: [
-                "bar",
-                "baz",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-                "foo",
-            ]
-        )
-    }
-
-    func testGlobstarGradleWithSlashAndWildcard() {
-        // Should be the equivalent of
-        // FileTree tree = project.fileTree((Object)'/tmp') {
-        //   include 'glob-test.7m0Lp/**/*'
-        // }
-        //
-        // Note that the sort order currently matches Bash and not Gradle
-        test(
-            pattern: "**/*",
-            behavior: GlobBehaviorGradle,
-            expected: [
-                "bar",
-                "baz",
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-                "foo",
-            ]
-        )
-    }
-
-    func testPatternEndsWithGlobstarGradle() {
-        test(
-            pattern: "dir1/**",
-            behavior: GlobBehaviorGradle,
-            expected: [
-                "dir1/**(_:_:)/file3.ext",
-                "dir1/dir2/dir3/file2.ext",
-                "dir1/file1.ext",
-            ]
-        )
-    }
-
-    func testDoubleGlobstarGradle() {
-        // Should be the equivalent of
-        // FileTree tree = project.fileTree((Object)'/tmp') {
-        //   include 'glob-test.7m0Lp/**/dir2/**/*'
-        // }
-        //
-        // Note that the sort order currently matches Bash and not Gradle
-        test(
-            pattern: "**/dir2/**/*",
-            behavior: GlobBehaviorGradle,
-            expected: [
-                "dir1/dir2/dir3/file2.ext",
-            ]
-        )
-    }
 }
