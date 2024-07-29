@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.UserToken do
     field :sent_to, :string
     belongs_to :user, Tuist.Accounts.User
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end
 

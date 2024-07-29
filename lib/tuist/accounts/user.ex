@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.User do
     has_many(:oauth2_identities, Oauth2Identity, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:user_roles, UserRole, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:device_codes, DeviceCode, on_delete: :delete_all)
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

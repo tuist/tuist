@@ -9,6 +9,7 @@ defmodule Tuist.Repo.Migrations.CreateUsersAuthTables do
       add :token, :binary, null: false
       add :context, :string, null: false
       add :sent_to, :string
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps(updated_at: false)
     end
 

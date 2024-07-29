@@ -11,6 +11,7 @@ defmodule Tuist.Repo.Migrations.CreateGuardianDBTokensTable do
       add(:exp, :bigint)
       add(:jwt, :text)
       add(:claims, :map)
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps()
     end
   end

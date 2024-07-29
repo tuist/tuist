@@ -43,6 +43,7 @@ defmodule Tuist.CommandEvents.Event do
     belongs_to :user, User
 
     # Rails names the field "created_at"
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

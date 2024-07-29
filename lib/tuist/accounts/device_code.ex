@@ -10,6 +10,7 @@ defmodule Tuist.Accounts.DeviceCode do
     field :code, :string
     field :authenticated, :boolean, default: false
     belongs_to :user, User
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

@@ -19,6 +19,7 @@ defmodule Tuist.Projects.Project do
       on_delete: :nilify_all
 
     # Rails names the field "created_at"
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

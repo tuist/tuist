@@ -9,6 +9,7 @@ defmodule Tuist.Repo.DataMigrations.TestCaseRuns.MigratingSchema do
     belongs_to(:command_event, Event)
     belongs_to(:test_case, TestCase)
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end
 end
@@ -26,6 +27,7 @@ defmodule Tuist.Repo.Migrations.AddTestCasesTable do
       add :flaky, :boolean, default: false
       add :project_id, references(:projects, on_delete: :delete_all), null: false
 
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps(updated_at: false)
     end
 

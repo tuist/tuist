@@ -20,6 +20,7 @@ defmodule Tuist.CommandEvents.TestCaseRun do
     belongs_to :command_event, Event
     belongs_to :test_case, TestCase
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end
 

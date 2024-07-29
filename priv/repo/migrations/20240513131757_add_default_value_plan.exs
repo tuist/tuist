@@ -13,6 +13,7 @@ defmodule Tuist.Repo.DataMigrations.Account.MigratingSchema do
 
     has_many(:projects, Project, on_delete: :delete_all)
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 end

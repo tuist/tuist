@@ -32,6 +32,7 @@ defmodule Tuist.CommandEvents.TestCase do
     belongs_to :project, Project
     has_one :last_flaky_test_case_run, TestCaseRun
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end
 

@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.UserRole do
   schema "users_roles" do
     belongs_to :user, Tuist.Accounts.User
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 
