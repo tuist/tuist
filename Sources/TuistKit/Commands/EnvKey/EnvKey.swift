@@ -178,6 +178,10 @@ public enum EnvKey: String, CaseIterable {
     case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case projectCreatePath = "TUIST_PROJECT_CREATE_PATH"
 
+    // PROJECT VIEW
+    case projectViewFullHandle = "TUIST_PROJECT_VIEW_FULL_HANDLE"
+    case projectViewPath = "TUIST_PROJECT_VIEW_PATH"
+
     // ORGANIZATION INVITE
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
@@ -208,9 +212,6 @@ public enum EnvKey: String, CaseIterable {
 
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
-
-    // ANALYTICS
-    case analyticsPath = "TUIST_ANALYTICS_PATH"
 }
 
 extension EnvKey {

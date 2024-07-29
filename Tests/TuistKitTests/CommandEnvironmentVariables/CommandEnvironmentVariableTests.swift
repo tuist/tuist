@@ -881,16 +881,4 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
     }
-
-    func testAnalyticsCommandUsesEnvVars() throws {
-        setVariable(.analyticsPath, value: "/path/to/analytics")
-
-        let commandWithEnvVars = try AnalyticsCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/analytics")
-
-        let commandWithArgs = try AnalyticsCommand.parse([
-            "--path", "/new/analytics/path",
-        ])
-        XCTAssertEqual(commandWithArgs.path, "/new/analytics/path")
-    }
 }
