@@ -38,55 +38,17 @@ final class GlobTests: TuistTestCase {
         )
     }
 
-    func testBraces() {
-        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
-        let glob = Glob(pattern: pattern)
-        var contents = [String]()
-        for file in glob {
-            contents.append(file)
-        }
-        XCTAssertEqual(contents, ["\(temporaryDirectory.path)/bar", "\(temporaryDirectory.path)/baz"], "matching with braces failed")
-    }
-
     func testNothingMatches() {
-        let pattern = "\(temporaryDirectory.path)/nothing"
-        let glob = Glob(pattern: pattern)
-        var contents = [String]()
-        for file in glob {
-            contents.append(file)
-        }
-        XCTAssertEqual(contents, [], "expected empty list of files")
+        let pattern = "nothing"
+        XCTAssertEmpty(temporaryDirectory.glob(pattern))
     }
 
-    func testDirectAccess() {
-        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
-        let glob = Glob(pattern: pattern)
-        XCTAssertEqual(glob.paths, ["\(temporaryDirectory.path)/bar", "\(temporaryDirectory.path)/baz"], "matching with braces failed")
-    }
-
-    func testIterateTwice() {
-        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
-        let glob = Glob(pattern: pattern)
-        var contents1 = [String]()
-        var contents2 = [String]()
-        for file in glob {
-            contents1.append(file)
-        }
-        let filesAfterOnce = glob.paths
-        for file in glob {
-            contents2.append(file)
-        }
-        XCTAssertEqual(contents1, contents2, "results for calling for-in twice are the same")
-        XCTAssertEqual(glob.paths, filesAfterOnce, "calling for-in twice doesn't only memoizes once")
-    }
-
-    func testIndexing() {
-        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
-        let glob = Glob(pattern: pattern)
-        guard glob.count == 2 else {
-            return XCTFail("Exptected 2 results")
-        }
-        XCTAssertEqual(glob[0], "\(temporaryDirectory.path)/bar", "indexing")
+    func testBraces() {
+        let pattern = "ba{r,y,z}"
+        XCTAssertEqual(
+            temporaryDirectory.glob(pattern),
+            [temporaryDirectory.appending(component: "bar"), temporaryDirectory.appending(component: "baz")]
+        )
     }
 
     // MARK: - Globstar - Bash v4
