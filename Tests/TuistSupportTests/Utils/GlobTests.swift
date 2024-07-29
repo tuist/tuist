@@ -53,13 +53,20 @@ final class GlobTests: TuistTestCase {
     }
 
     func testGlobstarWithSlash() {
-        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
+        // `**/` is treated as same as `**` with Tuist since it converts pattern string to RelativePath.
+        // This is not an expected behavior for bash glob but this should be kept to avoid unexpected source file drops.
         let expected: [String] = [
             ".",
+            "bar",
+            "baz",
             "dir1",
             "dir1/**(_:_:)",
+            "dir1/**(_:_:)/file3.ext",
             "dir1/dir2",
             "dir1/dir2/dir3",
+            "dir1/dir2/dir3/file2.ext",
+            "dir1/file1.ext",
+            "foo",
         ]
         
         let result = temporaryDirectory.glob("**/").map { $0.relative(to: temporaryDirectory).pathString }
