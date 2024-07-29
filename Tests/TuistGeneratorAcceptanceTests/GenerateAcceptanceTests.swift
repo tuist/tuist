@@ -866,6 +866,33 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     }
 }
 
+final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
+    func test_app_with_metal_options() async throws {
+        try setUpFixture(.appWithMetalOptions)
+        try await run(GenerateCommand.self)
+
+        let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "CustomMetalConfig",
+            apiValidation: false,
+            shaderValidation: true,
+            showGraphicsOverview: true,
+            logGraphicsOverview: true
+        )
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "DefaultMetalConfig",
+            apiValidation: true,
+            shaderValidation: false,
+            showGraphicsOverview: false,
+            logGraphicsOverview: false
+        )
+    }
+}
+
 final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
     func test_framework_with_macro_and_plugin_packages() async throws {
         try setUpFixture(.frameworkWithMacroAndPluginPackages)

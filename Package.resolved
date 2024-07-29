@@ -1,5 +1,5 @@
 {
-  "originHash" : "c69f7b1c222885411d683175aeb35612b3b1528f2dfee24b7fb3da8652e2b41f",
+  "originHash" : "532dcca51293c6a6694bd767d597f2dae8a53728c004e375ec6cb87496eb9658",
   "pins" : [
     {
       "identity" : "aexml",
@@ -249,8 +249,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/filipracki/XcodeProj.git",
       "state" : {
-        "branch" : "add-metal-diagnostics-options-to-launch-action",
-        "revision" : "116e8e2ac655c98d65546062160be3ea945d5efd"
+        "branch" : "fix-metal-diagnostics-options-to-launch-action",
+        "revision" : "3b249f1b191730bd130787fa1557ab9b01d99788"
       }
     },
     {

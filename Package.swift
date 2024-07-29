@@ -414,7 +414,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", branch: "0.2.1"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/filipracki/XcodeProj.git", branch: "add-metal-diagnostics-options-to-launch-action"),
+        .package(url: "https://github.com/filipracki/XcodeProj.git", branch: "fix-metal-diagnostics-options-to-launch-action"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "2.4.0"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),

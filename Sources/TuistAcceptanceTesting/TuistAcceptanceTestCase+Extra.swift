@@ -128,4 +128,76 @@ extension TuistAcceptanceTestCase {
             line: line
         )
     }
+
+    /// Asserts that specific Metal options are set in the launch action of a given scheme within an Xcode project.
+    /// - Parameters:
+    ///   - xcodeprojPath: A specific `.xcodeproj` file path.
+    ///   - scheme: A specific scheme name.
+    ///   - apiValidation: A boolean indicating whether 'API Validation' is enabled.
+    ///   - shaderValidation: A boolean indicating whether 'Shader Validation' is enabled.
+    ///   - showGraphicsOverview: A boolean indicating whether 'Show Graphics Overview' is enabled.
+    ///   - logGraphicsOverview: A boolean indicating whether 'Log Graphics Overview' is enabled.
+    public func XCTAssertContainsMetalOptions(
+        xcodeprojPath: AbsolutePath,
+        scheme: String,
+        apiValidation: Bool,
+        shaderValidation: Bool,
+        showGraphicsOverview: Bool,
+        logGraphicsOverview: Bool,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+
+        guard let scheme = xcodeproj.sharedData?.schemes
+            .filter({ $0.name == scheme })
+            .first
+        else {
+            XCTFail(
+                "The '\(scheme)' scheme doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        guard let launchAction = scheme.launchAction
+        else {
+            XCTFail(
+                "The '\(scheme)' doesn't have launch action.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        XCTAssertEqual(
+            launchAction.disableGPUValidationMode,
+            !apiValidation,
+            "The launch action of '\(scheme)' doesn't have 'API Validation' set.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            launchAction.enableGPUShaderValidationMode,
+            shaderValidation,
+            "The launch action of '\(scheme)' doesn't have 'Shader Validation' set.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            launchAction.showGraphicsOverview,
+            showGraphicsOverview,
+            "The launch action of '\(scheme)' doesn't have 'Show Graphics Overview' set.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            launchAction.logGraphicsOverview,
+            logGraphicsOverview,
+            "The launch action of '\(scheme)' doesn't have 'Log Graphics Overview' set.",
+            file: file,
+            line: line
+        )
+    }
 }
