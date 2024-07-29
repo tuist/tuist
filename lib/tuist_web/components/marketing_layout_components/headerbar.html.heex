@@ -1,0 +1,80 @@
+<% hide_all_js = JS.hide(to: ".marketing__headerbar__app-lifecycle") %>
+<% show_app_lifecycle_js =
+  hide_all_js
+  |> JS.toggle(to: ".marketing__headerbar__app-lifecycle", display: "grid")
+  |> JS.toggle(
+    to:
+      ".marketing__headerbar__links > #app-lifecycle > .marketing__headerbar__links__link__open_icon"
+  )
+  |> JS.toggle(
+    to:
+      ".marketing__headerbar__links > #app-lifecycle > .marketing__headerbar__links__link__close_icon"
+  )
+  |> JS.toggle_attribute({"aria-expanded", "true", "false"},
+    to: ".marketing__headerbar__links > #app-lifecycle"
+  ) %>
+<header class="marketing__header">
+  <div class="marketing__headerbar">
+    <div class="marketing__headerbar__title">
+      <img
+        class="marketing__headerbar__title__logo"
+        src="/images/tuist_logo_32x32@2x.png"
+        alt={gettext("Tuist Icon")}
+      />
+      <h1 class="marketing__headerbar__title__text">
+        <.link href="/">Tuist</.link>
+      </h1>
+    </div>
+
+    <nav class="marketing__headerbar__links">
+      <a
+        class="font-xxs marketing__headerbar__links__link"
+        id="app-lifecycle"
+        aria-expanded="false"
+        aria-haspopup="true"
+        phx-click={show_app_lifecycle_js}
+      >
+        <%= gettext("App lifecycle") %>
+        <.icon_plus size={15} class="marketing__headerbar__links__link__open_icon" />
+        <.icon_minus size={15} class="marketing__headerbar__links__link__close_icon" />
+      </a>
+      <a class="font-xxs marketing__headerbar__links__link"><%= gettext("Developers") %></a>
+      <a class="font-xxs marketing__headerbar__links__link"><%= gettext("Customers") %></a>
+      <a class="font-xxs marketing__headerbar__links__link"><%= gettext("Pricing") %></a>
+      <a class="font-xxs marketing__headerbar__links__link"><%= gettext("Blog") %></a>
+    </nav>
+
+    <.primary_small_button><%= gettext("Get started") %></.primary_small_button>
+  </div>
+  <!-- Features Menu -->
+  <nav class="marketing__headerbar__app-lifecycle" aria-labelledby="app-lifecycle">
+    <h2 class="marketing__headerbar__app-lifecycle__phase__title font-m-strong">
+      <%= gettext("Start") %>
+    </h2>
+    <p class="marketing__headerbar__app-lifecycle__phase__description font-xs">
+      <%= gettext("Start a new project with our ready-to-use community templates") %>
+    </p>
+    <.app_lifecycle_start_artwork />
+    <h2 class="marketing__headerbar__app-lifecycle__phase__title font-m-strong">
+      <%= gettext("Develop") %>
+    </h2>
+    <p class="marketing__headerbar__app-lifecycle__phase__description font-xs">
+      <%= gettext("Develop top-notch apps fast and with confidence.") %>
+    </p>
+    <.app_lifecycle_develop_artwork />
+    <h2 class="marketing__headerbar__app-lifecycle__phase__title font-m-strong">
+      <%= gettext("Share") %>
+    </h2>
+    <p class="marketing__headerbar__app-lifecycle__phase__description font-xs">
+      <%= gettext("Effortlessly share your app and release it to Apple.") %>
+    </p>
+    <.app_lifecycle_share_artwork />
+    <h2 class="marketing__headerbar__app-lifecycle__phase__title font-m-strong">
+      <%= gettext("Measure") %>
+    </h2>
+    <p class="marketing__headerbar__app-lifecycle__phase__description font-xs">
+      <%= gettext("Enhance your product and development with actionable insights.") %>
+    </p>
+    <.app_lifecycle_measure_artwork />
+  </nav>
+</header>

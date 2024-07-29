@@ -1,0 +1,12 @@
+.marketing__component__primary__small__button {
+  background: var(--violet);
+  color: var(--white);
+  border-radius: var(--radius-xs);
+  padding: var(--radius-m) var(--radius-l);
+  cursor: pointer;
+
+  &:hover {
+    background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)),
+      var(--violet);
+  }
+}
