@@ -448,7 +448,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.3"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/apple/swift-log", from: "1.5.3"),
         .package(url: "https://github.com/apple/swift-tools-support-core", from: "0.6.1"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer", from: "2.1.1"),
@@ -460,7 +460,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
-        .package(url: "https://github.com/cpisciotta/xcbeautify", from: "2.4.0"),
+        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.5.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
