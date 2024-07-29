@@ -71,6 +71,7 @@ var targets: [Target] = [
             "Mockable",
             "TuistServer",
             "FileSystem",
+            "TuistCache",
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         ],
         swiftSettings: [
@@ -305,6 +306,33 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistHasher",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "XcodeGraph",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCache",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "XcodeGraph",
+            "TuistHasher",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ]
 
 #if TUIST
@@ -395,6 +423,14 @@ let package = Package(
             name: "TuistServer",
             targets: ["TuistServer"]
         ),
+        .library(
+            name: "TuistHasher",
+            targets: ["TuistHasher"]
+        ),
+        .library(
+            name: "TuistCache",
+            targets: ["TuistCache"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -430,7 +466,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.5.0")),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", .exact("0.5.0")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets

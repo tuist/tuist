@@ -5,7 +5,6 @@ import TuistSupportTesting
 import XcodeProj
 import XCTest
 
-/// Generate a new project using Tuist (suite 1)
 final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try await setUpFixture(.iosAppWithTests)
@@ -491,6 +490,21 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithExtensionAndTests: TuistAcceptanceTestCase {
+    func test_ios_app_with_extension_and_tests() async throws {
+        try setUpFixture(.iosAppWithExtensionAndTests)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            extension: "AppExtension"
+        )
+        try await run(TestCommand.self, "--test-targets", "AppExtensionTests/ExtensionTests")
+    }
+}
+
 // TODO: Fix – tvOS
 // final class GenerateAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
 //    func test_tvos_app_with_extensions() async throws {
@@ -861,6 +875,15 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
 final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTestCase {
     func test_app_with_custom_default_configuration() async throws {
         try await setUpFixture(.appWithCustomDefaultConfiguration)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
+    func test_app_with_google_maps() async throws {
+        try setUpFixture(.appWithGoogleMaps)
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
