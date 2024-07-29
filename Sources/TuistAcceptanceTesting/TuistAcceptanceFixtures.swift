@@ -4,6 +4,7 @@ public enum TuistAcceptanceFixtures {
     case appWithBuildRules
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
+    case appWithGoogleMaps
     case appWithMetalOptions
     case appWithPlugins
     case appWithPreviews
@@ -28,6 +29,7 @@ public enum TuistAcceptanceFixtures {
     case iosWppWithCustomResourceParserOptions
     case iosAppWithCustomScheme
     case iosAppWithExtensions
+    case iosAppWithExtensionAndTests
     case iosAppWithDynamicFrameworksLinkingStaticFrameworks
     case iosAppWithFrameworkAndResources
     case iosAppWithFrameworkAndDisabledResources
@@ -81,6 +83,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGoogleMaps:
+            return "app_with_google_maps"
         case .appWithMetalOptions:
             return "app_with_metal_options"
         case .appWithPlugins:
@@ -131,6 +135,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_custom_scheme"
         case .iosAppWithExtensions:
             return "ios_app_with_extensions"
+        case .iosAppWithExtensionAndTests:
+            return "ios_app_with_extension_and_tests"
         case .iosAppWithFrameworkAndResources:
             return "ios_app_with_framework_and_resources"
         case .iosAppWithFrameworkAndDisabledResources:

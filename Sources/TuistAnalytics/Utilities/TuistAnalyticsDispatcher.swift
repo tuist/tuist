@@ -18,16 +18,16 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
 
     public var identifier = TuistAnalyticsDispatcher.dispatcherId
 
-    public func dispatch(event: AsyncQueueEvent, completion: @escaping () throws -> Void) throws {
+    public func dispatch(event: AsyncQueueEvent, completion: @escaping () async throws -> Void) throws {
         guard let commandEvent = event as? CommandEvent else { return }
 
-        Task.detached {
+        Task {
             _ = try? await backend?.send(commandEvent: commandEvent)
-            try completion()
+            try await completion()
         }
     }
 
-    public func dispatchPersisted(data: Data, completion: @escaping () throws -> Void) throws {
+    public func dispatchPersisted(data: Data, completion: @escaping () async throws -> Void) throws {
         let decoder = JSONDecoder()
         let commandEvent = try decoder.decode(CommandEvent.self, from: data)
         return try dispatch(event: commandEvent, completion: completion)

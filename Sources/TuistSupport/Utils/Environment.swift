@@ -27,6 +27,9 @@ public protocol Environmenting: AnyObject, Sendable {
     /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
 
+    /// Returns the path to the cache directory. Configurable via the `XDG_CACHE_HOME` environment variable
+    var cacheDirectory: AbsolutePath? { get }
+
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
 
@@ -146,6 +149,14 @@ public final class Environment: Environmenting {
             return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
             return directory.appending(component: "Versions")
+        }
+    }
+
+    public var cacheDirectory: AbsolutePath? {
+        if let cacheDirectoryPathString = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
+            return try? AbsolutePath(validating: cacheDirectoryPathString)
+        } else {
+            return nil
         }
     }
 

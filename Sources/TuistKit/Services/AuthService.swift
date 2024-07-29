@@ -52,7 +52,7 @@ final class AuthService: AuthServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         if email != nil || password != nil {

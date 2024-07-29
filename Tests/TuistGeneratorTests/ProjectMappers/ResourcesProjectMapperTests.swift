@@ -1,13 +1,13 @@
 import Foundation
+import MockableTest
 import Path
 import TuistCore
+import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupport
-@testable import TuistSupportTesting
 
 // Bundle name is irrelevant if the target supports resources.
 private let irrelevantBundleName = ""
@@ -15,12 +15,16 @@ private let irrelevantBundleName = ""
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
-    var contentHasher: MockContentHasher!
+    var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
-        contentHasher = MockContentHasher()
+        contentHasher = .init()
         subject = ResourcesProjectMapper(contentHasher: contentHasher)
+
+        given(contentHasher)
+            .hash(Parameter<Data>.any)
+            .willProduce { String(data: $0, encoding: .utf8)! }
     }
 
     override func tearDown() {

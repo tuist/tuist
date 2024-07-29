@@ -24,7 +24,7 @@ final class TuistService: NSObject {
     func run(
         arguments: [String],
         tuistBinaryPath: String
-    ) throws {
+    ) async throws {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
@@ -39,7 +39,7 @@ final class TuistService: NSObject {
             path = FileHandler.shared.currentPath
         }
 
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
 
         var pluginPaths = try pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)

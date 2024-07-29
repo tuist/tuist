@@ -41,7 +41,7 @@ final class OrganizationShowService: OrganizationShowServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let organization = try await getOrganizationService.getOrganization(

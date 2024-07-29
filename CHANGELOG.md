@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.21.2 - 2024-07-19
+
+### Tuist
+
+#### Changed
+
+- Mark the Cloud static initializer as deprecated [#6531](https://github.com/tuist/tuist/pull/6531) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add email and password auth options for non-interactive login [#6507](https://github.com/tuist/tuist/pull/6507) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix token not found when using TUIST_CONFIG_TOKEN environment variable [#6528](https://github.com/tuist/tuist/pull/6528) by [@fortmarek](https://github.com/fortmarek)
+- Fix optionalAuthentication generation option in Config.swift [#6530](https://github.com/tuist/tuist/pull/6530) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.21.1 - 2024-07-17
 
 ### Tuist

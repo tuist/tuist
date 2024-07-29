@@ -38,6 +38,15 @@
       }
     },
     {
+      "identity" : "filesystem",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/FileSystem.git",
+      "state" : {
+        "revision" : "0cbe28158a51ca6234dd00da59be88de2b7b22be",
+        "version" : "0.2.0"
+      }
+    },
+    {
       "identity" : "graphviz",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/GraphViz.git",
@@ -159,8 +168,26 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "0fbc8848e389af3bb55c182bc19ca9d5dc2f255b",
-        "version" : "1.4.0"
+        "revision" : "41982a3656a71c768319979febd796c6fd111d5c",
+        "version" : "1.5.0"
+      }
+    },
+    {
+      "identity" : "swift-atomics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-atomics.git",
+      "state" : {
+        "revision" : "cd142fd2f64be2100422d658e7411e39489da985",
+        "version" : "1.2.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "3d2dc41a01f9e49d84f0a3925fb858bed64f702d",
+        "version" : "1.1.2"
       }
     },
     {
@@ -168,8 +195,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "532d8b529501fb73a2455b179e0bbb6d49b652ed",
-        "version" : "1.5.3"
+        "revision" : "9cb486020ebf03bfa5b5df985387a14a98744537",
+        "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swift-nio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-nio",
+      "state" : {
+        "revision" : "fc79798d5a150d61361a27ce0c51169b889e23de",
+        "version" : "2.68.0"
       }
     },
     {
@@ -231,8 +267,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "d9e8acfd22aa3133d95a4b998d31e0f77895c755",
-        "version" : "2.4.0"
+        "revision" : "d7c9ce7df96118aaa56096f4c2b94265c8e28a7c",
+        "version" : "2.5.0"
       }
     },
     {

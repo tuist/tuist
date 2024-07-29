@@ -41,7 +41,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_loadPackageSettings() throws {
+    func test_loadPackageSettings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
@@ -62,7 +62,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
         let expected: TuistCore.PackageSettings = .init(
