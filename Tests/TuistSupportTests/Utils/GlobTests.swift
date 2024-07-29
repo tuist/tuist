@@ -6,21 +6,21 @@ import XCTest
 //  Inspired by: https://gist.github.com/efirestone/ce01ae109e08772647eb061b3bb387c3
 
 final class GlobTests: TuistTestCase {
-    let tmpFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
-    var tmpDir: URL!
+    let temporaryFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
+    private var temporaryDirectory: URL!
 
     override func setUp() {
         super.setUp()
 
-        tmpDir = try! temporaryPath().url
-        try! createFiles(tmpFiles, content: "")
+        temporaryDirectory = try! temporaryPath().url
+        try! createFiles(temporaryFiles, content: "")
     }
 
     private func test(pattern: String, behavior: Glob.Behavior, expected: [String]) {
-        testWithPrefix("\(tmpDir.path)/", pattern: pattern, behavior: behavior, expected: expected)
+        testWithPrefix("\(temporaryDirectory.path)/", pattern: pattern, behavior: behavior, expected: expected)
 
         let originalPath = FileManager.default.currentDirectoryPath
-        FileManager.default.changeCurrentDirectoryPath(tmpDir.path)
+        FileManager.default.changeCurrentDirectoryPath(temporaryDirectory.path)
         defer {
             FileManager.default.changeCurrentDirectoryPath(originalPath)
         }
@@ -38,17 +38,17 @@ final class GlobTests: TuistTestCase {
     }
 
     func testBraces() {
-        let pattern = "\(tmpDir.path)/ba{r,y,z}"
+        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
         let glob = Glob(pattern: pattern)
         var contents = [String]()
         for file in glob {
             contents.append(file)
         }
-        XCTAssertEqual(contents, ["\(tmpDir.path)/bar", "\(tmpDir.path)/baz"], "matching with braces failed")
+        XCTAssertEqual(contents, ["\(temporaryDirectory.path)/bar", "\(temporaryDirectory.path)/baz"], "matching with braces failed")
     }
 
     func testNothingMatches() {
-        let pattern = "\(tmpDir.path)/nothing"
+        let pattern = "\(temporaryDirectory.path)/nothing"
         let glob = Glob(pattern: pattern)
         var contents = [String]()
         for file in glob {
@@ -58,13 +58,13 @@ final class GlobTests: TuistTestCase {
     }
 
     func testDirectAccess() {
-        let pattern = "\(tmpDir.path)/ba{r,y,z}"
+        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
         let glob = Glob(pattern: pattern)
-        XCTAssertEqual(glob.paths, ["\(tmpDir.path)/bar", "\(tmpDir.path)/baz"], "matching with braces failed")
+        XCTAssertEqual(glob.paths, ["\(temporaryDirectory.path)/bar", "\(temporaryDirectory.path)/baz"], "matching with braces failed")
     }
 
     func testIterateTwice() {
-        let pattern = "\(tmpDir.path)/ba{r,y,z}"
+        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
         let glob = Glob(pattern: pattern)
         var contents1 = [String]()
         var contents2 = [String]()
@@ -80,18 +80,18 @@ final class GlobTests: TuistTestCase {
     }
 
     func testIndexing() {
-        let pattern = "\(tmpDir.path)/ba{r,y,z}"
+        let pattern = "\(temporaryDirectory.path)/ba{r,y,z}"
         let glob = Glob(pattern: pattern)
         guard glob.count == 2 else {
             return XCTFail("Exptected 2 results")
         }
-        XCTAssertEqual(glob[0], "\(tmpDir.path)/bar", "indexing")
+        XCTAssertEqual(glob[0], "\(temporaryDirectory.path)/bar", "indexing")
     }
 
     // MARK: - Globstar - Bash v3
 
     func testGlobstarBashV3NoSlash() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
         test(
             pattern: "**",
             behavior: GlobBehaviorBashV3,
@@ -100,7 +100,7 @@ final class GlobTests: TuistTestCase {
     }
 
     func testGlobstarBashV3WithSlash() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**/"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
         test(
             pattern: "**/",
             behavior: GlobBehaviorBashV3,
@@ -109,7 +109,7 @@ final class GlobTests: TuistTestCase {
     }
 
     func testGlobstarBashV3WithSlashAndWildcard() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**/*"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
         test(
             pattern: "**/*",
             behavior: GlobBehaviorBashV3,
@@ -140,7 +140,7 @@ final class GlobTests: TuistTestCase {
     // MARK: - Globstar - Bash v4
 
     func testGlobstarBashV4NoSlash() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
         test(
             pattern: "**",
             behavior: GlobBehaviorBashV4,
@@ -161,7 +161,7 @@ final class GlobTests: TuistTestCase {
     }
 
     func testGlobstarBashV4WithSlash() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**/"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/"
         test(
             pattern: "**/",
             behavior: GlobBehaviorBashV4,
@@ -176,7 +176,7 @@ final class GlobTests: TuistTestCase {
     }
 
     func testGlobstarBashV4WithSlashAndWildcard() {
-        // Should be the equivalent of "ls -d -1 /(tmpdir)/**/*"
+        // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
         test(
             pattern: "**/*",
             behavior: GlobBehaviorBashV4,
