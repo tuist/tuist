@@ -35,12 +35,11 @@ public struct TuistCommand: AsyncParsableCommand {
                     CleanCommand.self,
                     CacheCommand.self,
                 ]),
-                CommandGroup(name: "Server", subcommands: [
+                CommandGroup(name: "Account", subcommands: [
                     ProjectCommand.self,
                     OrganizationCommand.self,
                     AuthCommand.self,
                     SessionCommand.self,
-                    AnalyticsCommand.self,
                     LogoutCommand.self,
                 ]),
             ]
