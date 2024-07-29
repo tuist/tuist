@@ -490,7 +490,7 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
     }
 }
 
-final class GenerateAcceptanceTestiOSAppWithExtensionAndUnitTests: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithExtensionAndTests: TuistAcceptanceTestCase {
     func test_ios_app_with_extension_and_tests() async throws {
         try setUpFixture(.iosAppWithExtensionAndTests)
         try await run(GenerateCommand.self)
