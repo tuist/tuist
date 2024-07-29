@@ -42,6 +42,7 @@ public struct Configuration: Equatable, Codable, Sendable {
     public var variant: Variant
     public var settings: SettingsDictionary
     public var xcconfig: Path?
+    public var infoPlist: InfoPlist?
 
     /// Returns a debug configuration.
     ///
@@ -49,17 +50,20 @@ public struct Configuration: Equatable, Codable, Sendable {
     ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
+    ///   - infoPlist: The Info.plist representation for this configuration
     /// - Returns: A debug `CustomConfiguration`
     public static func debug(
         name: ConfigurationName,
         settings: SettingsDictionary = [:],
-        xcconfig: Path? = nil
+        xcconfig: Path? = nil,
+        infoPlist: InfoPlist? = nil
     ) -> Configuration {
         Configuration(
             name: name,
             variant: .debug,
             settings: settings,
-            xcconfig: xcconfig
+            xcconfig: xcconfig,
+            infoPlist: infoPlist
         )
     }
 
@@ -69,17 +73,20 @@ public struct Configuration: Equatable, Codable, Sendable {
     ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
+    ///   - infoPlist: The Info.plist representation for this configuration
     /// - Returns: A release `CustomConfiguration`
     public static func release(
         name: ConfigurationName,
         settings: SettingsDictionary = [:],
-        xcconfig: Path? = nil
+        xcconfig: Path? = nil,
+        infoPlist: InfoPlist? = nil
     ) -> Configuration {
         Configuration(
             name: name,
             variant: .release,
             settings: settings,
-            xcconfig: xcconfig
+            xcconfig: xcconfig,
+            infoPlist: infoPlist
         )
     }
 }

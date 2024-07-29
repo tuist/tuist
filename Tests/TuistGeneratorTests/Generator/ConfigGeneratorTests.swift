@@ -101,6 +101,158 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
+    func test_generateTargetConfig_whenOnlyInfoPlistInTarget() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+            .release("Release"): nil,
+        ])
+        let project = Project.test()
+        let target = Target.test(name: "A", infoPlist: .file(path: try AbsolutePath(validating: "/A-Info.plist")))
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/")
+        )
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+
+        assert(
+            config: result?.configuration(name: "CustomDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "AnotherDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "Release"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Info.plist"]
+        )
+    }
+
+    func test_generateTargetConfig_whenOnlyInfoPlistInConfigurations() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+            .release("Release"): nil,
+        ])
+        let project = Project.test()
+        let target = Target.test(
+            name: "A",
+            settings: Settings(
+                configurations: [
+                    .debug("CustomDebug"): Configuration(
+                        infoPlist: .file(path: try AbsolutePath(validating: "/A-CustomDebug-Info.plist"))
+                    ),
+                    .debug("AnotherDebug"): Configuration(
+                        infoPlist: .file(path: try AbsolutePath(validating: "/A-AnotherDebug-Info.plist"))
+                    ),
+                    .release("Release"): Configuration(
+                        infoPlist: .file(path: try AbsolutePath(validating: "/A-Release-Info.plist"))
+                    ),
+                ]
+            )
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/")
+        )
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+
+        assert(
+            config: result?.configuration(name: "CustomDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-CustomDebug-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "AnotherDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-AnotherDebug-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "Release"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Release-Info.plist"]
+        )
+    }
+
+    func test_generateTargetConfig_whenInfoPlistInBothTargetAndConfigurations() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+            .release("Release"): nil,
+        ])
+        let project = Project.test()
+        let target = Target.test(
+            name: "A",
+            infoPlist: .file(path: try AbsolutePath(validating: "/A-Info.plist")),
+            settings: Settings(
+                configurations: [
+                    .debug("CustomDebug"): Configuration(
+                        infoPlist: .file(path: try AbsolutePath(validating: "/A-CustomDebug-Info.plist"))
+                    ),
+                    .debug("AnotherDebug"): nil,
+                    .release("Release"): Configuration(
+                        infoPlist: .file(path: try AbsolutePath(validating: "/A-Release-Info.plist"))
+                    ),
+                ]
+            )
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/")
+        )
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+
+        assert(
+            config: result?.configuration(name: "CustomDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-CustomDebug-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "AnotherDebug"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Info.plist"]
+        )
+        assert(
+            config: result?.configuration(name: "Release"),
+            contains: ["INFOPLIST_FILE": "$(SRCROOT)/A-Release-Info.plist"]
+        )
+    }
+
     func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() throws {
         // Given
         let sourceRootPath = try temporaryPath()

@@ -154,6 +154,10 @@ class ProjectFileElements {
             files.insert(path)
         }
 
+        target.settings?.configurations.values
+            .compactMap { configuration in configuration?.infoPlist?.path }
+            .forEach { infoPlistPath in files.insert(infoPlistPath) }
+
         if let entitlements = target.entitlements, let path = entitlements.path {
             files.insert(path)
         }

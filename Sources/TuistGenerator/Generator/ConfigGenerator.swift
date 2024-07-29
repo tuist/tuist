@@ -174,6 +174,7 @@ final class ConfigGenerator: ConfigGenerating {
             target: target,
             graphTraverser: graphTraverser,
             project: project,
+            configuration: configuration,
             sourceRootPath: sourceRootPath
         )
 
@@ -213,13 +214,15 @@ final class ConfigGenerator: ConfigGenerating {
         target: Target,
         graphTraverser: GraphTraversing,
         project: Project,
+        configuration: Configuration?,
         sourceRootPath: AbsolutePath
     ) {
         settings.merge(
             generalTargetDerivedSettings(
                 target: target,
                 sourceRootPath: sourceRootPath,
-                project: project
+                project: project,
+                configuration: configuration
             )
         ) { $1 }
         settings
@@ -235,14 +238,27 @@ final class ConfigGenerator: ConfigGenerating {
     private func generalTargetDerivedSettings(
         target: Target,
         sourceRootPath: AbsolutePath,
-        project: Project
+        project: Project,
+        configuration: Configuration?
     ) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
-            let relativePath = path.relative(to: sourceRootPath).pathString
+        let infoPlistPath: AbsolutePath? = {
+            if let infoPlist = configuration?.infoPlist, let path = infoPlist.path {
+                return path
+            }
+
+            if let infoPlist = target.infoPlist, let path = infoPlist.path {
+                return path
+            }
+
+            return nil
+        }()
+
+        if let infoPlistPath {
+            let relativePath = infoPlistPath.relative(to: sourceRootPath).pathString
             if project.xcodeProjPath.parentDirectory == sourceRootPath {
                 settings["INFOPLIST_FILE"] = .string(relativePath)
             } else {

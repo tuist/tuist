@@ -17,6 +17,7 @@ extension XcodeGraph.Configuration {
         guard let manifest else { return nil }
         let settings = manifest.settings.mapValues(XcodeGraph.SettingValue.from)
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }
-        return Configuration(settings: settings, xcconfig: xcconfig)
+        let infoPlist = try XcodeGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
+        return Configuration(settings: settings, xcconfig: xcconfig, infoPlist: infoPlist)
     }
 }
