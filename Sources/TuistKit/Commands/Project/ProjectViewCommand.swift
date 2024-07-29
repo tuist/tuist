@@ -28,6 +28,6 @@ struct ProjectViewCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await ProjectViewService().run(fullHandle: fullHandle, path: path)
+        try await ProjectViewService().run(fullHandle: fullHandle, pathString: path)
     }
 }

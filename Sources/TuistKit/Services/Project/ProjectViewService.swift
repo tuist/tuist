@@ -6,7 +6,7 @@ import TuistSupport
 
 @Mockable
 protocol ProjectViewServicing {
-    func run(fullHandle: String?, path: String?) async throws
+    func run(fullHandle: String?, pathString: String?) async throws
 }
 
 enum ProjectViewServiceError: Equatable, FatalError {
@@ -37,17 +37,18 @@ struct ProjectViewService: ProjectViewServicing {
         self.configLoader = configLoader
     }
 
-    func run(fullHandle: String?, path _: String?) async throws {
+    func run(fullHandle: String?, pathString: String?) async throws {
         var fullHandle: String! = fullHandle
         var url: URL!
+        var path: AbsolutePath!
 
         if fullHandle != nil {
             url = Constants.URLs.production
         } else {
-            let path = if let path {
-                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+            if let pathString {
+                path = try AbsolutePath(validating: pathString, relativeTo: FileHandler.shared.currentPath)
             } else {
-                FileHandler.shared.currentPath
+                path = FileHandler.shared.currentPath
             }
             let config = try await configLoader.loadConfig(path: path)
             url = config.url

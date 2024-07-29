@@ -34,7 +34,7 @@ final class ProjectViewServiceTests: TuistUnitTestCase {
         given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
 
         // When
-        try await subject.run(fullHandle: "tuist/tuist", path: nil)
+        try await subject.run(fullHandle: "tuist/tuist", pathString: nil)
 
         // Then
         verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
@@ -50,7 +50,7 @@ final class ProjectViewServiceTests: TuistUnitTestCase {
         given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
 
         // When
-        try await subject.run(fullHandle: nil, path: path.pathString)
+        try await subject.run(fullHandle: nil, pathString: path.pathString)
 
         // Then
         verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
@@ -67,7 +67,7 @@ final class ProjectViewServiceTests: TuistUnitTestCase {
 
         // When/Then
         await XCTAssertThrowsSpecific({
-            try await subject.run(fullHandle: nil, path: path.pathString)
+            try await subject.run(fullHandle: nil, pathString: path.pathString)
         }, ProjectViewServiceError.missingFullHandle)
     }
 }
