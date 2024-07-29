@@ -1,0 +1,102 @@
+.marketing__header {
+  position: relative;
+  background: var(--white);
+}
+
+.marketing__headerbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: var(--spacing-16) 80px;
+  justify-content: space-between;
+}
+
+.marketing__headerbar__title {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.marketing__headerbar__title__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.marketing__headerbar__title__text {
+  font-family: var(--font-grotesk);
+  font-weight: 700;
+  font-style: normal;
+  font-size: 24px;
+  color: var(--dark-violet);
+
+  & > a {
+    text-decoration: none;
+
+    &:visited {
+      color: var(--dark-violet);
+    }
+  }
+}
+
+.marketing__headerbar__links {
+  display: flex;
+  flex-direction: row;
+  gap: 48px;
+}
+
+.marketing__headerbar__links__link {
+  white-space: nowrap;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  color: var(--dark-violet);
+  gap: var(--spacing-4);
+
+  &:hover {
+    cursor: pointer;
+    color: var(--violet);
+  }
+
+  &[aria-expanded="true"] {
+    color: var(--violet);
+  }
+}
+
+.marketing__headerbar__links__link__close_icon {
+  display: none;
+}
+
+.marketing__headerbar__app-lifecycle {
+  display: none;
+  position: absolute;
+  max-width: 100%;
+  padding: var(--spacing-48) 80px;
+  background: var(--white);
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  column-gap: var(--spacing-48);
+  row-gap: var(--spacing-32);
+}
+
+.marketing__headerbar__app-lifecycle__phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-32);
+}
+
+.marketing__headerbar__app-lifecycle__phase__title {
+  margin: 0px 0px;
+  color: var(--medium-violet);
+  cursor: pointer;
+  &:hover {
+    color: var(--violet);
+    text-decoration: underline;
+  }
+}
+
+.marketing__headerbar__app-lifecycle__phase__description {
+  margin: 0px 0px;
+  color: var(--medium-violet);
+}

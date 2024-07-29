@@ -9,7 +9,11 @@ defmodule TuistWeb.UserRegistrationLive do
     <.stack class="auth-page" gap="4xl">
       <.decorative_background class="auth-page__background" />
       <.stack class="auth-header" gap="3xl">
-        <img class="auth-header__logo" src="/images/tuist_logo_32x32@2x.png" alt="Tuist Icon" />
+        <img
+          class="auth-header__logo"
+          src="/images/tuist_logo_32x32@2x.png"
+          alt={gettext("Tuist Icon")}
+        />
         <.stack gap="lg">
           <h5 class="auth-header__title font--semibold color--text-primary">
             <%= gettext("Create an account") %>

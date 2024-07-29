@@ -1,5 +1,5 @@
 @import "./app/tokens.css";
-@import "./shared/utilities.css";
+@import "./app/utilities.css";
 @import "./app/layouts.css";
 @import "./app/components.css";
 

@@ -125,7 +125,11 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <!-- Logo -->
       <.link navigate={~p"/#{@selected_account.name}/projects"}>
-        <img src="/images/tuist_logo_32x32@2x.png" alt="Tuist Icon" class="headerbar__logo" />
+        <img
+          src="/images/tuist_logo_32x32@2x.png"
+          alt={gettext("Tuist Icon")}
+          class="headerbar__logo"
+        />
       </.link>
       <!-- Breadcrumbs -->
       <.breadcrumbs breadcrumbs={@breadcrumbs} />

@@ -1,1 +1,10 @@
-@import "./shared/utilities.css";
+@import "./marketing/layout.css";
+@import "./marketing/tokens.css";
+@import "./marketing/utilities.css";
+@import "./marketing/components.css";
+
+body {
+  padding: 0px;
+  margin: 0px;
+  background: var(--violet);
+}
