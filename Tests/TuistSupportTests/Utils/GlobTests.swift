@@ -9,11 +9,11 @@ final class GlobTests: TuistTestCase {
     let temporaryFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
     private var temporaryDirectory: URL!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
 
-        temporaryDirectory = try! temporaryPath().url
-        try! createFiles(temporaryFiles, content: "")
+        temporaryDirectory = try temporaryPath().url
+        try createFiles(temporaryFiles, content: "")
     }
 
     private func test(pattern: String, behavior: Glob.Behavior, expected: [String]) {
