@@ -14,6 +14,7 @@ defmodule Tuist.Accounts.Organization do
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
     has_many(:invitations, Invitation)
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

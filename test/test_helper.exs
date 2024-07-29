@@ -27,3 +27,4 @@ Mimic.copy(Tuist.Base64)
 
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
+Credo.Application.start([], [])

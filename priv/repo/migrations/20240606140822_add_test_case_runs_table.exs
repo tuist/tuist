@@ -10,6 +10,7 @@ defmodule Tuist.Repo.Migrations.AddTestCaseRuns do
       add :name, :string, null: false
       add :command_event_id, :integer, null: false
       add :status, :integer, null: false
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps(updated_at: false)
     end
 

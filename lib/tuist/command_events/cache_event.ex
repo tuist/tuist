@@ -10,6 +10,7 @@ defmodule Tuist.CommandEvents.CacheEvent do
     field :hash, :string
     field :event_type, Ecto.Enum, values: [download: 0, upload: 1]
     field :size, :integer
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
 
     belongs_to :project, Tuist.Accounts.Project

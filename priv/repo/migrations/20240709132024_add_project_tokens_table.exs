@@ -6,6 +6,7 @@ defmodule Tuist.Repo.Migrations.AddProjectTokensTable do
       add :id, :uuid, primary_key: true, null: false
       add :encrypted_token_hash, :string, required: true
       add :project_id, references(:projects, on_delete: :delete_all), required: true
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps(type: :utc_datetime)
     end
 

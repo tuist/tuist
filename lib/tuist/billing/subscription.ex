@@ -15,6 +15,7 @@ defmodule Tuist.Billing.Subscription do
 
     belongs_to :account, Account
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps()
   end
 

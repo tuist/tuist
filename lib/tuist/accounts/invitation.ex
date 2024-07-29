@@ -13,6 +13,7 @@ defmodule Tuist.Accounts.Invitation do
     belongs_to(:inviter, User, foreign_key: :inviter_id)
     belongs_to(:organization, Organization)
 
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
   end
 

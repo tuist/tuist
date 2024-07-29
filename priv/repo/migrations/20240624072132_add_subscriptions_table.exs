@@ -8,6 +8,7 @@ defmodule Tuist.Repo.Migrations.AddSubscriptionsTable do
       add(:status, :string, required: true)
       add(:account_id, references(:accounts, on_delete: :delete_all))
       add(:default_payment_method, :string)
+      # credo:disable-for-next-line Credo.Checks.TimestampsType
       timestamps()
     end
 
