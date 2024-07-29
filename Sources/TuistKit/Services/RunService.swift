@@ -56,7 +56,7 @@ final class RunService {
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
     private let configLoader: ConfigLoading
-    private let downloadAppBuildService: DownloadAppBuildServicing
+    private let downloadPreviewService: DownloadPreviewServicing
     private let serverURLService: ServerURLServicing
     private let fileHandler: FileHandling
     private let appRunner: AppRunning
@@ -71,7 +71,7 @@ final class RunService {
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
-            downloadAppBuildService: DownloadAppBuildService(),
+            downloadPreviewService: DownloadPreviewService(),
             serverURLService: ServerURLService(),
             fileHandler: FileHandler.shared,
             appRunner: AppRunner(),
@@ -87,7 +87,7 @@ final class RunService {
         targetBuilder: TargetBuilding,
         targetRunner: TargetRunning,
         configLoader: ConfigLoading,
-        downloadAppBuildService: DownloadAppBuildServicing,
+        downloadPreviewService: DownloadPreviewServicing,
         serverURLService: ServerURLServicing,
         fileHandler: FileHandling,
         appRunner: AppRunning,
@@ -100,7 +100,7 @@ final class RunService {
         self.targetBuilder = targetBuilder
         self.targetRunner = targetRunner
         self.configLoader = configLoader
-        self.downloadAppBuildService = downloadAppBuildService
+        self.downloadPreviewService = downloadPreviewService
         self.serverURLService = serverURLService
         self.fileHandler = fileHandler
         self.appRunner = appRunner
@@ -172,7 +172,7 @@ final class RunService {
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        let downloadURLString = try await downloadAppBuildService.downloadAppBuild(
+        let downloadURLString = try await downloadPreviewService.downloadPreview(
             shareLink.lastPathComponent,
             fullHandle: fullHandle,
             serverURL: serverURL

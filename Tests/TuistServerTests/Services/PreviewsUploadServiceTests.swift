@@ -7,70 +7,70 @@ import XCTest
 
 @testable import TuistServer
 
-final class AppBuildsUploadServiceTests: TuistTestCase {
-    private var subject: AppBuildsUploadService!
+final class PreviewsUploadServiceTests: TuistTestCase {
+    private var subject: PreviewsUploadService!
 
     private var fileArchiverFactory: MockFileArchivingFactorying!
-    private var multipartUploadStartAppBuildsService: MockMultipartUploadStartAppBuildsServicing!
-    private var multipartUploadGenerateURLAppBuildsService: MockMultipartUploadGenerateURLAppBuildsServicing!
+    private var multipartUploadStartPreviewsService: MockMultipartUploadStartPreviewsServicing!
+    private var multipartUploadGenerateURLPreviewsService: MockMultipartUploadGenerateURLPreviewsServicing!
     private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
-    private var multipartUploadCompleteAppBuildsService: MockMultipartUploadCompleteAppBuildsServicing!
+    private var multipartUploadCompletePreviewsService: MockMultipartUploadCompletePreviewsServicing!
 
     override func setUp() {
         super.setUp()
 
         fileArchiverFactory = .init()
-        multipartUploadStartAppBuildsService = .init()
-        multipartUploadGenerateURLAppBuildsService = .init()
+        multipartUploadStartPreviewsService = .init()
+        multipartUploadGenerateURLPreviewsService = .init()
         multipartUploadArtifactService = .init()
-        multipartUploadCompleteAppBuildsService = .init()
+        multipartUploadCompletePreviewsService = .init()
 
-        subject = AppBuildsUploadService(
+        subject = PreviewsUploadService(
             fileHandler: fileHandler,
             fileArchiver: fileArchiverFactory,
             retryProvider: RetryProvider(),
-            multipartUploadStartAppBuildsService: multipartUploadStartAppBuildsService,
-            multipartUploadGenerateURLAppBuildsService: multipartUploadGenerateURLAppBuildsService,
+            multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
+            multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
-            multipartUploadCompleteAppBuildsService: multipartUploadCompleteAppBuildsService
+            multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService
         )
     }
 
     override func tearDown() {
         fileArchiverFactory = nil
-        multipartUploadStartAppBuildsService = nil
-        multipartUploadGenerateURLAppBuildsService = nil
+        multipartUploadStartPreviewsService = nil
+        multipartUploadGenerateURLPreviewsService = nil
         multipartUploadArtifactService = nil
-        multipartUploadCompleteAppBuildsService = nil
+        multipartUploadCompletePreviewsService = nil
 
         super.tearDown()
     }
 
     func test_upload_app_builds() async throws {
         // Given
-        let appBuild = try temporaryPath().appending(component: "App.app")
-        try FileHandler.shared.touch(appBuild)
+        let preview = try temporaryPath().appending(component: "App.app")
+        try FileHandler.shared.touch(preview)
 
         let serverURL: URL = .test()
 
         let fileArchiver = MockFileArchiving()
         given(fileArchiverFactory)
-            .makeFileArchiver(for: .value([appBuild]))
+            .makeFileArchiver(for: .value([preview]))
             .willReturn(fileArchiver)
 
-        let artifactArchivePath = appBuild.parentDirectory.appending(component: "app-builds.zip")
+        let artifactArchivePath = preview.parentDirectory.appending(component: "previews.zip")
 
         given(fileArchiver)
-            .zip(name: .value("app-builds.zip"))
+            .zip(name: .value("previews.zip"))
             .willReturn(artifactArchivePath)
 
-        given(multipartUploadStartAppBuildsService)
-            .startAppBuildsMultipartUpload(
+        given(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
             .willReturn(
-                AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
+                PreviewUpload(previewId: "preview-id", uploadId: "upload-id")
             )
 
         given(multipartUploadArtifactService)
@@ -81,9 +81,9 @@ final class AppBuildsUploadServiceTests: TuistTestCase {
             .willReturn([(etag: "etag", partNumber: 1)])
 
         let shareURL = URL.test()
-        given(multipartUploadCompleteAppBuildsService)
-            .completeAppBuildUpload(
-                .value("app-build-id"),
+        given(multipartUploadCompletePreviewsService)
+            .completePreviewUpload(
+                .value("preview-id"),
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.map(\.etag) == ["etag"] && parts.map(\.partNumber) == [1]
@@ -94,8 +94,8 @@ final class AppBuildsUploadServiceTests: TuistTestCase {
             .willReturn(shareURL)
 
         // When
-        let got = try await subject.uploadAppBuilds(
-            [appBuild],
+        let got = try await subject.uploadPreviews(
+            [preview],
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )

@@ -45,7 +45,7 @@ struct ShareService {
     private let fileHandler: FileHandling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let buildGraphInspector: BuildGraphInspecting
-    private let appBuildsUploadService: AppBuildsUploadServicing
+    private let previewsUploadService: PreviewsUploadServicing
     private let configLoader: ConfigLoading
     private let serverURLService: ServerURLServicing
     private let manifestLoader: ManifestLoading
@@ -67,7 +67,7 @@ struct ShareService {
             fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
             buildGraphInspector: BuildGraphInspector(),
-            appBuildsUploadService: AppBuildsUploadService(),
+            previewsUploadService: PreviewsUploadService(),
             configLoader: ConfigLoader(),
             serverURLService: ServerURLService(),
             manifestLoader: manifestLoader,
@@ -82,7 +82,7 @@ struct ShareService {
         fileHandler: FileHandling,
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
         buildGraphInspector: BuildGraphInspecting,
-        appBuildsUploadService: AppBuildsUploadServicing,
+        previewsUploadService: PreviewsUploadServicing,
         configLoader: ConfigLoading,
         serverURLService: ServerURLServicing,
         manifestLoader: ManifestLoading,
@@ -94,7 +94,7 @@ struct ShareService {
         self.fileHandler = fileHandler
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.buildGraphInspector = buildGraphInspector
-        self.appBuildsUploadService = appBuildsUploadService
+        self.previewsUploadService = previewsUploadService
         self.configLoader = configLoader
         self.serverURLService = serverURLService
         self.manifestLoader = manifestLoader
@@ -139,7 +139,7 @@ struct ShareService {
             guard appNames.count == 1,
                   let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
-            let url = try await appBuildsUploadService.uploadAppBuilds(
+            let url = try await previewsUploadService.uploadPreviews(
                 appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
@@ -173,7 +173,7 @@ struct ShareService {
 
             let platforms = platforms.isEmpty ? appTarget.target.supportedPlatforms.map { $0 } : platforms
 
-            try await uploadAppBuilds(
+            try await uploadPreviews(
                 for: platforms,
                 workspacePath: graph.workspace.xcWorkspacePath,
                 configuration: configuration,
@@ -195,7 +195,7 @@ struct ShareService {
                 throw ShareServiceError.projectOrWorkspaceNotFound(path: path.pathString)
             }
 
-            try await uploadAppBuilds(
+            try await uploadPreviews(
                 for: platforms,
                 workspacePath: workspaceOrProjectPath,
                 configuration: configuration,
@@ -217,7 +217,7 @@ struct ShareService {
         }
     }
 
-    private func uploadAppBuilds(
+    private func uploadPreviews(
         for platforms: [Platform],
         workspacePath: AbsolutePath,
         configuration: String,
@@ -256,7 +256,7 @@ struct ShareService {
                 }
                 .uniqued()
 
-            let url = try await appBuildsUploadService.uploadAppBuilds(
+            let url = try await previewsUploadService.uploadPreviews(
                 appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL

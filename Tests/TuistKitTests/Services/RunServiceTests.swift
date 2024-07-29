@@ -45,7 +45,7 @@ final class RunServiceTests: TuistUnitTestCase {
     private var targetBuilder: MockTargetBuilder!
     private var targetRunner: MockTargetRunner!
     private var configLoader: MockConfigLoading!
-    private var downloadAppBuildService: MockDownloadAppBuildServicing!
+    private var downloadPreviewService: MockDownloadPreviewServicing!
     private var serverURLService: MockServerURLServicing!
     private var appRunner: MockAppRunning!
     private var subject: RunService!
@@ -66,7 +66,7 @@ final class RunServiceTests: TuistUnitTestCase {
         targetBuilder = MockTargetBuilder()
         targetRunner = MockTargetRunner()
         configLoader = .init()
-        downloadAppBuildService = .init()
+        downloadPreviewService = .init()
         serverURLService = .init()
         appRunner = .init()
         remoteArtifactDownloader = .init()
@@ -78,7 +78,7 @@ final class RunServiceTests: TuistUnitTestCase {
             targetBuilder: targetBuilder,
             targetRunner: targetRunner,
             configLoader: configLoader,
-            downloadAppBuildService: downloadAppBuildService,
+            downloadPreviewService: downloadPreviewService,
             serverURLService: serverURLService,
             fileHandler: fileHandler,
             appRunner: appRunner,
@@ -286,8 +286,8 @@ final class RunServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(downloadAppBuildService)
-            .downloadAppBuild(
+        given(downloadPreviewService)
+            .downloadPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -307,8 +307,8 @@ final class RunServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(downloadAppBuildService)
-            .downloadAppBuild(
+        given(downloadPreviewService)
+            .downloadPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -348,8 +348,8 @@ final class RunServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(downloadAppBuildService)
-            .downloadAppBuild(
+        given(downloadPreviewService)
+            .downloadPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -407,8 +407,8 @@ final class RunServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(downloadAppBuildService)
-            .downloadAppBuild(
+        given(downloadPreviewService)
+            .downloadPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any

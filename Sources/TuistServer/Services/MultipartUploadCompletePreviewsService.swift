@@ -4,9 +4,9 @@ import OpenAPIRuntime
 import TuistSupport
 
 @Mockable
-public protocol MultipartUploadCompleteAppBuildsServicing {
-    func completeAppBuildUpload(
-        _ appBuildId: String,
+public protocol MultipartUploadCompletePreviewsServicing {
+    func completePreviewUpload(
+        _ previewId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
@@ -14,7 +14,7 @@ public protocol MultipartUploadCompleteAppBuildsServicing {
     ) async throws -> URL
 }
 
-public enum MultipartUploadCompleteAppBuildsServiceError: FatalError, Equatable {
+public enum MultipartUploadCompletePreviewsServiceError: FatalError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -42,7 +42,7 @@ public enum MultipartUploadCompleteAppBuildsServiceError: FatalError, Equatable 
     }
 }
 
-public final class MultipartUploadCompleteBuildsService: MultipartUploadCompleteAppBuildsServicing {
+public final class MultipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -57,8 +57,8 @@ public final class MultipartUploadCompleteBuildsService: MultipartUploadComplete
         self.fullHandleService = fullHandleService
     }
 
-    public func completeAppBuildUpload(
-        _ appBuildId: String,
+    public func completePreviewUpload(
+        _ previewId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
@@ -66,7 +66,7 @@ public final class MultipartUploadCompleteBuildsService: MultipartUploadComplete
     ) async throws -> URL {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.completeAppBuildsMultipartUpload(
+        let response = try await client.completePreviewsMultipartUpload(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -74,43 +74,43 @@ public final class MultipartUploadCompleteBuildsService: MultipartUploadComplete
                 ),
                 body: .json(
                     .init(
-                        app_build_id: appBuildId,
                         multipart_upload_parts: .init(
                             parts: parts
                                 .map { .init(etag: $0.etag, part_number: $0.partNumber) },
                             upload_id: uploadId
-                        )
+                        ),
+                        preview_id: previewId
                     )
                 )
             )
         )
         switch response {
-        case let .ok(appBuildUploadCompletionResponse):
-            switch appBuildUploadCompletionResponse.body {
-            case let .json(appBuildUploadCompletionResponse):
-                guard let url = URL(string: appBuildUploadCompletionResponse.url)
+        case let .ok(previewUploadCompletionResponse):
+            switch previewUploadCompletionResponse.body {
+            case let .json(previewUploadCompletionResponse):
+                guard let url = URL(string: previewUploadCompletionResponse.url)
                 else {
-                    throw MultipartUploadCompleteAppBuildsServiceError.invalidURL(appBuildUploadCompletionResponse.url)
+                    throw MultipartUploadCompletePreviewsServiceError.invalidURL(previewUploadCompletionResponse.url)
                 }
 
                 return url
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw MultipartUploadCompleteAppBuildsServiceError.unknownError(statusCode)
+            throw MultipartUploadCompletePreviewsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw MultipartUploadCompleteAppBuildsServiceError.forbidden(error.message)
+                throw MultipartUploadCompletePreviewsServiceError.forbidden(error.message)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
             case let .json(error):
-                throw MultipartUploadCompleteAppBuildsServiceError.notFound(error.message)
+                throw MultipartUploadCompletePreviewsServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw MultipartUploadCompleteAppBuildsServiceError.unauthorized(error.message)
+                throw MultipartUploadCompletePreviewsServiceError.unauthorized(error.message)
             }
         }
     }

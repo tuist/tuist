@@ -16,42 +16,6 @@ components:
           type: array
       title: AbsentCacheArtifact
       type: object
-    AppBuildArtifactUpload:
-      description: The upload has been initiated and an app build and upload unique identifier are returned to upload the various parts using multi-part uploads
-      properties:
-        data:
-          description: Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
-          properties:
-            app_build_id:
-              description: The id of the app build.
-              type: string
-            upload_id:
-              description: The upload ID
-              type: string
-          required:
-            - upload_id
-            - app_build_id
-          type: object
-        status:
-          default: success
-          enum:
-            - success
-          type: string
-      required:
-        - status
-        - data
-      title: AppBuildArtifactUpload
-      type: object
-    AppBuildUploadCompletion:
-      description: The app build upload has been completed
-      properties:
-        url:
-          description: The URL to download the app build
-          type: string
-      required:
-        - url
-      title: AppBuildUploadCompletion
-      type: object
     ArtifactDownloadURL:
       description: The URL to download an artifact.
       properties:
@@ -428,6 +392,42 @@ components:
       title: OrganizationUsage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
+    PreviewArtifactUpload:
+      description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+      properties:
+        data:
+          description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+          properties:
+            preview_id:
+              description: The id of the preview.
+              type: string
+            upload_id:
+              description: The upload ID
+              type: string
+          required:
+            - upload_id
+            - preview_id
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      required:
+        - status
+        - data
+      title: PreviewArtifactUpload
+      type: object
+    PreviewUploadCompletion:
+      description: The preview multipart upload has been completed
+      properties:
+        url:
+          description: The URL to download the preview
+          type: string
+      required:
+        - url
+      title: PreviewUploadCompletion
+      type: object
     Project:
       properties:
         full_name:
@@ -2257,11 +2257,11 @@ paths:
       summary: It initiates a multipart upload for a command event artifact.
       tags:
         - Analytics
-  /api/{account_handle}/{project_handle}/app-builds/complete:
+  /api/{account_handle}/{project_handle}/previews/complete:
     post:
       callbacks: {}
       description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-      operationId: completeAppBuildsMultipartUpload
+      operationId: completePreviewsMultipartUpload
       parameters:
         - description: The handle of the account.
           in: path
@@ -2279,31 +2279,32 @@ paths:
         content:
           application/json:
             schema:
+              description: The request body to complete the multipart upload of a preview.
               properties:
-                app_build_id:
-                  description: The id of the app build.
-                  type: string
                 multipart_upload_parts:
                   $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+                preview_id:
+                  description: The id of the preview.
+                  type: string
               required:
                 - multipart_upload_parts
-                - app_build_id
+                - preview_id
               type: object
-        description: build artifact multipart upload completion
+        description: preview multipart upload completion
         required: false
       responses:
         200:
           content:
             application/json:
               schema:
-                description: The app build upload has been completed
+                description: The preview multipart upload has been completed
                 properties:
                   url:
-                    description: The URL to download the app build
+                    description: The URL to download the preview
                     type: string
                 required:
                   - url
-                title: AppBuildUploadCompletion
+                title: PreviewUploadCompletion
                 type: object
           description: The upload has been completed
         401:
@@ -2326,11 +2327,11 @@ paths:
           description: The project doesn't exist
       summary: It completes a multi-part upload.
       tags: []
-  /api/{account_handle}/{project_handle}/app-builds/generate-url:
+  /api/{account_handle}/{project_handle}/previews/generate-url:
     post:
       callbacks: {}
       description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-      operationId: generateAppBuildsMultipartUploadURL
+      operationId: generatePreviewsMultipartUploadURL
       parameters:
         - description: The handle of the account.
           in: path
@@ -2349,14 +2350,14 @@ paths:
           application/json:
             schema:
               properties:
-                app_build_id:
-                  description: The id of the app build.
-                  type: string
                 multipart_upload_part:
                   $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                preview_id:
+                  description: The id of the preview.
+                  type: string
               required:
                 - multipart_upload_part
-                - app_build_id
+                - preview_id
               type: object
         description: Artifact to generate a signed URL for
         required: false
@@ -2387,11 +2388,11 @@ paths:
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
       tags: []
-  /api/{account_handle}/{project_handle}/app-builds/start:
+  /api/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
       description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-      operationId: startAppBuildsMultipartUpload
+      operationId: startPreviewsMultipartUpload
       parameters:
         - description: The handle of the account.
           in: path
@@ -2410,20 +2411,20 @@ paths:
           content:
             application/json:
               schema:
-                description: The upload has been initiated and an app build and upload unique identifier are returned to upload the various parts using multi-part uploads
+                description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
                 properties:
                   data:
-                    description: Data that contains app build and upload unique identifier associated with the multipart upload to use when uploading parts
+                    description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
                     properties:
-                      app_build_id:
-                        description: The id of the app build.
+                      preview_id:
+                        description: The id of the preview.
                         type: string
                       upload_id:
                         description: The upload ID
                         type: string
                     required:
                       - upload_id
-                      - app_build_id
+                      - preview_id
                     type: object
                   status:
                     default: success
@@ -2433,7 +2434,7 @@ paths:
                 required:
                   - status
                   - data
-                title: AppBuildArtifactUpload
+                title: PreviewArtifactUpload
                 type: object
           description: The upload has been started
         401:
@@ -2454,13 +2455,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-      summary: It initiates a multipart upload for an app build artifact.
+      summary: It initiates a multipart upload for a preview artifact.
       tags: []
-  /api/{account_handle}/{project_handle}/app-builds/{app_build_id}:
+  /api/{account_handle}/{project_handle}/previews/{preview_id}:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download an app build.
-      operationId: downloadAppBuild
+      description: This endpoint returns a signed URL that can be used to download a preview.
+      operationId: downloadPreview
       parameters:
         - description: The handle of the account.
           in: path
@@ -2474,9 +2475,9 @@ paths:
           required: true
           schema:
             type: string
-        - description: The id of the app build.
+        - description: The id of the preview.
           in: path
-          name: app_build_id
+          name: preview_id
           required: true
           schema:
             type: string
@@ -2486,7 +2487,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactDownloadURL'
-          description: The app build exists and can be downloaded
+          description: The preview exists and can be downloaded
         401:
           content:
             application/json:
@@ -2505,7 +2506,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The build doesn't exist
-      summary: Downloads an app build.
+      summary: Downloads a preview.
       tags: []
 security:
   - authorization: []

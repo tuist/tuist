@@ -14,7 +14,7 @@ final class ShareServiceTests: TuistUnitTestCase {
     private var subject: ShareService!
     private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
     private var buildGraphInspector: MockBuildGraphInspecting!
-    private var appBuildsUploadService: MockAppBuildsUploadServicing!
+    private var previewsUploadService: MockPreviewsUploadServicing!
     private var configLoader: MockConfigLoading!
     private var serverURLService: MockServerURLServicing!
     private var manifestLoader: MockManifestLoading!
@@ -28,7 +28,7 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         xcodeProjectBuildDirectoryLocator = .init()
         buildGraphInspector = .init()
-        appBuildsUploadService = .init()
+        previewsUploadService = .init()
         configLoader = .init()
         serverURLService = .init()
         manifestLoader = .init()
@@ -40,7 +40,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             fileHandler: fileHandler,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
-            appBuildsUploadService: appBuildsUploadService,
+            previewsUploadService: previewsUploadService,
             configLoader: configLoader,
             serverURLService: serverURLService,
             manifestLoader: manifestLoader,
@@ -60,7 +60,7 @@ final class ShareServiceTests: TuistUnitTestCase {
     override func tearDown() {
         xcodeProjectBuildDirectoryLocator = nil
         buildGraphInspector = nil
-        appBuildsUploadService = nil
+        previewsUploadService = nil
         configLoader = nil
         serverURLService = nil
         manifestLoader = nil
@@ -174,8 +174,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         try fileHandler.touch(visionOSPath.appending(component: "App.app"))
 
         let shareURL: URL = .test()
-        given(appBuildsUploadService)
-            .uploadAppBuilds(
+        given(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -192,8 +192,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(appBuildsUploadService)
-            .uploadAppBuilds(
+        verify(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -269,8 +269,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
 
         let shareURL: URL = .test()
-        given(appBuildsUploadService)
-            .uploadAppBuilds(
+        given(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -287,8 +287,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(appBuildsUploadService)
-            .uploadAppBuilds(
+        verify(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -420,8 +420,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         try fileHandler.touch(iosPath.appending(component: "App.app"))
 
         let shareURL: URL = .test()
-        given(appBuildsUploadService)
-            .uploadAppBuilds(
+        given(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -438,8 +438,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(appBuildsUploadService)
-            .uploadAppBuilds(
+        verify(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -502,8 +502,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(.test(infoPlist: .test(name: "App")))
 
         let shareURL: URL = .test()
-        given(appBuildsUploadService)
-            .uploadAppBuilds(
+        given(previewsUploadService)
+            .uploadPreviews(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -523,8 +523,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(appBuildsUploadService)
-            .uploadAppBuilds(
+        verify(previewsUploadService)
+            .uploadPreviews(
                 .value([iosApp, visionOSApp]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)

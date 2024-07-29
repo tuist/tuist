@@ -3,9 +3,9 @@ import Mockable
 import TuistSupport
 
 @Mockable
-public protocol MultipartUploadGenerateURLAppBuildsServicing {
-    func uploadAppBuilds(
-        _ appBuildId: String,
+public protocol MultipartUploadGenerateURLPreviewsServicing {
+    func uploadPreviews(
+        _ previewId: String,
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
@@ -13,7 +13,7 @@ public protocol MultipartUploadGenerateURLAppBuildsServicing {
     ) async throws -> String
 }
 
-public enum MultipartUploadGenerateURLAppBuildsServiceError: FatalError, Equatable {
+public enum MultipartUploadGenerateURLPreviewsServiceError: FatalError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -38,7 +38,7 @@ public enum MultipartUploadGenerateURLAppBuildsServiceError: FatalError, Equatab
     }
 }
 
-public final class MultipartUploadGenerateURLAppBuildsService: MultipartUploadGenerateURLAppBuildsServicing {
+public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -53,8 +53,8 @@ public final class MultipartUploadGenerateURLAppBuildsService: MultipartUploadGe
         self.fullHandleService = fullHandleService
     }
 
-    public func uploadAppBuilds(
-        _ appBuildId: String,
+    public func uploadPreviews(
+        _ previewId: String,
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
@@ -62,7 +62,7 @@ public final class MultipartUploadGenerateURLAppBuildsService: MultipartUploadGe
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.generateAppBuildsMultipartUploadURL(
+        let response = try await client.generatePreviewsMultipartUploadURL(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -70,11 +70,11 @@ public final class MultipartUploadGenerateURLAppBuildsService: MultipartUploadGe
                 ),
                 body: .json(
                     .init(
-                        app_build_id: appBuildId,
                         multipart_upload_part: .init(
                             part_number: partNumber,
                             upload_id: uploadId
-                        )
+                        ),
+                        preview_id: previewId
                     )
                 )
             )
@@ -86,21 +86,21 @@ public final class MultipartUploadGenerateURLAppBuildsService: MultipartUploadGe
                 return cacheArtifact.data.url
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw MultipartUploadGenerateURLAppBuildsServiceError.unknownError(statusCode)
+            throw MultipartUploadGenerateURLPreviewsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw MultipartUploadGenerateURLAppBuildsServiceError.forbidden(error.message)
+                throw MultipartUploadGenerateURLPreviewsServiceError.forbidden(error.message)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
             case let .json(error):
-                throw MultipartUploadGenerateURLAppBuildsServiceError.notFound(error.message)
+                throw MultipartUploadGenerateURLPreviewsServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw MultipartUploadGenerateURLAppBuildsServiceError.unauthorized(error.message)
+                throw MultipartUploadGenerateURLPreviewsServiceError.unauthorized(error.message)
             }
         }
     }
