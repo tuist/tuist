@@ -7,7 +7,7 @@
 import Foundation
 
 // swiftlint:disable:next identifier_name
-public let GlobBehaviorBashV4 = Glob.Behavior(
+internal let GlobBehaviorBashV4 = Glob.Behavior(
     supportsGlobstar: true, // Matches Bash v4 with "shopt -s globstar" option
     includesFilesFromRootOfGlobstar: true,
     includesDirectoriesInResults: true,
@@ -17,7 +17,7 @@ public let GlobBehaviorBashV4 = Glob.Behavior(
 /**
  Finds files on the file system using pattern matching.
  */
-public class Glob: Collection {
+internal final class Glob: Collection {
     /**
      * Different glob implementations have different behaviors, so the behavior of this
      * implementation is customizable.
