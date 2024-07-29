@@ -13,6 +13,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws
         -> Operations.createCommandEvent.Output
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    func authenticate(_ input: Operations.authenticate.Input) async throws
+        -> Operations.authenticate.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -500,23 +508,23 @@ public enum Components {
                 case status
             }
         }
-        /// A new user access token to authenticate the user with.
+        /// API tokens to authenticate with.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
         public struct AuthenticationTokens: Codable, Equatable, Hashable, Sendable {
-            /// User access token
+            /// API access token.
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
             public var access_token: Swift.String
-            /// User refresh token
+            /// API refresh token.
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
             public var refresh_token: Swift.String
             /// Creates a new `AuthenticationTokens`.
             ///
             /// - Parameters:
-            ///   - access_token: User access token
-            ///   - refresh_token: User refresh token
+            ///   - access_token: API access token.
+            ///   - refresh_token: API refresh token.
             public init(access_token: Swift.String, refresh_token: Swift.String) {
                 self.access_token = access_token
                 self.refresh_token = refresh_token
@@ -821,6 +829,43 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case name
                 case _type = "type"
+            }
+        }
+        /// Token to authenticate the user with.
+        ///
+        /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens`.
+        public struct DeviceCodeAuthenticationTokens: Codable, Equatable, Hashable, Sendable {
+            /// A short-lived token to authenticate API requests as user.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/access_token`.
+            public var access_token: Swift.String?
+            /// A token to generate new access tokens when they expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/refresh_token`.
+            public var refresh_token: Swift.String?
+            /// User authentication token
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/token`.
+            @available(*, deprecated) public var token: Swift.String?
+            /// Creates a new `DeviceCodeAuthenticationTokens`.
+            ///
+            /// - Parameters:
+            ///   - access_token: A short-lived token to authenticate API requests as user.
+            ///   - refresh_token: A token to generate new access tokens when they expire.
+            ///   - token: User authentication token
+            public init(
+                access_token: Swift.String? = nil,
+                refresh_token: Swift.String? = nil,
+                token: Swift.String? = nil
+            ) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+                case token
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -1634,6 +1679,156 @@ public enum Operations {
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
     }
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    public enum authenticate {
+        public static let id: String = "authenticate"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.authenticate.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.authenticate.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.authenticate.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.authenticate.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Authentication params.
+                ///
+                /// - Remark: Generated from `#/paths/api/auth/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The email to authenticate with.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/POST/json/email`.
+                    public var email: Swift.String
+                    /// The password to authenticate with.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/POST/json/password`.
+                    public var password: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - email: The email to authenticate with.
+                    ///   - password: The password to authenticate with.
+                    public init(email: Swift.String, password: Swift.String) {
+                        self.email = email
+                        self.password = password
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case email
+                        case password
+                    }
+                }
+                case json(Operations.authenticate.Input.Body.jsonPayload)
+            }
+            public var body: Operations.authenticate.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.authenticate.Input.Path = .init(),
+                query: Operations.authenticate.Input.Query = .init(),
+                headers: Operations.authenticate.Input.Headers = .init(),
+                cookies: Operations.authenticate.Input.Cookies = .init(),
+                body: Operations.authenticate.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.authenticate.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.AuthenticationTokens)
+                }
+                /// Received HTTP response body
+                public var body: Operations.authenticate.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.authenticate.Output.Ok.Headers = .init(),
+                    body: Operations.authenticate.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Successfully authenticated and returned new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.authenticate.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.authenticate.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.authenticate.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.authenticate.Output.Unauthorized.Headers = .init(),
+                    body: Operations.authenticate.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Invalid email or password.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.authenticate.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -1907,33 +2102,7 @@ public enum Operations {
                 /// Received HTTP response headers
                 public var headers: Operations.refreshToken.Output.Ok.Headers
                 @frozen public enum Body: Sendable, Equatable, Hashable {
-                    /// A new user access token to authenticate the user with.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json`.
-                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                        /// User access token
-                        ///
-                        /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/access_token`.
-                        public var access_token: Swift.String
-                        /// User refresh token
-                        ///
-                        /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/json/refresh_token`.
-                        public var refresh_token: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - access_token: User access token
-                        ///   - refresh_token: User refresh token
-                        public init(access_token: Swift.String, refresh_token: Swift.String) {
-                            self.access_token = access_token
-                            self.refresh_token = refresh_token
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case access_token
-                            case refresh_token
-                        }
-                    }
-                    case json(Operations.refreshToken.Output.Ok.Body.jsonPayload)
+                    case json(Components.Schemas.AuthenticationTokens)
                 }
                 /// Received HTTP response body
                 public var body: Operations.refreshToken.Output.Ok.Body
@@ -1950,7 +2119,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// A new a pair of tokens was generated
+            /// Succcessfully generated new API tokens.
             ///
             /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
             ///

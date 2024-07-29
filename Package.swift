@@ -70,6 +70,8 @@ var targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "TuistServer",
+            "FileSystem",
+            "TuistCache",
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         ],
         swiftSettings: [
@@ -102,6 +104,7 @@ var targets: [Target] = [
             "ZIPFoundation",
             "ProjectDescription",
             "Mockable",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -141,6 +144,7 @@ var targets: [Target] = [
             swiftGenKitDependency,
             "StencilSwiftKit",
             "Mockable",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -164,6 +168,7 @@ var targets: [Target] = [
             "StencilSwiftKit",
             "Stencil",
             "Mockable",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -179,6 +184,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "TuistSupport",
             "Mockable",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -223,6 +229,7 @@ var targets: [Target] = [
             "Mockable",
             pathDependency,
             "Queuer",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -277,6 +284,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistScaffold",
             "Mockable",
+            "FileSystem",
             pathDependency,
         ],
         swiftSettings: [
@@ -288,11 +296,39 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
+            "FileSystem",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         exclude: ["OpenAPI/cloud.yml"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistHasher",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "XcodeGraph",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCache",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "FileSystem",
+            pathDependency,
+            "XcodeGraph",
+            "TuistHasher",
+        ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -304,7 +340,7 @@ var targets: [Target] = [
 
     let packageSettings = PackageSettings(
         productTypes: [
-            "SystemPackage": .staticFramework,
+            "FileSystem": .staticFramework,
             "TSCBasic": .staticFramework,
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
@@ -312,7 +348,8 @@ var targets: [Target] = [
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
             "MockableTest": .staticFramework,
-        ]
+        ],
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
 
 #endif
@@ -386,6 +423,14 @@ let package = Package(
             name: "TuistServer",
             targets: ["TuistServer"]
         ),
+        .library(
+            name: "TuistHasher",
+            targets: ["TuistHasher"]
+        ),
+        .library(
+            name: "TuistCache",
+            targets: ["TuistCache"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
@@ -422,6 +467,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.5.0")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets
 )

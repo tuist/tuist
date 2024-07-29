@@ -51,20 +51,20 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_loadConfig_defaultReturnedWhenPathDoesNotExist() throws {
+    func test_loadConfig_defaultReturnedWhenPathDoesNotExist() async throws {
         // Given
         let path: AbsolutePath = "/some/random/path"
         stub(path: path, exists: false)
         stub(rootDirectory: "/project")
 
         // When
-        let result = try subject.loadConfig(path: path)
+        let result = try await subject.loadConfig(path: path)
 
         // Then
         XCTAssertEqual(result, .default)
     }
 
-    func test_loadConfig_loadConfig() throws {
+    func test_loadConfig_loadConfig() async throws {
         // Given
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
@@ -75,7 +75,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         stub(rootDirectory: "/project")
 
         // When
-        let result = try subject.loadConfig(path: path)
+        let result = try await subject.loadConfig(path: path)
 
         // Then
         XCTAssertEqual(result, TuistCore.Config(
@@ -89,7 +89,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
-    func test_loadConfig_loadConfigError() throws {
+    func test_loadConfig_loadConfigError() async throws {
         // Given
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
@@ -97,10 +97,10 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         stub(rootDirectory: "/project")
 
         // When / Then
-        XCTAssertThrowsSpecific(try subject.loadConfig(path: path), TestError.testError)
+        await XCTAssertThrowsSpecific({ try await self.subject.loadConfig(path: path) }, TestError.testError)
     }
 
-    func test_loadConfig_loadConfigInRootDirectory() throws {
+    func test_loadConfig_loadConfigInRootDirectory() async throws {
         // Given
         stub(rootDirectory: "/project")
         let paths: [AbsolutePath] = [
@@ -117,7 +117,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let result = try subject.loadConfig(path: "/project/Module/A/")
+        let result = try await subject.loadConfig(path: "/project/Module/A/")
 
         // Then
         XCTAssertEqual(result, TuistCore.Config(
@@ -131,26 +131,26 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
-    func test_loadConfig_with_full_handle_and_url() throws {
+    func test_loadConfig_with_full_handle_and_url() async throws {
         // Given
         stub(rootDirectory: "/project")
         stub(path: "/project/Tuist/Config.swift", exists: true)
         stub(
             config: .test(
                 fullHandle: "tuist/tuist",
-                url: "https://test.cloud.tuist.io"
+                url: "https://test.tuist.io"
             ),
             at: "/project/Tuist"
         )
 
         // When
-        let result = try subject.loadConfig(path: "/project")
+        let result = try await subject.loadConfig(path: "/project")
 
         // Then
         XCTAssertBetterEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
             fullHandle: "tuist/tuist",
-            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
+            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -158,7 +158,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
-    func test_loadConfig_with_deprecated_cloud() throws {
+    func test_loadConfig_with_deprecated_cloud() async throws {
         // Given
         stub(rootDirectory: "/project")
         stub(path: "/project/Tuist/Config.swift", exists: true)
@@ -166,20 +166,20 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             config: ProjectDescription.Config(
                 cloud: .cloud(
                     projectId: "tuist/tuist",
-                    url: "https://test.cloud.tuist.io"
+                    url: "https://test.tuist.io"
                 )
             ),
             at: "/project/Tuist"
         )
 
         // When
-        let result = try subject.loadConfig(path: "/project")
+        let result = try await subject.loadConfig(path: "/project")
 
         // Then
         XCTAssertBetterEqual(result, TuistCore.Config(
             compatibleXcodeVersions: .all,
             fullHandle: "tuist/tuist",
-            url: try XCTUnwrap(URL(string: "https://test.cloud.tuist.io")),
+            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -20,7 +21,7 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [TuistCore.ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule]
+    ) async throws -> [ProjectDescriptionHelpersModule]
 
     /// Builds all the plugin helpers module and returns the location to the built modules.
     ///
@@ -34,13 +35,13 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule]
+    ) async throws -> [ProjectDescriptionHelpersModule]
 }
 
 public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
-    private var builtHelpers: [AbsolutePath: ProjectDescriptionHelpersModule] = [:]
+    private var builtHelpers: ThreadSafe<[AbsolutePath: ProjectDescriptionHelpersModule]> = ThreadSafe([:])
 
     /// Path to the cache directory.
     private let cacheDirectory: AbsolutePath
@@ -53,6 +54,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// Clock for measuring build duration.
     private let clock: Clock
+    private let fileSystem: FileSystem
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -67,26 +69,28 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
-        clock: Clock = WallClock()
+        clock: Clock = WallClock(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
+        self.fileSystem = fileSystem
     }
 
     public func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule] {
-        let pluginHelpers = try buildPlugins(
+    ) async throws -> [ProjectDescriptionHelpersModule] {
+        let pluginHelpers = try await buildPlugins(
             at: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
             projectDescriptionHelperPlugins: projectDescriptionHelperPlugins
         )
 
-        let defaultHelpers = try buildDefaultHelpers(
+        let defaultHelpers = try await buildDefaultHelpers(
             in: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
             customProjectDescriptionHelperModules: pluginHelpers
@@ -101,19 +105,21 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         at _: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule] {
-        let pluginHelpers = try projectDescriptionHelperPlugins.map {
-            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+    ) async throws -> [ProjectDescriptionHelpersModule] {
+        return try await projectDescriptionHelperPlugins.concurrentMap { plugin in
+            try await self.buildHelpers(
+                name: plugin.name,
+                in: plugin.path,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths
+            )
         }
-
-        return pluginHelpers
     }
 
     private func buildDefaultHelpers(
         in path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
-    ) throws -> ProjectDescriptionHelpersModule? {
+    ) async throws -> ProjectDescriptionHelpersModule? {
         guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
             if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
@@ -125,7 +131,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 return nil
             }
         #endif
-        return try buildHelpers(
+        return try await buildHelpers(
             name: Self.defaultHelpersName,
             in: tuistHelpersDirectory,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
@@ -152,8 +158,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         in path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
-    ) throws -> ProjectDescriptionHelpersModule {
-        if let cachedModule = builtHelpers[path] { return cachedModule }
+    ) async throws -> ProjectDescriptionHelpersModule {
+        if let cachedModule = builtHelpers.withValue({ $0[path] }) { return cachedModule }
 
         let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
         let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
@@ -164,16 +170,10 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
         let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
 
-        builtHelpers[path] = projectDescriptionHelpersModule
+        builtHelpers.mutate { $0[path] = projectDescriptionHelpersModule }
 
         if FileHandler.shared.exists(helpersModuleCachePath) {
             return projectDescriptionHelpersModule
-        }
-
-        // If the same helpers directory has been previously compiled
-        // we delete it before compiling the new changes.
-        if FileHandler.shared.exists(helpersCachePath) {
-            try FileHandler.shared.delete(helpersCachePath)
         }
 
         try FileHandler.shared.createFolder(helpersModuleCachePath)

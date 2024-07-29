@@ -89,6 +89,6 @@ extension OSLogHandler: VerboseLogHandler {
 
 extension JSONLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
-        JSONLogHandler(label: label, logLevel: .debug)
+        StandardLogHandler(label: label, logLevel: .debug)
     }
 }

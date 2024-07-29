@@ -80,6 +80,22 @@ extension Array where Element: Sendable {
             return try concurrentForEach(perform)
         }
     }
+
+    /// For Each (with execution context)
+    ///
+    /// - Parameters:
+    ///   - context: The execution context to perform the `perform` operation with
+    ///   - perform: The perform closure to call on each element in the array
+    public func forEach(context: ExecutionContext, _ perform: @escaping (Element) async throws -> Void) async rethrows {
+        switch context.executionType {
+        case .serial:
+            for item in self {
+                try await perform(item)
+            }
+        case .concurrent:
+            return try await concurrentForEach(perform)
+        }
+    }
 }
 
 // MARK: - Private
@@ -138,6 +154,29 @@ extension Array {
             }
         }
         return try result.value.compactMap { $0 }.forEach {
+            throw $0
+        }
+    }
+
+    private func concurrentForEach(_ perform: @escaping (Element) async throws -> Void) async rethrows {
+        let result = ThreadSafe([Error?](repeating: nil, count: count))
+
+        await withTaskGroup(of: Void.self) { group in
+            for idx in 0 ..< count {
+                group.addTask {
+                    let element = self[idx]
+                    do {
+                        try await perform(element)
+                    } catch {
+                        result.mutate {
+                            $0[idx] = error
+                        }
+                    }
+                }
+            }
+        }
+
+        try result.value.compactMap { $0 }.forEach {
             throw $0
         }
     }

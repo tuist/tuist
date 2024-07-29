@@ -70,7 +70,7 @@ extension SynthesizedResourceInterfaceTemplates {
 
     // swiftlint:disable identifier_name line_length number_separator type_body_length
     {% for file in files %}
-    {{accessModifier}} enum {{file.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
+    {{accessModifier}} enum {{file.name|swiftIdentifier:"pretty"|escapeReservedKeywords}}: Sendable {
       {% filter indent:2," ",true %}{% call fileBlock file %}{% endfilter %}
     }
     {% endfor %}

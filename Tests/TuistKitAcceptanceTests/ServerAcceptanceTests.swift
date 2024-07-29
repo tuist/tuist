@@ -21,8 +21,11 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
         let id = try XCTUnwrap(
-            TestingLogHandler.collected[.info, <=].components(separatedBy: .newlines).dropLast().last?
-                .components(separatedBy: .whitespaces).first
+            TestingLogHandler.collected[.info, <=]
+                .components(separatedBy: .newlines)
+                .dropLast().last?
+                .components(separatedBy: .whitespaces)
+                .first
         )
         try await run(ProjectTokensRevokeCommand.self, id, fullHandle)
         TestingLogHandler.reset()
@@ -30,31 +33,5 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         XCTAssertStandardOutput(
             pattern: "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
         )
-    }
-}
-
-// MARK: - Helpers
-
-class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
-    var fullHandle: String = ""
-    var organizationHandle: String = ""
-    var projectHandle: String = ""
-
-    override func setUp() async throws {
-        try await super.setUp()
-        environment.tuistVariables[Constants.EnvironmentVariables.token] = ProcessInfo.processInfo
-            .environment[Constants.EnvironmentVariables.token]
-        try setUpFixture(.iosAppWithFrameworks)
-        organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
-        projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-        fullHandle = "\(organizationHandle)/\(projectHandle)"
-        try await run(OrganizationCreateCommand.self, organizationHandle)
-        try await run(ProjectCreateCommand.self, fullHandle)
-    }
-
-    override func tearDown() async throws {
-        try await run(ProjectDeleteCommand.self, fullHandle)
-        try await run(OrganizationDeleteCommand.self, organizationHandle)
-        try await super.tearDown()
     }
 }

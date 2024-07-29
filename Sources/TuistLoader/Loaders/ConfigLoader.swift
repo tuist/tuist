@@ -14,7 +14,7 @@ public protocol ConfigLoading {
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) throws -> TuistCore.Config
+    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config
 
     /// Locates the Config.swift manifest from the given directory.
     func locateConfig(at: AbsolutePath) -> AbsolutePath?
@@ -36,7 +36,7 @@ public final class ConfigLoader: ConfigLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadConfig(path: AbsolutePath) throws -> TuistCore.Config {
+    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
         if let cached = cachedConfigs[path] {
             return cached
         }
@@ -47,7 +47,7 @@ public final class ConfigLoader: ConfigLoading {
             return config
         }
 
-        let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
+        let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)
         let config = try TuistCore.Config.from(manifest: manifest, at: configPath)
         cachedConfigs[path] = config
         return config
