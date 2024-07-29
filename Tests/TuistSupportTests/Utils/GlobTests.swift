@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -7,20 +8,20 @@ import XCTest
 
 final class GlobTests: TuistTestCase {
     let temporaryFiles = ["foo", "bar", "baz", "dir1/file1.ext", "dir1/dir2/dir3/file2.ext", "dir1/**(_:_:)/file3.ext"]
-    private var temporaryDirectory: URL!
+    private var temporaryDirectory: AbsolutePath!
 
     override func setUpWithError() throws {
         super.setUp()
 
-        temporaryDirectory = try temporaryPath().url
+        temporaryDirectory = try temporaryPath()
         try createFiles(temporaryFiles, content: "")
     }
 
     private func test(pattern: String, expected: [String]) {
-        testWithPrefix("\(temporaryDirectory.path)/", pattern: pattern, expected: expected)
+        testWithPrefix("\(temporaryDirectory.url.path)/", pattern: pattern, expected: expected)
 
         let originalPath = FileManager.default.currentDirectoryPath
-        FileManager.default.changeCurrentDirectoryPath(temporaryDirectory.path)
+        FileManager.default.changeCurrentDirectoryPath(temporaryDirectory.url.path)
         defer {
             FileManager.default.changeCurrentDirectoryPath(originalPath)
         }
