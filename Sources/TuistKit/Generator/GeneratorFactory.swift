@@ -15,16 +15,13 @@ import XcodeGraph
 public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
-    /// - Parameter testsCacheDirectory: The cache directory used for tests.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
-    /// - Parameter automationStorage: The storage for automation.
     /// - Returns: A Generator instance.
     func testing(
         config: Config,
-        testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -32,8 +29,7 @@ public protocol GeneratorFactorying {
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        cacheStorage: CacheStoring,
-        automationStorage: AutomationStoring
+        cacheStorage: CacheStoring
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -79,7 +75,6 @@ public class GeneratorFactory: GeneratorFactorying {
 
     public func testing(
         config: Config,
-        testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -87,8 +82,7 @@ public class GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
-        cacheStorage _: CacheStoring,
-        automationStorage _: AutomationStoring
+        cacheStorage _: CacheStoring
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -98,7 +92,6 @@ public class GeneratorFactory: GeneratorFactorying {
 
         let graphMappers = graphMapperFactory.automation(
             config: config,
-            testsCacheDirectory: testsCacheDirectory,
             testPlan: testPlan,
             includedTargets: includedTargets,
             excludedTargets: excludedTargets
