@@ -68,7 +68,7 @@ final class GlobTests: TuistTestCase {
             "dir1/file1.ext",
             "foo",
         ]
-        
+
         let result = temporaryDirectory.glob("**/").map { $0.relative(to: temporaryDirectory).pathString }
         XCTAssertEqual(result, expected)
     }
@@ -87,7 +87,7 @@ final class GlobTests: TuistTestCase {
             "dir1/file1.ext",
             "foo",
         ]
-        
+
         let result = temporaryDirectory.glob("**/*").map { $0.relative(to: temporaryDirectory).pathString }
         XCTAssertEqual(result, expected)
     }
@@ -116,5 +116,4 @@ final class GlobTests: TuistTestCase {
         let result = temporaryDirectory.glob("**/dir2/**/*").map { $0.relative(to: temporaryDirectory).pathString }
         XCTAssertEqual(result, expected)
     }
-
 }
