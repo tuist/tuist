@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistServer
 
-final class ShareAcceptanceTestIosAppWithFrameworks: ServerAcceptanceTestCase {
+final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {
         try await setUpFixture(.iosAppWithFrameworks)
         try await run(BuildCommand.self)
@@ -17,9 +17,7 @@ final class ShareAcceptanceTestIosAppWithFrameworks: ServerAcceptanceTestCase {
         XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
-}
 
-final class ShareAcceptanceTestMultiplatformAppWithExtension: ServerAcceptanceTestCase {
     func test_share_multiplatform_app_with_extension() async throws {
         try await setUpFixture(.multiplatformAppWithExtension)
         try await run(BuildCommand.self, "App", "--platform", "visionos")
@@ -34,9 +32,7 @@ final class ShareAcceptanceTestMultiplatformAppWithExtension: ServerAcceptanceTe
         XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
-}
 
-final class ShareAcceptanceTestXcodeApp: ServerAcceptanceTestCase {
     func test_share_xcode_app() async throws {
         try await setUpFixture(.xcodeApp)
         try System.shared.runAndPrint(
