@@ -747,6 +747,7 @@ final class TestServiceTests: TuistUnitTestCase {
         environment.initialGraph = .test(
             projects: [
                 projectPathOne: .test(
+                    path: projectPathOne,
                     targets: [
                         .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
                         .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
@@ -785,6 +786,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     .test(
                         projects: [
                             projectPathOne: .test(
+                                path: projectPathOne,
                                 targets: [
                                     .test(name: "TargetA"),
                                     .test(name: "TargetB"),
@@ -883,6 +885,7 @@ final class TestServiceTests: TuistUnitTestCase {
         environment.initialGraph = .test(
             projects: [
                 projectPathOne: .test(
+                    path: projectPathOne,
                     targets: [
                         .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
                         .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
@@ -924,6 +927,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     .test(
                         projects: [
                             projectPathOne: .test(
+                                path: projectPathOne,
                                 targets: [
                                     .test(name: "TargetA"),
                                     .test(name: "TargetB"),

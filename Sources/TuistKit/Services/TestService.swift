@@ -404,13 +404,23 @@ final class TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {
-        let graphTraverser = GraphTraverser(graph: graph)
         let targets: [GraphTarget] = testActionTargets(
             for: schemes,
             graph: graph
         )
+        guard let initialGraph = mapperEnvironment.initialGraph else { return }
+        let graphTraverser = GraphTraverser(graph: initialGraph)
+
+        let testedGraphTargets: [GraphTarget] = targets.compactMap {
+            guard let project = initialGraph.projects[$0.path],
+                  let target = project.targets[$0.target.name] else { return nil }
+            return GraphTarget(path: $0.path, target: target, project: project)
+        }
         try await fileHandler.inTemporaryDirectory { _ in
-            let allTestedTargets: Set<Target> = Set(graphTraverser.allTargetDependencies(targets).union(targets).map(\.target))
+            let allTestedTargets: Set<Target> = Set(
+                graphTraverser.allTargetDependencies(testedGraphTargets)
+                    .union(testedGraphTargets).map(\.target)
+            )
             let hashes = mapperEnvironment.testsCacheUntestedHashes.filter { element in
                 allTestedTargets.contains(where: { $0.bundleId == element.key.bundleId })
             }
