@@ -61,6 +61,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 xcodeProjPath: "/XcodeName.xcodeproj",
                 name: "Name",
                 organizationName: "Organization",
+                classPrefix: nil,
                 defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
                 options: .init(
