@@ -885,8 +885,6 @@ final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase 
         try setUpFixture(.appWithMetalOptions)
         try await run(GenerateCommand.self)
 
-        let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
-
         try XCTAssertContainsMetalOptions(
             xcodeprojPath: xcodeprojPath,
             scheme: "CustomMetalConfig",
