@@ -586,6 +586,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             enableGPUFrameCaptureMode = .autoEnabled
         }
 
+        let disableGPUValidationMode = scheme.runAction?.metalOptions?.apiValidation == false
+        let enableGPUShaderValidationMode = scheme.runAction?.metalOptions?.shaderValidation ?? false
+        let showGraphicsOverview = scheme.runAction?.metalOptions?.showGraphicsOverview ?? false
+        let logGraphicsOverview = scheme.runAction?.metalOptions?.logGraphicsOverview ?? false
+
         let preActions = try scheme.runAction?.preActions.map {
             try schemeExecutionAction(
                 action: $0,
@@ -617,6 +622,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
+            disableGPUValidationMode: disableGPUValidationMode,
+            enableGPUShaderValidationMode: enableGPUShaderValidationMode,
+            showGraphicsOverview: showGraphicsOverview,
+            logGraphicsOverview: logGraphicsOverview,
             enableAddressSanitizer: enableAddressSanitizer,
             enableASanStackUseAfterReturn: enableASanStackUseAfterReturn,
             enableThreadSanitizer: enableThreadSanitizer,
