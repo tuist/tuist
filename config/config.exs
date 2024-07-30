@@ -20,6 +20,15 @@ config :tuist, TuistWeb.Endpoint,
   pubsub_server: Tuist.PubSub,
   live_view: [signing_salt: "laTbtzV8"]
 
+config :tuist, :urls,
+  slack: "https://slack.tuist.io",
+  x: "https://x.com/tuistio",
+  github: "https://github.com/tuist",
+  mastodon: "https://fosstodon.org/@tuist",
+  linkedin: "https://www.linkedin.com/company/tuistio",
+  newsletter: "https://lists.tuist.io/subscription/form",
+  peertube: "https://videos.tuist.io"
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
