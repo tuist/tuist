@@ -10,3 +10,42 @@
       var(--violet);
   }
 }
+
+.marketing__component__secondary__button {
+  cursor: pointer;
+  text-decoration: none;
+
+  &[data-size="small"] {
+    padding: var(--spacing-8) var(--spacing-16);
+    border-radius: var(--spacing-4);
+  }
+  &[data-size="medium"] {
+    padding: var(--spacing-16) var(--spacing-24);
+    border-radius: var(--spacing-8);
+  }
+  &[data-size="big"] {
+    padding: var(--spacing-24) var(--spacing-24);
+    border-radius: var(--spacing-8);
+  }
+  &[data-variant="dark"] {
+    color: var(--white);
+    border-width: 2px;
+    border-color: var(--white);
+    border-style: solid;
+
+    &:hover {
+      border-color: var(--gray-violet);
+      background-color: rgba(var(--gray-violet), 0.05);
+    }
+  }
+  &[data-variant="light"] {
+    color: var(--dark-violet);
+    border-width: 2px;
+    border-color: var(--dark-violet);
+    border-style: solid;
+    &:hover {
+      border-color: var(--dark-violet);
+      background-color: var(--light-gray-violet);
+    }
+  }
+}

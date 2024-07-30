@@ -3,8 +3,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
-
-  @default_icon_size 24
+  import TuistWeb.MarketingIcons
 
   embed_templates "marketing_layout_components/*"
 
@@ -18,51 +17,45 @@ defmodule TuistWeb.MarketingLayoutComponents do
     """
   end
 
-  attr :size, :integer, default: @default_icon_size
-  attr :class, :string, default: ""
+  attr :size, :atom, required: true, values: [:big, :medium, :small]
+  attr :variant, :atom, required: true, values: [:light, :dark]
+  attr :href, :string, required: false
+  attr :target, :string, required: false
+  attr :rest, :global
+  slot :inner_block, required: false
 
-  def icon_plus(assigns) do
+  def secondary_button(assigns) do
+    font_class =
+      case assigns[:size] do
+        :big -> "font-l-strong"
+        :medium -> "font-m-strong"
+        :small -> "font-xs-strong"
+      end
+
+    assigns = assigns |> assign(:font_class, font_class)
+
     ~H"""
-    <svg
-      class={@class}
-      width={@size}
-      height={@size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M12 5V19M5 12H19"
-        stroke="black"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-    """
-  end
-
-  attr :size, :integer, default: @default_icon_size
-  attr :class, :string, default: ""
-
-  def icon_minus(assigns) do
-    ~H"""
-    <svg
-      class={@class}
-      width={@size}
-      height={@size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M5 12H19"
-        stroke="black"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
+    <%= if @href do %>
+      <a
+        href={assigns[:href]}
+        target={assigns[:target]}
+        {@rest}
+        class={"marketing__component__secondary__button #{@font_class}"}
+        data-size={Atom.to_string(@size)}
+        data-variant={Atom.to_string(@variant)}
+      >
+        <%= render_slot(@inner_block) %>
+      </a>
+    <% else %>
+      <button
+        {@rest}
+        class={"marketing__component__secondary__button #{@font_class}"}
+        data-size={Atom.to_string(@size)}
+        data-variant={Atom.to_string(@variant)}
+      >
+        <%= render_slot(@inner_block) %>
+      </button>
+    <% end %>
     """
   end
 end

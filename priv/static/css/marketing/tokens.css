@@ -5,7 +5,7 @@
   --dark-violet: #2c2250;
   --medium-violet: #3c315b;
   --light-violet: #afa2f3;
-  --gray-violet: #e8e7f9;
+  --gray-violet: 232, 231, 249;
   --light-gray-violet: #f3f2fd;
   --white: #ffffff;
   --yellow: #ffe487;
@@ -18,6 +18,7 @@
   --radius-m: 0.5rem; /* 8px */
   --radius-l: 1rem; /* 16px */
   --radius-xl: 2rem; /* 32px */
+  --radius-full: 9999px;
 
   /* Fonts */
   --font-grotesk: "Space Grotesk", sans-serif;
