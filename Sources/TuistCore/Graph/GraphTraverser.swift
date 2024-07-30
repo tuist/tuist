@@ -115,11 +115,11 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTarget> {
         guard let target = target(path: path, name: name) else { return [] }
-        return allTargetDependencies([target])
+        return allTargetDependencies(traversingFromTargets: [target])
     }
 
-    public func allTargetDependencies(_ rootTargets: [GraphTarget]) -> Set<GraphTarget> {
-        return transitiveClosure(rootTargets) { target in
+    public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
+        return transitiveClosure(traversingFromTargets) { target in
             Array(
                 directTargetDependencies(
                     path: target.path,

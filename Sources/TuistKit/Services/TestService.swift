@@ -418,7 +418,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
         try await fileHandler.inTemporaryDirectory { _ in
             let allTestedTargets: Set<Target> = Set(
-                graphTraverser.allTargetDependencies(testedGraphTargets)
+                graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
                     .union(testedGraphTargets).map(\.target)
             )
             let hashes = mapperEnvironment.testsCacheUntestedHashes.filter { element in

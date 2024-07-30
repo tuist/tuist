@@ -76,7 +76,8 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies
     func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
-    func allTargetDependencies(_ rootTargets: [GraphTarget]) -> Set<GraphTarget>
+    /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
+    func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
