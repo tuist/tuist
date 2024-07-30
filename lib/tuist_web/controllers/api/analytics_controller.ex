@@ -249,7 +249,7 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    upload_id =
+    {:ok, upload_id} =
       Storage.multipart_start(
         get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
       )

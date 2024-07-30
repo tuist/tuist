@@ -30,7 +30,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
 
     Storage
     |> expect(:multipart_start, fn _ ->
-      "id"
+      {:ok, "id"}
     end)
 
     conn =
