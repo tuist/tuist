@@ -269,7 +269,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       Storage
       |> expect(:multipart_start, fn ^object_key ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn =
@@ -304,7 +304,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       Storage
       |> expect(:multipart_start, fn ^object_key ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn =
