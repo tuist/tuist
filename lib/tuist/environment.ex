@@ -94,10 +94,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def open_telemetry_enabled?(secrets \\ secrets()) do
-    get([:open_telemetry, :enabled], secrets) |> truthy?()
-  end
-
   def attio_api_key(secrets \\ secrets()) do
     get([:attio, :api_key], secrets)
   end

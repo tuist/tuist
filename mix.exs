@@ -90,17 +90,7 @@ defmodule Tuist.MixProject do
       {:memoize, "~> 1.4"},
       {:guardian, "~> 2.3"},
       {:guardian_db, "~> 3.0"},
-      {:uuidv7, "~> 0.2"},
-      # OpenTelemetry
-      {:opentelemetry, "~> 1.4"},
-      {:opentelemetry_telemetry, "~> 1.1"},
-      {:opentelemetry_api, "~> 1.3"},
-      {:opentelemetry_phoenix, "~> 1.2"},
-      {:opentelemetry_bandit, "~> 0.1.4"},
-      {:opentelemetry_ecto, "~> 1.2"},
-      {:opentelemetry_oban, "~> 1.1"},
-      {:opentelemetry_req, "~> 0.2.0"},
-      {:opentelemetry_finch, "~> 0.2.0"}
+      {:uuidv7, "~> 0.2"}
     ]
   end
 

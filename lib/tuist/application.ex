@@ -15,14 +15,6 @@ defmodule Tuist.Application do
 
     Oban.Telemetry.attach_default_logger()
 
-    if Environment.open_telemetry_enabled?() do
-      OpentelemetryBandit.setup()
-      OpentelemetryPhoenix.setup()
-      OpentelemetryEcto.setup([:tuist, :repo])
-      OpentelemetryOban.setup()
-      OpentelemetryFinch.setup()
-    end
-
     children =
       [
         TuistWeb.Telemetry,

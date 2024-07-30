@@ -28,11 +28,6 @@ if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
-# The following adds "stdout" exporter in "dev" when TUIST_OPEN_TELEMETRY_ENABLED=1
-if Tuist.Environment.open_telemetry_enabled?(secrets) and env == :dev do
-  config :opentelemetry, traces_exporter: {:otel_exporter_stdout, []}
-end
-
 if [:prod, :stag, :can] |> Enum.member?(env) do
   config :logger, level: Tuist.Environment.log_level()
 
