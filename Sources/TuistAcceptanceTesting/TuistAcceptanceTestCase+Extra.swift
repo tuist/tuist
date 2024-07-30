@@ -96,29 +96,17 @@ extension TuistAcceptanceTestCase {
     ) throws {
         let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
 
-        guard let scheme = xcodeproj.sharedData?.schemes
-            .filter({ $0.name == scheme })
-            .first
-        else {
-            XCTFail(
-                "The '\(scheme)' scheme doesn't exist.",
-                file: file,
-                line: line
-            )
-            return
-        }
+        let scheme = try XCTUnwrap(
+            xcodeproj.sharedData?.schemes
+                .filter { $0.name == scheme }
+                .first
+        )
 
-        guard let testableTarget = scheme.testAction?.testables
-            .filter({ $0.buildableReference.blueprintName == testTarget })
-            .first
-        else {
-            XCTFail(
-                "The '\(testTarget)' testable target doesn't exist.",
-                file: file,
-                line: line
-            )
-            return
-        }
+        let testableTarget = try XCTUnwrap(
+            scheme.testAction?.testables
+                .filter { $0.buildableReference.blueprintName == testTarget }
+                .first
+        )
 
         XCTAssertEqual(
             testableTarget.locationScenarioReference?.identifier.contains(simulatedLocation),
