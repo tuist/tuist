@@ -260,17 +260,23 @@ defmodule TuistWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    upload_id =
-      Storage.multipart_start(
-        get_object_key(%{
-          hash: hash,
-          name: name,
-          project_slug: project_slug,
-          cache_category: cache_category
-        })
-      )
+    case Storage.multipart_start(
+           get_object_key(%{
+             hash: hash,
+             name: name,
+             project_slug: project_slug,
+             cache_category: cache_category
+           })
+         ) do
+      {:ok, upload_id} ->
+        conn |> json(%{status: "success", data: %{upload_id: upload_id}})
 
-    conn |> json(%{status: "success", data: %{upload_id: upload_id}})
+      {:error, {:raw, error_message}} ->
+        conn |> put_status(:internal_server_error) |> json(%{message: error_message})
+
+      {:error, {:http, status, error_message}} ->
+        conn |> put_status(status) |> json(%{message: error_message})
+    end
   end
 
   def multipart_start(conn, _params) do
@@ -461,33 +467,36 @@ defmodule TuistWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    :ok =
-      Storage.multipart_complete_upload(
-        get_object_key(item),
-        upload_id,
-        parts
-        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end)
-      )
+    with {:multipart_complete, :ok} <-
+           {:multipart_complete,
+            Storage.multipart_complete_upload(
+              get_object_key(item),
+              upload_id,
+              parts
+              |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+                {part_number, etag}
+              end)
+            )},
+         {:object_size, {:ok, size}} <-
+           {:object_size, Storage.get_object_size(get_object_key(item))} do
+      CommandEvents.create_cache_event(%{
+        name: name,
+        event_type: :upload,
+        size: size,
+        project_id: EnsureProjectPresencePlug.get_project(conn).id,
+        hash: hash
+      })
 
-    object_size = Storage.get_object_size(get_object_key(item))
-
-    case object_size do
-      {:ok, size} ->
-        CommandEvents.create_cache_event(%{
-          name: name,
-          event_type: :upload,
-          size: size,
-          project_id: EnsureProjectPresencePlug.get_project(conn).id,
-          hash: hash
-        })
-
-        conn |> json(%{status: "success", data: %{}})
-
-      {:error, {:http, status, message}} ->
+      conn |> json(%{status: "success", data: %{}})
+    else
+      {_, {:error, {:http, status, message}}} ->
         conn
         |> put_status(status)
+        |> json(%{message: message})
+
+      {_, {:error, {:raw, message}}} ->
+        conn
+        |> put_status(:internal_server_error)
         |> json(%{message: message})
     end
   end

@@ -152,7 +152,7 @@ defmodule Tuist.StorageTest do
       end)
 
       # When
-      assert Storage.multipart_start("object-key") == upload_id
+      assert Storage.multipart_start("object-key") == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration},
