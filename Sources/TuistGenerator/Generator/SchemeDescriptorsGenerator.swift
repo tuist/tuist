@@ -587,9 +587,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         let disableGPUValidationMode = scheme.runAction?.metalOptions?.apiValidation == false
-        let enableGPUShaderValidationMode = scheme.runAction?.metalOptions?.shaderValidation ?? false
-        let showGraphicsOverview = scheme.runAction?.metalOptions?.showGraphicsOverview ?? false
-        let logGraphicsOverview = scheme.runAction?.metalOptions?.logGraphicsOverview ?? false
+        let enableGPUShaderValidationMode = scheme.runAction?.metalOptions?.shaderValidation == true
+        let showGraphicsOverview = scheme.runAction?.metalOptions?.showGraphicsOverview == true
+        let logGraphicsOverview = scheme.runAction?.metalOptions?.logGraphicsOverview == true
 
         let preActions = try scheme.runAction?.preActions.map {
             try schemeExecutionAction(
