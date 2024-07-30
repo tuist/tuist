@@ -72,7 +72,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Storage
       |> expect(:multipart_start, fn ^object_key ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn =
@@ -91,6 +91,68 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload when it returns a raw error", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      Storage
+      |> expect(:multipart_start, fn ^object_key ->
+        {:error, {:raw, "error"}}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
+
+      # # Then
+      response = json_response(conn, :internal_server_error)
+      assert response["message"] == "error"
+    end
+
+    test "starts multipart upload when it returns an http error", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      Storage
+      |> expect(:multipart_start, fn ^object_key ->
+        {:error, {:http, 502, "error"}}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
+
+      # # Then
+      response = json_response(conn, 502)
+      assert response["message"] == "error"
     end
   end
 
@@ -185,6 +247,94 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_event.size == 1024
     end
 
+    test "returns an error if the completion of the multipart upload fails with a http error", %{
+      conn: conn
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Storage
+      |> expect(:multipart_complete_upload, fn ^object_key,
+                                               ^upload_id,
+                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+        {:error, {:http, 500, "error"}}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, 500)
+      assert response["message"] == "error"
+    end
+
+    test "returns an error if the completion of the multipart upload fails with a raw error", %{
+      conn: conn
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Storage
+      |> expect(:multipart_complete_upload, fn ^object_key,
+                                               ^upload_id,
+                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+        {:error, {:raw, "error"}}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, :internal_server_error)
+      assert response["message"] == "error"
+    end
+
     test "completes a multipart upload when an item was uploaded before", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -237,7 +387,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_event.size == 1024
     end
 
-    test "returns an error if the object size can't be obtained", %{conn: conn} do
+    test "returns an error if obtaining the size returns an HTTP error", %{conn: conn} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -282,6 +432,54 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       response = json_response(conn, 500)
+      assert response["message"] == "Test error"
+    end
+
+    test "returns an error if obtaining the size returns a raw error", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Storage
+      |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
+
+      Storage
+      |> stub(:get_object_size, fn _ -> {:error, {:raw, "Test error"}} end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      CommandEvents.create_cache_event(%{
+        hash: hash,
+        name: name,
+        event_type: :upload,
+        project_id: project.id,
+        size: 1024
+      })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, :internal_server_error)
       assert response["message"] == "Test error"
     end
   end

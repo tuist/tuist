@@ -53,7 +53,7 @@ defmodule Tuist.Storage do
   end
 
   def multipart_complete_upload(object_key, upload_id, parts) do
-    {time, :ok} =
+    {time, result} =
       Tuist.Performance.measure_time_in_milliseconds(fn ->
         Native.s3_multipart_complete_upload(%S3MultipartCompleteUploadOptions{
           bucket_name: Environment.s3_bucket_name(),
@@ -73,7 +73,7 @@ defmodule Tuist.Storage do
       %{object_key: object_key, upload_id: upload_id}
     )
 
-    :ok
+    result
   end
 
   def generate_download_url(object_key, opts \\ []) do
@@ -150,17 +150,14 @@ defmodule Tuist.Storage do
   end
 
   def multipart_start(object_key) do
-    {time, upload_id} =
+    {time, result} =
       Tuist.Performance.measure_time_in_milliseconds(fn ->
-        {:ok, upload_id} =
-          Native.s3_multipart_start(%S3MultipartStartOptions{
-            bucket_name: Environment.s3_bucket_name(),
-            region: native_region(),
-            object_key: object_key,
-            credentials: native_credentials()
-          })
-
-        upload_id
+        Native.s3_multipart_start(%S3MultipartStartOptions{
+          bucket_name: Environment.s3_bucket_name(),
+          region: native_region(),
+          object_key: object_key,
+          credentials: native_credentials()
+        })
       end)
 
     Logger.debug("Multi-part upload started in #{time} ms.")
@@ -171,7 +168,7 @@ defmodule Tuist.Storage do
       %{object_key: object_key}
     )
 
-    upload_id
+    result
   end
 
   def delete_all_objects(project_slug) do
@@ -219,13 +216,8 @@ defmodule Tuist.Storage do
 
         {:ok, size}
 
-      {:error, {:raw, error}} ->
+      {:error, error} ->
         {:error, error}
-
-      {:error, {:http, status, _}} when status in 500..599 ->
-        {:error,
-         {:http, status,
-          "The storage service failed with the status code #{status} while obtaining the size of the object."}}
     end
   end
 
