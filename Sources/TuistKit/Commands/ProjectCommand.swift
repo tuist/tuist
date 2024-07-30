@@ -8,6 +8,7 @@ struct ProjectCommand: ParsableCommand {
             commandName: "project",
             abstract: "A set of commands to manage your Tuist projects.",
             subcommands: [
+                ProjectViewCommand.self,
                 ProjectCreateCommand.self,
                 ProjectListCommand.self,
                 ProjectDeleteCommand.self,

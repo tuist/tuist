@@ -105,8 +105,8 @@ you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https
 
 ```bash
 brew tap tuist/tuist
-brew install tuist
-brew install tuist@x.y.z
+brew install --formula tuist
+brew install --formula tuist@x.y.z
 ```
 
 ### Shell completions
