@@ -775,7 +775,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         environment.testsCacheUntestedHashes = [
-            .test(bundleId: "io.tuist.TargetA"): "hash-a",
+            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
         ]
         given(generator)
             .generateWithGraph(path: .any)
@@ -811,7 +811,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .store(
                 .value(
                     [
-                        CacheStorableItem(name: "hash-a", hash: "hash-a"): [],
+                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
                     ]
                 ),
                 cacheCategory: .value(.selectiveTests)
@@ -913,8 +913,8 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         environment.testsCacheUntestedHashes = [
-            .test(bundleId: "io.tuist.TargetA"): "hash-a",
-            .test(bundleId: "io.tuist.TargetD"): "hash-d",
+            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
+            .test(name: "TargetD", bundleId: "io.tuist.TargetD"): "hash-d",
         ]
         given(generator)
             .generateWithGraph(path: .any)
@@ -953,7 +953,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .store(
                 .value(
                     [
-                        CacheStorableItem(name: "hash-d", hash: "hash-d"): [],
+                        CacheStorableItem(name: "TargetD", hash: "hash-d"): [],
                     ]
                 ),
                 cacheCategory: .value(.selectiveTests)

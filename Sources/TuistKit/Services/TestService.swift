@@ -417,7 +417,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
             let cacheableItems: [CacheStorableItem: [AbsolutePath]] = hashes
                 .reduce(into: [:]) { acc, element in
-                    acc[CacheStorableItem(name: element.value, hash: element.value)] = [AbsolutePath]()
+                    acc[CacheStorableItem(name: element.key.name, hash: element.value)] = [AbsolutePath]()
                 }
 
             try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
