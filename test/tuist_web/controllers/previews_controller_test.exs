@@ -16,7 +16,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     %{user: user, project: project, account: account}
   end
 
-  describe "POST /api/:account_handle/:project_handle/previews/start" do
+  describe "POST /api/projects/:account_handle/:project_handle/previews/start" do
     test "starts multipart upload", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"
@@ -34,7 +34,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/start")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
 
       # Then
       response = json_response(conn, :ok)
@@ -58,7 +58,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/non-existing-project/previews/start")
+        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/start")
 
       # Then
       response = json_response(conn, :not_found)
@@ -84,7 +84,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/start")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -94,7 +94,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
-  describe "POST /api/:account_handle/:project_handle/previews/generate-url" do
+  describe "POST /api/projects/:account_handle/:project_handle/previews/generate-url" do
     test "generates multipart url", %{conn: conn, user: user, project: project, account: account} do
       # Given
       preview_id = "preview-id"
@@ -121,7 +121,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/generate-url",
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
           preview_id: preview_id,
           multipart_upload_part: %{part_number: part_number, upload_id: upload_id}
         )
@@ -147,7 +147,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/non-existing-project/previews/generate-url",
+        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/generate-url",
           preview_id: "preview-id",
           multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
         )
@@ -176,7 +176,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/generate-url",
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
           preview_id: "preview-id",
           multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
         )
@@ -189,7 +189,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
-  describe "POST /api/:account_handle/:project_handle/previews/complete" do
+  describe "POST /api/projects/:account_handle/:project_handle/previews/complete" do
     test "completes multipart upload", %{
       conn: conn,
       user: user,
@@ -224,7 +224,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/complete",
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
           preview_id: preview_id,
           multipart_upload_parts: %{
             parts: parts,
@@ -254,7 +254,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/non-existing-project/previews/complete",
+        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/complete",
           preview_id: "preview_id",
           multipart_upload_parts: %{
             parts: [],
@@ -286,7 +286,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/#{account.name}/#{project.name}/previews/complete",
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
           preview_id: "preview_id",
           multipart_upload_parts: %{
             parts: [],
@@ -302,7 +302,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
-  describe "GET /api/:account_handle/:project_handle/previews/:preview_id" do
+  describe "GET /api/projects/:account_handle/:project_handle/previews/:preview_id" do
     test "return preview download URL", %{
       conn: conn,
       user: user,
@@ -327,7 +327,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/#{account.name}/#{project.name}/previews/#{preview_id}")
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview_id}")
 
       # Then
       response = json_response(conn, :ok)
@@ -348,7 +348,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/#{account.name}/non-existing-project/previews/preview-id")
+        |> get(~p"/api/projects/#{account.name}/non-existing-project/previews/preview-id")
 
       # Then
       response = json_response(conn, :not_found)
@@ -373,7 +373,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/#{account.name}/#{project.name}/previews/preview-id")
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/preview-id")
 
       # Then
       response = json_response(conn, :forbidden)
