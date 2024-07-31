@@ -708,13 +708,13 @@ extension ProjectDescription.Product {
             return ProjectDescription.Product.from(product: productType)
         }
 
-        var hasLibraryProducts = false
+        var hasAutomaticProduct = false
         let product: ProjectDescription.Product? = products.reduce(nil) { result, product in
             switch product.type {
             case let .library(type):
-                hasLibraryProducts = true
                 switch type {
                 case .automatic:
+                    hasAutomaticProduct = true
                     return result
                 case .static:
                     return .staticFramework
@@ -731,11 +731,12 @@ extension ProjectDescription.Product {
             }
         }
 
-        if product != nil {
-            return product
-        } else if hasLibraryProducts {
-            // only automatic products, default to static framework
+        if hasAutomaticProduct {
+            // contains automatic product, default to static framework
             return .staticFramework
+        } else if product != nil {
+            // return found product if there is no automatic products
+            return product
         } else {
             // only executable, plugin, or test products, ignore it
             return nil

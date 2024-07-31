@@ -568,6 +568,10 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="http://darrarski.pl"><img src="https://avatars.githubusercontent.com/u/1384684?v=4" width="100px;" alt=""/><br /><sub><b>Dariusz Rybicki</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/dansinclair25"><img src="https://avatars.githubusercontent.com/u/2573447?v=4" width="100px;" alt=""/><br /><sub><b>Dan Sinclair</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.kaioelfke.de"><img src="https://avatars.githubusercontent.com/u/1190948?v=4" width="100px;" alt=""/><br /><sub><b>Kai Oelfke</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://stackoverflow.com/users/468724/inder-kumar-rathore"><img src="https://avatars.githubusercontent.com/u/352443?v=4" width="100px;" alt=""/><br /><sub><b>Inder</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyounh12"><img src="https://avatars.githubusercontent.com/u/25301615?v=4" width="100px;" alt=""/><br /><sub><b>kyounh12</b></sub></a></td>
     </tr>
   </tbody>
 </table>

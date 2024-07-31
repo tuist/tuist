@@ -331,6 +331,58 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_resources_via_dynamic_framework() {
+        // Given
+        // App -> DynamicFramework -> StaticLibrary (External) -> Bundle
+        let app = Target.test(name: "App", product: .app)
+        let dynamicFramework = Target.test(name: "DynamicFramework", product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let bundle = Target.test(name: "Bundle", product: .bundle)
+        let project = Project.test(targets: [app, dynamicFramework])
+        let externalProject = Project.test(
+            path: try! AbsolutePath(validating: "/ExternalProject"),
+            targets: [staticLibrary, bundle],
+            isExternal: true
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: dynamicFramework.name, path: project.path)]),
+            .target(name: dynamicFramework.name, path: project.path): Set([.target(
+                name: staticLibrary.name,
+                path: externalProject.path
+            )]),
+            .target(name: staticLibrary.name, path: externalProject.path): Set([.target(
+                name: bundle.name,
+                path: externalProject.path
+            )]),
+            .target(name: bundle.name, path: externalProject.path): Set([]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appBundleDependencies = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
+        let dynamicFrameworkBundleDependencies = subject.resourceBundleDependencies(
+            path: project.path,
+            name: dynamicFramework.name
+        ).sorted()
+
+        // Then
+        XCTAssertEqual(appBundleDependencies, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension),
+        ])
+        XCTAssertEqual(dynamicFrameworkBundleDependencies, [])
+    }
+
     func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
