@@ -40,7 +40,7 @@ public struct ImportFinderCommand: AsyncParsableCommand {
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),
             graphMapper: SequentialGraphMapper([])
         )
-        let (graph, _, _) = try await manifestGraphLoader
+        let (graph, _, _, _) = try await manifestGraphLoader
             .load(path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath)
         for (target, element) in try await GraphImplicitImportLintService(graph: graph).lint() {
             print(target.name)
