@@ -72,6 +72,11 @@ public protocol FileHandling: AnyObject {
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath>
+    func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
     func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath]
     func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
@@ -87,6 +92,16 @@ public protocol FileHandling: AnyObject {
     func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]?
     func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
     func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
+}
+
+extension FileHandling {
+    public func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath> {
+        files(in: path, filter: nil, nameFilter: nameFilter, extensionFilter: extensionFilter)
+    }
 }
 
 public class FileHandler: FileHandling {
