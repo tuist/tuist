@@ -12,7 +12,6 @@ protocol GraphMapperFactorying {
     /// - Returns: A graph mapper.
     func automation(
         config: Config,
-        testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>
@@ -30,7 +29,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
     public func automation(
         config: Config,
-        testsCacheDirectory _: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>

@@ -1,7 +1,6 @@
 import MockableTest
 import Path
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import TuistSupportTesting
 import XCTest

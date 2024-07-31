@@ -12,12 +12,15 @@ import XcodeGraph
 public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swiftlint:disable:this type_name
     public init() {}
 
-    public func map(graph: Graph) async throws -> (Graph, [TuistCore.SideEffectDescriptor]) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
         logger.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
 
         // If the project has no external dependencies we skip this.
         if graph.projects.values.first(where: { $0.isExternal }) == nil {
-            return (graph, [])
+            return (graph, [], environment)
         }
 
         var graph = graph
@@ -36,7 +39,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             return (projectPath, project)
         })
 
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     private func mapTarget(
