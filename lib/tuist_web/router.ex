@@ -92,11 +92,23 @@ defmodule TuistWeb.Router do
         AnalyticsController,
         :complete_artifacts_uploads
 
-    scope "/:account_handle/:project_handle/previews" do
-      post "/start", PreviewsController, :multipart_start
-      post "/generate-url", PreviewsController, :multipart_generate_url
-      post "/complete", PreviewsController, :multipart_complete
-      get "/:preview_id", PreviewsController, :download
+    scope "/projects" do
+      post "/", ProjectsController, :create
+      get "/", ProjectsController, :index
+      delete "/:id", ProjectsController, :delete
+
+      scope "/:account_handle/:project_handle" do
+        get "/", ProjectsController, :show
+
+        scope "/previews" do
+          post "/start", PreviewsController, :multipart_start
+          post "/generate-url", PreviewsController, :multipart_generate_url
+          post "/complete", PreviewsController, :multipart_complete
+          get "/:preview_id", PreviewsController, :download
+        end
+
+        put "/cache/clean", CacheController, :clean
+      end
     end
 
     get "/cache", CacheController, :download
@@ -124,8 +136,6 @@ defmodule TuistWeb.Router do
         OrganizationsController,
         :update_member
 
-    put "/projects/:account_handle/:project_handle/cache/clean", CacheController, :clean
-
     post "/projects/:account_handle/:project_handle/tokens",
          ProjectTokensController,
          :create
@@ -135,11 +145,6 @@ defmodule TuistWeb.Router do
     delete "/projects/:account_handle/:project_handle/tokens/:id",
            ProjectTokensController,
            :delete
-
-    post "/projects", ProjectsController, :create
-    get "/projects/:account_handle/:project_handle", ProjectsController, :show
-    delete "/projects/:id", ProjectsController, :delete
-    get "/projects", ProjectsController, :index
   end
 
   scope "/api" do
