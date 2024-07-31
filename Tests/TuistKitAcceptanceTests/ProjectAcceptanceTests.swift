@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistServer
 
-final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
+final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {
         try await run(ProjectListCommand.self)
         XCTAssertStandardOutput(pattern: "Listing all your projects:")
@@ -15,7 +15,7 @@ final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
     }
 }
 
-final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
+final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
         try await run(ProjectTokensCreateCommand.self, fullHandle)
         TestingLogHandler.reset()
@@ -32,6 +32,27 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         try await run(ProjectTokensListCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
+        )
+    }
+}
+
+final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase {
+    func test_update_default_branch() async throws {
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Full handle: \(fullHandle)
+            Default branch: main
+            """
+        )
+        try await run(ProjectUpdateCommand.self, fullHandle, "--default-branch", "new-default-branch")
+        TestingLogHandler.reset()
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Full handle: \(fullHandle)
+            Default branch: new-default-branch
+            """
         )
     }
 }
