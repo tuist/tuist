@@ -6,7 +6,7 @@ import XcodeGraph
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking nodes")
         let sourceTargets: Set<TargetReference> = Set(graph.projects.flatMap { projectPath, project -> [TargetReference] in
             return project.targets.compactMap { _, target -> TargetReference? in
@@ -16,7 +16,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         })
 
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, []) }
+        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, [], environment) }
 
         let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
             let targets = self.treeShake(
@@ -48,7 +48,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         var graph = graph
         graph.workspace = workspace
         graph.projects = projects
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     fileprivate func treeShake(workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>) -> Workspace {

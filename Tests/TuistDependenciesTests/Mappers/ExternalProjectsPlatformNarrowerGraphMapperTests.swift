@@ -1,9 +1,10 @@
 import Foundation
+import TuistCore
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistSupportTesting
 
 final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase {
     var subject: ExternalProjectsPlatformNarrowerGraphMapper!
@@ -47,7 +48,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -97,7 +98,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -158,7 +159,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -221,7 +222,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(

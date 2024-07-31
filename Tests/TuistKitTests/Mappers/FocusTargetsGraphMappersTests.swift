@@ -30,7 +30,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
 
         // Then
@@ -67,7 +67,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
         let expectingTargets = [dTarget, eTarget]
 
@@ -101,7 +101,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [bTarget, cTarget]
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
@@ -136,7 +136,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [cTarget]
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
@@ -175,7 +175,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         let expectingTargets = [bTarget, cTarget, aTestTarget]
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
@@ -211,7 +211,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
 
         // When
         XCTAssertThrowsSpecific(
-            try subject.map(graph: graph),
+            try subject.map(graph: graph, environment: MapperEnvironment()),
             FocusTargetsGraphMappersError.targetsNotFound(["bar"])
         )
     }

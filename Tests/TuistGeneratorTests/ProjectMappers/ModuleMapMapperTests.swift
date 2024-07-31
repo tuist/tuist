@@ -70,7 +70,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -85,7 +85,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         .target(name: targetB2.name, path: projectBPath),
                     ],
                 ]
-            )
+            ),
+            environment: MapperEnvironment()
         )
 
         // Then
@@ -204,7 +205,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -216,7 +217,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         .target(name: targetB.name, path: projectBPath),
                     ],
                 ]
-            )
+            ),
+            environment: MapperEnvironment()
         )
 
         // Then

@@ -78,7 +78,7 @@ final class RunServiceTests: TuistUnitTestCase {
         // Given
         given(generator)
             .generateWithGraph(path: .any)
-            .willReturn((try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test()))
+            .willReturn((try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test(), MapperEnvironment()))
         given(buildGraphInspector)
             .workspacePath(directory: .any)
             .willReturn(try! AbsolutePath(validating: "/path/to/project.xcworkspace"))
@@ -97,7 +97,7 @@ final class RunServiceTests: TuistUnitTestCase {
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         given(generator)
             .generateWithGraph(path: .any)
-            .willReturn((workspacePath, .test()))
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
         given(generator)
             .load(path: .any)
             .willReturn(.test())

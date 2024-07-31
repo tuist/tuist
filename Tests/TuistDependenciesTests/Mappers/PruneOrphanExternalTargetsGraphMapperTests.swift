@@ -1,10 +1,11 @@
 import Foundation
 import Path
+import TuistCore
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistSupportTesting
 
 final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
     var subject: PruneOrphanExternalTargetsGraphMapper!
@@ -66,7 +67,7 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, _) = try await subject.map(graph: graph)
+        let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 

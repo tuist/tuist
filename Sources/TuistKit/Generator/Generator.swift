@@ -15,7 +15,7 @@ public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) async throws -> Graph
     func generate(path: AbsolutePath) async throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph)
+    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment)
 }
 
 public class Generator: Generating {
@@ -44,12 +44,12 @@ public class Generator: Generating {
     }
 
     public func generate(path: AbsolutePath) async throws -> AbsolutePath {
-        let (generatedPath, _) = try await generateWithGraph(path: path)
+        let (generatedPath, _, _) = try await generateWithGraph(path: path)
         return generatedPath
     }
 
-    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
-        let (graph, sideEffects) = try await load(path: path)
+    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
+        let (graph, sideEffects, environment) = try await load(path: path)
 
         // Load
         let graphTraverser = GraphTraverser(graph: graph)
@@ -74,21 +74,21 @@ public class Generator: Generating {
 
         printAndFlushPendingLintWarnings()
 
-        return (workspaceDescriptor.xcworkspacePath, graph)
+        return (workspaceDescriptor.xcworkspacePath, graph, environment)
     }
 
     public func load(path: AbsolutePath) async throws -> Graph {
         try await load(path: path).0
     }
 
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger.notice("Loading and constructing the graph", metadata: .section)
         logger.notice("It might take a while if the cache is empty")
 
-        let (graph, sideEffectDescriptors, issues) = try await manifestGraphLoader.load(path: path)
+        let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 
         lintingIssues.append(contentsOf: issues)
-        return (graph, sideEffectDescriptors)
+        return (graph, sideEffectDescriptors, environment)
     }
 
     private func lint(graphTraverser: GraphTraversing) async throws {

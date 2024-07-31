@@ -37,7 +37,7 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)

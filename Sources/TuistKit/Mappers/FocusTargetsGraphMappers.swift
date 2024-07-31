@@ -41,7 +41,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         self.excludedTargets = excludedTargets
     }
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
         let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
@@ -75,6 +75,6 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             return project
         }
 
-        return (graph, [])
+        return (graph, [], environment)
     }
 }

@@ -58,6 +58,7 @@ extension XcodeGraph.Project {
             xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
+            classPrefix: nil,
             defaultKnownRegions: defaultKnownRegions,
             developmentRegion: developmentRegion,
             options: options,

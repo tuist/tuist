@@ -53,7 +53,7 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
-        let (graph, _, _) = try await manifestGraphLoader.load(path: path)
+        let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
