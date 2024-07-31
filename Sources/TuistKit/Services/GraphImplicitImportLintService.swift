@@ -20,7 +20,7 @@ final class GraphImplicitImportLintService {
             .flatMap { $0 }
             .map(\.value)
 
-        let allTargetNames = Set(allTargets.map(\.name))
+        let allTargetNames = Set(allTargets.map(\.productName))
 
         var allImports = [Target: Set<String>]()
 
