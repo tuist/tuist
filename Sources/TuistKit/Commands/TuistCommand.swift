@@ -33,7 +33,6 @@ public struct TuistCommand: AsyncParsableCommand {
                     RunCommand.self,
                     ScaffoldCommand.self,
                     TestCommand.self,
-                    ImportFinderCommand.self,
                 ]),
                 CommandGroup(name: "Account", subcommands: [
                     ProjectCommand.self,
