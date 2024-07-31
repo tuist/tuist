@@ -43,7 +43,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        if !target.supportsResources || project.isExternal {
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -172,7 +172,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // swiftformat:disable all
         import Foundation
         """
-        if !target.supportsResources {
+        if !target.supportsResources || project.isExternal {
             content += swiftSPMBundleAccessorString(for: target, and: bundleName)
         } else {
             content += swiftFrameworkBundleAccessorString(for: target)

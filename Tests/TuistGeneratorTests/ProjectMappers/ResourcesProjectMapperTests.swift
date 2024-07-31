@@ -86,6 +86,66 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
+    func test_map_when_an_external_target_that_has_resources_and_supports_them() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: .init(resources))
+        project = Project.test(targets: [target], isExternal: true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertBetterEqual(
+            gotProject.targets,
+            [
+                target.name: .test(
+                    product: .framework,
+                    sources: [
+                        "/Absolute/File.swift",
+                        .init(
+                            path: expectedPath,
+                            contentHash: ResourcesProjectMapper
+                                .fileContent(
+                                    targetName: target.name,
+                                    bundleName: "\(project.name)_\(target.name)",
+                                    target: target,
+                                    in: project
+                                )
+                        ),
+                    ],
+                    dependencies: [
+                        TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios])),
+                    ]
+                ),
+                "\(project.name)_\(target.name)": .test(
+                    name: "\(project.name)_\(target.name)",
+                    product: .bundle,
+                    bundleId: "\(target.bundleId).resources",
+                    infoPlist: .extendingDefault(with: [:]),
+                    settings: Settings(
+                        base: [
+                            "CODE_SIGNING_ALLOWED": "NO",
+                        ],
+                        configurations: [:]
+                    ),
+                    resources: .init(resources)
+                ),
+            ]
+        )
+    }
+
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
