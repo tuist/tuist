@@ -21,7 +21,7 @@ import XcodeGraph
 public protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue])
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue])
     // swiftlint:disable:previous large_tuple
 }
 
@@ -95,7 +95,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     // swiftlint:disable:next function_body_length large_tuple
-    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
+    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
         try manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
@@ -174,11 +174,15 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         )
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
+            graph: graph,
+            environment: MapperEnvironment()
+        )
 
         return (
             mappedGraph,
             modelMapperSideEffects + graphMapperSideEffects,
+            environment,
             lintingIssues
         )
     }

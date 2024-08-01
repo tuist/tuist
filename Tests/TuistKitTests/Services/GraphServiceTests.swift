@@ -4,6 +4,7 @@ import GraphViz
 import MockableTest
 import Path
 import ProjectAutomation
+import TuistCore
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
@@ -50,7 +51,11 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         given(manifestGraphLoader)
             .load(path: .any)
+<<<<<<< HEAD
             .willReturn((.test(), [], []))
+=======
+            .willReturn((.test(), [], MapperEnvironment(), []))
+>>>>>>> origin/main
 
         // When
         try await subject.run(
@@ -85,7 +90,11 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         given(manifestGraphLoader)
             .load(path: .any)
+<<<<<<< HEAD
             .willReturn((.test(), [], []))
+=======
+            .willReturn((.test(), [], MapperEnvironment(), []))
+>>>>>>> origin/main
 
         // When
         try await subject.run(

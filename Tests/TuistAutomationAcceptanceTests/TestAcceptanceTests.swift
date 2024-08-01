@@ -1,6 +1,7 @@
 import Path
 import TuistAcceptanceTesting
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
