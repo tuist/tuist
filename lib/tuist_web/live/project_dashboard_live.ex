@@ -166,12 +166,20 @@ defmodule TuistWeb.ProjectDashboardLive do
     }
   end
 
+  def milliseconds_to_seconds(values) do
+    values |> Enum.map(&Float.round(&1 / 1000, 1))
+  end
+
   attr :id, :string, required: true
   attr :trend, :float, required: true
   attr :trend_positive, :boolean, required: true
   attr :summary_value, :string, required: true
   attr :title, :string, required: true
   attr :type, :atom, default: :area
+  attr :name, :string, required: true
+  attr :data, :list, required: true
+  attr :labels, :list, required: true
+  attr :formatter, :atom, default: :none
 
   def analytics_chart(assigns) do
     ~H"""
@@ -194,7 +202,16 @@ defmodule TuistWeb.ProjectDashboardLive do
           <% end %>
         </div>
       </div>
-      <chart-l id={@id} type={@type}></chart-l>
+      <chart-l
+        id={@id}
+        type={@type}
+        data-name={@name}
+        data-series={Jason.encode!(@data)}
+        data-labels={Jason.encode!(@labels)}
+        data-formatter={@formatter}
+        phx-hook="Chart"
+      >
+      </chart-l>
     </div>
     """
   end
