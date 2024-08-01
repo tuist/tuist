@@ -260,21 +260,30 @@ defmodule Tuist.Environment do
   end
 
   def secret_key_password(secrets \\ secrets()) do
-    get([:secret_key, :password], secrets)
+    get([:secret_key, :password], secrets, default_value: secret_key_base(secrets))
   end
 
   def secret_key_tokens(secrets \\ secrets()) do
-    get([:secret_key, :tokens], secrets)
+    get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
 
-  def get(keys, secrets \\ secrets()) do
+  def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join("_", &String.upcase/1)}"
 
-    if System.get_env(env_variable) do
-      System.get_env(env_variable)
+    default_value = Keyword.get(opts, :default_value)
+
+    value =
+      if System.get_env(env_variable) do
+        System.get_env(env_variable)
+      else
+        get_in(secrets, keys)
+      end
+
+    if is_nil(value) do
+      default_value
     else
-      get_in(secrets, keys)
+      value
     end
   end
 
