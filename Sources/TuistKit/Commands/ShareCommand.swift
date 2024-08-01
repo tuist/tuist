@@ -8,19 +8,19 @@ public struct ShareCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "share",
-            abstract: "Generate a link to share your app. Currently supports sharing only simulator builds."
+            abstract: "Generate a link to share your app. Only simulator builds supported."
         )
     }
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project with the target or scheme to be run.",
+        help: "The path to the directory that contains a Tuist or Xcode project with a buildable scheme that can output runnable artifacts.",
         completion: .directory
     )
     var path: String?
 
     @Argument(
-        help: "The name of the app target to share or the paths to the built apps.",
+        help: "The app names to be looked up in the built products directory or the paths to the app bundles.",
         envKey: .shareApp
     )
     var apps: [String] = []
@@ -33,14 +33,14 @@ public struct ShareCommand: AsyncParsableCommand {
     var configuration: String?
 
     @Option(
-        help: "The platforms (ios, tvos, visionos, watchos or macos) to share the app for. Ignored when the app paths are passed directly.",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"]),
+        help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to share the app for. Ignored when the app paths are passed directly.",
+        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
         envKey: .sharePlatform
     )
     var platforms: [XcodeGraph.Platform] = []
 
     @Option(
-        help: "The derived data path to find the apps in.",
+        help: "The derived data path to find the apps in. When absent, the system-configured one.",
         completion: .directory,
         envKey: .shareDerivedDataPath
     )

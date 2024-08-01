@@ -28,7 +28,7 @@ enum ShareServiceError: Equatable, FatalError {
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return "You are missing `fullHandle` in your `Config.swift`."
+            return "You are missing full handle in your Config.swift."
         }
     }
 
@@ -52,7 +52,7 @@ struct ShareService {
     private let manifestGraphLoader: ManifestGraphLoading
     private let userInputReader: UserInputReading
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
-    private let appBundleService: AppBundleServicing
+    private let appBundleLoader: AppBundleLoading
 
     init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -74,7 +74,7 @@ struct ShareService {
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: UserInputReader(),
             defaultConfigurationFetcher: DefaultConfigurationFetcher(),
-            appBundleService: AppBundleService()
+            appBundleLoader: AppBundleLoader()
         )
     }
 
@@ -89,7 +89,7 @@ struct ShareService {
         manifestGraphLoader: ManifestGraphLoading,
         userInputReader: UserInputReading,
         defaultConfigurationFetcher: DefaultConfigurationFetching,
-        appBundleService: AppBundleServicing
+        appBundleLoader: AppBundleLoading
     ) {
         self.fileHandler = fileHandler
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
@@ -101,7 +101,7 @@ struct ShareService {
         self.manifestGraphLoader = manifestGraphLoader
         self.userInputReader = userInputReader
         self.defaultConfigurationFetcher = defaultConfigurationFetcher
-        self.appBundleService = appBundleService
+        self.appBundleLoader = appBundleLoader
     }
 
     func run(
@@ -133,7 +133,9 @@ struct ShareService {
                 )
             }
 
-            let appBundles = try appPaths.map(appBundleService.read)
+            let appBundles = try await appPaths.concurrentMap {
+                try await appBundleLoader.load($0)
+            }
 
             let appNames = appBundles.map(\.infoPlist.name).uniqued()
             guard appNames.count == 1,
@@ -148,7 +150,7 @@ struct ShareService {
         } else if manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
-            let (graph, _, _) = try await manifestGraphLoader.load(path: path)
+            let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
             let graphTraverser = GraphTraverser(graph: graph)
             let appTargets = graphTraverser.targets(product: .app)
                 .map { $0 }

@@ -430,7 +430,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertTrue(runCommandWithEnvVars.generate)
         XCTAssertTrue(runCommandWithEnvVars.clean)
         XCTAssertEqual(runCommandWithEnvVars.os, "14.5")
-        XCTAssertEqual(runCommandWithEnvVars.schemeOrShareLink, "MyScheme")
+        XCTAssertEqual(runCommandWithEnvVars.runnable, .scheme("MyScheme"))
         XCTAssertEqual(runCommandWithEnvVars.arguments, ["arg1", "arg2", "arg3"])
 
         // Execute RunCommand with command line arguments
@@ -452,7 +452,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(runCommandWithArgs.device, "iPhone 12")
         XCTAssertEqual(runCommandWithArgs.os, "15.0")
         XCTAssertTrue(runCommandWithArgs.rosetta)
-        XCTAssertEqual(runCommandWithArgs.schemeOrShareLink, "AnotherScheme")
+        XCTAssertEqual(runCommandWithArgs.runnable, .scheme("AnotherScheme"))
         XCTAssertEqual(runCommandWithArgs.arguments, ["arg4", "arg5"])
     }
 

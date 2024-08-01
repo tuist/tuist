@@ -51,11 +51,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         given(manifestGraphLoader)
             .load(path: .any)
-<<<<<<< HEAD
-            .willReturn((.test(), [], []))
-=======
             .willReturn((.test(), [], MapperEnvironment(), []))
->>>>>>> origin/main
 
         // When
         try await subject.run(
@@ -90,11 +86,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         given(manifestGraphLoader)
             .load(path: .any)
-<<<<<<< HEAD
-            .willReturn((.test(), [], []))
-=======
             .willReturn((.test(), [], MapperEnvironment(), []))
->>>>>>> origin/main
 
         // When
         try await subject.run(

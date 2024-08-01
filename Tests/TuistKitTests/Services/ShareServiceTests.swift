@@ -21,7 +21,7 @@ final class ShareServiceTests: TuistUnitTestCase {
     private var manifestGraphLoader: MockManifestGraphLoading!
     private var userInputReader: MockUserInputReading!
     private var defaultConfigurationFetcher: MockDefaultConfigurationFetching!
-    private var appBundleService: MockAppBundleServicing!
+    private var appBundleLoader: MockAppBundleLoading!
 
     override func setUp() {
         super.setUp()
@@ -35,7 +35,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         manifestGraphLoader = .init()
         userInputReader = .init()
         defaultConfigurationFetcher = .init()
-        appBundleService = .init()
+        appBundleLoader = .init()
         subject = ShareService(
             fileHandler: fileHandler,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
@@ -47,7 +47,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
             defaultConfigurationFetcher: defaultConfigurationFetcher,
-            appBundleService: appBundleService
+            appBundleLoader: appBundleLoader
         )
 
         given(serverURLService)
@@ -132,6 +132,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                         ]
                     ),
                     [],
+                    MapperEnvironment(),
                     []
                 )
             )
@@ -239,6 +240,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                         ]
                     ),
                     [],
+                    MapperEnvironment(),
                     []
                 )
             )
@@ -460,12 +462,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let appOne = try temporaryPath().appending(component: "AppOne.app")
         let appTwo = try temporaryPath().appending(component: "AppTwo.app")
 
-        given(appBundleService)
-            .read(.value(appOne))
+        given(appBundleLoader)
+            .load(.value(appOne))
             .willReturn(.test(infoPlist: .test(name: "AppOne")))
 
-        given(appBundleService)
-            .read(.value(appTwo))
+        given(appBundleLoader)
+            .load(.value(appTwo))
             .willReturn(.test(infoPlist: .test(name: "AppTwo")))
 
         // When / Then
@@ -493,12 +495,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
         let visionOSApp = try temporaryPath().appending(components: "visionOs", "App.app")
 
-        given(appBundleService)
-            .read(.value(iosApp))
+        given(appBundleLoader)
+            .load(.value(iosApp))
             .willReturn(.test(infoPlist: .test(name: "App")))
 
-        given(appBundleService)
-            .read(.value(visionOSApp))
+        given(appBundleLoader)
+            .load(.value(visionOSApp))
             .willReturn(.test(infoPlist: .test(name: "App")))
 
         let shareURL: URL = .test()

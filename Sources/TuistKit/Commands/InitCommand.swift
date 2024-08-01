@@ -24,8 +24,8 @@ public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
     public var runId = UUID().uuidString
 
     @Option(
-        help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"]),
+        help: "The platform (iOS, tvOS, visionOS, watchOS or macOS) the product will be for (Default: iOS)",
+        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
         envKey: .initPlatform
     )
     var platform: String?

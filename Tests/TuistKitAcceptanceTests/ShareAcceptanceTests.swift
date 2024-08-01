@@ -10,9 +10,9 @@ import XCTest
 final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {
         try await setUpFixture(.iosAppWithFrameworks)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "App")
         try await run(ShareCommand.self)
-        let shareLink = try shareLink()
+        let shareLink = try previewLink()
         try await run(RunCommand.self, shareLink, "-destination", "iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
@@ -23,7 +23,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
         try await run(BuildCommand.self, "App", "--platform", "visionos")
         try await run(BuildCommand.self, "App", "--platform", "ios")
         try await run(ShareCommand.self, "App")
-        let shareLink = try shareLink()
+        let shareLink = try previewLink()
         try await run(RunCommand.self, shareLink, "-destination", "Apple Vision Pro")
         XCTAssertStandardOutput(pattern: "Installing and launching App on Apple Vision Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
@@ -52,7 +52,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             ]
         )
         try await run(ShareCommand.self, "App", "--platforms", "ios")
-        try await run(RunCommand.self, try shareLink(), "-destination", "iPhone 15 Pro")
+        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
@@ -84,14 +84,14 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             buildDirectory.appending(component: "App.app").pathString,
             "--platforms", "ios"
         )
-        try await run(RunCommand.self, try shareLink(), "-destination", "iPhone 15 Pro")
+        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 }
 
 extension ServerAcceptanceTestCase {
-    fileprivate func shareLink() throws -> String {
+    fileprivate func previewLink() throws -> String {
         try XCTUnwrap(
             TestingLogHandler.collected[.notice, >=]
                 .components(separatedBy: .newlines)

@@ -19,7 +19,6 @@ final class AppRunnerTests: TuistUnitTestCase {
         simulatorController = .init()
         userInputReader = .init()
         subject = AppRunner(
-            fileHandler: fileHandler,
             simulatorController: simulatorController,
             userInputReader: userInputReader
         )

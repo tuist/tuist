@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -39,24 +40,20 @@ public protocol AppRunning {
 }
 
 public final class AppRunner: AppRunning {
-    private let fileHandler: FileHandling
     private let simulatorController: SimulatorControlling
     private let userInputReader: UserInputReading
 
     public convenience init() {
         self.init(
-            fileHandler: FileHandler.shared,
             simulatorController: SimulatorController(),
             userInputReader: UserInputReader()
         )
     }
 
     init(
-        fileHandler: FileHandling,
         simulatorController: SimulatorControlling,
         userInputReader: UserInputReading
     ) {
-        self.fileHandler = fileHandler
         self.simulatorController = simulatorController
         self.userInputReader = userInputReader
     }

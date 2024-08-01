@@ -118,7 +118,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: device,
             osVersion: version,
             rosetta: rosetta,
-            graphTraverser: MockGraphTraverser(),
+            graphTraverser: MockGraphTraversing(),
             passthroughXcodeBuildArguments: []
         )
 
@@ -152,7 +152,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let graphTraverser = MockGraphTraverser()
+        let graphTraverser = MockGraphTraversing()
 
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
         given(xcodeProjectBuildDirectoryLocator)
@@ -225,7 +225,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let scheme = Scheme.test(name: "A")
         let configuration = "TestRelease"
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let graphTraverser = MockGraphTraverser()
+        let graphTraverser = MockGraphTraversing()
 
         given(buildGraphInspector)
             .buildArguments(

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import struct TSCUtility.Version
@@ -14,8 +15,8 @@ enum RunServiceError: FatalError, Equatable {
     case invalidVersion(String)
     case workspaceNotFound(path: String)
     case invalidDownloadBuildURL(String)
+    case invalidPreviewURL(String)
     case appNotFound(String)
-    case fullHandleNotFound
 
     var description: String {
         switch self {
@@ -29,10 +30,10 @@ enum RunServiceError: FatalError, Equatable {
             return "Workspace not found expected xcworkspace at \(path)"
         case let .invalidDownloadBuildURL(downloadBuildURL):
             return "The download build URL \(downloadBuildURL) is invalid."
+        case let .invalidPreviewURL(previewURL):
+            return "The preview URL \(previewURL) is invalid."
         case let .appNotFound(url):
             return "The app at \(url) was not found."
-        case .fullHandleNotFound:
-            return "You are missing `fullHandle` in your `Config.swift`."
         }
     }
 
@@ -42,7 +43,7 @@ enum RunServiceError: FatalError, Equatable {
              .schemeWithoutRunnableTarget,
              .invalidVersion,
              .appNotFound,
-             .fullHandleNotFound:
+             .invalidPreviewURL:
             return .abort
         case .workspaceNotFound, .invalidDownloadBuildURL:
             return .bug
@@ -57,11 +58,11 @@ final class RunService {
     private let targetRunner: TargetRunning
     private let configLoader: ConfigLoading
     private let downloadPreviewService: DownloadPreviewServicing
-    private let serverURLService: ServerURLServicing
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let appRunner: AppRunning
     private let remoteArtifactDownloader: RemoteArtifactDownloading
-    private let appBundleService: AppBundleServicing
+    private let appBundleLoader: AppBundleLoading
     private let fileArchiverFactory: FileArchivingFactorying
 
     convenience init() {
@@ -72,11 +73,11 @@ final class RunService {
             targetRunner: TargetRunner(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
             downloadPreviewService: DownloadPreviewService(),
-            serverURLService: ServerURLService(),
             fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             appRunner: AppRunner(),
             remoteArtifactDownloader: RemoteArtifactDownloader(),
-            appBundleService: AppBundleService(),
+            appBundleLoader: AppBundleLoader(),
             fileArchiverFactory: FileArchivingFactory()
         )
     }
@@ -88,11 +89,11 @@ final class RunService {
         targetRunner: TargetRunning,
         configLoader: ConfigLoading,
         downloadPreviewService: DownloadPreviewServicing,
-        serverURLService: ServerURLServicing,
         fileHandler: FileHandling,
+        fileSystem: FileSystem,
         appRunner: AppRunning,
         remoteArtifactDownloader: RemoteArtifactDownloading,
-        appBundleService: AppBundleServicing,
+        appBundleLoader: AppBundleLoading,
         fileArchiverFactory: FileArchivingFactorying
     ) {
         self.generatorFactory = generatorFactory
@@ -101,23 +102,23 @@ final class RunService {
         self.targetRunner = targetRunner
         self.configLoader = configLoader
         self.downloadPreviewService = downloadPreviewService
-        self.serverURLService = serverURLService
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.appRunner = appRunner
         self.remoteArtifactDownloader = remoteArtifactDownloader
-        self.appBundleService = appBundleService
+        self.appBundleLoader = appBundleLoader
         self.fileArchiverFactory = fileArchiverFactory
     }
 
     // swiftlint:disable:next function_body_length
     func run(
         path: String?,
-        schemeOrShareLink: String,
+        runnable: Runnable,
         generate: Bool,
         clean: Bool,
         configuration: String?,
         device: String?,
-        version: String?,
+        osVersion: String?,
         rosetta: Bool,
         arguments: [String]
     ) async throws {
@@ -130,51 +131,51 @@ final class RunService {
             runPath = FileHandler.shared.currentPath
         }
 
-        let version = try version.map { versionString in
+        let osVersion = try osVersion.map { versionString in
             guard let version = versionString.version() else {
                 throw RunServiceError.invalidVersion(versionString)
             }
             return version
         }
 
-        if schemeOrShareLink.starts(with: "http://") || schemeOrShareLink.starts(with: "https://"),
-           let shareLink = URL(string: schemeOrShareLink)
-        {
-            try await runShareLink(
-                shareLink,
+        switch runnable {
+        case let .url(previewLink):
+            try await runPreviewLink(
+                previewLink,
                 device: device,
-                version: version,
+                version: osVersion,
                 path: runPath
             )
-        } else {
+        case let .scheme(scheme):
             try await runScheme(
-                schemeOrShareLink,
+                scheme,
                 path: runPath,
                 generate: generate,
                 clean: clean,
                 configuration: configuration,
                 device: device,
-                version: version,
+                version: osVersion,
                 rosetta: rosetta,
                 arguments: arguments
             )
         }
     }
 
-    private func runShareLink(
-        _ shareLink: URL,
+    private func runPreviewLink(
+        _ previewLink: URL,
         device: String?,
         version: Version?,
-        path: AbsolutePath
+        path _: AbsolutePath
     ) async throws {
-        let config = try await configLoader.loadConfig(path: path)
-        guard let fullHandle = config.fullHandle else { throw RunServiceError.fullHandleNotFound }
-
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        guard  let scheme = previewLink.scheme,
+               let host = previewLink.host,
+               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
+               previewLink.pathComponents.count > 4 // We expect at least four path components
+        else { throw RunServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
         let downloadURLString = try await downloadPreviewService.downloadPreview(
-            shareLink.lastPathComponent,
-            fullHandle: fullHandle,
+            previewLink.lastPathComponent,
+            fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
             serverURL: serverURL
         )
 
@@ -182,12 +183,16 @@ final class RunService {
         else { throw RunServiceError.invalidDownloadBuildURL(downloadURLString) }
 
         guard let archivePath = try await remoteArtifactDownloader.download(url: downloadURL)
-        else { throw RunServiceError.appNotFound(shareLink.absoluteString) }
+        else { throw RunServiceError.appNotFound(previewLink.absoluteString) }
 
         let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
 
-        let apps = try fileHandler.glob(unarchivedDirectory, glob: "*.app")
-            .map(appBundleService.read)
+        try await fileSystem.remove(archivePath)
+
+        let apps = try await fileHandler.glob(unarchivedDirectory, glob: "*.app")
+            .concurrentMap {
+                try await self.appBundleLoader.load($0)
+            }
 
         try await appRunner.runApp(
             apps,

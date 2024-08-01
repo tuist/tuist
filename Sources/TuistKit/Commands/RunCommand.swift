@@ -4,6 +4,21 @@ import Path
 import TSCUtility
 import TuistSupport
 
+enum Runnable: ExpressibleByArgument, Equatable {
+    init?(argument: String) {
+        if argument.starts(with: "http://") || argument.starts(with: "https://"),
+           let previewLink = URL(string: argument)
+        {
+            self = .url(previewLink)
+        } else {
+            self = .scheme(argument)
+        }
+    }
+
+    case url(Foundation.URL)
+    case scheme(String)
+}
+
 public struct RunCommand: AsyncParsableCommand {
     public init() {}
 
@@ -25,10 +40,10 @@ public struct RunCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The Tuist Share link or scheme to be run.",
+        help: "Runnable project scheme or a preview URL.",
         envKey: .runScheme
     )
-    var schemeOrShareLink: String
+    var runnable: Runnable
 
     @Flag(
         help: "Force the generation of the project before running.",
@@ -81,12 +96,12 @@ public struct RunCommand: AsyncParsableCommand {
     public func run() async throws {
         try await RunService().run(
             path: path,
-            schemeOrShareLink: schemeOrShareLink,
+            runnable: runnable,
             generate: generate,
             clean: clean,
             configuration: configuration,
             device: device,
-            version: os,
+            osVersion: os,
             rosetta: rosetta,
             arguments: arguments
         )
