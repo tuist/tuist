@@ -83,10 +83,22 @@ defmodule TuistWeb.API.PreviewsController do
       EnsureProjectPresencePlug.get_project(conn)
 
     %Preview{id: preview_id} = Projects.create_preview(project)
-    upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
 
-    conn
-    |> json(%{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
+    case Storage.multipart_start(get_object_key(conn, preview_id)) do
+      {:ok, upload_id} ->
+        conn
+        |> json(%{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
+
+      {:error, {:http, status, message}} ->
+        conn
+        |> put_status(status)
+        |> json(%{message: message})
+
+      {:error, {:raw, message}} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{message: message})
+    end
   end
 
   operation(:multipart_generate_url,
@@ -227,19 +239,29 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    :ok =
-      Storage.multipart_complete_upload(
-        get_object_key(conn, preview_id),
-        upload_id,
-        parts
-        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end)
-      )
+    case Storage.multipart_complete_upload(
+           get_object_key(conn, preview_id),
+           upload_id,
+           parts
+           |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end)
+         ) do
+      :ok ->
+        conn
+        |> put_status(:ok)
+        |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
 
-    conn
-    |> put_status(:ok)
-    |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
+      {:error, {:http, status, message}} ->
+        conn
+        |> put_status(status)
+        |> json(%{message: message})
+
+      {:error, {:raw, message}} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{message: message})
+    end
   end
 
   operation(:download,
