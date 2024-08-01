@@ -72,6 +72,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
         }
+        cache.cache(results: StaticProducts(), for: dependency)
 
         // Collect dependency results traversing the graph (dfs)
         var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
