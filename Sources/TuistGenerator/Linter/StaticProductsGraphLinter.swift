@@ -72,7 +72,6 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
         }
-        cache.cache(results: StaticProducts(), for: dependency)
 
         // Collect dependency results traversing the graph (dfs)
         var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
@@ -92,6 +91,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
+            cache.cache(
+                results: results,
+                for: dependency
+            )
             return results
         }
 
