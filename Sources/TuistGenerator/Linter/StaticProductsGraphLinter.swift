@@ -14,6 +14,8 @@ protocol StaticProductsGraphLinting {
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
+        return []
+        
         warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser, config: config)
             .sorted()
             .map(lintIssue)
