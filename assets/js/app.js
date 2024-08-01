@@ -40,6 +40,21 @@ Hooks.Chart = {
       labels: labels,
     };
 
+    if (this.el.dataset.config) {
+      const config = JSON.parse(this.el.dataset.config);
+      this.el.totalLabel = config.totalLabel;
+      if (config.colors) {
+        this.el.colors = config.colors.map((color) => cssvar(color));
+      }
+
+      if (config.stroke) {
+        this.el.stroke = {
+          ...config.stroke,
+          colors: config.stroke.colors.map((color) => cssvar(color)),
+        };
+      }
+    }
+
     this.el.render();
   },
 };

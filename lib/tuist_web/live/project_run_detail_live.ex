@@ -89,6 +89,10 @@ defmodule TuistWeb.ProjectRunDetailLive do
 
   attr(:title, :string, required: true)
   attr(:id, :string, required: true)
+  attr(:data, :list, required: true)
+  attr(:labels, :list, required: true)
+  attr(:colors, :list, default: [])
+  attr(:total_label, :string, required: true)
   attr(:targets, :list, required: true)
   attr(:badge_column_label, :string, required: true)
   slot(:badge, required: true, doc: "the badge to present a custom value component")
@@ -99,7 +103,21 @@ defmodule TuistWeb.ProjectRunDetailLive do
       <.stack gap="2xl">
         <.section_header title={@title} />
         <.stack direction="horizontal" class="run-detail__target-breakdown__content">
-          <chart-l class="target-breakdown-chart" id={@id <> "-breakdown-chart"} type="donut">
+          <chart-l
+            class="target-breakdown-chart"
+            id={@id <> "-breakdown-chart"}
+            type="donut"
+            data-series={Jason.encode!(@data)}
+            data-labels={Jason.encode!(@labels)}
+            data-config={
+              Jason.encode!(%{
+                colors: @colors,
+                totalLabel: @total_label,
+                stroke: %{colors: ["--bg-secondary"]}
+              })
+            }
+            phx-hook="Chart"
+          >
           </chart-l>
           <.table
             class="run-detail__target-breakdown__table"

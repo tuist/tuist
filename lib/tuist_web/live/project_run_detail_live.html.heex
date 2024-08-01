@@ -25,6 +25,10 @@
           targets={@test_target_results}
           badge_column_label={gettext("Test status")}
           id="tests"
+          data={[@test_summary.successful_tests_count, @test_summary.failed_tests_count]}
+          labels={[gettext("Passed"), gettext("Failed")]}
+          total_label={gettext("Tests")}
+          colors={["--utility-success-600", "--utility-error-600"]}
         >
           <:badge :let={test_target_result}>
             <.badge
@@ -44,6 +48,13 @@
         badge_column_label={gettext("Cache hit")}
         targets={@test_targets}
         id="selective-tests"
+        total_label={gettext("Tested targets")}
+        data={[
+          length(@command_event.local_test_target_hits),
+          length(@command_event.remote_test_target_hits),
+          length(@test_misses)
+        ]}
+        labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
       >
         <:badge :let={cacheable_target}>
           <.cache_hit_badge cache_hit={cacheable_target.cache_hit} />
@@ -55,6 +66,13 @@
       badge_column_label={gettext("Cache hit")}
       targets={@cacheable_targets}
       id="binary-cache"
+      total_label={gettext("Cacheable targets")}
+      data={[
+        length(@command_event.local_cache_target_hits),
+        length(@command_event.remote_cache_target_hits),
+        length(@cache_misses)
+      ]}
+      labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
     >
       <:badge :let={cacheable_target}>
         <.cache_hit_badge cache_hit={cacheable_target.cache_hit} />
@@ -91,65 +109,4 @@
   </.stack>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts">
-</script>
-<script>
-  function pieChart({id, data, labels, totalLabel, colors}) {
-    const pieChart = document.querySelector(id);
-
-    if (pieChart === null) {
-      return;
-    }
-
-    pieChart.data = {
-        data: data,
-        labels: labels
-    };
-    pieChart.colors = colors ?? [cssvar("--utility-brand-600"), cssvar("--utility-brand-400"), cssvar("--utility-warning-600")];
-    pieChart.stroke = {
-      colors: [cssvar("--bg-secondary")],
-    };
-    pieChart.plotOptions = {
-      pie: {
-        expandOnClick: false,
-        donut: {
-          labels: {
-            show: true,
-            value: {
-              color: cssvar("--text-primary"),
-            },
-            total: {
-              show: true,
-              fontSize: cssvar('--font-size-text-small'),
-              color: cssvar("--text-primary"),
-              label: totalLabel
-            },
-          },
-        },
-      }
-    }
-  }
-
-  <%= if not is_nil(@test_summary) do %>
-    pieChart({
-      id: "#tests-breakdown-chart",
-      data: <%= raw Jason.encode!([@test_summary.successful_tests_count, @test_summary.failed_tests_count]) %>,
-      labels: <%= raw Jason.encode!([gettext("Passed"), gettext("Failed")]) %>,
-      totalLabel: <%= raw Jason.encode!(gettext("Tests")) %>,
-      colors: [cssvar("--utility-success-600"), cssvar("--utility-error-600")]
-    });
-  <% end %>
-
-  pieChart({
-    id: "#selective-tests-breakdown-chart",
-    data: <%= raw Jason.encode!([length(@command_event.local_test_target_hits), length(@command_event.remote_test_target_hits), length(@test_misses)]) %>,
-    labels: <%= raw Jason.encode!([gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]) %>,
-    totalLabel: <%= raw Jason.encode!(gettext("Tested targets")) %>
-  });
-
-  pieChart({
-    id: "#binary-cache-breakdown-chart",
-    data: <%= raw Jason.encode!([length(@command_event.local_cache_target_hits), length(@command_event.remote_cache_target_hits), length(@cache_misses)]) %>,
-    labels: <%= raw Jason.encode!([gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]) %>,
-    totalLabel: <%= raw Jason.encode!(gettext("Cacheable targets")) %>
-  });
 </script>

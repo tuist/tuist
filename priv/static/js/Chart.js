@@ -106,7 +106,25 @@ class ChartComponent extends HTMLElement {
           formatter: yLabelFormatter,
         },
       },
-      plotOptions: this.plotOptions,
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: {
+            labels: {
+              show: true,
+              value: {
+                color: cssvar("--text-primary"),
+              },
+              total: {
+                show: true,
+                fontSize: cssvar("--font-size-text-small"),
+                color: cssvar("--text-primary"),
+                label: this.totalLabel,
+              },
+            },
+          },
+        },
+      },
     };
 
     var chart = new ApexCharts(chartDiv, options);
@@ -152,11 +170,20 @@ class ChartComponent extends HTMLElement {
   }
 
   get colors() {
-    return this.getAttribute("colors") ?? [cssvar("--utility-brand-500")];
+    const colors = JSON.parse(this.getAttribute("colors"));
+    if (colors == null || colors.length === 0) {
+      return [
+        cssvar("--utility-brand-500"),
+        cssvar("--utility-brand-400"),
+        cssvar("--utility-warning-600"),
+      ];
+    } else {
+      return JSON.parse(colors);
+    }
   }
 
   set colors(val) {
-    return this.setAttribute("colors", val);
+    return this.setAttribute("colors", JSON.stringify(val));
   }
 
   get plotOptions() {
@@ -168,11 +195,19 @@ class ChartComponent extends HTMLElement {
   }
 
   get stroke() {
-    return this.getAttribute("stroke") ?? {};
+    return JSON.parse(this.getAttribute("stroke")) ?? {};
   }
 
   set stroke(val) {
-    return this.setAttribute("stroke", val);
+    return this.setAttribute("stroke", JSON.stringify(val));
+  }
+
+  get totalLabel() {
+    return this.getAttribute("totalLabel");
+  }
+
+  set totalLabel(val) {
+    return this.setAttribute("totalLabel", val);
   }
 }
 
