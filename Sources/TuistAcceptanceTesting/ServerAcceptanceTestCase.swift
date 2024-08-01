@@ -1,5 +1,6 @@
 import Foundation
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
@@ -37,6 +38,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
         try await run(ProjectDeleteCommand.self, fullHandle)
         try await run(OrganizationDeleteCommand.self, organizationHandle)
         try await run(LogoutCommand.self)
+        TestingLogHandler.reset()
         try await super.tearDown()
     }
 }
