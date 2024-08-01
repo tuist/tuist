@@ -167,10 +167,10 @@ final class RunService {
         version: Version?,
         path _: AbsolutePath
     ) async throws {
-        guard  let scheme = previewLink.scheme,
-               let host = previewLink.host,
-               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
-               previewLink.pathComponents.count > 4 // We expect at least four path components
+        guard let scheme = previewLink.scheme,
+              let host = previewLink.host,
+              let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
+              previewLink.pathComponents.count > 4 // We expect at least four path components
         else { throw RunServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
         let downloadURLString = try await downloadPreviewService.downloadPreview(
