@@ -57,12 +57,12 @@ defmodule Tuist.PromEx do
   @impl true
   def plugins do
     [
-      Plugins.Application,
-      Plugins.Beam,
-      {Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
-      Plugins.Ecto,
-      Plugins.Oban,
-      Plugins.PhoenixLiveView,
+      # Plugins.Application,
+      # Plugins.Beam,
+      # {Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
+      # Plugins.Ecto,
+      # Plugins.Oban,
+      # Plugins.PhoenixLiveView,
       # Plugins.Absinthe,
       # Plugins.Broadway,
 
