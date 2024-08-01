@@ -1073,12 +1073,74 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenHasAlreadyIncludedDefaultResources() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        let resourcesPath = sourcesPath.appending(try RelativePath(validating: "Resources"))
+        let defaultResourcePath = resourcesPath.appending(try RelativePath(validating: "file.xib"))
+        try fileHandler.createFolder(sourcesPath)
+        fileHandler.stubFiles = { _, excludedPaths, _, _ in
+            if excludedPaths == nil {
+                [defaultResourcePath]
+            } else {
+                []
+            }
+        }
+        fileHandler.stubExists = { path in
+            [basePath, sourcesPath, resourcesPath, defaultResourcePath].contains(path)
+        }
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            resources: [
+                                .init(rule: .process, path: "Resources"),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        resources: [
+                            .glob(
+                                pattern: .path(resourcesPath.appending(component: "**").pathString),
+                                excluding: [],
+                                tags: []
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenHasDefaultResources() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePath = sourcesPath.appending(try RelativePath(validating: "Resources/file.xib"))
         try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubFiles = { _, _, _ in
+        fileHandler.stubFiles = { _, _, _, _ in
             return [defaultResourcePath]
         }
 
