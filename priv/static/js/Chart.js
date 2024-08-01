@@ -9,13 +9,29 @@ class ChartComponent extends HTMLElement {
     this.attachShadow({ mode: "open" });
   }
 
-  connectedCallback() {
-    this.render();
-  }
-
   render() {
     const chartDiv = document.createElement("div");
     this.shadowRoot.appendChild(chartDiv);
+
+    let yLabelFormatter;
+    switch (this.formatter) {
+      case "none":
+        yLabelFormatter = (value) => {
+          return value;
+        };
+        break;
+      case "seconds":
+        yLabelFormatter = (value) => {
+          return `${value} s`;
+        };
+        break;
+      case "percentage":
+        yLabelFormatter = (value) => {
+          return `${(value * 100).toFixed(1)}%`;
+        };
+        break;
+    }
+
     const options = {
       series: this.type == "donut" ? this.data.data : [this.data],
       labels: this.data.labels,
@@ -87,7 +103,7 @@ class ChartComponent extends HTMLElement {
         min: 0,
         max: this.maxYValue,
         labels: {
-          formatter: this.yLabelFormatter,
+          formatter: yLabelFormatter,
         },
       },
       plotOptions: this.plotOptions,
@@ -99,7 +115,7 @@ class ChartComponent extends HTMLElement {
 
   get data() {
     return (
-      this.getAttribute("data") ?? {
+      JSON.parse(this.getAttribute("data")) ?? {
         data: [],
         labels: [],
         name: "",
@@ -108,15 +124,15 @@ class ChartComponent extends HTMLElement {
   }
 
   set data(val) {
-    return this.setAttribute(val);
+    return this.setAttribute("data", JSON.stringify(val));
   }
 
-  get yLabelFormatter() {
-    return this.getAttribute("yLabelFormatter") ?? ((val) => val);
+  get formatter() {
+    return this.getAttribute("formatter");
   }
 
-  set yLabelFormatter(val) {
-    return this.setAttribute(val);
+  set formatter(val) {
+    return this.setAttribute("formatter", val);
   }
 
   get type() {

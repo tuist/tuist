@@ -93,6 +93,10 @@
     }
     trend={@cache_hit_rate_analytics.trend}
     trend_positive={@cache_hit_rate_analytics.trend > 0}
+    name={gettext("cache hit rate")}
+    data={@cache_hit_rate_analytics.values}
+    labels={@cache_hit_rate_analytics.dates}
+    formatter={:percentage}
   />
   <.analytics_chart
     id="average-test-duration-chart"
@@ -104,6 +108,10 @@
     }
     trend={@test_duration_analytics.trend}
     trend_positive={@test_duration_analytics.trend < 0}
+    name={gettext("average test duration")}
+    data={@test_duration_analytics.values |> milliseconds_to_seconds}
+    labels={@test_duration_analytics.dates}
+    formatter={:seconds}
   />
   <.analytics_chart
     id="test-runs-chart"
@@ -112,6 +120,9 @@
     summary_value={gettext("%{runs_count} runs", runs_count: @test_runs_analytics.runs_count)}
     trend={@test_runs_analytics.trend}
     trend_positive={@test_runs_analytics.trend > 0}
+    name={gettext("test runs")}
+    data={@test_runs_analytics.values}
+    labels={@test_runs_analytics.dates}
   />
   <.analytics_chart
     id="average-cache-duration-chart"
@@ -123,6 +134,10 @@
     }
     trend={@cache_duration_analytics.trend}
     trend_positive={@cache_duration_analytics.trend < 0}
+    name={gettext("average cache duration")}
+    data={@cache_duration_analytics.values |> milliseconds_to_seconds}
+    labels={@cache_duration_analytics.dates}
+    formatter={:seconds}
   />
   <.analytics_chart
     id="cache-runs-chart"
@@ -131,6 +146,9 @@
     summary_value={gettext("%{runs_count} runs", runs_count: @cache_runs_analytics.runs_count)}
     trend={@cache_runs_analytics.trend}
     trend_positive={@cache_runs_analytics.trend > 0}
+    name={gettext("cache runs")}
+    data={@cache_runs_analytics.values}
+    labels={@cache_runs_analytics.dates}
   />
   <.analytics_chart
     id="average-generate-duration-chart"
@@ -142,6 +160,10 @@
     }
     trend={@generate_duration_analytics.trend}
     trend_positive={@generate_duration_analytics.trend < 0}
+    name={gettext("average generation duration")}
+    data={@generate_duration_analytics.values |> milliseconds_to_seconds}
+    labels={@generate_duration_analytics.dates}
+    formatter={:seconds}
   />
   <.analytics_chart
     id="generate-runs-chart"
@@ -150,6 +172,9 @@
     summary_value={gettext("%{runs_count} runs", runs_count: @generate_runs_analytics.runs_count)}
     trend={@generate_runs_analytics.trend}
     trend_positive={@generate_runs_analytics.trend > 0}
+    name={gettext("generate runs")}
+    data={@generate_runs_analytics.values}
+    labels={@generate_runs_analytics.dates}
   />
   <.analytics_chart
     id="average-duration-chart"
@@ -161,6 +186,10 @@
     }
     trend={@build_duration_analytics.trend}
     trend_positive={@build_duration_analytics.trend < 0}
+    name={gettext("average build duration")}
+    data={@build_duration_analytics.values |> milliseconds_to_seconds}
+    labels={@build_duration_analytics.dates}
+    formatter={:seconds}
   />
   <.analytics_chart
     id="build-runs-chart"
@@ -169,85 +198,10 @@
     summary_value={gettext("%{runs_count} runs", runs_count: @build_runs_analytics.runs_count)}
     trend={@build_runs_analytics.trend}
     trend_positive={@build_runs_analytics.trend > 0}
+    name={gettext("build runs")}
+    data={@build_runs_analytics.values}
+    labels={@build_runs_analytics.dates}
   />
 </div>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts">
-</script>
-<script>
-  function setDurationChartData(id, data, labels) {
-    const durationChart = document.querySelector(id);
-    durationChart.data = {
-      name: <%= raw Jason.encode!(gettext("duration")) %>,
-      data: data,
-      labels: labels,
-    };
-    durationChart.yLabelFormatter = (value) => { return `${(value / 1000).toFixed(1)} s` };
-  }
-
-  function setRunsChartData(id, data, labels) {
-    const runsChart = document.querySelector(id);
-    runsChart.data = {
-      name: <%= raw Jason.encode!(gettext("runs")) %>,
-      data: data,
-      labels: labels,
-    };
-    runsChart.yLabelFormatter = (value) => { return `${value}` };
-  }
-
-  setDurationChartData(
-    "#average-duration-chart",
-    <%= raw Jason.encode!(@build_duration_analytics.values) %>,
-    <%= raw Jason.encode!(@build_duration_analytics.dates) %>
-  );
-
-  setRunsChartData(
-    "#build-runs-chart",
-    <%= raw Jason.encode!(@build_runs_analytics.values) %>,
-    <%= raw Jason.encode!(@build_runs_analytics.dates) %>
-  );
-
-  const cacheHitRateChart = document.querySelector("#cache-hit-rate-chart")
-  cacheHitRateChart.data = {
-    name: <%= raw Jason.encode!(gettext("cache hit rate")) %>,
-    data: <%= raw Jason.encode!(@cache_hit_rate_analytics.values) %>,
-    labels: <%= raw Jason.encode!(@cache_hit_rate_analytics.dates) %>,
-  };
-  cacheHitRateChart.yLabelFormatter = (value) => { return `${(value * 100).toFixed(1)} %` }
-  cacheHitRateChart.maxYValue = 1;
-
-  setDurationChartData(
-    "#average-test-duration-chart",
-    <%= raw Jason.encode!(@test_duration_analytics.values) %>,
-    <%= raw Jason.encode!(@test_duration_analytics.dates) %>
-  );
-
-  setRunsChartData(
-    "#test-runs-chart",
-    <%= raw Jason.encode!(@test_runs_analytics.values) %>,
-    <%= raw Jason.encode!(@test_runs_analytics.dates) %>
-  );
-
-  setDurationChartData(
-    "#average-cache-duration-chart",
-    <%= raw Jason.encode!(@cache_duration_analytics.values) %>,
-    <%= raw Jason.encode!(@cache_duration_analytics.dates) %>
-  );
-
-  setRunsChartData(
-    "#cache-runs-chart",
-    <%= raw Jason.encode!(@cache_runs_analytics.values) %>,
-    <%= raw Jason.encode!(@cache_runs_analytics.dates) %>
-  );
-
-  setDurationChartData(
-    "#average-generate-duration-chart",
-    <%= raw Jason.encode!(@generate_duration_analytics.values) %>,
-    <%= raw Jason.encode!(@generate_duration_analytics.dates) %>
-  );
-
-  setRunsChartData(
-    "#generate-runs-chart",
-    <%= raw Jason.encode!(@generate_runs_analytics.values) %>,
-    <%= raw Jason.encode!(@generate_runs_analytics.dates) %>
-  );
 </script>

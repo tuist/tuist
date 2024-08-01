@@ -25,9 +25,29 @@ import topbar from "../vendor/topbar";
 let csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute("content");
+
+let Hooks = {};
+Hooks.Chart = {
+  mounted() {
+    this.el.formatter = this.el.dataset.formatter;
+
+    const data = JSON.parse(this.el.dataset.series);
+    const labels = JSON.parse(this.el.dataset.labels);
+
+    this.el.data = {
+      name: this.el.dataset.name,
+      data: data,
+      labels: labels,
+    };
+
+    this.el.render();
+  },
+};
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
+  hooks: Hooks,
 });
 
 // Show progress bar on live navigation and form submits
