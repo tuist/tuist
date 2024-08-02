@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "io.tuist.Tuist"
+        ],
+        "components": [
+          "/*/*/previews/*"
+        ]
+      }
+    ]
+  }
+}
