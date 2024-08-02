@@ -9,6 +9,7 @@ import XCTest
 
 final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectListCommand.self)
         XCTAssertStandardOutput(pattern: "Listing all your projects:")
         XCTAssertStandardOutput(pattern: "• \(fullHandle)")
@@ -17,6 +18,7 @@ final class ServerAcceptanceTestProjects: ServerAcceptanceTestCase {
 
 final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectTokensCreateCommand.self, fullHandle)
         TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
@@ -32,6 +34,18 @@ final class ServerAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
         try await run(ProjectTokensListCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
+        )
+    }
+}
+
+extension ServerAcceptanceTestCase {
+    private func shareLink() throws -> String {
+        try XCTUnwrap(
+            TestingLogHandler.collected[.notice, >=]
+                .components(separatedBy: .newlines)
+                .first(where: { $0.contains("App uploaded – share") })?
+                .components(separatedBy: .whitespaces)
+                .last
         )
     }
 }

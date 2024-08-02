@@ -84,7 +84,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         if project.isExternal,
            target.supportsSources,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources
+           target.resources.containsBundleAccessedResources,
+           !target.supportsResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 

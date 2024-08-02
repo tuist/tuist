@@ -86,6 +86,20 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
+    func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        project = Project.test(targets: [target], isExternal: true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(project, gotProject)
+    }
+
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]

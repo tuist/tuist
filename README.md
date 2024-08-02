@@ -295,6 +295,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://travel.yandex.ru" target="_blank">
+          <img src="assets/companies/yandexTravel.svg" alt="yandexTravel_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
