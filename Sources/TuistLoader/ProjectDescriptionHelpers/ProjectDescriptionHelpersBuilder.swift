@@ -39,9 +39,21 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
 }
 
 public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+    /// Build information about module
+    private final class HelpersModuleBuild {
+        let module: ProjectDescriptionHelpersModule
+        /// Whether the module has already been built
+        var isBuilt: Bool
+
+        init(module: ProjectDescriptionHelpersModule, isBuilt: Bool = false) {
+            self.module = module
+            self.isBuilt = isBuilt
+        }
+    }
+
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
-    private var builtHelpers: ThreadSafe<[AbsolutePath: ProjectDescriptionHelpersModule]> = ThreadSafe([:])
+    private var builtHelpers: ThreadSafe<[AbsolutePath: ThreadSafe<HelpersModuleBuild>]> = ThreadSafe([:])
 
     /// Path to the cache directory.
     private let cacheDirectory: AbsolutePath
@@ -159,40 +171,53 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) async throws -> ProjectDescriptionHelpersModule {
-        if let cachedModule = builtHelpers.withValue({ $0[path] }) { return cachedModule }
+        let projectDescriptionHelpersModuleBuild = try builtHelpers.mutate { cache in
+            if let cachedModule = cache[path] {
+                return cachedModule
+            }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-        let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
+            let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+            let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
 
-        let helpersCachePath = cacheDirectory.appending(component: prefixHash)
-        let helpersModuleCachePath = helpersCachePath.appending(component: hash)
-        let dylibName = "lib\(name).dylib"
-        let modulePath = helpersModuleCachePath.appending(component: dylibName)
-        let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+            let helpersCachePath = cacheDirectory.appending(component: prefixHash)
+            let helpersModuleCachePath = helpersCachePath.appending(component: hash)
+            let dylibName = "lib\(name).dylib"
+            let modulePath = helpersModuleCachePath.appending(component: dylibName)
+            let projectDescriptionHelpersModule = ThreadSafe(
+                HelpersModuleBuild(
+                    module: ProjectDescriptionHelpersModule(name: name, path: modulePath)
+                )
 
-        builtHelpers.mutate { $0[path] = projectDescriptionHelpersModule }
-
-        if FileHandler.shared.exists(helpersModuleCachePath) {
+            )
+            cache[path] = projectDescriptionHelpersModule
             return projectDescriptionHelpersModule
         }
 
-        try FileHandler.shared.createFolder(helpersModuleCachePath)
+        return try projectDescriptionHelpersModuleBuild.withValue { build in
+            if build.isBuilt, FileHandler.shared.exists(build.module.path) {
+                return build.module
+            }
 
-        let command = createCommand(
-            moduleName: name,
-            directory: path,
-            outputDirectory: helpersModuleCachePath,
-            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
-            customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
-        )
+            let helpersModuleCachePath = build.module.path.parentDirectory
+            try FileHandler.shared.createFolder(helpersModuleCachePath)
 
-        let timer = clock.startTimer()
-        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
-        let duration = timer.stop()
-        let time = String(format: "%.3f", duration)
-        logger.debug("Built \(name) in (\(time)s)", metadata: .success)
+            let command = createCommand(
+                moduleName: name,
+                directory: path,
+                outputDirectory: helpersModuleCachePath,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+                customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
+            )
 
-        return projectDescriptionHelpersModule
+            let timer = clock.startTimer()
+            try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+            let duration = timer.stop()
+            let time = String(format: "%.3f", duration)
+            logger.debug("Built \(name) in (\(time)s)", metadata: .success)
+
+            build.isBuilt = true
+            return build.module
+        }
     }
 
     private func createCommand(
