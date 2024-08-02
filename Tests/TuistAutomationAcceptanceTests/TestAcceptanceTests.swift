@@ -9,7 +9,7 @@ import XCTest
 /// Test projects using tuist test
 final class TestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_app_with_framework_and_tests() async throws {
-        try setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture(.appWithFrameworkAndTests)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App")
         try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
@@ -17,13 +17,13 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_with_app_with_test_plan() async throws {
-        try setUpFixture(.appWithTestPlan)
+        try await setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
     }
 
     func test_with_invalid_arguments() async throws {
-        try setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture(.appWithFrameworkAndTests)
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-scheme", "App"),
             XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")

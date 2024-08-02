@@ -1,9 +1,10 @@
 import Foundation
 import Path
+import TuistSupport
 @testable import TuistCore
 
 extension SimulatorRuntime {
-    static func test(
+    public static func test(
         bundlePath: AbsolutePath =
             "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime",
         buildVersion: String = "17F61",

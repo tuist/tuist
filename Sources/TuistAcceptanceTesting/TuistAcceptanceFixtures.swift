@@ -73,6 +73,7 @@ public enum TuistAcceptanceFixtures {
     case visionosApp
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
+    case xcodeApp
     case custom(String)
 
     public var path: String {
@@ -221,6 +222,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_file_header_template"
         case .workspaceWithInlineFileHeaderTemplate:
             return "workspace_with_inline_file_header_template"
+        case .xcodeApp:
+            return "xcode_app"
         case let .custom(path):
             return path
         }

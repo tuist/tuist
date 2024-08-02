@@ -3,7 +3,7 @@ import TuistAcceptanceTesting
 
 final class CacheAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_frameworks() async throws {
-        try setUpFixture(.iosAppWithFrameworks)
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(CacheCommand.self, "--print-hashes")
         XCTAssertStandardOutput(pattern: """
         Framework1 - 31b5dd46503cc78a7d84514b3a59e462

@@ -7,7 +7,7 @@ import XCTest
 
 final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_app_spm_dependencies() async throws {
-        try setUpFixture(.appWithSpmDependencies)
+        try await setUpFixture(.appWithSpmDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -18,7 +18,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.appWithSpmDependencies)
+        try await setUpFixture(.appWithSpmDependencies)
         do {
             try await run(GenerateCommand.self)
         } catch {
@@ -34,7 +34,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: Tuis
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies() async throws {
-        try setUpFixture(.iosAppWithSpmDependencies)
+        try await setUpFixture(.iosAppWithSpmDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")

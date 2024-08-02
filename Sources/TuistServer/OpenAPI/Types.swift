@@ -193,6 +193,39 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws
         -> Operations.cleanCache.Output
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
+    func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input)
+        async throws -> Operations.completePreviewsMultipartUpload.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
+    func generatePreviewsMultipartUploadURL(
+        _ input: Operations.generatePreviewsMultipartUploadURL.Input
+    ) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// It initiates a multipart upload for a preview artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
+    func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input)
+        async throws -> Operations.startPreviewsMultipartUpload.Output
+    /// Downloads a preview.
+    ///
+    /// This endpoint returns a signed URL that can be used to download a preview.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
+    func downloadPreview(_ input: Operations.downloadPreview.Input) async throws
+        -> Operations.downloadPreview.Output
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -303,6 +336,32 @@ public enum Components {
                 self.error = error
             }
             public enum CodingKeys: String, CodingKey { case error }
+        }
+        /// The URL to download an artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL`.
+        public struct ArtifactDownloadURL: Codable, Equatable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/expires_at`.
+            public var expires_at: Swift.Int
+            /// The URL to download the artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/url`.
+            public var url: Swift.String
+            /// Creates a new `ArtifactDownloadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to download the artifact.
+            public init(expires_at: Swift.Int, url: Swift.String) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
         }
         /// Represents an multipart upload's part identified by the upload id and the part number
         ///
@@ -508,7 +567,7 @@ public enum Components {
                 case status
             }
         }
-        /// API tokens to authenticate with.
+        /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
         public struct AuthenticationTokens: Codable, Equatable, Hashable, Sendable {
@@ -516,7 +575,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
             public var access_token: Swift.String
-            /// API refresh token.
+            /// A token to generate new API access tokens when they expire.
             ///
             /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
             public var refresh_token: Swift.String
@@ -524,7 +583,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - access_token: API access token.
-            ///   - refresh_token: API refresh token.
+            ///   - refresh_token: A token to generate new API access tokens when they expire.
             public init(access_token: Swift.String, refresh_token: Swift.String) {
                 self.access_token = access_token
                 self.refresh_token = refresh_token
@@ -1190,6 +1249,96 @@ public enum Components {
                 self.current_month_remote_cache_hits = current_month_remote_cache_hits
             }
             public enum CodingKeys: String, CodingKey { case current_month_remote_cache_hits }
+        }
+        /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+        ///
+        /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload`.
+        public struct PreviewArtifactUpload: Codable, Equatable, Hashable, Sendable {
+            /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// The id of the preview.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data/preview_id`.
+                public var preview_id: Swift.String
+                /// The upload ID
+                ///
+                /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data/upload_id`.
+                public var upload_id: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - preview_id: The id of the preview.
+                ///   - upload_id: The upload ID
+                public init(preview_id: Swift.String, upload_id: Swift.String) {
+                    self.preview_id = preview_id
+                    self.upload_id = upload_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case preview_id
+                    case upload_id
+                }
+            }
+            /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data`.
+            public var data: Components.Schemas.PreviewArtifactUpload.dataPayload
+            /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/status`.
+            @frozen
+            public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case success
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "success": self = .success
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .success: return "success"
+                    }
+                }
+                public static var allCases: [statusPayload] { [.success] }
+            }
+            /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/status`.
+            public var status: Components.Schemas.PreviewArtifactUpload.statusPayload
+            /// Creates a new `PreviewArtifactUpload`.
+            ///
+            /// - Parameters:
+            ///   - data: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+            ///   - status:
+            public init(
+                data: Components.Schemas.PreviewArtifactUpload.dataPayload,
+                status: Components.Schemas.PreviewArtifactUpload.statusPayload
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// The preview multipart upload has been completed
+        ///
+        /// - Remark: Generated from `#/components/schemas/PreviewUploadCompletion`.
+        public struct PreviewUploadCompletion: Codable, Equatable, Hashable, Sendable {
+            /// The URL to download the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/PreviewUploadCompletion/url`.
+            public var url: Swift.String
+            /// Creates a new `PreviewUploadCompletion`.
+            ///
+            /// - Parameters:
+            ///   - url: The URL to download the preview
+            public init(url: Swift.String) { self.url = url }
+            public enum CodingKeys: String, CodingKey { case url }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Equatable, Hashable, Sendable {
@@ -6706,6 +6855,958 @@ public enum Operations {
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
     }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
+    public enum completePreviewsMultipartUpload {
+        public static let id: String = "completePreviewsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.completePreviewsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.completePreviewsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.completePreviewsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.completePreviewsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// preview multipart upload completion
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/json/multipart_upload_parts`.
+                    public var multipart_upload_parts:
+                        Components.Schemas.ArtifactMultipartUploadParts
+                    /// The id of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/json/preview_id`.
+                    public var preview_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - multipart_upload_parts:
+                    ///   - preview_id: The id of the preview.
+                    public init(
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts,
+                        preview_id: Swift.String
+                    ) {
+                        self.multipart_upload_parts = multipart_upload_parts
+                        self.preview_id = preview_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case multipart_upload_parts
+                        case preview_id
+                    }
+                }
+                case json(Operations.completePreviewsMultipartUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completePreviewsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.completePreviewsMultipartUpload.Input.Path,
+                query: Operations.completePreviewsMultipartUpload.Input.Query = .init(),
+                headers: Operations.completePreviewsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.completePreviewsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.completePreviewsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.completePreviewsMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// The preview multipart upload has been completed
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// The URL to download the preview
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - url: The URL to download the preview
+                        public init(url: Swift.String) { self.url = url }
+                        public enum CodingKeys: String, CodingKey { case url }
+                    }
+                    case json(Operations.completePreviewsMultipartUpload.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completePreviewsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completePreviewsMultipartUpload.Output.Ok.Headers = .init(),
+                    body: Operations.completePreviewsMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completePreviewsMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completePreviewsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completePreviewsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completePreviewsMultipartUpload.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.completePreviewsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completePreviewsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completePreviewsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completePreviewsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completePreviewsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.completePreviewsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completePreviewsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completePreviewsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.completePreviewsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completePreviewsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.completePreviewsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completePreviewsMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
+    public enum generatePreviewsMultipartUploadURL {
+        public static let id: String = "generatePreviewsMultipartUploadURL"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.generatePreviewsMultipartUploadURL.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.generatePreviewsMultipartUploadURL.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.generatePreviewsMultipartUploadURL.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Artifact to generate a signed URL for
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/json/multipart_upload_part`.
+                    public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// The id of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/json/preview_id`.
+                    public var preview_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - multipart_upload_part:
+                    ///   - preview_id: The id of the preview.
+                    public init(
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
+                        preview_id: Swift.String
+                    ) {
+                        self.multipart_upload_part = multipart_upload_part
+                        self.preview_id = preview_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case multipart_upload_part
+                        case preview_id
+                    }
+                }
+                case json(Operations.generatePreviewsMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            public var body: Operations.generatePreviewsMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.generatePreviewsMultipartUploadURL.Input.Path,
+                query: Operations.generatePreviewsMultipartUploadURL.Input.Query = .init(),
+                headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers = .init(),
+                cookies: Operations.generatePreviewsMultipartUploadURL.Input.Cookies = .init(),
+                body: Operations.generatePreviewsMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Headers =
+                        .init(),
+                    body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generatePreviewsMultipartUploadURL.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized
+                        .Headers = .init(),
+                    body: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden
+                        .Headers = .init(),
+                    body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generatePreviewsMultipartUploadURL.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generatePreviewsMultipartUploadURL.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It initiates a multipart upload for a preview artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
+    public enum startPreviewsMultipartUpload {
+        public static let id: String = "startPreviewsMultipartUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.startPreviewsMultipartUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.startPreviewsMultipartUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.startPreviewsMultipartUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.startPreviewsMultipartUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.startPreviewsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.startPreviewsMultipartUpload.Input.Path,
+                query: Operations.startPreviewsMultipartUpload.Input.Query = .init(),
+                headers: Operations.startPreviewsMultipartUpload.Input.Headers = .init(),
+                cookies: Operations.startPreviewsMultipartUpload.Input.Cookies = .init(),
+                body: Operations.startPreviewsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startPreviewsMultipartUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/data`.
+                        public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                            /// The id of the preview.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/data/preview_id`.
+                            public var preview_id: Swift.String
+                            /// The upload ID
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/data/upload_id`.
+                            public var upload_id: Swift.String
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - preview_id: The id of the preview.
+                            ///   - upload_id: The upload ID
+                            public init(preview_id: Swift.String, upload_id: Swift.String) {
+                                self.preview_id = preview_id
+                                self.upload_id = upload_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case preview_id
+                                case upload_id
+                            }
+                        }
+                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/data`.
+                        public var data:
+                            Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .dataPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/status`.
+                        @frozen
+                        public enum statusPayload: RawRepresentable, Codable, Equatable, Hashable,
+                            Sendable, _AutoLosslessStringConvertible, CaseIterable
+                        {
+                            case success
+                            /// Parsed a raw value that was not defined in the OpenAPI document.
+                            case undocumented(String)
+                            public init?(rawValue: String) {
+                                switch rawValue {
+                                case "success": self = .success
+                                default: self = .undocumented(rawValue)
+                                }
+                            }
+                            public var rawValue: String {
+                                switch self {
+                                case let .undocumented(string): return string
+                                case .success: return "success"
+                                }
+                            }
+                            public static var allCases: [statusPayload] { [.success] }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/status`.
+                        public var status:
+                            Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .statusPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///   - status:
+                        public init(
+                            data: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload
+                                .dataPayload,
+                            status: Operations.startPreviewsMultipartUpload.Output.Ok.Body
+                                .jsonPayload.statusPayload
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    case json(Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startPreviewsMultipartUpload.Output.Ok.Headers = .init(),
+                    body: Operations.startPreviewsMultipartUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startPreviewsMultipartUpload.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.startPreviewsMultipartUpload.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startPreviewsMultipartUpload.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startPreviewsMultipartUpload.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startPreviewsMultipartUpload.Output.Forbidden.Headers =
+                        .init(),
+                    body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startPreviewsMultipartUpload.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.startPreviewsMultipartUpload.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.startPreviewsMultipartUpload.Output.NotFound.Headers =
+                        .init(),
+                    body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startPreviewsMultipartUpload.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Downloads a preview.
+    ///
+    /// This endpoint returns a signed URL that can be used to download a preview.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
+    public enum downloadPreview {
+        public static let id: String = "downloadPreview"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                public var preview_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                ///   - preview_id:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.preview_id = preview_id
+                }
+            }
+            public var path: Operations.downloadPreview.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.downloadPreview.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.downloadPreview.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.downloadPreview.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.downloadPreview.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.downloadPreview.Input.Path,
+                query: Operations.downloadPreview.Input.Query = .init(),
+                headers: Operations.downloadPreview.Input.Headers = .init(),
+                cookies: Operations.downloadPreview.Input.Cookies = .init(),
+                body: Operations.downloadPreview.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadPreview.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.ArtifactDownloadURL)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadPreview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadPreview.Output.Ok.Headers = .init(),
+                    body: Operations.downloadPreview.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The preview exists and can be downloaded
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadPreview.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadPreview.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadPreview.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadPreview.Output.Unauthorized.Headers = .init(),
+                    body: Operations.downloadPreview.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadPreview.Output.Unauthorized)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadPreview.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadPreview.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadPreview.Output.Forbidden.Headers = .init(),
+                    body: Operations.downloadPreview.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadPreview.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.downloadPreview.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.downloadPreview.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.downloadPreview.Output.NotFound.Headers = .init(),
+                    body: Operations.downloadPreview.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The build doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadPreview.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -7219,6 +8320,37 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.revokeProjectToken.Output.NoContent)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.revokeProjectToken.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.revokeProjectToken.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.revokeProjectToken.Output.BadRequest.Headers = .init(),
+                    body: Operations.revokeProjectToken.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The provided token ID is not valid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.revokeProjectToken.Output.BadRequest)
             public struct Unauthorized: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
