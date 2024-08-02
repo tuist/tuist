@@ -8,30 +8,30 @@ import XCTest
 @testable import TuistServer
 
 final class ShareAcceptanceTests: ServerAcceptanceTestCase {
-    func test_share_ios_app_with_frameworks() async throws {
-        try await setUpFixture(.iosAppWithFrameworks)
-        try await run(BuildCommand.self, "App")
-        try await run(ShareCommand.self)
-        let shareLink = try previewLink()
-        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15 Pro")
-        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
-        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
-    }
-
-//    func test_share_multiplatform_app_with_extension() async throws {
-//        try await setUpFixture(.multiplatformAppWithExtension)
-//        try await run(BuildCommand.self, "App", "--platform", "visionos")
-//        try await run(BuildCommand.self, "App", "--platform", "ios")
-//        try await run(ShareCommand.self, "App")
+//    func test_share_ios_app_with_frameworks() async throws {
+//        try await setUpFixture(.iosAppWithFrameworks)
+//        try await run(BuildCommand.self, "App")
+//        try await run(ShareCommand.self)
 //        let shareLink = try previewLink()
-//        try await run(RunCommand.self, shareLink, "-destination", "Apple Vision Pro")
-//        XCTAssertStandardOutput(pattern: "Installing and launching App on Apple Vision Pro")
-//        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
-//        TestingLogHandler.reset()
-//        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15")
-//        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15")
+//        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15 Pro")
+//        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
 //        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
 //    }
+
+    func test_share_multiplatform_app_with_extension() async throws {
+        try await setUpFixture(.multiplatformAppWithExtension)
+        try await run(BuildCommand.self, "App", "--platform", "visionos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try await run(ShareCommand.self, "App")
+        let shareLink = try previewLink()
+        try await run(RunCommand.self, shareLink, "-destination", "Apple Vision Pro")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on Apple Vision Pro")
+        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+        TestingLogHandler.reset()
+        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15")
+        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+    }
 
     func test_share_xcode_app() async throws {
         try await setUpFixture(.xcodeApp)
