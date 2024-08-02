@@ -22,7 +22,7 @@ It's open source and written in Swift.
 
 The recommended installation method is to [install mise](https://mise.jdx.dev/getting-started.html#quickstart) and then run `mise install tuist` to install Tuist.
 
-You can check out [the documentation](https://docs.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
+You can check out [the documentation](https://docs.tuist.io/guides/quick-start/install-tuist) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## 🌀 Bootstrap your first project
 
