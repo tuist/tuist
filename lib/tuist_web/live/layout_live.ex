@@ -138,7 +138,6 @@ defmodule TuistWeb.LayoutLive do
     user
   end
 
-  @spec assign_most_recent_release(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def assign_most_recent_release(socket) do
     assign_async(socket, :most_recent_release, fn ->
       %{published_at: published_at} =

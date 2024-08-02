@@ -91,11 +91,14 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     command_event =
       CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
-    {:ok, _lv, html} =
+    CommandEvents
+    |> stub(:has_result_bundle?, fn _ -> true end)
+
+    {:ok, lv, _html} =
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
 
-    assert html =~ "Result"
+    assert lv |> render_async(500) =~ "Result"
   end
 
   test "does not render a download button if a command event does not have a result bundle", %{
