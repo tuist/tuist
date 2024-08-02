@@ -40,15 +40,10 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
 
 public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// Build information about module
-    private final class HelpersModuleBuild {
+    private struct HelpersModuleBuild {
         let module: ProjectDescriptionHelpersModule
         /// Whether the module has already been built
-        var isBuilt: Bool
-
-        init(module: ProjectDescriptionHelpersModule, isBuilt: Bool = false) {
-            self.module = module
-            self.isBuilt = isBuilt
-        }
+        var isBuilt: Bool = false
     }
 
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
@@ -177,29 +172,32 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             }
 
             let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-        	let helpersModuleCachePath = cacheDirectory.appending(component: hash)
+        	let moduleCacheDirectory = cacheDirectory.appending(component: hash)
     	    let dylibName = "lib\(name).dylib"
-	        let modulePath = helpersModuleCachePath.appending(component: dylibName)
+	        let modulePath = moduleCacheDirectory.appending(component: dylibName)
 
-            let projectDescriptionHelpersModule = ThreadSafe(
+            let module = ThreadSafe(
                 HelpersModuleBuild(
                     module: ProjectDescriptionHelpersModule(name: name, path: modulePath)
                 )
-
             )
-            cache[path] = projectDescriptionHelpersModule
-            return projectDescriptionHelpersModule
+            cache[path] = module
+
+            return module
         }
 
-        return try projectDescriptionHelpersModuleBuild.withValue { build in
+        return try projectDescriptionHelpersModuleBuild.mutate { build in
             if build.isBuilt, FileHandler.shared.exists(build.module.path) {
                 return build.module
             }
 
+            let moduleCacheDirectory = build.module.path.parentDirectory
+            try FileHandler.shared.createFolder(moduleCacheDirectory)
+
             let command = createCommand(
                 moduleName: name,
                 directory: path,
-                outputDirectory: cacheDirectory,
+                outputDirectory: moduleCacheDirectory,
                 projectDescriptionSearchPaths: projectDescriptionSearchPaths,
                 customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
             )
