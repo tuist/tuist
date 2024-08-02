@@ -73,6 +73,10 @@ public protocol SimulatorControlling {
 
     /// Returns the list of simulator runtimes that are available in the system.
     func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime]
+
+    /// Boots a simulator, if necessary
+    /// - Returns: A simulator with the updated `state`
+    func booted(device: SimulatorDevice) throws -> SimulatorDevice
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -268,6 +272,10 @@ public final class SimulatorController: SimulatorControlling {
         let device = try device.booted(using: system)
         try system.run(["/usr/bin/open", "-a", "Simulator"])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    }
+
+    public func booted(device: SimulatorDevice) throws -> SimulatorDevice {
+        try device.booted(using: system)
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/

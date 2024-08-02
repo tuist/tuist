@@ -31,6 +31,10 @@ final class AppRunnerTests: TuistUnitTestCase {
             )
             .willReturn()
 
+        given(simulatorController)
+            .booted(device: .any)
+            .willProduce { $0 }
+
         Matcher.register([SimulatorDeviceAndRuntime].self)
     }
 
