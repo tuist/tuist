@@ -59,7 +59,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await super.tearDown()
     }
 
-    public func setUpFixture(_ fixture: TuistAcceptanceFixtures) throws {
+    public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
         let fixturesPath = sourceRootPath
             .appending(component: "fixtures")
 
@@ -149,6 +149,22 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
+        let terminatorIndex = arguments.firstIndex(of: "--") ?? arguments.endIndex
+        let regularArguments = arguments.prefix(upTo: terminatorIndex)
+        let arguments = regularArguments + [
+            "--derived-data-path", derivedDataPath.pathString,
+            "--path", fixturePath.pathString,
+        ] + arguments.suffix(from: terminatorIndex)
+
+        let parsedCommand = try command.parse(Array(arguments))
+        try await parsedCommand.run()
+    }
+
+    public func run(_ command: BuildCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: ShareCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = [
             "--derived-data-path", derivedDataPath.pathString,
             "--path", fixturePath.pathString,
@@ -158,7 +174,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
-    public func run(_ command: BuildCommand.Type, _ arguments: String...) async throws {
+    public func run(_ command: ShareCommand.Type, _ arguments: String...) async throws {
         try await run(command, arguments)
     }
 
