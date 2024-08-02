@@ -178,7 +178,7 @@ class ChartComponent extends HTMLElement {
         cssvar("--utility-warning-600"),
       ];
     } else {
-      return JSON.parse(colors);
+      return colors;
     }
   }
 

@@ -33,18 +33,6 @@ defmodule TuistWeb.ProjectRunDetailLive do
          Enum.map(test_misses, &%{name: &1, cache_hit: :miss}))
       |> Enum.sort_by(& &1.name)
 
-    test_summary = CommandEvents.get_test_summary(command_event)
-
-    test_target_results =
-      if is_nil(test_summary) do
-        []
-      else
-        test_summary.project_tests
-        |> Map.values()
-        |> Enum.flat_map(&get_target_results(&1))
-        |> Enum.sort_by(& &1.name)
-      end
-
     slug = Projects.get_project_slug_from_id(project.id)
 
     {
@@ -56,9 +44,33 @@ defmodule TuistWeb.ProjectRunDetailLive do
       |> assign(:cacheable_targets, cacheable_targets)
       |> assign(:test_misses, test_misses)
       |> assign(:test_targets, test_targets)
-      |> assign(:has_result_bundle, CommandEvents.has_result_bundle?(command_event))
-      |> assign(:test_target_results, test_target_results)
-      |> assign(:test_summary, test_summary)
+      |> assign(:has_result_bundle, false)
+      |> assign_async(:has_result_bundle, fn ->
+        {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(command_event)}}
+      end)
+      |> assign_async([:test_summary, :test_target_results], fn ->
+        test_summary = CommandEvents.get_test_summary(command_event)
+
+        test_target_results =
+          if is_nil(test_summary) do
+            []
+          else
+            test_summary.project_tests
+            |> Map.values()
+            |> Enum.flat_map(&get_target_results(&1))
+            |> Enum.sort_by(& &1.name)
+          end
+
+        {
+          :ok,
+          %{
+            test_summary: test_summary,
+            test_target_results: test_target_results
+          }
+        }
+      end)
+      |> assign(:test_target_results, [])
+      |> assign(:test_summary, nil)
     }
   end
 

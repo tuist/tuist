@@ -7,7 +7,7 @@
         </h5>
         <.command_event_status_badge command_event={@command_event} />
       </.stack>
-      <%= if @has_result_bundle do %>
+      <%= if @has_result_bundle.ok? && @has_result_bundle.result do %>
         <.link href={"/#{@selected_account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"}>
           <.button variant="secondary" size="medium" type="button">
             <:icon_start>
@@ -19,13 +19,16 @@
       <% end %>
     </.stack>
     <%= if @command_event.name == "test" do %>
-      <%= if not is_nil(@test_summary) do %>
+      <%= if not is_nil(@test_summary) and @test_summary.ok? && @test_summary.result do %>
         <.target_breakdown_card
           title={gettext("Tests")}
-          targets={@test_target_results}
+          targets={@test_target_results.result}
           badge_column_label={gettext("Test status")}
           id="tests"
-          data={[@test_summary.successful_tests_count, @test_summary.failed_tests_count]}
+          data={[
+            @test_summary.result.successful_tests_count,
+            @test_summary.result.failed_tests_count
+          ]}
           labels={[gettext("Passed"), gettext("Failed")]}
           total_label={gettext("Tests")}
           colors={["--utility-success-600", "--utility-error-600"]}
