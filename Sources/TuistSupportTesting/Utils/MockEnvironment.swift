@@ -22,7 +22,6 @@ public class MockEnvironment: Environmenting {
     public var shouldOutputBeColoured: Bool = false
     public var isStandardOutputInteractive: Bool = false
     public var tuistVariables: [String: String] = [:]
-    public var tuistConfigVariables: [String: String] = [:]
     public var manifestLoadingVariables: [String: String] = [:]
     public var isStatsEnabled: Bool = true
     public var isGitHubActions: Bool = false
@@ -37,6 +36,10 @@ public class MockEnvironment: Environmenting {
 
     public var automationPath: AbsolutePath? {
         nil
+    }
+
+    public var cacheDirectory: AbsolutePath? {
+        directory.path.appending(components: ".cache")
     }
 
     public var queueDirectory: AbsolutePath {

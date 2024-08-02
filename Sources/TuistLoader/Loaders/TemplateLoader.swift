@@ -11,7 +11,7 @@ public protocol TemplateLoading {
     ///     - path: Path of template manifest file `name_of_template.swift`
     ///     - plugins: List of available plugins.
     /// - Returns: Loaded `TuistCore.Template`
-    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template
+    func loadTemplate(at path: AbsolutePath, plugins: Plugins) async throws -> TuistCore.Template
 }
 
 public class TemplateLoader: TemplateLoading {
@@ -26,9 +26,9 @@ public class TemplateLoader: TemplateLoading {
         self.manifestLoader = manifestLoader
     }
 
-    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template {
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) async throws -> TuistCore.Template {
         try manifestLoader.register(plugins: plugins)
-        let template = try manifestLoader.loadTemplate(at: path)
+        let template = try await manifestLoader.loadTemplate(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistCore.Template.from(
             manifest: template,

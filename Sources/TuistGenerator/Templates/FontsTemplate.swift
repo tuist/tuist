@@ -30,9 +30,9 @@ extension SynthesizedResourceInterfaceTemplates {
         {{path|basename}}
       {% endif %}
     {% endfilter %}{% endmacro %}
-    {{accessModifier}} enum {{param.name}}FontFamily {
+    {{accessModifier}} enum {{param.name}}FontFamily: Sendable {
       {% for family in families %}
-      {{accessModifier}} enum {{family.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
+      {{accessModifier}} enum {{family.name|swiftIdentifier:"pretty"|escapeReservedKeywords}}: Sendable {
         {% for font in family.fonts %}
         {{accessModifier}} static let {{font.style|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{fontType}}(name: "{{font.name}}", family: "{{family.name}}", path: "{% call transformPath font.path %}")
         {% endfor %}
@@ -48,7 +48,7 @@ extension SynthesizedResourceInterfaceTemplates {
 
     // MARK: - Implementation Details
 
-    {{accessModifier}} struct {{fontType}} {
+    {{accessModifier}} struct {{fontType}}: Sendable {
       {{accessModifier}} let name: String
       {{accessModifier}} let family: String
       {{accessModifier}} let path: String

@@ -178,7 +178,7 @@ export const guidesSidebar = [
         link: "/guides/start/new-project",
       },
       {
-        text: "Try with a Swift Pacakge",
+        text: "Try with a Swift Package",
         link: "/guides/start/swift-package",
       },
       {

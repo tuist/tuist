@@ -19,6 +19,7 @@ export default defineConfig({
       lange: "en",
     },
   },
+  cleanUrls: true,
   head: [
     [
       "script",

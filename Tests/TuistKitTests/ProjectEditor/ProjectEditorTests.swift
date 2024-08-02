@@ -78,7 +78,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_edit() throws {
+    func test_edit() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -131,7 +131,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -144,7 +144,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.packageManifestPath, packageManifestPath)
     }
 
-    func test_edit_when_there_are_no_editable_files() throws {
+    func test_edit_when_there_are_no_editable_files() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -172,14 +172,14 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()),
+            try await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()),
             ProjectEditorError.noEditableFiles(directory)
         )
     }
 
-    func test_edit_with_plugin() throws {
+    func test_edit_with_plugin() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -208,7 +208,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -220,7 +220,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
-    func test_edit_with_many_plugins() throws {
+    func test_edit_with_many_plugins() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -254,7 +254,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -266,7 +266,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
-    func test_edit_project_with_local_plugins() throws {
+    func test_edit_project_with_local_plugins() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -312,7 +312,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -325,7 +325,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
-    func test_edit_project_with_local_plugin_outside_editing_path() throws {
+    func test_edit_project_with_local_plugin_outside_editing_path() async throws {
         // Given
         let rootPath = try temporaryPath()
         let editingPath = rootPath.appending(component: "Editing")
@@ -368,7 +368,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
 
-        try _ = subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = await subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -381,7 +381,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
-    func test_edit_project_with_remote_plugin() throws {
+    func test_edit_project_with_remote_plugin() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -422,7 +422,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "RemotePlugin", path: try AbsolutePath(validating: "/Some/Path/To/Plugin"), location: .remote),
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)

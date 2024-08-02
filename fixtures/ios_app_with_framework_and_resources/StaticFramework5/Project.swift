@@ -11,7 +11,8 @@ let project = Project(
             infoPlist: .default,
             resources: "Resources/**",
             dependencies: [
-            ]
+            ],
+            settings: .settings(base: ["SWIFT_STRICT_CONCURRENCY": .string("complete")], defaultSettings: .recommended())
         ),
     ]
 )

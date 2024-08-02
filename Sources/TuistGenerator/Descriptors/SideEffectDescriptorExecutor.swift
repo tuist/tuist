@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
@@ -6,31 +7,35 @@ import TuistSupport
 public protocol SideEffectDescriptorExecuting: AnyObject {
     /// Executes the given side effects sequentially.
     /// - Parameter sideEffects: Side effects to be executed.
-    func execute(sideEffects: [SideEffectDescriptor]) throws
+    func execute(sideEffects: [SideEffectDescriptor]) async throws
 }
 
 public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
-    public init() {}
+    private let fileSystem: FileSystem
+
+    public init(fileSystem: FileSystem = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     // MARK: - SideEffectDescriptorExecuting
 
-    public func execute(sideEffects: [SideEffectDescriptor]) throws {
+    public func execute(sideEffects: [SideEffectDescriptor]) async throws {
         for sideEffect in sideEffects {
             logger.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
                 try perform(command: commandDescriptor)
             case let .file(fileDescriptor):
-                try process(file: fileDescriptor)
+                try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
-                try process(directory: directoryDescriptor)
+                try await process(directory: directoryDescriptor)
             }
         }
     }
 
     // MARK: - Fileprivate
 
-    private func process(file: FileDescriptor) throws {
+    private func process(file: FileDescriptor) async throws {
         switch file.state {
         case .present:
             try FileHandler.shared.createFolder(file.path.parentDirectory)
@@ -40,11 +45,11 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try FileHandler.shared.touch(file.path)
             }
         case .absent:
-            try FileHandler.shared.delete(file.path)
+            try await fileSystem.remove(file.path)
         }
     }
 
-    private func process(directory: DirectoryDescriptor) throws {
+    private func process(directory: DirectoryDescriptor) async throws {
         switch directory.state {
         case .present:
             if !FileHandler.shared.exists(directory.path) {
@@ -52,7 +57,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             }
         case .absent:
             if FileHandler.shared.exists(directory.path) {
-                try FileHandler.shared.delete(directory.path)
+                try await fileSystem.remove(directory.path)
             }
         }
     }

@@ -21,14 +21,14 @@ public protocol Environmenting: AnyObject, Sendable {
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
 
-    /// Returns all the environment variables that are specific to Tuist configuration (prefixed with TUIST_CONFIG_)
-    var tuistConfigVariables: [String: String] { get }
-
     /// Returns all the environment variables that can be included during the manifest loading process
     var manifestLoadingVariables: [String: String] { get }
 
     /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
+
+    /// Returns the path to the cache directory. Configurable via the `XDG_CACHE_HOME` environment variable
+    var cacheDirectory: AbsolutePath? { get }
 
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
@@ -152,6 +152,14 @@ public final class Environment: Environmenting {
         }
     }
 
+    public var cacheDirectory: AbsolutePath? {
+        if let cacheDirectoryPathString = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
+            return try? AbsolutePath(validating: cacheDirectoryPathString)
+        } else {
+            return nil
+        }
+    }
+
     public var automationPath: AbsolutePath? {
         ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath]
             .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
@@ -167,12 +175,7 @@ public final class Environment: Environmenting {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
-    }
-
-    /// Returns all the environment variables that are specific to Tuist config (prefixed with TUIST_CONFIG_)
-    public var tuistConfigVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
+        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
     }
 
     public var manifestLoadingVariables: [String: String] {

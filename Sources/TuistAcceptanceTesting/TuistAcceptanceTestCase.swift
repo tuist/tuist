@@ -3,6 +3,7 @@ import Path
 import TuistCore
 @_exported import TuistKit
 import XcodeGraph
+import XcodeProj
 import XCTest
 
 @testable import TuistSupport
@@ -30,10 +31,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
             LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)
         }
 
-        derivedDataDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
+        derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
-        sourceRootPath = try! AbsolutePath(
+        sourceRootPath = try AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
             ]!
@@ -76,6 +77,23 @@ open class TuistAcceptanceTestCase: XCTestCase {
         ] + arguments
 
         var parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
+    public func run(_ command: InitCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: InitCommand.Type, _ arguments: [String] = []) async throws {
+        fixturePath = fixtureTemporaryDirectory.path.appending(
+            component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
+        )
+
+        let arguments = [
+            "--path", fixturePath.pathString,
+        ] + arguments
+
+        let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }
 
@@ -168,11 +186,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: (some ParsableCommand).Type, _ arguments: [String] = []) throws {
-        if String(describing: command) == "InitCommand" {
-            fixturePath = fixtureTemporaryDirectory.path.appending(
-                component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
-            )
-        }
         var parsedCommand = try command.parseAsRoot(
             arguments +
                 ["--path", fixturePath.pathString]
@@ -189,6 +202,48 @@ open class TuistAcceptanceTestCase: XCTestCase {
         var contents = try FileHandler.shared.readTextFile(filePath)
         contents += "\n"
         try FileHandler.shared.write(contents, path: filePath, atomically: true)
+    }
+
+    public func XCTAssertXCFrameworkLinked(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        else {
+            XCTFail(
+                "Target \(targetName) doesn't link the xcframework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
+    public func XCTAssertXCFrameworkNotLinked(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        if try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        {
+            XCTFail(
+                "Target \(targetName) links the xcframework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
     }
 }
 

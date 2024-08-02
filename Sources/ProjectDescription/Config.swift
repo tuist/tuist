@@ -38,7 +38,6 @@ public struct Config: Codable, Equatable, Sendable {
     public let plugins: [PluginLocation]
 
     /// Cloud configuration.
-    @available(*, deprecated, message: "Use the `fullHandle` and `url` properties directly in the `Config`")
     public let cloud: Cloud?
 
     /// The full project handle such as tuist-org/tuist.

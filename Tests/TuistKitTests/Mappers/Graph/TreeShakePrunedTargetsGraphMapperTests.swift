@@ -36,7 +36,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -59,7 +59,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotValueSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotValueSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotValueSideEffects)
@@ -86,7 +86,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -113,7 +113,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -152,7 +152,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertFalse(gotGraph.workspace.projects.contains(removedProjectPath))
@@ -181,7 +181,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotGraph.workspace.schemes)
@@ -227,7 +227,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(gotGraph, expectedGraph)
@@ -250,7 +250,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let expectedProject = Project.test(targets: [firstTarget, secondTarget, thirdTarget])
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)

@@ -1,5 +1,51 @@
 # Changelog
 
+## 4.22.0 - 2024-07-30
+
+### Tuist
+
+#### Changed
+
+- Update generated code templates to add `Sendable` Conformance [#6540](https://github.com/tuist/tuist/pull/6540) by [@waltflanagan](https://github.com/waltflanagan)
+- Improve the help menu by grouping the flat list of commands and add `tuist project view` command [#6566](https://github.com/tuist/tuist/pull/6566) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Validate target references in custom workspace schemes [#6536](https://github.com/tuist/tuist/pull/6536) by [@ajkolean](https://github.com/ajkolean)
+- Support unit test depending on an app extension [#6561](https://github.com/tuist/tuist/pull/6561) by [@InderKumarRathore](https://github.com/InderKumarRathore)
+
+#### Fixed
+
+- Fix integrating external static frameworks with resource bundles [#6565](https://github.com/tuist/tuist/pull/6565) by [@fortmarek](https://github.com/fortmarek)
+- Default to staticLibrary in product type mapping if automatic product type exists [#6559](https://github.com/tuist/tuist/pull/6559) by [@Arideno](https://github.com/Arideno)
+- Fix the Homebrew installation instructions in the docs [#6571](https://github.com/tuist/tuist/pull/6571) by [@pepicrft](https://github.com/pepicrft)
+- Fix storing test results of non-tested schemes [#6572](https://github.com/tuist/tuist/pull/6572) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.2 - 2024-07-19
+
+### Tuist
+
+#### Changed
+
+- Mark the Cloud static initializer as deprecated [#6531](https://github.com/tuist/tuist/pull/6531) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add email and password auth options for non-interactive login [#6507](https://github.com/tuist/tuist/pull/6507) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix token not found when using TUIST_CONFIG_TOKEN environment variable [#6528](https://github.com/tuist/tuist/pull/6528) by [@fortmarek](https://github.com/fortmarek)
+- Fix optionalAuthentication generation option in Config.swift [#6530](https://github.com/tuist/tuist/pull/6530) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.21.1 - 2024-07-17
 
 ### Tuist

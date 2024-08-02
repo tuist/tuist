@@ -1,4 +1,5 @@
 import DOT
+import FileSystem
 import Foundation
 import GraphViz
 import Path
@@ -14,6 +15,7 @@ import XcodeGraph
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
+    private let fileSystem: FileSystem
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -32,10 +34,12 @@ final class GraphService {
 
     init(
         graphVizGenerator: GraphToGraphVizMapping,
-        manifestGraphLoader: ManifestGraphLoading
+        manifestGraphLoader: ManifestGraphLoading,
+        fileSystem: FileSystem = FileSystem()
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
+        self.fileSystem = fileSystem
     }
 
     func run(
@@ -49,12 +53,12 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
-        let (graph, _, _) = try await manifestGraphLoader.load(path: path)
+        let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")
-            try FileHandler.shared.delete(filePath)
+            try await fileSystem.remove(filePath)
         }
 
         let filteredTargetsAndDependencies = graph.filter(
