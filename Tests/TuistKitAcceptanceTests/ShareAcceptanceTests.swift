@@ -28,8 +28,8 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
         XCTAssertStandardOutput(pattern: "Installing and launching App on Apple Vision Pro")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
         TestingLogHandler.reset()
-        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15 Pro")
-        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
+        try await run(RunCommand.self, shareLink, "-destination", "iPhone 15")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 
@@ -52,8 +52,8 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             ]
         )
         try await run(ShareCommand.self, "App", "--platforms", "ios")
-        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro")
-        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
+        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Plus")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Plus")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 
@@ -84,8 +84,8 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             buildDirectory.appending(component: "App.app").pathString,
             "--platforms", "ios"
         )
-        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro")
-        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro")
+        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro Max")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro Max")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 }
