@@ -7,11 +7,6 @@ public protocol ProjectDescriptionHelpersHashing: AnyObject {
     /// the hash of the files, the environment, as well as the versions of Swift and Tuist.
     /// - Parameter helpersDirectory: Path to the helpers directory.
     func hash(helpersDirectory: AbsolutePath) throws -> String
-
-    /// Gets the prefix hash for the given helpers directory.
-    /// This is useful to uniquely identify a helpers directory in the cache.
-    /// - Parameter helpersDirectory: Path to the helpers directory.
-    func prefixHash(helpersDirectory: AbsolutePath) -> String
 }
 
 public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
@@ -50,11 +45,5 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
         let identifiers = [macosVersion, swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
 
         return identifiers.joined(separator: "-").md5
-    }
-
-    public func prefixHash(helpersDirectory: AbsolutePath) -> String {
-        let pathString = helpersDirectory.pathString
-        let index = pathString.index(pathString.startIndex, offsetBy: 7)
-        return String(helpersDirectory.pathString.md5[..<index])
     }
 }
