@@ -22,6 +22,13 @@ workflows:
         - pattern: '*'
           include: true
       cancel_previous_builds: true
+    triggering: &main_triggering
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
   spm_build:
     name: SPM Build
     max_build_duration: 60
@@ -111,7 +118,7 @@ workflows:
       - name: Cache
         script: mise x -- tuist cache
     triggering:
-      << : *branch_triggering
+      << : *main_triggering
 
   deploy_docs:
     name: Deploy Documentation
@@ -262,3 +269,64 @@ workflows:
         script: mise x -- tuist test TuistKitAcceptanceTests
     triggering:
       << : *branch_triggering
+  tuist_app_tests:
+    name: TuistApp tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.3
+      groups:
+        - tuist-app
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/app/.build
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        working_directory: $CM_BUILD_DIR/app
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        working_directory: $CM_BUILD_DIR/app
+        script: mise x -- tuist install
+      - name: Run tests
+        working_directory: $CM_BUILD_DIR/app
+        script: mise x -- tuist test
+    triggering:
+      << : *branch_triggering
+  tuist_app_cache:
+    name: Tuist App Cache
+    max_build_duration: 60
+    environment:
+      xcode: 15.3
+      groups:
+        - tuist-app
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/app/.build
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        working_directory: $CM_BUILD_DIR/app
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Install Tuist dependencies
+        working_directory: $CM_BUILD_DIR/app
+        script: mise x -- tuist install
+      - name: Print hashes
+        working_directory: $CM_BUILD_DIR/app
+        script: mise x -- tuist cache --print-hashes
+      - name: Cache
+        working_directory: $CM_BUILD_DIR/app
+        script: mise x -- tuist cache
+    triggering:
+      << : *main_triggering

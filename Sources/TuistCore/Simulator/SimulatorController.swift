@@ -77,6 +77,11 @@ public protocol SimulatorControlling {
     /// Boots a simulator, if necessary
     /// - Returns: A simulator with the updated `state`
     func booted(device: SimulatorDevice) throws -> SimulatorDevice
+
+    /// Boots a simulator, if necessary
+    /// - Parameters:
+    ///     - forced: If `true`, booting of the simulator is forced
+    func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -278,6 +283,10 @@ public final class SimulatorController: SimulatorControlling {
         try device.booted(using: system)
     }
 
+    public func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice {
+        try device.booted(using: system, forced: forced)
+    }
+
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
     /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
     public func destination(
@@ -319,9 +328,19 @@ public final class SimulatorController: SimulatorControlling {
 extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    fileprivate func booted(using system: Systeming) throws -> Self {
-        guard isShutdown else { return self }
-        try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+    fileprivate func booted(using system: Systeming, forced: Bool = false) throws -> Self {
+        guard isShutdown || forced else { return self }
+        do {
+            try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+        } catch {
+            if forced, let error = error as? FatalError,
+               error.description.contains("Unable to boot device in current state: Booted")
+            {
+                // noop
+            } else {
+                throw error
+            }
+        }
         return SimulatorDevice(
             dataPath: dataPath,
             logPath: logPath,

@@ -65,6 +65,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let generatedProject = try subject.generate(project: project, graphTraverser: graphTraverser)
 
@@ -86,7 +90,9 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     }
 
     func test_objectVersion_when_xcode11_and_spm() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -124,7 +130,9 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     }
 
     func test_objectVersion_when_xcode11() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -148,7 +156,9 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     }
 
     func test_objectVersion_when_xcode10() throws {
-        xcodeController.selectedVersionStub = .success(Version(10, 2, 1))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(10, 2, 1))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -194,6 +204,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                 )),
             ]
         )
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -280,6 +294,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: [.test(resources: .init(resources))]
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
@@ -321,6 +339,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: []
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
@@ -340,6 +362,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
@@ -380,6 +406,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)
 
@@ -403,6 +433,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: [],
             lastUpgradeCheck: .init(12, 5, 1)
         )
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.generate(project: project, graphTraverser: graphTraverser)

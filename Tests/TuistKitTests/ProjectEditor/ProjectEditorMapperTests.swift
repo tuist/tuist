@@ -57,7 +57,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         swiftPackageManagerController.getToolsVersionStub = { _ in
             .init(stringLiteral: "5.5.0")
         }
-        xcodeController.selectedStub = .success(.test(path: AbsolutePath("/Applications/Xcode.app")))
+        given(xcodeController)
+            .selected()
+            .willReturn(.test(path: AbsolutePath("/Applications/Xcode.app")))
 
         // When
         let graph = try subject.map(
