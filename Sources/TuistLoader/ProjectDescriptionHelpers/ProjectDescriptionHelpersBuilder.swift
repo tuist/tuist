@@ -172,9 +172,9 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             }
 
             let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-        	let moduleCacheDirectory = cacheDirectory.appending(component: hash)
-    	    let dylibName = "lib\(name).dylib"
-	        let modulePath = moduleCacheDirectory.appending(component: dylibName)
+            let moduleCacheDirectory = cacheDirectory.appending(component: hash)
+            let dylibName = "lib\(name).dylib"
+            let modulePath = moduleCacheDirectory.appending(component: dylibName)
 
             let module = ThreadSafe(
                 HelpersModuleBuild(
