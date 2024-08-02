@@ -7,9 +7,4 @@ final class MockProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashin
     func hash(helpersDirectory: AbsolutePath) throws -> String {
         stubHash?(helpersDirectory) ?? ""
     }
-
-    var stubPrefixHash: ((AbsolutePath) -> String)?
-    func prefixHash(helpersDirectory: AbsolutePath) -> String {
-        stubPrefixHash?(helpersDirectory) ?? ""
-    }
 }

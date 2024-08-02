@@ -46,18 +46,4 @@ final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
             XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
         }
     }
-
-    func test_prefixHash() throws {
-        // Given
-        let path = try AbsolutePath(validating: "/path/to/helpers")
-        let pathString = path.pathString
-        let index = pathString.index(pathString.startIndex, offsetBy: 7)
-        let expected = String(pathString.md5[..<index])
-
-        // When
-        let got = subject.prefixHash(helpersDirectory: path)
-
-        // Then
-        XCTAssertEqual(got, expected)
-    }
 }

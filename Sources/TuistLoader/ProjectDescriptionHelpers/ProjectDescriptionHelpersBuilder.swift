@@ -177,12 +177,10 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             }
 
             let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-            let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
+        	let helpersModuleCachePath = cacheDirectory.appending(component: hash)
+    	    let dylibName = "lib\(name).dylib"
+	        let modulePath = helpersModuleCachePath.appending(component: dylibName)
 
-            let helpersCachePath = cacheDirectory.appending(component: prefixHash)
-            let helpersModuleCachePath = helpersCachePath.appending(component: hash)
-            let dylibName = "lib\(name).dylib"
-            let modulePath = helpersModuleCachePath.appending(component: dylibName)
             let projectDescriptionHelpersModule = ThreadSafe(
                 HelpersModuleBuild(
                     module: ProjectDescriptionHelpersModule(name: name, path: modulePath)
@@ -198,13 +196,10 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 return build.module
             }
 
-            let helpersModuleCachePath = build.module.path.parentDirectory
-            try FileHandler.shared.createFolder(helpersModuleCachePath)
-
             let command = createCommand(
                 moduleName: name,
                 directory: path,
-                outputDirectory: helpersModuleCachePath,
+                outputDirectory: cacheDirectory,
                 projectDescriptionSearchPaths: projectDescriptionSearchPaths,
                 customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
             )
