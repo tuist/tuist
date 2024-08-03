@@ -22,15 +22,36 @@ final class GraphImplicitImportLintService {
 
         let allTargetNames = Set(allTargets.map(\.productName))
 
-        var allImports = [Target: Set<String>]()
+        var implicitTargetImports: [Target: Set<String>] = [:]
+        for project in graph.projects.values {
+            let allTargets = project.targets.values
 
-        for target in allTargets {
-            let targetImports = Set(try await handleTarget(target: target))
-            let targetProjectImports = Set(targetImports.filter { allTargetNames.contains($0) })
-            guard !targetProjectImports.isEmpty else { continue }
-            allImports[target] = targetProjectImports
+            for target in allTargets {
+                let targetImports = Set(try await handleTarget(target: target))
+                let targetTuistDeclaredDependencies = target.dependencies.compactMap {
+                    var dependencyName: String?
+                    switch $0 {
+                    case let .target(name: targetName, _):
+                        dependencyName = project.targets[targetName]?.productName
+                    case let .project(target: targetName, path: projectPath, _):
+                        dependencyName = graph.projects[projectPath]?.targets[targetName]?.productName
+                    default:
+                        break
+                    }
+                    return dependencyName
+                }
+                var implicitImports: Set<String> = []
+                for targetImport in targetImports {
+                    if allTargetNames.contains(targetImport), !targetTuistDeclaredDependencies.contains(targetImport) {
+                        implicitImports.insert(targetImport)
+                    }
+                }
+                if implicitImports.count > 0 {
+                    implicitTargetImports[target] = implicitImports
+                }
+            }
         }
-        return allImports
+        return implicitTargetImports
     }
 
     func handleTarget(target: XcodeGraph.Target) async throws -> Set<String> {

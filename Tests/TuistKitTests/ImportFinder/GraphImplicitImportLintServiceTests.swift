@@ -9,16 +9,9 @@ import XCTest
 @testable import TuistKit
 
 final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
-    override func setUp() {
-        super.setUp()
-
-        system.succeedCommand(["/usr/bin/xcrun", "swift", "-version"], output: "Swift Version 5.2.1")
-    }
-
     func test_TargetLintWithImports() async throws {
         let path = try temporaryPath()
         let firstTargetPath = path.appending(try RelativePath(validating: "FirstTarget"))
-        let secondTargetPath = path.appending(try RelativePath(validating: "SecondTarget"))
 
         let firstTargetFile = firstTargetPath.appending(component: "Sources").appending(component: "File.swift")
         try FileHandler.shared.createFolder(firstTargetPath)
@@ -26,7 +19,9 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
         try FileHandler.shared.touch(firstTargetFile)
         try FileHandler.shared.write(
             """
-            import SecondTarget
+            import ExplicitTarget
+            import ImplicitTarget
+            import Foundation
 
             let a = 5
             """,
@@ -38,6 +33,9 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
             name: "FirstTarget",
             sources: [
                 SourceFile(path: firstTargetFile),
+            ],
+            dependencies: [
+                TargetDependency.target(name: "ExplicitTarget", condition: nil),
             ]
         )
 
@@ -46,7 +44,10 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
             targets: [
                 firstTarget,
                 Target.test(
-                    name: "SecondTarget"
+                    name: "ExplicitTarget"
+                ),
+                Target.test(
+                    name: "ImplicitTarget"
                 ),
             ]
         )
@@ -54,7 +55,7 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
             path: project,
         ])
         let result = try await GraphImplicitImportLintService(graph: graph).lint()
-        XCTAssertEqual(result, [firstTarget: Set(["SecondTarget"])])
+        XCTAssertEqual(result, [firstTarget: ["ImplicitTarget"]])
     }
 
     func test_TargetHandleWithImports() async throws {
@@ -82,7 +83,7 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
 
         try FileHandler.shared.write(
             """
-            @testable import SecondTarget
+            @testable import ThirdTarget
 
             func main() { }
             """,
@@ -100,6 +101,6 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
         let result = try await GraphImplicitImportLintService(
             graph: Graph.test()
         ).handleTarget(target: target)
-        XCTAssertEqual(result, ["SecondTarget", "A"])
+        XCTAssertEqual(result, ["SecondTarget", "ThirdTarget", "A"])
     }
 }
