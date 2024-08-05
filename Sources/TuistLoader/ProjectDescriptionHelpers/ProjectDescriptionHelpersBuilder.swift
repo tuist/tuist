@@ -39,16 +39,9 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
 }
 
 public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
-    /// Build information about module
-    private struct HelpersModuleBuild {
-        let module: ProjectDescriptionHelpersModule
-        /// Whether the module has already been built
-        var isBuilt: Bool = false
-    }
-
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
-    private var builtHelpers: ThreadSafe<[AbsolutePath: ThreadSafe<HelpersModuleBuild>]> = ThreadSafe([:])
+    private var builtHelpers: ThreadSafe<[AbsolutePath: Task<ProjectDescriptionHelpersModule, any Error>]> = ThreadSafe([:])
 
     /// Path to the cache directory.
     private let cacheDirectory: AbsolutePath
@@ -166,32 +159,16 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) async throws -> ProjectDescriptionHelpersModule {
-        let projectDescriptionHelpersModuleBuild = try builtHelpers.mutate { cache in
-            if let cachedModule = cache[path] {
-                return cachedModule
+        let projectDescriptionHelpersModuleTask = try builtHelpers.mutate { cache in
+            if let cachedTask = cache[path] {
+                return cachedTask
             }
 
             let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
             let moduleCacheDirectory = cacheDirectory.appending(component: hash)
             let dylibName = "lib\(name).dylib"
             let modulePath = moduleCacheDirectory.appending(component: dylibName)
-
-            let module = ThreadSafe(
-                HelpersModuleBuild(
-                    module: ProjectDescriptionHelpersModule(name: name, path: modulePath)
-                )
-            )
-            cache[path] = module
-
-            return module
-        }
-
-        return try projectDescriptionHelpersModuleBuild.mutate { build in
-            if build.isBuilt, FileHandler.shared.exists(build.module.path) {
-                return build.module
-            }
-
-            let moduleCacheDirectory = build.module.path.parentDirectory
+            let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
             try FileHandler.shared.createFolder(moduleCacheDirectory)
 
             let command = createCommand(
@@ -202,15 +179,22 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
             )
 
-            let timer = clock.startTimer()
-            try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
-            let duration = timer.stop()
-            let time = String(format: "%.3f", duration)
-            logger.debug("Built \(name) in (\(time)s)", metadata: .success)
+            let buildTask = Task {
+                let timer = clock.startTimer()
+                try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+                let duration = timer.stop()
+                let time = String(format: "%.3f", duration)
+                logger.debug("Built \(name) in (\(time)s)", metadata: .success)
 
-            build.isBuilt = true
-            return build.module
+                return module
+            }
+
+            cache[path] = buildTask
+
+            return buildTask
         }
+
+        return try await projectDescriptionHelpersModuleTask.value
     }
 
     private func createCommand(
