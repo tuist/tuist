@@ -7,14 +7,16 @@ public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
-    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.
+    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to
+    /// retrieve them instead of source control when possible.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
     func resolve(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws
 
     /// Updates package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
-    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.
+    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to
+    /// retrieve them instead of source control when possible.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
     func update(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws
 

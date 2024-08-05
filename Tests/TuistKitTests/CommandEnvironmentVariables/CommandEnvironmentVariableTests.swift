@@ -250,7 +250,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         let installCommandWithArgs = try InstallCommand.parse([
             "--path", "/new/install/path",
             "--no-update",
-            "--no-replace-scm-with-registry"
+            "--no-replace-scm-with-registry",
         ])
         XCTAssertEqual(installCommandWithArgs.path, "/new/install/path")
         XCTAssertFalse(installCommandWithArgs.update)

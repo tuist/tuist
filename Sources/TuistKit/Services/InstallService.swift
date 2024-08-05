@@ -70,11 +70,19 @@ final class InstallService {
         if update {
             logger.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(at: packageManifestPath.parentDirectory, replaceScmWithRegistry: replaceScmWithRegistry, printOutput: true)
+            try swiftPackageManagerController.update(
+                at: packageManifestPath.parentDirectory,
+                replaceScmWithRegistry: replaceScmWithRegistry,
+                printOutput: true
+            )
         } else {
             logger.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, replaceScmWithRegistry: replaceScmWithRegistry, printOutput: true)
+            try swiftPackageManagerController.resolve(
+                at: packageManifestPath.parentDirectory,
+                replaceScmWithRegistry: replaceScmWithRegistry,
+                printOutput: true
+            )
         }
     }
 }
