@@ -86,7 +86,7 @@ final class ProjectEditor: ProjectEditing {
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
-            CachedProjectDescriptionHelpersBuilderFactory()
+            ProjectDescriptionHelpersBuilderFactory()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper

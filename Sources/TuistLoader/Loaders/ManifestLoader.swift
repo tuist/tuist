@@ -125,7 +125,7 @@ public class ManifestLoader: ManifestLoading {
             environment: Environment.shared,
             resourceLocator: ResourceLocator(),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
-            projectDescriptionHelpersBuilderFactory: CachedProjectDescriptionHelpersBuilderFactory(),
+            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
             swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
