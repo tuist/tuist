@@ -25,7 +25,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_build_when_the_helpers_is_a_dylib() throws {
+    func test_build_when_the_helpers_is_a_dylib() async throws {
         // Given
         let path = try temporaryPath()
         subject = ProjectDescriptionHelpersBuilder(
@@ -45,8 +45,12 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in
-            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: [])
+        let paths = try await Array(0 ..< 3).concurrentMap { _ in
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: []
+            )
         }
 
         // Then
@@ -58,7 +62,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
     }
 
-    func test_build_when_the_helpers_is_a_plugin() throws {
+    func test_build_when_the_helpers_is_a_plugin() async throws {
         // Given
         let path = try temporaryPath()
         subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path, helpersDirectoryLocator: helpersDirectoryLocator)
@@ -76,8 +80,12 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let plugins = [ProjectDescriptionHelpersPlugin(name: "Plugin", path: helpersPluginPath, location: .local)]
 
         // When
-        let paths = try (0 ..< 3).map { _ in
-            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: plugins)
+        let paths = try await Array(0 ..< 3).concurrentMap { _ in
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: plugins
+            )
         }
 
         // Then

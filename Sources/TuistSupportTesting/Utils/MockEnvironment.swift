@@ -38,6 +38,10 @@ public class MockEnvironment: Environmenting {
         nil
     }
 
+    public var cacheDirectory: AbsolutePath? {
+        directory.path.appending(components: ".cache")
+    }
+
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }

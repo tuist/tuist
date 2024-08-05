@@ -10,7 +10,10 @@ import XcodeGraph
 public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: XcodeGraph.Graph) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor]) {
+    public func map(
+        graph: XcodeGraph.Graph,
+        environment: MapperEnvironment
+    ) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -32,6 +35,6 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
-        return (graph, [])
+        return (graph, [], environment)
     }
 }

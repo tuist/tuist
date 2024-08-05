@@ -11,7 +11,7 @@ public protocol RecursiveManifestLoading {
     /// - Returns: Loaded manifest
     func loadWorkspace(
         at path: AbsolutePath
-    ) throws -> LoadedWorkspace
+    ) async throws -> LoadedWorkspace
 
     /// Load package projects and merge in the loaded manifest
     /// - Parameters:
@@ -21,7 +21,7 @@ public protocol RecursiveManifestLoading {
     func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
         packageSettings: TuistCore.PackageSettings
-    ) throws -> LoadedWorkspace
+    ) async throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
@@ -49,10 +49,10 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.packageInfoMapper = packageInfoMapper
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) async throws -> LoadedWorkspace {
         let loadedWorkspace: ProjectDescription.Workspace?
         do {
-            loadedWorkspace = try manifestLoader.loadWorkspace(at: path)
+            loadedWorkspace = try await manifestLoader.loadWorkspace(at: path)
         } catch ManifestLoaderError.manifestNotFound {
             loadedWorkspace = nil
         }
@@ -69,7 +69,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = LoadedProjects(projects: try loadProjects(paths: projectPaths).projects)
+        let projects = await LoadedProjects(projects: try loadProjects(paths: projectPaths).projects)
         let workspace: ProjectDescription.Workspace
         if let loadedWorkspace {
             workspace = loadedWorkspace
@@ -86,7 +86,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     }
 
     public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistCore.PackageSettings)
-        throws -> LoadedWorkspace
+        async throws -> LoadedWorkspace
     {
         let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
@@ -102,7 +102,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 .pathString.contains(".build/checkouts")
         }
 
-        let packageProjects = try loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
+        let packageProjects = try await loadPackageProjects(paths: packagePaths, packageSettings: packageSettings)
 
         let projects = loadedWorkspace.projects.merging(
             packageProjects.projects,
@@ -121,16 +121,16 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private func loadPackageProjects(
         paths: [AbsolutePath],
         packageSettings: TuistCore.PackageSettings?
-    ) throws -> LoadedProjects {
+    ) async throws -> LoadedProjects {
         guard let packageSettings else { return LoadedProjects(projects: [:]) }
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
         while !paths.isEmpty {
             paths.subtract(cache.keys)
-            let projects = try Array(paths).compactMap(context: ExecutionContext.concurrent) {
-                let packageInfo = try manifestLoader.loadPackage(at: $0)
-                return try packageInfoMapper.map(
+            let projects = try await Array(paths).concurrentCompactMap {
+                let packageInfo = try await self.manifestLoader.loadPackage(at: $0)
+                return try self.packageInfoMapper.map(
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,
@@ -148,14 +148,14 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         return LoadedProjects(projects: cache)
     }
 
-    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
+    private func loadProjects(paths: [AbsolutePath]) async throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
         while !paths.isEmpty {
             paths.subtract(cache.keys)
-            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
-                try manifestLoader.loadProject(at: $0)
+            let projects = try await Array(paths).concurrentMap {
+                try await self.manifestLoader.loadProject(at: $0)
             }
             var newDependenciesPaths = Set<AbsolutePath>()
             for (path, project) in zip(paths, projects) {

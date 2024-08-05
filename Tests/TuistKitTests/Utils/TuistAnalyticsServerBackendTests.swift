@@ -1,3 +1,4 @@
+import FileSystem
 import MockableTest
 import TuistAnalytics
 import TuistCore
@@ -35,7 +36,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             fileHandler: fileHandler,
             ciChecker: ciChecker,
             cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
-            analyticsArtifactUploadService: analyticsArtifactUploadService
+            analyticsArtifactUploadService: analyticsArtifactUploadService,
+            fileSystem: FileSystem()
         )
     }
 

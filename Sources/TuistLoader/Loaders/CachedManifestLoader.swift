@@ -58,46 +58,46 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        try load(manifest: .config, at: path) {
-            let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
+    public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
+        try await load(manifest: .config, at: path) {
+            let projectDescriptionConfig = try await manifestLoader.loadConfig(at: path)
             return projectDescriptionConfig
         }
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> Project {
-        try load(manifest: .project, at: path) {
-            try manifestLoader.loadProject(at: path)
+    public func loadProject(at path: AbsolutePath) async throws -> Project {
+        try await load(manifest: .project, at: path) {
+            try await manifestLoader.loadProject(at: path)
         }
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
-        try load(manifest: .workspace, at: path) {
-            try manifestLoader.loadWorkspace(at: path)
+    public func loadWorkspace(at path: AbsolutePath) async throws -> Workspace {
+        try await load(manifest: .workspace, at: path) {
+            try await manifestLoader.loadWorkspace(at: path)
         }
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
-        try load(manifest: .template, at: path) {
-            try manifestLoader.loadTemplate(at: path)
+    public func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template {
+        try await load(manifest: .template, at: path) {
+            try await manifestLoader.loadTemplate(at: path)
         }
     }
 
-    public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
-        try load(manifest: .plugin, at: path) {
-            try manifestLoader.loadPlugin(at: path)
+    public func loadPlugin(at path: AbsolutePath) async throws -> ProjectDescription.Plugin {
+        try await load(manifest: .plugin, at: path) {
+            try await manifestLoader.loadPlugin(at: path)
         }
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
-        try load(manifest: .packageSettings, at: path) {
-            try manifestLoader.loadPackageSettings(at: path)
+    public func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings {
+        try await load(manifest: .packageSettings, at: path) {
+            try await manifestLoader.loadPackageSettings(at: path)
         }
     }
 
-    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try load(manifest: .package, at: path) {
-            try manifestLoader.loadPackage(at: path)
+    public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
+        try await load(manifest: .package, at: path) {
+            try await manifestLoader.loadPackage(at: path)
         }
     }
 
@@ -109,6 +109,10 @@ public class CachedManifestLoader: ManifestLoading {
         try manifestLoader.validateHasRootManifest(at: path)
     }
 
+    public func hasRootManifest(at path: AbsolutePath) -> Bool {
+        manifestLoader.hasRootManifest(at: path)
+    }
+
     public func register(plugins: Plugins) throws {
         try pluginsHashCache.mutate { $0 = try calculatePluginsHash(for: plugins) }
         try manifestLoader.register(plugins: plugins)
@@ -116,7 +120,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
+    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () async throws -> T) async throws -> T {
         let manifestPath = path.appending(component: manifest.fileName(path))
         guard fileHandler.exists(manifestPath) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
@@ -130,7 +134,7 @@ public class CachedManifestLoader: ManifestLoading {
 
         guard let hashes = calculatedHashes else {
             logger.warning("Unable to calculate manifest hash at path: \(path)")
-            return try loader()
+            return try await loader()
         }
 
         let cachedManifestPath = try cachedPath(for: manifestPath)
@@ -141,7 +145,7 @@ public class CachedManifestLoader: ManifestLoading {
             return cached
         }
 
-        let loadedManifest = try loader()
+        let loadedManifest = try await loader()
 
         try cacheManifest(
             manifest: manifest,

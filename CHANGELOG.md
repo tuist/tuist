@@ -1,5 +1,51 @@
 # Changelog
 
+## 4.23.0 - 2024-08-05
+
+### Tuist
+
+#### Added
+
+- Create tuist share command [#6527](https://github.com/tuist/tuist/pull/6527) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix clean printed twice in tuist --help [#6580](https://github.com/tuist/tuist/pull/6580) by [@fortmarek](https://github.com/fortmarek)
+- Generate SPM Objective-C resource accessor only when a bundle is generated [#6584](https://github.com/tuist/tuist/pull/6584) by [@fortmarek](https://github.com/fortmarek)
+- Deduplicate external resources [#6538](https://github.com/tuist/tuist/pull/6538) by [@KaiOelfke](https://github.com/KaiOelfke)
+- Prevent Tuist authentication kickouts by retrying token refresh [#6594](https://github.com/tuist/tuist/pull/6594) by [@fortmarek](https://github.com/fortmarek)
+- Fix unstable hashing of target dependencies [#6593](https://github.com/tuist/tuist/pull/6593) by [@fortmarek](https://github.com/fortmarek)
+- Fix generate performance when using Tuist Cache xcframeworks [#6592](https://github.com/tuist/tuist/pull/6592) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.22.0 - 2024-07-30
+
+### Tuist
+
+#### Changed
+
+- Update generated code templates to add `Sendable` Conformance [#6540](https://github.com/tuist/tuist/pull/6540) by [@waltflanagan](https://github.com/waltflanagan)
+- Improve the help menu by grouping the flat list of commands and add `tuist project view` command [#6566](https://github.com/tuist/tuist/pull/6566) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Validate target references in custom workspace schemes [#6536](https://github.com/tuist/tuist/pull/6536) by [@ajkolean](https://github.com/ajkolean)
+- Support unit test depending on an app extension [#6561](https://github.com/tuist/tuist/pull/6561) by [@InderKumarRathore](https://github.com/InderKumarRathore)
+
+#### Fixed
+
+- Fix integrating external static frameworks with resource bundles [#6565](https://github.com/tuist/tuist/pull/6565) by [@fortmarek](https://github.com/fortmarek)
+- Default to staticLibrary in product type mapping if automatic product type exists [#6559](https://github.com/tuist/tuist/pull/6559) by [@Arideno](https://github.com/Arideno)
+- Fix the Homebrew installation instructions in the docs [#6571](https://github.com/tuist/tuist/pull/6571) by [@pepicrft](https://github.com/pepicrft)
+- Fix storing test results of non-tested schemes [#6572](https://github.com/tuist/tuist/pull/6572) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.21.2 - 2024-07-19
 
 ### Tuist

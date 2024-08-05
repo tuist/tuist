@@ -3,20 +3,19 @@ import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
-    var subject: GraphLinter!
-    var graphTraverser: MockGraphTraverser!
+    private var subject: GraphLinter!
+    private var graphTraverser: MockGraphTraversing!
 
     override func setUp() {
         super.setUp()
-        graphTraverser = MockGraphTraverser()
+        graphTraverser = .init()
         subject = GraphLinter(
             projectLinter: MockProjectLinter(),
             staticProductsLinter: MockStaticProductsGraphLinter()
@@ -464,6 +463,44 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: bundle.name, path: path): Set([]),
             .target(name: unitTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
             .target(name: uiTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_testTargetsDependsOnAppExtension() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appTarget = Target.test(name: "AppTarget", product: .app)
+        let appExtension = Target.test(name: "app_extension", platform: .iOS, product: .appExtension)
+        let appExtensionTests = Target.test(name: "unitTests", platform: .iOS, product: .unitTests)
+
+        let project = Project.test(path: "/tmp/app", name: "App", targets: [
+            appTarget,
+            appExtension,
+            appExtensionTests,
+        ])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appTarget.name, path: path): Set([
+                .target(name: appExtension.name, path: path),
+            ]),
+            .target(name: appExtension.name, path: path): Set([]),
+            .target(name: appExtensionTests.name, path: path): Set([
+                .target(name: appExtension.name, path: path),
+            ]),
         ]
 
         let graph = Graph.test(

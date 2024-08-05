@@ -430,7 +430,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertTrue(runCommandWithEnvVars.generate)
         XCTAssertTrue(runCommandWithEnvVars.clean)
         XCTAssertEqual(runCommandWithEnvVars.os, "14.5")
-        XCTAssertEqual(runCommandWithEnvVars.scheme, "MyScheme")
+        XCTAssertEqual(runCommandWithEnvVars.runnable, .scheme("MyScheme"))
         XCTAssertEqual(runCommandWithEnvVars.arguments, ["arg1", "arg2", "arg3"])
 
         // Execute RunCommand with command line arguments
@@ -452,7 +452,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(runCommandWithArgs.device, "iPhone 12")
         XCTAssertEqual(runCommandWithArgs.os, "15.0")
         XCTAssertTrue(runCommandWithArgs.rosetta)
-        XCTAssertEqual(runCommandWithArgs.scheme, "AnotherScheme")
+        XCTAssertEqual(runCommandWithArgs.runnable, .scheme("AnotherScheme"))
         XCTAssertEqual(runCommandWithArgs.arguments, ["arg4", "arg5"])
     }
 
@@ -880,17 +880,5 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--path", "/new/logout/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
-    }
-
-    func testAnalyticsCommandUsesEnvVars() throws {
-        setVariable(.analyticsPath, value: "/path/to/analytics")
-
-        let commandWithEnvVars = try AnalyticsCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/analytics")
-
-        let commandWithArgs = try AnalyticsCommand.parse([
-            "--path", "/new/analytics/path",
-        ])
-        XCTAssertEqual(commandWithArgs.path, "/new/analytics/path")
     }
 }

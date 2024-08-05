@@ -2,7 +2,7 @@ import Foundation
 import Path
 
 /// It represents a simulator device. Devices are obtained using Xcode's CLI simctl
-public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
+public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible, Equatable {
     /// Device data path.
     public let dataPath: AbsolutePath
 

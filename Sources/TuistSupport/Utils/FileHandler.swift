@@ -66,12 +66,21 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
-    func files(in path: Path.AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<Path.AbsolutePath>
+    func files(
+        in path: Path.AbsolutePath,
+        filter: ((URL) -> Bool)?,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
+    func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
     func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath]
     func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
     func createFolder(_ path: Path.AbsolutePath) throws
-    func delete(_ path: Path.AbsolutePath) throws
     func isFolder(_ path: Path.AbsolutePath) -> Bool
     func touch(_ path: Path.AbsolutePath) throws
     func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath]
@@ -83,6 +92,16 @@ public protocol FileHandling: AnyObject {
     func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]?
     func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
     func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
+}
+
+extension FileHandling {
+    public func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath> {
+        files(in: path, filter: nil, nameFilter: nameFilter, extensionFilter: extensionFilter)
+    }
 }
 
 public class FileHandler: FileHandling {
@@ -239,6 +258,7 @@ public class FileHandler: FileHandling {
 
     public func files(
         in path: Path.AbsolutePath,
+        filter: ((URL) -> Bool)?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath> {
@@ -250,14 +270,19 @@ public class FileHandler: FileHandling {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
 
-        func filter(candidateURL: URL) -> Bool {
+        func filterCandidate(with url: URL) -> Bool {
             if let extensionFilter {
-                guard extensionFilter.contains(candidateURL.pathExtension) else {
+                guard extensionFilter.contains(url.pathExtension) else {
                     return false
                 }
             }
             if let nameFilter {
-                guard nameFilter.contains(candidateURL.lastPathComponent) else {
+                guard nameFilter.contains(url.lastPathComponent) else {
+                    return false
+                }
+            }
+            if let filter {
+                guard filter(url) else {
                     return false
                 }
             }
@@ -265,7 +290,7 @@ public class FileHandler: FileHandling {
         }
 
         while let candidateURL = enumerator?.nextObject() as? Foundation.URL {
-            guard filter(candidateURL: candidateURL) else {
+            guard filterCandidate(with: candidateURL) else {
                 continue
             }
             // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
@@ -291,12 +316,6 @@ public class FileHandler: FileHandling {
             withIntermediateDirectories: true,
             attributes: nil
         )
-    }
-
-    public func delete(_ path: Path.AbsolutePath) throws {
-        if exists(path) {
-            try fileManager.removeItem(atPath: path.pathString)
-        }
     }
 
     public func touch(_ path: Path.AbsolutePath) throws {
