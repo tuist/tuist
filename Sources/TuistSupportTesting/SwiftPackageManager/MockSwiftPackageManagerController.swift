@@ -6,17 +6,17 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
     public init() {}
 
     public var invokedResolve = false
-    public var resolveStub: ((AbsolutePath, Bool) throws -> Void)?
-    public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
+    public var resolveStub: ((AbsolutePath, Bool, Bool) throws -> Void)?
+    public func resolve(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws {
         invokedResolve = true
-        try resolveStub?(path, printOutput)
+        try resolveStub?(path, replaceScmWithRegistry, printOutput)
     }
 
     public var invokedUpdate = false
-    public var updateStub: ((AbsolutePath, Bool) throws -> Void)?
-    public func update(at path: AbsolutePath, printOutput: Bool) throws {
+    public var updateStub: ((AbsolutePath, Bool, Bool) throws -> Void)?
+    public func update(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws {
         invokedUpdate = true
-        try updateStub?(path, printOutput)
+        try updateStub?(path, replaceScmWithRegistry, printOutput)
     }
 
     public var invokedSetToolsVersion = false

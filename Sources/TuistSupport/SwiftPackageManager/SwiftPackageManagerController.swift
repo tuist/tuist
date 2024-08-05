@@ -7,14 +7,16 @@ public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
+    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func resolve(at path: AbsolutePath, printOutput: Bool) throws
+    func resolve(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws
 
     /// Updates package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
+    ///   - replaceScmWithRegistry: When true it will look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func update(at path: AbsolutePath, printOutput: Bool) throws
+    func update(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws
 
     /// Gets the tools version of the package at the given path
     /// - Parameter path: Directory where the `Package.swift` is defined.
@@ -53,16 +55,26 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         self.fileHandler = fileHandler
     }
 
-    public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
+    public func resolve(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws {
+        var arguments: [String] = []
+        if replaceScmWithRegistry {
+            arguments.append("--replace-scm-with-registry")
+        }
+        arguments.append("resolve")
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: arguments)
 
         printOutput ?
             try system.runAndPrint(command) :
             try system.run(command)
     }
 
-    public func update(at path: AbsolutePath, printOutput: Bool) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
+    public func update(at path: AbsolutePath, replaceScmWithRegistry: Bool, printOutput: Bool) throws {
+        var arguments: [String] = []
+        if replaceScmWithRegistry {
+            arguments.append("--replace-scm-with-registry")
+        }
+        arguments.append("update")
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: arguments)
 
         printOutput ?
             try system.runAndPrint(command) :

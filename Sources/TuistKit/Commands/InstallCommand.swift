@@ -27,10 +27,18 @@ public struct InstallCommand: AsyncParsableCommand {
     )
     var update: Bool = false
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.",
+        envKey: .installReplaceScmWithRegistry
+    )
+    var replaceScmWithRegistry: Bool = false
+
     public func run() async throws {
         try await InstallService().run(
             path: path,
-            update: update
+            update: update,
+            replaceScmWithRegistry: replaceScmWithRegistry
         )
     }
 }

@@ -76,7 +76,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: stubbedPath.pathString,
-            update: true
+            update: true, 
+            replaceScmWithRegistry: false
         )
 
         // Then
@@ -106,7 +107,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: nil,
-            update: false
+            update: false, 
+            replaceScmWithRegistry: false
         )
 
         // Then
@@ -139,7 +141,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: stubbedPath.pathString,
-            update: false
+            update: false, 
+            replaceScmWithRegistry: false
         )
 
         // Then
@@ -166,7 +169,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
         try await subject.run(
             path: temporaryDirectory.pathString,
-            update: false
+            update: false, 
+            replaceScmWithRegistry: false
         )
     }
 }

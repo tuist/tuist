@@ -240,17 +240,21 @@ final class CommandEnvironmentVariableTests: XCTestCase {
     func testInstallCommandUsesEnvVars() throws {
         setVariable(.installPath, value: "/path/to/install")
         setVariable(.installUpdate, value: "true")
+        setVariable(.installReplaceScmWithRegistry, value: "true")
 
         let installCommandWithEnvVars = try InstallCommand.parse([])
         XCTAssertEqual(installCommandWithEnvVars.path, "/path/to/install")
         XCTAssertTrue(installCommandWithEnvVars.update)
+        XCTAssertTrue(installCommandWithEnvVars.replaceScmWithRegistry)
 
         let installCommandWithArgs = try InstallCommand.parse([
             "--path", "/new/install/path",
             "--no-update",
+            "--no-replace-scm-with-registry"
         ])
         XCTAssertEqual(installCommandWithArgs.path, "/new/install/path")
         XCTAssertFalse(installCommandWithArgs.update)
+        XCTAssertFalse(installCommandWithArgs.replaceScmWithRegistry)
     }
 
     func testListCommandUsesEnvVars() throws {

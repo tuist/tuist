@@ -38,6 +38,7 @@ public enum EnvKey: String, CaseIterable {
     // INSTALL
     case installPath = "TUIST_INSTALL_PATH"
     case installUpdate = "TUIST_INSTALL_UPDATE"
+    case installReplaceScmWithRegistry = "TUIST_INSTALL_REPLACE_SCM_WITH_REGISTRY"
 
     // GENERATE
     case generatePath = "TUIST_GENERATE_PATH"
