@@ -30,7 +30,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        )
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
     }

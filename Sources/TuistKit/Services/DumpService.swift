@@ -31,21 +31,21 @@ final class DumpService {
         let encoded: Encodable
         switch manifest {
         case .project:
-            encoded = try manifestLoader.loadProject(at: projectPath)
+            encoded = try await manifestLoader.loadProject(at: projectPath)
         case .workspace:
-            encoded = try manifestLoader.loadWorkspace(at: projectPath)
+            encoded = try await manifestLoader.loadWorkspace(at: projectPath)
         case .config:
-            encoded = try manifestLoader.loadConfig(at: projectPath.appending(component: Constants.tuistDirectoryName))
+            encoded = try await manifestLoader.loadConfig(at: projectPath.appending(component: Constants.tuistDirectoryName))
         case .template:
-            encoded = try manifestLoader.loadTemplate(at: projectPath)
+            encoded = try await manifestLoader.loadTemplate(at: projectPath)
         case .plugin:
-            encoded = try manifestLoader.loadPlugin(at: projectPath)
+            encoded = try await manifestLoader.loadPlugin(at: projectPath)
         case .package:
-            encoded = try manifestLoader.loadPackageSettings(at: projectPath)
+            encoded = try await manifestLoader.loadPackageSettings(at: projectPath)
         }
 
         let json: JSON = try encoded.toJSON()
-        logger.notice("\(json.toString(prettyPrint: true))")
+        logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
     }
 }
 

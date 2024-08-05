@@ -1,10 +1,10 @@
 import ProjectDescription
 
 let config = Config(
-    cloud: .cloud(
-        projectId: "tuist/tuist",
-        url: "https://cloud.tuist.io",
-        options: [.optional]
-    ),
-    swiftVersion: .init("5.10")
+    fullHandle: "tuist/tuist",
+    url: "https://cloud.tuist.io",
+    swiftVersion: .init("5.10"),
+    generationOptions: .options(
+        optionalAuthentication: true
+    )
 )

@@ -3,20 +3,19 @@ import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
-    var subject: GraphLinter!
-    var graphTraverser: MockGraphTraverser!
+    private var subject: GraphLinter!
+    private var graphTraverser: MockGraphTraversing!
 
     override func setUp() {
         super.setUp()
-        graphTraverser = MockGraphTraverser()
+        graphTraverser = .init()
         subject = GraphLinter(
             projectLinter: MockProjectLinter(),
             staticProductsLinter: MockStaticProductsGraphLinter()
@@ -88,6 +87,105 @@ final class GraphLinterTests: TuistUnitTestCase {
         let reason =
             "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
         XCTAssertFalse(result.contains(LintingIssue(reason: reason, severity: .error)))
+    }
+
+    func test_lint_when_scheme_has_unknown_target() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "UnknownReferenceTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [unknownBuildReferenceTarget]),
+            testAction: nil,
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            result,
+            [LintingIssue(
+                reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
+                severity: .warning
+            )]
+        )
+    }
+
+    func test_lint_when_scheme_has_known_target() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "KnownReferenceTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [unknownBuildReferenceTarget]),
+            testAction: nil,
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "KnownReferenceTarget"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            result,
+            []
+        )
     }
 
     func test_lint_when_no_version_available() throws {
@@ -365,6 +463,44 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: bundle.name, path: path): Set([]),
             .target(name: unitTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
             .target(name: uiTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_lint_testTargetsDependsOnAppExtension() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appTarget = Target.test(name: "AppTarget", product: .app)
+        let appExtension = Target.test(name: "app_extension", platform: .iOS, product: .appExtension)
+        let appExtensionTests = Target.test(name: "unitTests", platform: .iOS, product: .unitTests)
+
+        let project = Project.test(path: "/tmp/app", name: "App", targets: [
+            appTarget,
+            appExtension,
+            appExtensionTests,
+        ])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appTarget.name, path: path): Set([
+                .target(name: appExtension.name, path: path),
+            ]),
+            .target(name: appExtension.name, path: path): Set([]),
+            .target(name: appExtensionTests.name, path: path): Set([
+                .target(name: appExtension.name, path: path),
+            ]),
         ]
 
         let graph = Graph.test(
@@ -1614,15 +1750,23 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: temporaryPath,
             targets: [targetA, targetB],
             schemes: [
-                .test(testAction: .test(
-                    coverage: true,
-                    codeCoverageTargets: [
-                        TargetReference(
-                            projectPath: temporaryPath,
-                            name: "TargetA"
-                        ),
-                    ]
-                )),
+                .test(
+                    buildAction: nil,
+                    testAction: .test(
+                        targets: [],
+                        coverage: true,
+                        codeCoverageTargets: [
+                            TargetReference(
+                                projectPath: temporaryPath,
+                                name: "TargetA"
+                            ),
+                        ]
+                    ),
+                    runAction: nil,
+                    archiveAction: nil,
+                    profileAction: nil,
+                    analyzeAction: nil
+                ),
             ]
         )
 

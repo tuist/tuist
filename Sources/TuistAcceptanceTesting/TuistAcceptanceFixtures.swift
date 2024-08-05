@@ -4,10 +4,12 @@ public enum TuistAcceptanceFixtures {
     case appWithBuildRules
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
+    case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
     case appWithSpmDependencies
     case appWithTestPlan
+    case appWithTests
     case commandLineToolBasic
     case commandLineToolWithDynamicFramework
     case commandLineToolWithDynamicLibrary
@@ -27,6 +29,8 @@ public enum TuistAcceptanceFixtures {
     case iosWppWithCustomResourceParserOptions
     case iosAppWithCustomScheme
     case iosAppWithExtensions
+    case iosAppWithExtensionAndTests
+    case iosAppWithDynamicFrameworksLinkingStaticFrameworks
     case iosAppWithFrameworkAndResources
     case iosAppWithFrameworkAndDisabledResources
     case iosAppWithFrameworkLinkingStaticFramework
@@ -69,6 +73,7 @@ public enum TuistAcceptanceFixtures {
     case visionosApp
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
+    case xcodeApp
     case custom(String)
 
     public var path: String {
@@ -79,6 +84,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGoogleMaps:
+            return "app_with_google_maps"
         case .appWithPlugins:
             return "app_with_plugins"
         case .appWithPreviews:
@@ -87,6 +94,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
+        case .appWithTests:
+            return "app_with_tests"
         case .commandLineToolBasic:
             return "command_line_tool_basic"
         case .commandLineToolWithDynamicFramework:
@@ -119,12 +128,16 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_custom_configuration"
         case .iosAppWithCustomDevelopmentRegion:
             return "ios_app_with_custom_development_region"
+        case .iosAppWithDynamicFrameworksLinkingStaticFrameworks:
+            return "ios_app_with_dynamic_frameworks_linking_static_frameworks"
         case .iosWppWithCustomResourceParserOptions:
             return "ios_app_with_custom_resource_parser_options"
         case .iosAppWithCustomScheme:
             return "ios_app_with_custom_scheme"
         case .iosAppWithExtensions:
             return "ios_app_with_extensions"
+        case .iosAppWithExtensionAndTests:
+            return "ios_app_with_extension_and_tests"
         case .iosAppWithFrameworkAndResources:
             return "ios_app_with_framework_and_resources"
         case .iosAppWithFrameworkAndDisabledResources:
@@ -209,6 +222,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_file_header_template"
         case .workspaceWithInlineFileHeaderTemplate:
             return "workspace_with_inline_file_header_template"
+        case .xcodeApp:
+            return "xcode_app"
         case let .custom(path):
             return path
         }

@@ -34,7 +34,7 @@ final class EditServiceTests: XCTestCase {
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
 
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.editProjects))
+            .cacheDirectory(for: .value(.editProjects))
             .willReturn("/Users/tuist/cache/EditProjects")
 
         let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
@@ -55,7 +55,7 @@ final class EditServiceTests: XCTestCase {
 
     func test_edit_uses_caches_directory() async throws {
         let path: AbsolutePath = "/private/tmp"
-        let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
         let projectDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
         given(projectEditor!)
@@ -74,12 +74,12 @@ final class EditServiceTests: XCTestCase {
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(projectDirectory), onlyCurrentDirectory: .value(false), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 
     func test_edit_permanent_does_not_open_workspace() async throws {
         let path: AbsolutePath = "/private/tmp"
-        let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
         let projectDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
         given(projectEditor!)
@@ -96,6 +96,6 @@ final class EditServiceTests: XCTestCase {
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(path), onlyCurrentDirectory: .value(true), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 }

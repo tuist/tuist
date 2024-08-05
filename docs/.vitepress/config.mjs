@@ -1,213 +1,12 @@
 import { defineConfig } from "vitepress";
-import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
-import examplesDataLoader from "../docs/reference/examples/examples.data";
-import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import {
+  guidesSidebar,
+  contributorsSidebar,
+  referencesSidebar,
+} from "./sidebars.mjs";
 
-const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
-
-const projectDescriptionSidebar = {
-  text: "Project Description",
-  items: [],
-};
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-["structs", "enums", "extensions", "typealiases"].forEach((category) => {
-  if (projectDescriptionTypesData.find((item) => item.category === category)) {
-    projectDescriptionSidebar.items.push({
-      text: capitalize(category),
-      collapsed: true,
-      items: projectDescriptionTypesData
-        .filter((item) => item.category === category)
-        .map((item) => ({
-          text: item.title,
-          link: `/reference/project-description/${item.identifier}`,
-        })),
-    });
-  }
-});
-
-function generateNestedSidebarItems(items) {
-  const nestedItems = {};
-
-  items.forEach((item) => {
-    const category = item.category
-    if (!nestedItems[category]) {
-      nestedItems[category] = {
-        text: capitalize(category),
-        collapsed: true,
-        items: [],
-      };
-    }
-    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
-  });
-
-  function isLinkItem(item) {
-    return typeof item.link === "string";
-  }
-
-  function convertToArray(obj) {
-    return Object.values(obj).reduce((acc, item) => {
-      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
-        acc.push(item);
-      } else {
-        acc.push({
-          text: item.text,
-          collapsed: true,
-          items: convertToArray(item.items),
-        });
-      }
-      return acc;
-    }, []);
-  }
-
-  return convertToArray(nestedItems);
-}
-
-  
-const cliData = cliDataLoader.load();
-
-const cliSidebar = {
-  text: "CLI",
-  items: generateNestedSidebarItems(cliData),
-};
-
-const guideSidebar = [
-  {
-    text: "Introduction",
-    items: [
-      {
-        text: "What is Tuist?",
-        link: "/",
-      },
-      {
-        text: "The cost of convenience",
-        link: "/guide/introduction/cost-of-convenience",
-      },
-      {
-        text: "Installation",
-        link: "/guide/introduction/installation",
-      },
-      {
-        text: "Adopting Tuist",
-        collapsed: true,
-        items: [
-          {
-            text: "Create a project",
-            link: "/guide/introduction/adopting-tuist/new-project",
-          },
-          {
-            text: "Use it with a Swift Package",
-            link: "/guide/introduction/adopting-tuist/swift-package",
-          },
-          {
-            text: "Migrate from .xcodeproj",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
-          },
-          {
-            text: "Migrate local Swift Packages",
-            link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
-          },
-          {
-            text: "Migrate from XcodeGen",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
-          },
-          {
-            text: "Migrate from Bazel",
-            link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
-          },
-        ],
-      },
-      {
-        text: "From v3 to v4",
-        link: "/guide/introduction/from-v3-to-v4",
-      },
-    ],
-  },
-  {
-    text: "Tuist Projects",
-    items: [
-      {
-        text: "Manifests",
-        link: "/guide/project/manifests",
-      },
-      {
-        text: "Directory structure",
-        link: "/guide/project/directory-structure",
-      },
-      { text: "Editing", link: "/guide/project/editing" },
-      { text: "Dependencies", link: "/guide/project/dependencies" },
-      { text: "Code sharing", link: "/guide/project/code-sharing" },
-      {
-        text: "Synthesized files",
-        link: "/guide/project/synthesized-files",
-      },
-      {
-        text: "Dynamic configuration",
-        link: "/guide/project/dynamic-configuration",
-      },
-      {
-        text: "Templates",
-        link: "/guide/project/templates",
-      },
-      {
-        text: "Plugins",
-        link: "/guide/project/plugins",
-      },
-      {
-        text: "Commands",
-        collapsed: true,
-        items: [
-          { text: "Generate", link: "/guide/automation/generate" },
-          { text: "Build", link: "/guide/automation/build" },
-          { text: "Test", link: "/guide/automation/test" },
-          { text: "Run", link: "/guide/automation/run" },
-          { text: "Graph", link: "/guide/automation/graph" },
-          { text: "Clean", link: "/guide/automation/clean" },
-        ],
-      },
-      {
-        text: "The Modular Architecture",
-        link: "/guide/scale/tma-architecture",
-      },
-    ],
-  },
-  {
-    text: "Tuist Cloud",
-    items: [
-      {
-        text: "What is Tuist Cloud?",
-        link: "/cloud/what-is-cloud",
-      },
-      {
-        text: "Get started",
-        link: "/cloud/get-started",
-      },
-      {
-        text: "Binary caching",
-        link: "/cloud/binary-caching",
-      },
-      {
-        text: "Selective testing",
-        link: "/cloud/selective-testing",
-      },
-      {
-        text: "Hashing",
-        link: "/cloud/hashing",
-      },
-      {
-        text: "On-premise",
-        link: "/cloud/on-premise",
-      },
-    ],
-  },
-];
-
-// https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
@@ -220,6 +19,7 @@ export default defineConfig({
       lange: "en",
     },
   },
+  cleanUrls: true,
   head: [
     [
       "script",
@@ -273,6 +73,42 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+
+/guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
+/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
+/guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
+/guide/introduction/adopting-tuist/migrate-local-swift-packages /guides/start/migrate/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodegen /guides/start/migrate/xcodegen-project 301
+/guide/introduction/adopting-tuist/migrate-from-bazel /guides/start/migrate/bazel-project 301
+/guide/introduction/from-v3-to-v4 /references/migrations/from-v3-to-v4 301
+/guide/project/manifests /guides/develop/projects/manifests 301
+/guide/project/directory-structure /guides/develop/projects/directory-structure 301
+/guide/project/editing /guides/develop/projects/editing 301
+/guide/project/dependencies /guides/develop/projects/dependencies 301
+/guide/project/code-sharing /guides/develop/projects/code-sharing 301
+/guide/project/synthesized-files /guides/develop/projects/synthesized-files 301
+/guide/project/dynamic-configuration /guides/develop/projects/dynamic-configuration 301
+/guide/project/templates /guides/develop/projects/templates 301
+/guide/project/plugins /guides/develop/projects/plugins 301
+/guide/automation/generate / 301
+/guide/automation/build /guides/develop/build 301
+/guide/automation/test /guides/develop/test 301
+/guide/automation/run / 301
+/guide/automation/graph / 301
+/guide/automation/clean / 301
+/guide/scale/tma-architecture /guides/develop/projects/tma-architecture 301
+/cloud/what-is-cloud / 301
+/cloud/get-started / 301
+/cloud/binary-caching /guides/develop/build/cache 301
+/cloud/selective-testing /guides/develop/test/smart-runner 301
+/cloud/hashing /guides/develop/projects/hashing 301
+/cloud/on-premise /guides/dashboard/on-premise/install 301
+/cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
+/reference/project-description/* /references/project-description/:splat 301
+/reference/examples/* /references/examples/:splat 301
+
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
@@ -283,61 +119,35 @@ export default defineConfig({
       provider: "local",
     },
     nav: [
-      { text: "Guide", link: "/" },
+      { text: "Guides", link: "/" },
       {
-        text: "Reference",
-        link: "/reference/project-description/structs/project",
+        text: "References",
+        link: "/references/project-description/structs/project",
       },
       { text: "Contributors", link: "/contributors/get-started" },
       { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
+      {
+        text: "Server",
+        items: [
+          {
+            text: "Dashboard",
+            link: "https://cloud.tuist.io",
+          },
+          {
+            text: "API Documentation",
+            link: "https://cloud.tuist.io/api/docs",
+          },
+        ],
+      },
     ],
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
     },
     sidebar: {
-      "/contributors": [
-        {
-          text: "Contributors",
-          items: [
-            {
-              text: "Get started",
-              link: "/contributors/get-started",
-            },
-            {
-              text: "Issue reporting",
-              link: "/contributors/issue-reporting",
-            },
-            {
-              text: "Code reviews",
-              link: "/contributors/code-reviews",
-            },
-            {
-              text: "Principles",
-              link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/guide/": guideSidebar,
-      "/": guideSidebar,
-      "/reference/": [
-        {
-          text: "Reference",
-          items: [
-            cliSidebar,
-            projectDescriptionSidebar,
-            {
-              text: "Examples",
-              items: examplesDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/examples/${item.name}`,
-                };
-              }),
-            },
-          ],
-        },
-      ],
+      "/contributors": contributorsSidebar,
+      "/guides/": guidesSidebar,
+      "/": guidesSidebar,
+      "/references/": referencesSidebar,
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },

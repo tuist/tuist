@@ -17,7 +17,10 @@ final class InstallService {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        ),
         fileHandler: FileHandling = FileHandler.shared,
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
@@ -51,7 +54,7 @@ final class InstallService {
     private func fetchPlugins(path: AbsolutePath) async throws {
         logger.notice("Resolving and fetching plugins.", metadata: .section)
 
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         _ = try await pluginService.loadPlugins(using: config)
 
         logger.notice("Plugins resolved and fetched successfully.", metadata: .success)

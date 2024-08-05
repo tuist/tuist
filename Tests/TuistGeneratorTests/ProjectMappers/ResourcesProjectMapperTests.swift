@@ -1,13 +1,13 @@
 import Foundation
+import MockableTest
 import Path
 import TuistCore
+import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupport
-@testable import TuistSupportTesting
 
 // Bundle name is irrelevant if the target supports resources.
 private let irrelevantBundleName = ""
@@ -15,12 +15,16 @@ private let irrelevantBundleName = ""
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
-    var contentHasher: MockContentHasher!
+    var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
-        contentHasher = MockContentHasher()
+        contentHasher = .init()
         subject = ResourcesProjectMapper(contentHasher: contentHasher)
+
+        given(contentHasher)
+            .hash(Parameter<Data>.any)
+            .willProduce { String(data: $0, encoding: .utf8)! }
     }
 
     override func tearDown() {
@@ -80,6 +84,20 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.settings?.base, [
             "CODE_SIGNING_ALLOWED": "NO",
         ])
+    }
+
+    func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        project = Project.test(targets: [target], isExternal: true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(project, gotProject)
     }
 
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {

@@ -115,13 +115,18 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTarget> {
         guard let target = target(path: path, name: name) else { return [] }
-        return transitiveClosure([target]) { target in
+        return allTargetDependencies(traversingFromTargets: [target])
+    }
+
+    public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
+        return transitiveClosure(traversingFromTargets) { target in
             Array(
                 directTargetDependencies(
                     path: target.path,
                     name: target.target.name
                 )
-            ).map(\.graphTarget)
+            )
+            .map(\.graphTarget)
         }
     }
 
@@ -176,11 +181,27 @@ public class GraphTraverser: GraphTraversing {
 
         let bundles = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyResourceBundle,
+            test: { dependency in
+                isDependencyResourceBundle(dependency: dependency) && !isDependencyExternal(dependency)
+            },
             skip: canHostResources
         )
+        // External bundles are copied only to targets that can embed products to follow SPM logic.
+        // This prevents scenarios when a bundle is copied to a dynamic framework and the SPM targets then can't find it.
+        // See this issue for more detalis: https://github.com/tuist/tuist/pull/6565
+        let externalBundles = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
+                isDependencyResourceBundle(dependency: dependency) && isDependencyExternal(dependency) &&
+                    canEmbedProducts(target: target)
+            },
+            skip: canDependencyEmbedProducts
+        )
 
-        return Set(bundles.compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) })
+        return Set(
+            bundles.union(externalBundles)
+                .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
+        )
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
@@ -366,14 +387,22 @@ public class GraphTraverser: GraphTraversing {
             .filter(\.isPrecompiled)
 
         let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0)
-            }
+            .flatMap { filterDependencies(from: $0) }
 
-        let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
+        let precompiledDynamicLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
-            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
-        references.formUnion(precompiledLibrariesAndFrameworks)
+        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
+            from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
+            test: { $0.xcframeworkDependency?.linking == .static },
+            skip: { $0.xcframeworkDependency == nil }
+        )
+
+        let precompiledLibrariesAndFrameworks =
+            (precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies)
+                .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+
+        references.formUnion(Set(precompiledLibrariesAndFrameworks))
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
@@ -958,6 +987,13 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    func isDependencyExternal(_ dependency: GraphDependency) -> Bool {
+        guard let targetDependency = dependency.targetDependency,
+              let project = graph.projects[targetDependency.path]
+        else { return false }
+        return project.isExternal
+    }
+
     func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro:
@@ -1105,6 +1141,7 @@ public class GraphTraverser: GraphTraversing {
     func canEmbedProducts(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
+            .watch2App,
             .appClip,
             .unitTests,
             .uiTests,
@@ -1240,3 +1277,14 @@ public class GraphTraverser: GraphTraversing {
 }
 
 // swiftlint:enable type_body_length
+
+extension GraphDependency {
+    fileprivate var xcframeworkDependency: GraphDependency.XCFramework? {
+        switch self {
+        case let .xcframework(xcframework):
+            return xcframework
+        default:
+            return nil
+        }
+    }
+}

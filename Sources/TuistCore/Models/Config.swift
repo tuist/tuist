@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistSupport
 import XcodeGraph
 
 /// This model allows to configure Tuist.
@@ -13,8 +14,11 @@ public struct Config: Equatable, Hashable {
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// Cloud configuration.
-    public let cloud: Cloud?
+    /// The full project handle such as tuist-org/tuist.
+    public let fullHandle: String?
+
+    /// The base URL that points to the Tuist server.
+    public let url: URL
 
     /// The version of Swift that will be used by Tuist.
     /// If `nil` is passed then Tuist will use the environment’s version.
@@ -27,7 +31,8 @@ public struct Config: Equatable, Hashable {
     public static var `default`: Config {
         Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            fullHandle: nil,
+            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
@@ -50,14 +55,16 @@ public struct Config: Equatable, Hashable {
     ///   - path: The path of the config file.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
-        cloud: Cloud?,
+        fullHandle: String?,
+        url: URL,
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
         path: AbsolutePath?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.cloud = cloud
+        self.fullHandle = fullHandle
+        self.url = url
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
@@ -68,7 +75,8 @@ public struct Config: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
-        hasher.combine(cloud)
+        hasher.combine(fullHandle)
+        hasher.combine(url)
         hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)
     }
@@ -78,7 +86,8 @@ public struct Config: Equatable, Hashable {
     extension Config {
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-            cloud: Cloud? = Cloud.test(),
+            fullHandle: String? = nil,
+            url: URL = Constants.URLs.production,
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = Config.default.generationOptions,
@@ -86,7 +95,8 @@ public struct Config: Equatable, Hashable {
         ) -> Config {
             .init(
                 compatibleXcodeVersions: compatibleXcodeVersions,
-                cloud: cloud,
+                fullHandle: fullHandle,
+                url: url,
                 swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
@@ -102,7 +112,8 @@ public struct Config: Equatable, Hashable {
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
             staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -110,7 +121,8 @@ public struct Config: Equatable, Hashable {
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
-                defaultConfiguration: defaultConfiguration
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication
             )
         }
     }

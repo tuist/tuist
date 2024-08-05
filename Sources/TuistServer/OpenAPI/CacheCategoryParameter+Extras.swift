@@ -1,7 +1,7 @@
 import TuistCore
 
 extension Components.Schemas.CacheCategory {
-    init(_ cacheCategory: CacheCategory.App) {
+    init(_ cacheCategory: RemoteCacheCategory) {
         switch cacheCategory {
         case .binaries:
             self = .builds

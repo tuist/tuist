@@ -20,7 +20,9 @@ public enum Module: String, CaseIterable {
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
-    case app = "TuistServer"
+    case server = "TuistServer"
+    case hasher = "TuistHasher"
+    case cache = "TuistCache"
 
     public var isRunnable: Bool {
         switch self {
@@ -117,7 +119,7 @@ public enum Module: String, CaseIterable {
 
     public var acceptanceTestsTargetName: String? {
         switch self {
-        case .tuist, .automation, .dependencies, .generator:
+        case .kit, .automation, .dependencies, .generator:
             return "\(rawValue)AcceptanceTests"
         default:
             return nil
@@ -127,7 +129,7 @@ public enum Module: String, CaseIterable {
     public var testingTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation, .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .app:
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -136,7 +138,7 @@ public enum Module: String, CaseIterable {
 
     public var unitTestsTargetName: String? {
         switch self {
-        case .automation, .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
+        case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
              .acceptanceTesting:
             return nil
         default:
@@ -148,7 +150,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation, .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .app:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -172,7 +174,7 @@ public enum Module: String, CaseIterable {
 
     public var acceptanceTestDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] = switch self {
-        case .tuist, .automation, .dependencies, .generator:
+        case .kit, .automation, .dependencies, .generator:
             [
                 .target(name: Module.acceptanceTesting.targetName),
                 .target(name: Module.support.testingTargetName!),
@@ -228,6 +230,7 @@ public enum Module: String, CaseIterable {
         case .support:
             [
                 .target(name: Module.projectDescription.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "AnyCodable"),
                 .external(name: "XcodeProj"),
@@ -241,7 +244,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.generator.targetName),
                 .target(name: Module.automation.targetName),
-                .target(name: Module.app.targetName),
+                .target(name: Module.server.targetName),
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.projectAutomation.targetName),
                 .target(name: Module.loader.targetName),
@@ -251,11 +254,14 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.asyncQueue.targetName),
                 .target(name: Module.analytics.targetName),
                 .target(name: Module.plugin.targetName),
+                .target(name: Module.cache.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "XcodeGraph"),
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
+                .external(name: "OpenAPIRuntime"),
             ]
         case .core:
             [
@@ -269,6 +275,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "XcodeGraph"),
                 .external(name: "SwiftGenKit"),
                 .external(name: "PathKit"),
@@ -281,6 +288,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "XcodeGraph"),
                 .external(name: "PathKit"),
                 .external(name: "StencilSwiftKit"),
@@ -298,6 +306,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "XcodeGraph"),
                 .external(name: "Queuer"),
                 .external(name: "XcodeProj"),
@@ -308,6 +317,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.loader.targetName),
                 .target(name: Module.support.targetName),
                 .target(name: Module.scaffold.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "SwiftToolsSupport"),
             ]
         case .analytics:
@@ -339,16 +349,31 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "XcodeProj"),
                 .external(name: "XcbeautifyLib"),
                 .external(name: "XcodeGraph"),
             ]
-        case .app:
+        case .server:
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .external(name: "FileSystem"),
                 .external(name: "OpenAPIRuntime"),
                 .external(name: "OpenAPIURLSession"),
+            ]
+        case .hasher:
+            [
+                .target(name: Module.core.targetName),
+                .target(name: Module.support.targetName),
+                .external(name: "XcodeGraph"),
+            ]
+        case .cache:
+            [
+                .target(name: Module.core.targetName),
+                .target(name: Module.support.targetName),
+                .target(name: Module.hasher.targetName),
+                .external(name: "XcodeGraph"),
             ]
         }
         if self != .projectDescription, self != .projectAutomation {
@@ -446,10 +471,18 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
             ]
-        case .app:
+        case .server:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
+            ]
+        case .hasher:
+            [
+                .target(name: Module.support.testingTargetName!),
+            ]
+        case .cache:
+            [
+                .target(name: Module.support.testingTargetName!),
             ]
         }
         dependencies = dependencies + sharedDependencies + [.target(name: targetName), .external(name: "MockableTest")]
@@ -461,14 +494,13 @@ public enum Module: String, CaseIterable {
 
     public var testingDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] = switch self {
-        case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting:
+        case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .server, .hasher, .asyncQueue, .analytics,
+             .migration, .tuistFixtureGenerator, .cache:
             []
         case .tuistBenchmark:
             [
                 .external(name: "ArgumentParser"),
             ]
-        case .tuistFixtureGenerator:
-            []
         case .support:
             [
                 .target(name: Module.core.targetName),
@@ -499,17 +531,9 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeGraph"),
             ]
-        case .asyncQueue:
-            [
-            ]
         case .plugin:
             [
                 .external(name: "XcodeGraph"),
-            ]
-        case .analytics:
-            []
-        case .migration:
-            [
             ]
         case .dependencies:
             [
@@ -522,15 +546,14 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.testingTargetName!),
             ]
-        case .app:
-            []
         }
         return dependencies + sharedDependencies + [.target(name: targetName)]
     }
 
     public var integrationTestsDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] = switch self {
-        case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation, .projectDescription, .acceptanceTesting:
+        case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation, .projectDescription, .acceptanceTesting,
+             .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher, .cache:
             []
         case .tuist:
             [
@@ -571,25 +594,15 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.projectDescription.targetName),
             ]
-        case .asyncQueue:
-            []
-        case .plugin:
-            []
-        case .analytics:
-            []
         case .migration:
             [
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
             ]
-        case .dependencies:
-            []
         case .automation:
             [
                 .target(name: Module.support.testingTargetName!),
             ]
-        case .app:
-            []
         }
         dependencies.append(contentsOf: sharedDependencies)
         dependencies.append(.target(name: targetName))

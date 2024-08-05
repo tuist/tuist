@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 
 enum OpeningError: FatalError, Equatable {
@@ -19,6 +20,7 @@ enum OpeningError: FatalError, Equatable {
     }
 }
 
+@Mockable
 public protocol Opening: AnyObject {
     func open(path: AbsolutePath, wait: Bool) throws
     func open(path: AbsolutePath) throws

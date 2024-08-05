@@ -56,24 +56,24 @@ final class EditService {
 
         if !permanent {
             let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
-            let cacheDirectory = try cacheDirectoryProvider.tuistCacheDirectory(for: .editProjects)
+            let cacheDirectory = try cacheDirectoryProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
             guard let selectedXcode = try XcodeController.shared.selected() else {
                 throw EditServiceError.xcodeNotSelected
             }
 
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.pretty("Opening Xcode to edit the project.")
+            logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: path,
                 onlyCurrentDirectory: onlyCurrentDirectory,
@@ -94,7 +94,7 @@ final class EditService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
-        guard let config = try? configLoader.loadConfig(path: path) else {
+        guard let config = try? await configLoader.loadConfig(path: path) else {
             logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
             return .none
         }

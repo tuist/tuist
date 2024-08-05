@@ -40,6 +40,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
+    /// The full project handle such as tuist-org/tuist.
+    public let fullHandle: String?
+
+    /// The base URL that points to the Tuist server.
+    public let url: String
+
     /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
     /// If `nil` is passed then Tuist will use the environment’s version.
     /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use
@@ -58,6 +64,8 @@ public struct Config: Codable, Equatable, Sendable {
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
+        fullHandle: String? = nil,
+        url: String = "https://cloud.tuist.io",
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options()
@@ -66,6 +74,8 @@ public struct Config: Codable, Equatable, Sendable {
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.cloud = cloud
+        self.fullHandle = fullHandle
+        self.url = url
         self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }

@@ -1,3 +1,4 @@
+import FileSystem
 import Mockable
 import MockableTest
 import TuistCore
@@ -13,7 +14,7 @@ import XCTest
 final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
-    private var ciChecker: MockCIChecker!
+    private var ciChecker: MockCIChecking!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
@@ -34,30 +35,34 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testDispatch_whenCloudAnalyticsIsEnabled_sendsToCloud() throws {
+    func testDispatch_whenAnalyticsIsEnabled_sendsToServer() throws {
         // Given
-        let projectID = "project"
-        let cloudURL = URL.test()
-        let cloud = Cloud(url: cloudURL, projectId: projectID, options: [])
-        let backend = TuistAnalyticsCloudBackend(
-            config: cloud,
+        let fullHandle = "project"
+        let url = URL.test()
+        let backend = TuistAnalyticsServerBackend(
+            fullHandle: fullHandle,
+            url: url,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
             cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
-            analyticsArtifactUploadService: analyticsArtifactUploadService
+            analyticsArtifactUploadService: analyticsArtifactUploadService,
+            fileSystem: FileSystem()
         )
         subject = TuistAnalyticsDispatcher(
             backend: backend
         )
 
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .matching { commandEvent in
                     commandEvent.name == Self.commandEvent.name
                 },
-                projectId: .value(projectID),
-                serverURL: .value(cloudURL)
+                projectId: .value(fullHandle),
+                serverURL: .value(url)
             )
             .willReturn(.test(id: 10))
 
@@ -67,7 +72,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
                 targetHashes: .any,
                 graphPath: .any,
                 commandEventId: .value(10),
-                serverURL: .value(cloudURL)
+                serverURL: .value(url)
             )
             .willReturn(())
 
@@ -78,7 +83,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             .willReturn(cacheDirectoriesProvider)
 
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
 
         // When

@@ -900,6 +900,96 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
     }
 
+    func test_generateTargetConfig_when_mergedBinaryTypeIsAutomatic_defaultSettingsIsEssential() throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let appTarget = Target.test(settings: settings, mergedBinaryType: .automatic)
+        let project = Project.test(targets: [appTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            appTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGED_BINARY_TYPE"]
+        XCTAssertEqual(targetSettingsResult, "automatic")
+    }
+
+    func test_generateTargetConfig_when_mergedBinaryTypeIsManual_defaultSettingsIsEssential() throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let appTarget = Target.test(settings: settings, mergedBinaryType: .manual(mergeableDependencies: []))
+        let project = Project.test(targets: [appTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            appTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGED_BINARY_TYPE"]
+        XCTAssertEqual(targetSettingsResult, "manual")
+    }
+
+    func test_generateTargetConfig_when_mergeableIsTrue_defaultSettingsIsEssential() throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let frameworkTarget = Target.test(product: .framework, settings: settings, mergeable: true)
+        let project = Project.test(targets: [frameworkTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            frameworkTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGEABLE_LIBRARY"]
+        XCTAssertEqual(targetSettingsResult, "YES")
+    }
+
     // MARK: - Helpers
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {

@@ -1,5 +1,133 @@
 # Changelog
 
+## 4.23.0 - 2024-08-05
+
+### Tuist
+
+#### Added
+
+- Create tuist share command [#6527](https://github.com/tuist/tuist/pull/6527) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix clean printed twice in tuist --help [#6580](https://github.com/tuist/tuist/pull/6580) by [@fortmarek](https://github.com/fortmarek)
+- Generate SPM Objective-C resource accessor only when a bundle is generated [#6584](https://github.com/tuist/tuist/pull/6584) by [@fortmarek](https://github.com/fortmarek)
+- Deduplicate external resources [#6538](https://github.com/tuist/tuist/pull/6538) by [@KaiOelfke](https://github.com/KaiOelfke)
+- Prevent Tuist authentication kickouts by retrying token refresh [#6594](https://github.com/tuist/tuist/pull/6594) by [@fortmarek](https://github.com/fortmarek)
+- Fix unstable hashing of target dependencies [#6593](https://github.com/tuist/tuist/pull/6593) by [@fortmarek](https://github.com/fortmarek)
+- Fix generate performance when using Tuist Cache xcframeworks [#6592](https://github.com/tuist/tuist/pull/6592) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.22.0 - 2024-07-30
+
+### Tuist
+
+#### Changed
+
+- Update generated code templates to add `Sendable` Conformance [#6540](https://github.com/tuist/tuist/pull/6540) by [@waltflanagan](https://github.com/waltflanagan)
+- Improve the help menu by grouping the flat list of commands and add `tuist project view` command [#6566](https://github.com/tuist/tuist/pull/6566) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Validate target references in custom workspace schemes [#6536](https://github.com/tuist/tuist/pull/6536) by [@ajkolean](https://github.com/ajkolean)
+- Support unit test depending on an app extension [#6561](https://github.com/tuist/tuist/pull/6561) by [@InderKumarRathore](https://github.com/InderKumarRathore)
+
+#### Fixed
+
+- Fix integrating external static frameworks with resource bundles [#6565](https://github.com/tuist/tuist/pull/6565) by [@fortmarek](https://github.com/fortmarek)
+- Default to staticLibrary in product type mapping if automatic product type exists [#6559](https://github.com/tuist/tuist/pull/6559) by [@Arideno](https://github.com/Arideno)
+- Fix the Homebrew installation instructions in the docs [#6571](https://github.com/tuist/tuist/pull/6571) by [@pepicrft](https://github.com/pepicrft)
+- Fix storing test results of non-tested schemes [#6572](https://github.com/tuist/tuist/pull/6572) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.2 - 2024-07-19
+
+### Tuist
+
+#### Changed
+
+- Mark the Cloud static initializer as deprecated [#6531](https://github.com/tuist/tuist/pull/6531) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add email and password auth options for non-interactive login [#6507](https://github.com/tuist/tuist/pull/6507) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix token not found when using TUIST_CONFIG_TOKEN environment variable [#6528](https://github.com/tuist/tuist/pull/6528) by [@fortmarek](https://github.com/fortmarek)
+- Fix optionalAuthentication generation option in Config.swift [#6530](https://github.com/tuist/tuist/pull/6530) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.1 - 2024-07-17
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 4.21.0 - 2024-07-16
+
+### Tuist
+
+#### Changed
+
+- Flatten cloud commands to tuist [#6473](https://github.com/tuist/tuist/pull/6473) by [@fortmarek](https://github.com/fortmarek)
+- Flatten the tuist-cloud cache directory into the tuist cache directory [#6474](https://github.com/tuist/tuist/pull/6474) by [@fortmarek](https://github.com/fortmarek)
+- Deprecate cloud in Config in favor of fullHandle and url [#6475](https://github.com/tuist/tuist/pull/6475) by [@fortmarek](https://github.com/fortmarek)
+- Deprecate the usage TUIST_CONFIG_CLOUD_TOKEN in favor of TUIST_CONFIG_TOKEN [#6476](https://github.com/tuist/tuist/pull/6476) by [@fortmarek](https://github.com/fortmarek)
+- Add support for new, more secure project and user tokens [#6500](https://github.com/tuist/tuist/pull/6500) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Lint target references in a scheme [#6491](https://github.com/tuist/tuist/pull/6491) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Generate a `Tuist/Config.swift` by default when creating a new project [#6521](https://github.com/tuist/tuist/pull/6521) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix generate failing due to duplicate keys [#6469](https://github.com/tuist/tuist/pull/6469) by [@fortmarek](https://github.com/fortmarek)
+- Change tuist project subcommands to accept full handle [#6472](https://github.com/tuist/tuist/pull/6472) by [@fortmarek](https://github.com/fortmarek)
+- Fix missing test targets when generating an SPM package [#6483](https://github.com/tuist/tuist/pull/6483) by [@woin2ee](https://github.com/woin2ee)
+- Escape header search paths for external dependencies from SPM [#6513](https://github.com/tuist/tuist/pull/6513) by [@KaiOelfke](https://github.com/KaiOelfke)
+- Respect --verbose for machine readable commands [#6518](https://github.com/tuist/tuist/pull/6518) by [@fortmarek](https://github.com/fortmarek)
+- Fix linking static xcframeworks linked via dynamic xcframeworks [#6520](https://github.com/tuist/tuist/pull/6520) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.20.0 - 2024-07-02
+
+### Tuist
+
+#### Added
+
+- Add support for enabling explicit modules for Xcode 16 [#6405](https://github.com/tuist/tuist/pull/6405) by [@waltflanagan](https://github.com/waltflanagan)
+
+#### Fixed
+
+- Print only JSON string for dump and when --json flag is present [#6440](https://github.com/tuist/tuist/pull/6440) by [@fortmarek](https://github.com/fortmarek)
+- Handle unauthorized server errors [#6451](https://github.com/tuist/tuist/pull/6451) by [@fortmarek](https://github.com/fortmarek)
+- Fix generation of Quick's SPM QuickObjcRuntime target [#6445](https://github.com/tuist/tuist/pull/6445) by [@simpers](https://github.com/simpers)
+- Provide better error message for a missing Tuist server token [#6450](https://github.com/tuist/tuist/pull/6450) by [@fortmarek](https://github.com/fortmarek)
+- Fix deleting Tuist project and organization [#6455](https://github.com/tuist/tuist/pull/6455) by [@fortmarek](https://github.com/fortmarek)
+- Add missing target settings `MERGED_BINARY_TYPE` and `MERGEABLE_LIBRARY` [#6447](https://github.com/tuist/tuist/pull/6447) by [@woin2ee](https://github.com/woin2ee)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.19.0 - 2024-06-25
 
 ### Tuist

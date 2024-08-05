@@ -9,7 +9,7 @@ public protocol CreateOrganizationInviteServicing {
         organizationName: String,
         email: String,
         serverURL: URL
-    ) async throws -> CloudInvitation
+    ) async throws -> ServerInvitation
 }
 
 enum CreateOrganizationInviteServiceError: FatalError {
@@ -17,12 +17,13 @@ enum CreateOrganizationInviteServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .badRequest:
+        case .notFound, .forbidden, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -30,8 +31,8 @@ enum CreateOrganizationInviteServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The user could not be invited due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message):
+            return "The user could not be invited due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -44,8 +45,8 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         organizationName: String,
         email: String,
         serverURL: URL
-    ) async throws -> CloudInvitation {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerInvitation {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createInvitation(
             .init(
@@ -57,7 +58,7 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(invitation):
-                return CloudInvitation(invitation)
+                return ServerInvitation(invitation)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
@@ -76,6 +77,11 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateOrganizationInviteServiceError.unknownError(statusCode)
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
+            }
         }
     }
 }

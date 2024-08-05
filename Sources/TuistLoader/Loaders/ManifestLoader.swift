@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -50,37 +51,38 @@ public enum ManifestLoaderError: FatalError, Equatable {
     }
 }
 
+@Mockable
 public protocol ManifestLoading {
     /// Loads the Config.swift in the given directory.
     ///
     /// - Parameter path: Path to the directory that contains the Config.swift file.
     /// - Returns: Loaded Config.swift file.
     /// - Throws: An error if the file has a syntax error.
-    func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config
+    func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Workspace.swift
-    func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
+    func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace
 
     /// Loads the name_of_template.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
-    func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
+    func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template
 
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
     /// -  path: Path to the directory that contains Package.swift
-    func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
+    func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings
 
     /// Loads `Package.swift`
     /// - path: Path to the directory that contains Package.swift
-    func loadPackage(at path: AbsolutePath) throws -> PackageInfo
+    func loadPackage(at path: AbsolutePath) async throws -> PackageInfo
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
-    func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin
+    func loadPlugin(at path: AbsolutePath) async throws -> ProjectDescription.Plugin
 
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returned.
@@ -88,6 +90,9 @@ public protocol ManifestLoading {
 
     /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
     func validateHasRootManifest(at path: AbsolutePath) throws
+
+    /// - Returns: `true` if there is a project or workspace manifest at the given path
+    func hasRootManifest(at path: AbsolutePath) -> Bool
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
@@ -123,7 +128,7 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController()
+            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
         )
     }
 
@@ -151,27 +156,31 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func validateHasRootManifest(at path: AbsolutePath) throws {
-        let manifests = manifests(at: path)
-        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
-        guard !manifests.isDisjoint(with: rootManifests) else {
+        guard hasRootManifest(at: path) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 
-    public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        try loadManifest(.config, at: path)
+    public func hasRootManifest(at path: AbsolutePath) -> Bool {
+        let manifests = manifests(at: path)
+        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
+        return !manifests.isDisjoint(with: rootManifests)
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+    public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
+        try await loadManifest(.config, at: path)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
-        try loadManifest(.workspace, at: path)
+    public func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project {
+        try await loadManifest(.project, at: path)
     }
 
-    public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
-        try loadManifest(.template, at: path)
+    public func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace {
+        try await loadManifest(.workspace, at: path)
+    }
+
+    public func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template {
+        try await loadManifest(.template, at: path)
     }
 
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
@@ -180,9 +189,9 @@ public class ManifestLoader: ManifestLoading {
         )
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
+    public func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings {
         do {
-            return try loadManifest(.packageSettings, at: path)
+            return try await loadManifest(.packageSettings, at: path)
         } catch let error as ManifestLoaderError {
             switch error {
             case let .manifestLoadingFailed(path: _, data: data, context: _):
@@ -197,8 +206,8 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
-        try loadManifest(.plugin, at: path)
+    public func loadPlugin(at path: AbsolutePath) async throws -> ProjectDescription.Plugin {
+        try await loadManifest(.plugin, at: path)
     }
 
     public func register(plugins: Plugins) throws {
@@ -211,13 +220,13 @@ public class ManifestLoader: ManifestLoading {
     private func loadManifest<T: Decodable>(
         _ manifest: Manifest,
         at path: AbsolutePath
-    ) throws -> T {
+    ) async throws -> T {
         let manifestPath = try manifestPath(
             manifest,
             at: path
         )
 
-        let data = try loadDataForManifest(manifest, at: manifestPath)
+        let data = try await loadDataForManifest(manifest, at: manifestPath)
 
         do {
             return try decoder.decode(T.self, from: data)
@@ -298,8 +307,8 @@ public class ManifestLoader: ManifestLoading {
     private func loadDataForManifest(
         _ manifest: Manifest,
         at path: AbsolutePath
-    ) throws -> Data {
-        let arguments = try buildArguments(
+    ) async throws -> Data {
+        let arguments = try await buildArguments(
             manifest,
             at: path
         ) + ["--tuist-dump"]
@@ -332,7 +341,7 @@ public class ManifestLoader: ManifestLoading {
     private func buildArguments(
         _ manifest: Manifest,
         at path: AbsolutePath
-    ) throws -> [String] {
+    ) async throws -> [String] {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let frameworkName: String
@@ -358,9 +367,9 @@ public class ManifestLoader: ManifestLoading {
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories()
-            .tuistCacheDirectory(for: .projectDescriptionHelpers)
+            .cacheDirectory(for: .projectDescriptionHelpers)
 
-        let projectDescriptionHelperArguments: [String] = try {
+        let projectDescriptionHelperArguments: [String] = try await {
             switch manifest {
             case .config, .plugin, .package:
                 return []
@@ -368,7 +377,7 @@ public class ManifestLoader: ManifestLoading {
                  .template,
                  .workspace,
                  .packageSettings:
-                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
+                return try await projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
                     cacheDirectory: projectDescriptionHelpersCacheDirectory
                 )
                 .build(

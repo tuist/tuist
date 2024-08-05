@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Queuer
 import TuistCore
 import TuistSupport
@@ -9,20 +10,20 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class AsyncQueueTests: TuistUnitTestCase {
-    var subject: AsyncQueue!
+    private var subject: AsyncQueue!
 
-    let dispatcher1ID = "Dispatcher1"
-    let dispatcher2ID = "Dispatcher2"
+    private let dispatcher1ID = "Dispatcher1"
+    private let dispatcher2ID = "Dispatcher2"
 
-    var mockAsyncQueueDispatcher1: MockAsyncQueueDispatcher!
-    var mockAsyncQueueDispatcher2: MockAsyncQueueDispatcher!
+    private var mockAsyncQueueDispatcher1: MockAsyncQueueDispatcher!
+    private var mockAsyncQueueDispatcher2: MockAsyncQueueDispatcher!
 
-    var mockCIChecker: MockCIChecker!
+    private var ciChecker: MockCIChecking!
 
-    var mockPersistor: MockAsyncQueuePersistor<AnyAsyncQueueEvent>!
-    var mockQueuer: MockQueuer!
+    private var mockPersistor: MockAsyncQueuePersistor<AnyAsyncQueueEvent>!
+    private var mockQueuer: MockQueuer!
 
-    let timeout = 3.0
+    private let timeout = 3.0
 
     override func setUp() {
         super.setUp()
@@ -32,7 +33,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         mockAsyncQueueDispatcher2 = MockAsyncQueueDispatcher()
         mockAsyncQueueDispatcher2.stubbedIdentifier = dispatcher2ID
 
-        mockCIChecker = MockCIChecker()
+        ciChecker = .init()
         mockPersistor = MockAsyncQueuePersistor()
         mockQueuer = MockQueuer()
     }
@@ -40,7 +41,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
     override func tearDown() {
         mockAsyncQueueDispatcher1 = nil
         mockAsyncQueueDispatcher2 = nil
-        mockCIChecker = nil
+        ciChecker = nil
         mockPersistor = nil
         mockQueuer = nil
         subject = nil
@@ -50,12 +51,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
     func makeSubject(
         queue: Queuing? = nil,
         ciChecker: CIChecking? = nil,
-        persistor: AsyncQueuePersisting? = nil,
-        dispatchers _: [AsyncQueueDispatching]? = nil
+        persistor: AsyncQueuePersisting? = nil
     ) -> AsyncQueue {
         let asyncQueue = AsyncQueue(
             queue: queue ?? mockQueuer,
-            ciChecker: ciChecker ?? mockCIChecker,
+            ciChecker: ciChecker ?? self.ciChecker,
             persistor: persistor ?? mockPersistor
         )
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher1)
@@ -197,15 +197,17 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
     }
 
-    func test_waits_for_queue_to_finish_when_CI() throws {
+    func test_waits_for_queue_to_finish_when_CI() async throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
-        mockCIChecker.isCIStub = true
+        given(ciChecker)
+            .isCI()
+            .willReturn(true)
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
         XCTAssertEqual(Queuer.shared.operationCount, 0)
@@ -226,8 +228,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
     //     XCTAssertEqual(Queuer.shared.operationCount, 1)
     // }
 
-    func test_start_readsPersistedEventsInitialization() throws {
+    func test_start_readsPersistedEventsInitialization() async throws {
         // Given
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         let eventTuple2: AsyncQueueEventTuple = makeEventTuple(id: 2)
         let eventTuple3: AsyncQueueEventTuple = makeEventTuple(id: 3)
@@ -235,7 +240,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject()
-        subject.start()
+        await subject.start()
 
         // Then
         let numberOfOperationsQueued = mockQueuer.invokedAddOperationCount
@@ -260,8 +265,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(queuedOperation3.name, eventTuple3.id.uuidString)
     }
 
-    func test_start_persistedEventIsDispatchedByTheRightDispatcher() throws {
+    func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
         // Given
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
 
@@ -272,7 +280,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
         wait(for: [expectation], timeout: timeout)
@@ -285,8 +293,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount, 0)
     }
 
-    func test_start_sentPersistedEventIsThenDeleted() throws {
+    func test_start_sentPersistedEventIsThenDeleted() async throws {
         // Given
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         let id: UInt = 1
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: id)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
@@ -298,7 +309,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
         wait(for: [expectation], timeout: timeout)

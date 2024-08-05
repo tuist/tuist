@@ -870,7 +870,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(

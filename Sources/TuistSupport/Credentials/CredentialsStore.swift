@@ -1,6 +1,8 @@
 import Foundation
 import KeychainAccess
+import Mockable
 
+@Mockable
 public protocol CredentialsStoring {
     /// It stores the credentials for the server with the given URL.
     /// - Parameters:
@@ -28,7 +30,7 @@ enum CredentialsStoreError: FatalError {
     var description: String {
         switch self {
         case .credentialsNotFound:
-            return "You are not authenticated. Authenticate by running `tuist cloud auth`."
+            return "You are not authenticated. Authenticate by running `tuist auth`."
         }
     }
 

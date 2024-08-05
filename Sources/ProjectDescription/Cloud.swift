@@ -4,8 +4,8 @@ import Foundation
 public struct Cloud: Codable, Equatable, Sendable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable, Sendable {
-        /// Marks whether Tuist Cloud authentication is optional.
-        /// If present, the interaction with Tuist Cloud will be skipped (instead of failing) if a user is not authenticated.
+        /// Marks whether the Tuist server authentication is optional.
+        /// If present, the interaction with the Tuist server will be skipped (instead of failing) if a user is not authenticated.
         case optional
     }
 
@@ -24,6 +24,7 @@ public struct Cloud: Codable, Equatable, Sendable {
     ///   - url: Base URL to the Cloud server.
     ///   - options: Cloud options.
     /// - Returns: A Cloud instance.
+    @available(*, deprecated, message: "Use the `fullHandle` and `url` properties directly in the `Config`")
     public static func cloud(projectId: String, url: String = "https://cloud.tuist.io", options: [Option] = []) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }

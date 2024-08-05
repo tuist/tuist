@@ -14,7 +14,7 @@ import XCTest
 
 final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var cacheDirectory: AbsolutePath!
-    private var manifestLoader = MockManifestLoader()
+    private var manifestLoader = MockManifestLoading()
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
@@ -41,7 +41,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
                 .cacheDirectories()
                 .willReturn(cacheDirectoriesProvider)
             given(cacheDirectoriesProvider)
-                .tuistCacheDirectory(for: .value(.manifests))
+                .cacheDirectory(for: .value(.manifests))
                 .willReturn(cacheDirectory)
         } catch {
             XCTFail("Failed to create temporary directory")
@@ -49,37 +49,45 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         subject = createSubject()
 
-        manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = workspaceManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadWorkspace(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = workspaceManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                recordedLoadWorkspaceCalls += 1
+                return manifest
             }
-            recordedLoadWorkspaceCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = projectManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.project, path)
+        given(manifestLoader)
+            .loadProject(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = projectManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.project, path)
+                }
+                recordedLoadProjectCalls += 1
+                return manifest
             }
-            recordedLoadProjectCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadConfigStub = { [unowned self] path in
-            guard let manifest = configManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.config, path)
+        given(manifestLoader)
+            .loadConfig(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = configManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.config, path)
+                }
+                recordedLoadConfigCalls += 1
+                return manifest
             }
-            recordedLoadConfigCalls += 1
-            return manifest
-        }
 
-        manifestLoader.loadPluginStub = { [unowned self] path in
-            guard let manifest = pluginManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.plugin, path)
+        given(manifestLoader)
+            .loadPlugin(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = pluginManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.plugin, path)
+                }
+                recordedLoadPluginCalls += 1
+                return manifest
             }
-            recordedLoadPluginCalls += 1
-            return manifest
-        }
     }
 
     override func tearDown() {
@@ -90,91 +98,94 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_load_manifestNotCached() throws {
+    func test_load_manifestNotCached() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
 
         // When
-        let result = try subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(result, project)
         XCTAssertEqual(result.name, "App")
     }
 
-    func test_load_manifestCached() throws {
+    func test_load_manifestCached() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(result, project)
         XCTAssertEqual(recordedLoadProjectCalls, 1)
     }
 
-    func test_load_manifestHashChanged() throws {
+    func test_load_manifestHashChanged() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let originalProject = Project.test(name: "Original")
         try stubProject(originalProject, at: path)
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
         try stubProject(modifiedProject, at: path)
-        let result = try subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(result, modifiedProject)
         XCTAssertEqual(result.name, "Modified")
     }
 
-    func test_load_helpersHashChanged() throws {
+    func test_load_helpersHashChanged() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         try stubHelpers(withHash: "hash")
 
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         try stubHelpers(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
-    func test_load_pluginsHashChanged() throws {
+    func test_load_pluginsHashChanged() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn()
         try stubPlugins(withHash: "hash")
 
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         try stubPlugins(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
-    func test_load_environmentVariablesRemainTheSame() throws {
+    func test_load_environmentVariablesRemainTheSame() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
@@ -182,87 +193,87 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        _ = try subject.loadProject(at: path)
-        let result = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(result, project)
         XCTAssertEqual(recordedLoadProjectCalls, 1)
     }
 
-    func test_load_environmentVariablesChange() throws {
+    func test_load_environmentVariablesChange() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         environment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         environment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
-    func test_load_tuistVersionRemainsTheSame() throws {
+    func test_load_tuistVersionRemainsTheSame() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 1)
     }
 
-    func test_load_tuistVersionChanged() throws {
+    func test_load_tuistVersionChanged() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         subject = createSubject(tuistVersion: "2.0")
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
-    func test_load_corruptedCache() throws {
+    func test_load_corruptedCache() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        _ = try subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path)
 
         // When
         try corruptFiles(at: cacheDirectory)
-        let result = try subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path)
 
         // Then
         XCTAssertEqual(result, project)
         XCTAssertEqual(recordedLoadProjectCalls, 2)
     }
 
-    func test_load_missingManifest() throws {
+    func test_load_missingManifest() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadProject(at: path),
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadProject(at: path) },
             ManifestLoaderError.manifestNotFound(.project, path)
         )
     }
@@ -270,28 +281,37 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     func test_validate_projectExists() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willReturn([.project])
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willReturn()
 
-        // When
-        manifestLoader.manifestsAtStub = { _ in [.project] }
-
-        // Then
+        // When / Then
         try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_workspaceExists() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willReturn()
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willReturn([.workspace])
 
-        // When
-        manifestLoader.manifestsAtStub = { _ in [.workspace] }
-
-        // Then
+        // When / Then
         try subject.validateHasRootManifest(at: path)
     }
 
     func test_validate_manifestDoesNotExist() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        given(manifestLoader)
+            .validateHasRootManifest(at: .value(path))
+            .willThrow(ManifestLoaderError.manifestNotFound(path))
 
         // When / Then
         XCTAssertThrowsSpecific(

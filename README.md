@@ -22,7 +22,7 @@ It's open source and written in Swift.
 
 The recommended installation method is to [install mise](https://mise.jdx.dev/getting-started.html#quickstart) and then run `mise install tuist` to install Tuist.
 
-You can check out [the documentation](https://docs.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
+You can check out [the documentation](https://docs.tuist.io/guides/quick-start/install-tuist) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## 🌀 Bootstrap your first project
 
@@ -33,7 +33,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-Check out [the project "Adopting Tuist" guide](https://docs.tuist.io/guide/introduction/adopting-tuist/new-project) to learn more about Tuist and all its features.
+Check out [the project "Create a new project" guide](https://docs.tuist.io/guides/start/new-project) to learn more about Tuist and all its features.
 
 ## 📝 Documentation
 
@@ -293,6 +293,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://izi.me/kz" target="_blank">
           <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://travel.yandex.ru" target="_blank">
+          <img src="assets/companies/yandexTravel.svg" alt="yandexTravel_logo" height="75"/>
         </a>
       </td>
     </tr>
@@ -566,6 +571,13 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Binlogo"><img src="https://avatars.githubusercontent.com/u/7845507?v=4" width="100px;" alt=""/><br /><sub><b>Binlogo</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/DevilDimon"><img src="https://avatars.githubusercontent.com/u/10220441?v=4" width="100px;" alt=""/><br /><sub><b>Dmitry Serov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://darrarski.pl"><img src="https://avatars.githubusercontent.com/u/1384684?v=4" width="100px;" alt=""/><br /><sub><b>Dariusz Rybicki</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dansinclair25"><img src="https://avatars.githubusercontent.com/u/2573447?v=4" width="100px;" alt=""/><br /><sub><b>Dan Sinclair</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.kaioelfke.de"><img src="https://avatars.githubusercontent.com/u/1190948?v=4" width="100px;" alt=""/><br /><sub><b>Kai Oelfke</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://stackoverflow.com/users/468724/inder-kumar-rathore"><img src="https://avatars.githubusercontent.com/u/352443?v=4" width="100px;" alt=""/><br /><sub><b>Inder</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kyounh12"><img src="https://avatars.githubusercontent.com/u/25301615?v=4" width="100px;" alt=""/><br /><sub><b>kyounh12</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/alvar-bolt"><img src="https://avatars.githubusercontent.com/u/72379847?v=4" width="100px;" alt=""/><br /><sub><b>Alvar Hansen</b></sub></a></td>
     </tr>
   </tbody>
 </table>

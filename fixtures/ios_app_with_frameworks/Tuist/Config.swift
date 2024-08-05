@@ -1,9 +1,9 @@
 import ProjectDescription
 
 let config = Config(
-    cloud: .cloud(
-        projectId: "tuist/tuist-cloud-acceptance-tests",
-        url: "https://cloud-canary.tuist.io",
-        options: [.optional]
+    fullHandle: "tuist/ios_app_with_frameworks",
+    url: "https://canary.tuist.io",
+    generationOptions: .options(
+        optionalAuthentication: true
     )
 )

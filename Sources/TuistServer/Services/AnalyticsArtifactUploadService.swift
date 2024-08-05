@@ -72,7 +72,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         serverURL: URL
     ) async throws {
         try await uploadAnalyticsArtifact(
-            CloudCommandEvent.Artifact(
+            ServerCommandEvent.Artifact(
                 type: .resultBundle
             ),
             artifactPath: resultBundle,
@@ -98,7 +98,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             let resultBundleObjectPath = resultBundle.parentDirectory.appending(component: filename)
             try fileHandler.write(resultBundleObjectString, path: resultBundleObjectPath, atomically: true)
             try await uploadAnalyticsArtifact(
-                CloudCommandEvent.Artifact(
+                ServerCommandEvent.Artifact(
                     type: .resultBundleObject,
                     name: id
                 ),
@@ -109,7 +109,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         }
 
         try await uploadAnalyticsArtifact(
-            CloudCommandEvent.Artifact(
+            ServerCommandEvent.Artifact(
                 type: .invocationRecord
             ),
             artifactPath: invocationRecordPath,
@@ -118,7 +118,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         )
 
         let modules = targetHashes.map { key, value in
-            CloudModule(
+            ServerModule(
                 hash: value,
                 projectRelativePath:
                 key.project.xcodeProjPath.relative(to: graphPath),
@@ -134,7 +134,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
     }
 
     private func uploadAnalyticsArtifact(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         artifactPath: AbsolutePath,
         name: String? = nil,
         commandEventId: Int,

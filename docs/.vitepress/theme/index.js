@@ -1,4 +1,7 @@
 import DefaultTheme from "vitepress/theme";
 import "./custom.css";
-
-export default DefaultTheme;
+/** @type {import('vitepress').Theme} */
+export default {
+  extends: DefaultTheme,
+  enhanceApp({ app }) {},
+};

@@ -40,7 +40,7 @@ protocol ProjectEditing: AnyObject {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -107,7 +107,7 @@ final class ProjectEditor: ProjectEditing {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
         let tuistIgnoreEntries = try tuistIgnoreContent
             .split(separator: "\n")
@@ -135,7 +135,7 @@ final class ProjectEditor: ProjectEditing {
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: try cacheDirectory.tuistCacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 
@@ -168,7 +168,7 @@ final class ProjectEditor: ProjectEditing {
             plugins: plugins,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let builtPluginHelperModules = try buildRemotePluginModules(
+        let builtPluginHelperModules = try await buildRemotePluginModules(
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
             plugins: plugins,
@@ -206,7 +206,7 @@ final class ProjectEditor: ProjectEditing {
 
         let graphTraverser = GraphTraverser(graph: graph)
         let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
-        try writer.write(workspace: descriptor)
+        try await writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
     }
 
@@ -237,9 +237,9 @@ final class ProjectEditor: ProjectEditing {
         projectDescriptionPath: AbsolutePath,
         plugins: Plugins,
         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
-    ) throws -> [ProjectDescriptionHelpersModule] {
+    ) async throws -> [ProjectDescriptionHelpersModule] {
         let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
-        return try projectDescriptionHelpersBuilder.buildPlugins(
+        return try await projectDescriptionHelpersBuilder.buildPlugins(
             at: path,
             projectDescriptionSearchPaths: ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath),
             projectDescriptionHelperPlugins: loadedPluginHelpers
