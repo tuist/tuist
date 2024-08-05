@@ -133,6 +133,8 @@ extension ProjectDescription.SDKType {
         switch self {
         case .library:
             return "lib"
+        case .swiftLibrary:
+            return "libswift"
         case .framework:
             return ""
         }
@@ -141,7 +143,7 @@ extension ProjectDescription.SDKType {
     /// The extension associated to the type
     fileprivate var fileExtension: String {
         switch self {
-        case .library:
+        case .library, .swiftLibrary:
             return "tbd"
         case .framework:
             return "framework"

@@ -1,5 +1,5 @@
 {
-  "originHash" : "6fdbad66e96883b1e14d41ffecc35d4e27d22f9fdeb34d816fd7c61093fb5a49",
+  "originHash" : "a33d4081872e10bb2c9bc2ef10b0a21aedbd8343195db3edf90e68e9f346670c",
   "pins" : [
     {
       "identity" : "aexml",
@@ -276,8 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "174f7881822100bf6781720c30086df0b8b5f859",
-        "version" : "0.8.1"
+        "branch" : "sdk/swift",
+        "revision" : "94b430d59c26fe95d63e6699d47f2aa851dab6bb"
       }
     },
     {

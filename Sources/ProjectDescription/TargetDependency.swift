@@ -24,6 +24,9 @@ public enum SDKType: String, Codable, Hashable, Sendable {
     /// Library SDK dependency
     case library
 
+    /// Swift library SDK dependency
+    case swiftLibrary
+
     /// Framework SDK dependency
     case framework
 }
