@@ -27,7 +27,7 @@ public struct ImplicitImportsLintCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        var projectPath = try path(path)
+        let projectPath = try path(path)
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
         let manifestGraphLoader = ManifestGraphLoader(
@@ -38,7 +38,7 @@ public struct ImplicitImportsLintCommand: AsyncParsableCommand {
         let (graph, _, _, _) = try await manifestGraphLoader
             .load(path: projectPath)
         for (target, implicitDependencies) in try await GraphImplicitImportLintService(graph: graph).lint() {
-            print("Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).")
+            logger.warning("Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).")
         }
     }
 

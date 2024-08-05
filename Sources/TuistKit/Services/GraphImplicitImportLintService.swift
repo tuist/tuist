@@ -6,6 +6,17 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
+enum GraphImplicitImportLintServiceError: LocalizedError {
+    case readFile
+
+    var errorDescription: String? {
+        switch self {
+        case .readFile:
+            "Error while reading file"
+        }
+    }
+}
+
 final class GraphImplicitImportLintService {
     private let graph: Graph
 
@@ -55,10 +66,17 @@ final class GraphImplicitImportLintService {
     }
 
     func handleTarget(target: XcodeGraph.Target) async throws -> Set<String> {
+        var filesToScan = target.sources.map(\.path)
+        if let headers = target.headers {
+            filesToScan.append(contentsOf: headers.private)
+            filesToScan.append(contentsOf: headers.public)
+            filesToScan.append(contentsOf: headers.project)
+        }
         return try await withThrowingTaskGroup(of: [String].self) { [weak self] group in
             var imports = Set<String>()
             guard let self else { return [] }
-            for file in target.sources {
+
+            for file in filesToScan {
                 group.addTask {
                     return try await self.matchPattern(at: file)
                 }
@@ -66,13 +84,14 @@ final class GraphImplicitImportLintService {
             for try await entity in group {
                 imports.formUnion(entity)
             }
+            imports.remove(target.productName)
             return imports
         }
     }
 
-    private func matchPattern(at source: SourceFile) async throws -> [String] {
+    private func matchPattern(at path: AbsolutePath) async throws -> [String] {
         var language: ProgrammingLanguage
-        switch source.path.url.pathExtension {
+        switch path.extension {
         case "swift":
             language = .swift
         case "h", "m", "cpp", "mm":
@@ -81,8 +100,8 @@ final class GraphImplicitImportLintService {
             return []
         }
 
-        let sourceCode = try String(contentsOf: source.path.url)
-
+        let sourceCode = String(data: try FileHandler.shared.readFile(path), encoding: .utf8)
+        guard let sourceCode else { throw GraphImplicitImportLintServiceError.readFile }
         return try ImportSourceCodeScanner().extractImports(
             from: sourceCode,
             language: language
