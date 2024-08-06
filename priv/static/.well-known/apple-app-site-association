@@ -3,7 +3,7 @@
     "details": [
       {
         "appIDs": [
-          "io.tuist.Tuist"
+          "io.tuist.Tuist.App"
         ],
         "components": [
           "/*/*/previews/*"
