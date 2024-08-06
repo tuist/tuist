@@ -77,4 +77,19 @@ defmodule Tuist.ProjectTest do
     # Then
     assert changeset.valid? == true
   end
+
+  describe "update_changeset/2" do
+    test "it updates the default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      new_default_branch = "new_default_branch"
+
+      # When
+      changeset = Project.update_changeset(project, %{default_branch: new_default_branch})
+
+      # Then
+      assert changeset.valid? == true
+      assert changeset.changes.default_branch == new_default_branch
+    end
+  end
 end

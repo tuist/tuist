@@ -7,7 +7,7 @@ defmodule TuistWeb.API.Schemas.Project do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :full_name, :token],
+    required: [:id, :full_name, :token, :default_branch],
     properties: %{
       id: %Schema{
         type: :number,
@@ -21,6 +21,11 @@ defmodule TuistWeb.API.Schemas.Project do
         type: :string,
         description: "The token that should be used to authenticate the project. For CI only.",
         deprecated: true
+      },
+      default_branch: %Schema{
+        type: :string,
+        description: "The default branch of the project.",
+        example: "main"
       }
     }
   })

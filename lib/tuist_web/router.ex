@@ -99,12 +99,19 @@ defmodule TuistWeb.Router do
 
       scope "/:account_handle/:project_handle" do
         get "/", ProjectsController, :show
+        put "/", ProjectsController, :update
 
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           get "/:preview_id", PreviewsController, :download
+        end
+
+        scope "/tokens" do
+          post "/", ProjectTokensController, :create
+          get "/", ProjectTokensController, :index
+          delete "/:id", ProjectTokensController, :delete
         end
 
         put "/cache/clean", CacheController, :clean
@@ -135,16 +142,6 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
-
-    post "/projects/:account_handle/:project_handle/tokens",
-         ProjectTokensController,
-         :create
-
-    get "/projects/:account_handle/:project_handle/tokens", ProjectTokensController, :index
-
-    delete "/projects/:account_handle/:project_handle/tokens/:id",
-           ProjectTokensController,
-           :delete
   end
 
   scope "/api" do

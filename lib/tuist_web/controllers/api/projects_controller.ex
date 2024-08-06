@@ -129,7 +129,8 @@ defmodule TuistWeb.API.ProjectsController do
           |> json(%{
             id: project.id,
             full_name: Projects.get_project_slug_from_id(project.id),
-            token: project.token
+            token: project.token,
+            default_branch: project.default_branch
           })
         rescue
           e in Ecto.InvalidChangesetError ->
@@ -253,7 +254,94 @@ defmodule TuistWeb.API.ProjectsController do
         |> json(%{
           id: project.id,
           full_name: "#{account.name}/#{project.name}",
-          token: project.token
+          token: project.token,
+          default_branch: project.default_branch
+        })
+    end
+  end
+
+  operation(:update,
+    summary: "Updates a project",
+    description: "Updates a project with given parameters.",
+    operation_id: "updateProject",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project to update."
+      ]
+    ],
+    request_body:
+      {"Project update params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           default_branch: %Schema{
+             type: :string,
+             description: "The default branch for the project."
+           }
+         }
+       }},
+    responses: %{
+      ok: {"The updated project", "application/json", Project},
+      not_found:
+        {"The project with the given account and project handles was not found",
+         "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def update(
+        %{
+          path_params: %{
+            "account_handle" => account_handle,
+            "project_handle" => project_handle
+          },
+          body_params: body_params
+        } = conn,
+        _params
+      ) do
+    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
+
+    user = Authentication.current_user(conn)
+
+    cond do
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Project #{account_handle}/#{project_handle} was not found."})
+
+      not Authorization.can(user, :update, project, :settings) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action."})
+
+      not is_nil(project) ->
+        default_branch = body_params |> Map.get(:default_branch, project.default_branch)
+
+        {:ok, project} =
+          Projects.update_project(project, %{
+            default_branch: default_branch
+          })
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          id: project.id,
+          full_name: "#{account_handle}/#{project_handle}",
+          token: project.token,
+          default_branch: project.default_branch
         })
     end
   end

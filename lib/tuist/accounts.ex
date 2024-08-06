@@ -529,17 +529,20 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def owns_account_or_is_admin_to_account_organization?(user, account) do
-    organization = organization_from_account(account)
+  def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
+    with {:account, %Account{} = account} <- {:account, account_id |> get_account_by_id()},
+         {:organization, organization} <- {:organization, organization_from_account(account)} do
+      is_admin_to_account_organization =
+        if organization != nil do
+          organization_admin?(user, organization)
+        else
+          false
+        end
 
-    is_admin_to_account_organization =
-      if organization != nil do
-        organization_admin?(user, organization)
-      else
-        false
-      end
-
-    owns_account?(user, account) or is_admin_to_account_organization
+      owns_account?(user, account) or is_admin_to_account_organization
+    else
+      {:account, nil} -> false
+    end
   end
 
   defp owns_account?(user, account) do

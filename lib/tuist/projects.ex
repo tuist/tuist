@@ -246,4 +246,10 @@ defmodule Tuist.Projects do
     })
     |> Repo.insert!()
   end
+
+  def update_project(%Project{} = project, attrs) do
+    project
+    |> Project.update_changeset(attrs)
+    |> Repo.update()
+  end
 end

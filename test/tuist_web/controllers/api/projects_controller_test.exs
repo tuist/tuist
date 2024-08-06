@@ -36,7 +36,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "#{user.account.name}/my-project",
-               "token" => response["token"]
+               "token" => response["token"],
+               "default_branch" => "main"
              }
     end
 
@@ -61,7 +62,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist/my-project",
-               "token" => response["token"]
+               "token" => response["token"],
+               "default_branch" => "main"
              }
     end
 
@@ -87,7 +89,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
-               "token" => response["token"]
+               "token" => response["token"],
+               "default_branch" => "main"
              }
     end
 
@@ -113,7 +116,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
-               "token" => response["token"]
+               "token" => response["token"],
+               "default_branch" => "main"
              }
     end
 
@@ -397,7 +401,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
-               "token" => project.token
+               "token" => project.token,
+               "default_branch" => project.default_branch
              }
     end
 
@@ -426,7 +431,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
-               "token" => project.token
+               "token" => project.token,
+               "default_branch" => project.default_branch
              }
     end
 
@@ -495,6 +501,75 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "message" => "You don't have permission to read the #{project.name} project."
              }
+    end
+  end
+
+  describe "PUT /api/projects/:account_handle/:project_handle" do
+    test "updates a project with a default branch", %{conn: conn, user: user} do
+      # Given
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}",
+          default_branch: "new-default-branch"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["default_branch"] == "new-default-branch"
+    end
+
+    test "returns :forbidden when user is not an admin of an organization", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}",
+          default_branch: "new-default-branch"
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "The authenticated subject is not authorized to perform this action."
+    end
+
+    test "returns :not_found when project does not exist", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/tuist/non-existing-project",
+          default_branch: "new-default-branch"
+        )
+
+      response = json_response(conn, :not_found)
+      assert response["message"] == "Project tuist/non-existing-project was not found."
     end
   end
 

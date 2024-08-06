@@ -1162,4 +1162,50 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.can(nil, :read, project, :preview) == true
   end
+
+  test "can.update.project.settings when the subject is not the same project account being updated" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+    project = ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+    # When
+    assert Authorization.can(user, :update, project, :settings) == false
+  end
+
+  test "can.update.project.settings when the subject is an admin of the project organization being updated" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :update, project, :settings) == true
+  end
+
+  test "can.update.project.settings when the subject is a user of the project organizatio being updated" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :update, project, :settings) == false
+  end
+
+  test "can.update.project.settings when the subject does not belong to the project organization" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    # When
+    assert Authorization.can(user, :update, project, :settings) == false
+  end
 end

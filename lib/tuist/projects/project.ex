@@ -11,6 +11,7 @@ defmodule Tuist.Projects.Project do
     field :token, :string
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
+    field :default_branch, :string, default: "main"
     belongs_to :account, Account
 
     has_many :users_with_last_visited_projects, User,
@@ -44,5 +45,10 @@ defmodule Tuist.Projects.Project do
 
   def validate_allowed_handle(changeset) do
     changeset |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+  end
+
+  def update_changeset(project, attrs) do
+    project
+    |> cast(attrs, [:default_branch])
   end
 end
