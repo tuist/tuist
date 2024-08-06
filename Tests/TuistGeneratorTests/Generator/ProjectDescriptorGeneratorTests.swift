@@ -266,6 +266,29 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generate_setsClassPrefix() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let project = Project.test(
+            path: path,
+            classPrefix: "TUIST",
+            targets: []
+        )
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        XCTAssertEqual(attributes, [
+            "BuildIndependentTargetsInParallel": "YES",
+            "CLASSPREFIX": "TUIST",
+        ])
+    }
+
     func test_generate_setsResourcesTagsName() throws {
         // Given
         let path = try temporaryPath()

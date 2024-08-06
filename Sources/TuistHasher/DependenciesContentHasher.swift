@@ -62,7 +62,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
     ) throws -> String {
         let hashes = try graphTarget.target.dependencies
             .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths) }
-        return hashes.compactMap { $0 }.joined()
+        return hashes.sorted().compactMap { $0 }.joined()
     }
 
     // MARK: - Private

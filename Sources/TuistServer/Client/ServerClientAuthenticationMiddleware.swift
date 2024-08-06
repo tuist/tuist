@@ -74,10 +74,13 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
 
                 if isExpired {
                     do {
-                        let newTokens = try await refreshAuthTokenService.refreshTokens(
-                            serverURL: baseURL,
-                            refreshToken: refreshToken.token
-                        )
+                        let newTokens = try await RetryProvider()
+                            .runWithRetries {
+                                return try await refreshAuthTokenService.refreshTokens(
+                                    serverURL: baseURL,
+                                    refreshToken: refreshToken.token
+                                )
+                            }
                         try serverCredentialsStore
                             .store(
                                 credentials: ServerCredentials(

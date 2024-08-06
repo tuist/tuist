@@ -65,6 +65,8 @@ public struct Project: Codable, Equatable, Sendable {
     public let name: String
     /// The name of the organization used by Xcode as copyright.
     public let organizationName: String?
+    /// The prefix for class files Xcode generates when you create a project or class file.
+    public let classPrefix: String?
     /// The project options.
     public let options: Options
     /// The Swift Packages used by the project.
@@ -85,6 +87,7 @@ public struct Project: Codable, Equatable, Sendable {
     public init(
         name: String,
         organizationName: String? = nil,
+        classPrefix: String? = nil,
         options: Options = .options(),
         packages: [Package] = [],
         settings: Settings? = nil,
@@ -96,6 +99,7 @@ public struct Project: Codable, Equatable, Sendable {
     ) {
         self.name = name
         self.organizationName = organizationName
+        self.classPrefix = classPrefix
         self.options = options
         self.packages = packages
         self.targets = targets

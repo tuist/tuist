@@ -286,4 +286,29 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
             .hash(Parameter<String>.any)
             .called(1)
     }
+
+    func test_hash_sorts_dependency_hashes() throws {
+        // Given
+        let dependencyFoo = TargetDependency.target(name: "foo")
+        let dependencyBar = TargetDependency.target(name: "bar")
+
+        // When
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependencyFoo, dependencyBar]))
+        hashedTargets[
+            GraphHashedTarget(
+                projectPath: graphTarget.path,
+                targetName: "foo"
+            )
+        ] = "target-foo-hash"
+        hashedTargets[
+            GraphHashedTarget(
+                projectPath: graphTarget.path,
+                targetName: "bar"
+            )
+        ] = "target-bar-hash"
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths)
+
+        // Then
+        XCTAssertEqual(hash, "target-bar-hashtarget-foo-hash")
+    }
 }

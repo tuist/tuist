@@ -709,6 +709,20 @@ final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestsProjectWithClassPrefix: TuistAcceptanceTestCase {
+    func test_project_with_class_prefix() async throws {
+        try await setUpFixture(.projectWithClassPrefix)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let attributes = try xcodeproj.pbxproj.rootProject()?.attributes
+
+        XCTAssertEqual(attributes?["CLASSPREFIX"] as? String, "TUIST")
+    }
+}
+
 final class GenerateAcceptanceTestProjectWithFileHeaderTemplate: TuistAcceptanceTestCase {
     func test_project_with_file_header_template() async throws {
         try await setUpFixture(.projectWithFileHeaderTemplate)

@@ -66,6 +66,7 @@ public enum TuistAcceptanceFixtures {
     case multiplatformAppWithSdk
     case multiplatformµFeatureUnitTestsWithExplicitDependencies
     case plugin
+    case projectWithClassPrefix
     case projectWithFileHeaderTemplate
     case projectWithInlineFileHeaderTemplate
     case spmPackage
@@ -208,6 +209,8 @@ public enum TuistAcceptanceFixtures {
             return "multiplatform_µFeature_unit_tests_with_explicit_dependencies"
         case .plugin:
             return "plugin"
+        case .projectWithClassPrefix:
+            return "project_with_class_prefix"
         case .projectWithFileHeaderTemplate:
             return "project_with_file_header_template"
         case .projectWithInlineFileHeaderTemplate:
