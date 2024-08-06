@@ -6,7 +6,7 @@
           "U6LC622NKF.io.tuist.Tuist.App"
         ],
         "components": [
-          "/*/*/previews/*"
+          "*"
         ]
       }
     ]
