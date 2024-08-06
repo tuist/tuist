@@ -29,7 +29,7 @@ public struct InstallCommand: AsyncParsableCommand {
 
     @Flag(
         name: .shortAndLong,
-        help: "Look up dependencies in the swift package registry and use the registry to retrieve them instead of source control when possible.",
+        help: "Look up dependencies in the Swift Package Registry and use the registry to retrieve them instead of source control when possible.",
         envKey: .installReplaceScmWithRegistry
     )
     var replaceScmWithRegistry: Bool = false
