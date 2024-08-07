@@ -74,11 +74,6 @@ public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
         case .noContent:
             // noop
             break
-        case let .badRequest(badRequest):
-            switch badRequest.body {
-            case let .json(error):
-                throw RevokeProjectTokenServiceError.badRequest(error.message)
-            }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
