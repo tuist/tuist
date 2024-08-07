@@ -179,7 +179,7 @@ struct ShareService {
                 for: platforms,
                 workspacePath: graph.workspace.xcWorkspacePath,
                 configuration: configuration,
-                app: appTarget.target.name,
+                app: appTarget.target.productName,
                 derivedDataPath: derivedDataPath,
                 fullHandle: fullHandle,
                 serverURL: serverURL
