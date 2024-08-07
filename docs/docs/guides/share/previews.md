@@ -12,8 +12,8 @@ However, this process can be cumbersome and slow, especially when you're just lo
 
 To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
 
-> [!IMPORTANT] ONLY SIMULATOR ARCHITECTURES ARE SUPPORTED
-> We only support simulator architectures for previews at the moment.
+> [!IMPORTANT] ONLY SIMULATOR ARCHITECTURES ARE CURRENTLY SUPPORTED
+> We only support simulator architectures for previews at the moment. Support for devices will come in the future.
 
 :::code-group
 ```bash [Tuist Project]
