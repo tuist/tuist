@@ -11,6 +11,11 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
     private var credentialsStore: MockServerCredentialsStoring!
     private var ciChecker: MockCIChecking!
 
+    private let accessToken =
+        "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdF9jbG91ZCIsImV4cCI6MTcyMDQyOTgxMiwiaWF0IjoxNzIwNDI5NzUyLCJpc3MiOiJ0dWlzdF9jbG91ZCIsImp0aSI6IjlmZGEwYmRmLTE0MjMtNDhmNi1iNWRmLWM2MDVjMGMwMzBiMiIsIm5iZiI6MTcyMDQyOTc1MSwicmVzb3VyY2UiOiJ1c2VyIiwic3ViIjoiMSIsInR5cCI6ImFjY2VzcyJ9.qsxjD51lHHaQo6NWs-gUxVUhQfyWEe3v3-okM0NIV72vDY-fGgzq9JU2F8DQbdOD8POqWkseCbtO66m_4J9uFw"
+    private let refreshToken =
+        "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdF9jbG91ZCIsImV4cCI6MTcyMDQyOTgxMCwiaWF0IjoxNzIwNDI5NzUyLCJpc3MiOiJ0dWlzdF9jbG91ZCIsImp0aSI6IjlmZGEwYmRmLTE0MjMtNDhmNi1iNWRmLWM2MDVjMGMwMzBiMiIsIm5iZiI6MTcyMDQyOTc1MSwicmVzb3VyY2UiOiJ1c2VyIiwic3ViIjoiMSIsInR5cCI6ImFjY2VzcyJ9.UGMOA4nysabRCO0px9ixCW3JTCA6OgYSeVA6X--Xkc8b-YA8ui2SeCL8gV9WvOYeLJA5pvzKUSulVfV1qM4LKg"
+
     override func setUp() {
         super.setUp()
 
@@ -136,16 +141,45 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         XCTAssertStandardOutput(pattern: "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
     }
 
-    func test_when_credentials_store_returns_jwt_tokens() throws {
+    func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() throws {
         // Given
         given(ciChecker)
             .isCI()
             .willReturn(false)
 
-        let accessToken =
-            "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdF9jbG91ZCIsImV4cCI6MTcyMDQyOTgxMiwiaWF0IjoxNzIwNDI5NzUyLCJpc3MiOiJ0dWlzdF9jbG91ZCIsImp0aSI6IjlmZGEwYmRmLTE0MjMtNDhmNi1iNWRmLWM2MDVjMGMwMzBiMiIsIm5iZiI6MTcyMDQyOTc1MSwicmVzb3VyY2UiOiJ1c2VyIiwic3ViIjoiMSIsInR5cCI6ImFjY2VzcyJ9.qsxjD51lHHaQo6NWs-gUxVUhQfyWEe3v3-okM0NIV72vDY-fGgzq9JU2F8DQbdOD8POqWkseCbtO66m_4J9uFw"
-        let refreshToken =
-            "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdF9jbG91ZCIsImV4cCI6MTcyMDQyOTgxMCwiaWF0IjoxNzIwNDI5NzUyLCJpc3MiOiJ0dWlzdF9jbG91ZCIsImp0aSI6IjlmZGEwYmRmLTE0MjMtNDhmNi1iNWRmLWM2MDVjMGMwMzBiMiIsIm5iZiI6MTcyMDQyOTc1MSwicmVzb3VyY2UiOiJ1c2VyIiwic3ViIjoiMSIsInR5cCI6ImFjY2VzcyJ9.UGMOA4nysabRCO0px9ixCW3JTCA6OgYSeVA6X--Xkc8b-YA8ui2SeCL8gV9WvOYeLJA5pvzKUSulVfV1qM4LKg"
+        given(credentialsStore)
+            .read(serverURL: .any)
+            .willReturn(ServerCredentials(token: "legacy-token", accessToken: accessToken, refreshToken: refreshToken))
+
+        // When
+        let got = try subject.authenticationToken(serverURL: .test())
+
+        // Then
+        // Then
+        XCTAssertEqual(
+            got,
+            .user(
+                legacyToken: nil,
+                accessToken: JWT(
+                    token: accessToken,
+                    expiryDate: Date(timeIntervalSince1970: 1_720_429_812)
+                ),
+                refreshToken: JWT(
+                    token: refreshToken,
+                    expiryDate: Date(timeIntervalSince1970: 1_720_429_810)
+                )
+            )
+        )
+        XCTAssertPrinterOutputNotContains(
+            "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`."
+        )
+    }
+
+    func test_when_credentials_store_returns_jwt_tokens() throws {
+        // Given
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
 
         given(credentialsStore)
             .read(serverURL: .any)
