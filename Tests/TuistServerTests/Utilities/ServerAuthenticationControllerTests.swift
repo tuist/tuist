@@ -85,6 +85,34 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .project("project-token")
         )
+        XCTAssertStandardOutput(
+            pattern: "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+        )
+    }
+
+    func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() throws {
+        // Given
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.deprecatedToken
+        ] = "deprecated-project-token"
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] = "project-token"
+        given(ciChecker)
+            .isCI()
+            .willReturn(true)
+
+        // When
+        let got = try subject.authenticationToken(serverURL: .test())
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .project("project-token")
+        )
+        XCTAssertPrinterOutputNotContains(
+            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+        )
     }
 
     func test_when_credentials_store_returns_legacy_token() throws {
