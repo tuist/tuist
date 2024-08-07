@@ -19,7 +19,7 @@ struct ProjectShowCommand: AsyncParsableCommand {
     )
     var fullHandle: String?
 
-    @Option(
+    @Flag(
         help: "Open a project in the browser.",
         envKey: .projectShowWeb
     )

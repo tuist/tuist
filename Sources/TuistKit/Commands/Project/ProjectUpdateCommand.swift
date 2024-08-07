@@ -17,7 +17,7 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
     var fullHandle: String?
 
     @Option(
-        help: "Set the default branch name for the repository."
+        help: "Set the default branch name for the repository linked to the project."
     )
     var defaultBranch: String?
 

@@ -37,6 +37,8 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     override func tearDown() {
         opener = nil
         configLoader = nil
+        serverURLService = nil
+        getProjectService = nil
         subject = nil
         super.tearDown()
     }
