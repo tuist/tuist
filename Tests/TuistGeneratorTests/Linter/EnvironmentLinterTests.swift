@@ -93,6 +93,10 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
 
+        given(xcodeController)
+            .selected()
+            .willReturn(nil)
+
         // When
         let got = try subject.lintXcodeVersion(config: config)
 
