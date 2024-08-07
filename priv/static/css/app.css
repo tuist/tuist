@@ -676,7 +676,6 @@ table {
   border-spacing: 0;
 
   & th {
-    white-space: nowrap;
     padding: var(--spacing-lg) var(--spacing-3xl);
     text-align: start;
     color: var(--text-tertiary);
@@ -687,7 +686,6 @@ table {
   }
 
   & td {
-    white-space: nowrap;
     padding: var(--spacing-lg) 0;
     border-top: 1px solid var(--border-secondary);
     color: var(--text-primary);
