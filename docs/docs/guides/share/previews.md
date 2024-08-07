@@ -31,3 +31,6 @@ The command will generate a link that you can share with anyone to run the app. 
 ```bash
 tuist run {url}
 ```
+
+> [!IMPORTANT] PREVIEWS' VISIBILITY
+> Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
