@@ -40,6 +40,7 @@ final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase {
     func test_update_default_branch() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectShowCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: """
