@@ -90,15 +90,20 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         } else {
             let credentials = try credentialsStore.read(serverURL: serverURL)
             return try credentials.map {
-                if $0.token != nil {
+                if let refreshToken = $0.refreshToken {
+                    return .user(
+                        legacyToken: nil,
+                        accessToken: try $0.accessToken.map(parseJWT),
+                        refreshToken: try parseJWT(refreshToken)
+                    )
+                } else {
                     logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                    return .user(
+                        legacyToken: $0.token,
+                        accessToken: nil,
+                        refreshToken: nil
+                    )
                 }
-
-                return .user(
-                    legacyToken: $0.token,
-                    accessToken: try $0.accessToken.map(parseJWT),
-                    refreshToken: try $0.refreshToken.map(parseJWT)
-                )
             }
         }
     }
