@@ -26,7 +26,7 @@ tuist share App --configuration Debug --platform ios
 ```
 :::
 
-The command will generate a link that you can share with anyone to run the app. All they'll need to do is running the command below:
+The command will generate a link that you can share with anyone to run the app. All they'll need to do is to run the command below:
 
 ```bash
 tuist run {url}
