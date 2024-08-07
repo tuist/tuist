@@ -24,7 +24,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         graphVizMapper = MockGraphToGraphVizMapper()
-        manifestGraphLoader = MockManifestGraphLoading()
+        manifestGraphLoader = .init()
 
         subject = GraphService(
             graphVizGenerator: graphVizMapper,

@@ -276,7 +276,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        let cacheDirectory = cacheDirectoriesProvider.cacheDirectory()
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return

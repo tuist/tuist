@@ -1,6 +1,10 @@
 import Foundation
 
-public struct SimulatorDeviceAndRuntime: Hashable {
+public struct SimulatorDeviceAndRuntime: Identifiable, Hashable, Equatable {
+    public var id: String {
+        device.udid
+    }
+
     /// Device
     public let device: SimulatorDevice
 

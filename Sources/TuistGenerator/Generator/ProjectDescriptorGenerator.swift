@@ -314,6 +314,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             attributes["ORGANIZATIONNAME"] = organizationName
         }
 
+        /// Class prefix
+        if let classPrefix = project.classPrefix {
+            attributes["CLASSPREFIX"] = classPrefix
+        }
+
         /// Last upgrade check
         if let lastUpgradeCheck = project.lastUpgradeCheck {
             attributes["LastUpgradeCheck"] = lastUpgradeCheck.xcodeStringValue

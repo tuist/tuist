@@ -213,6 +213,15 @@ public enum EnvKey: String, CaseIterable {
 
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
+
+    // ANALYTICS
+    case analyticsPath = "TUIST_ANALYTICS_PATH"
+
+    // SHARE
+    case shareApp = "TUIST_SHARE_APP"
+    case shareConfiguration = "TUIST_SHARE_CONFIGURATION"
+    case sharePlatform = "TUIST_SHARE_PLATFORM"
+    case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
 }
 
 extension EnvKey {

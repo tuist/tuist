@@ -16,6 +16,7 @@ enum RevokeProjectTokenServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case badRequest(String)
     case unauthorized(String)
     case badRequest(String)
 
@@ -93,6 +94,11 @@ public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw RevokeProjectTokenServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw RevokeProjectTokenServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw RevokeProjectTokenServiceError.unknownError(statusCode)

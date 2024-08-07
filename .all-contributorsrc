@@ -1474,6 +1474,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "alvar-bolt",
+      "name": "Alvar Hansen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/72379847?v=4",
+      "profile": "https://github.com/alvar-bolt",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

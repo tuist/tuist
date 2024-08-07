@@ -3,7 +3,7 @@ import Path
 @testable import TuistCore
 
 extension SimulatorDeviceAndRuntime {
-    static func test(
+    public static func test(
         device: SimulatorDevice = .test(),
         runtime: SimulatorRuntime = .test()
     ) -> SimulatorDeviceAndRuntime {

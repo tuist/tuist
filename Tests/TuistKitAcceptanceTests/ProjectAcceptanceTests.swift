@@ -9,6 +9,7 @@ import XCTest
 
 final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectListCommand.self)
         XCTAssertStandardOutput(pattern: "Listing all your projects:")
         XCTAssertStandardOutput(pattern: "• \(fullHandle)")
@@ -17,6 +18,7 @@ final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectTokensCreateCommand.self, fullHandle)
         TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
@@ -56,3 +58,4 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
         )
     }
 }
+
