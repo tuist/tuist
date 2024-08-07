@@ -76,14 +76,16 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
     public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
         if ciChecker.isCI() {
-            if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+                return .project(configToken)
+            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
                 logger
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
                 return .project(deprecatedToken)
             } else {
-                return environment.tuistVariables[Constants.EnvironmentVariables.token].map { .project($0) }
+                return nil
             }
         } else {
             let credentials = try credentialsStore.read(serverURL: serverURL)
