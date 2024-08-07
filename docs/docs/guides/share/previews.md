@@ -8,7 +8,7 @@ description: Learn how to generate and share previews of your apps with anyone.
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
-However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or friend.
+However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
 
 To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
 
