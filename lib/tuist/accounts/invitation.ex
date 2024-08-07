@@ -22,8 +22,6 @@ defmodule Tuist.Accounts.Invitation do
     |> cast(attrs, [:token, :invitee_email, :inviter_id, :organization_id])
     |> validate_required([:token, :invitee_email, :inviter_id, :organization_id])
     |> unique_constraint(:token, name: "index_invitations_on_token")
-    |> unique_constraint([:invitee_email, :organization_id],
-      name: "index_invitations_on_invitee_email_and_organization_id"
-    )
+    |> unique_constraint([:invitee_email, :organization_id])
   end
 end

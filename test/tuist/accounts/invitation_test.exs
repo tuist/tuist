@@ -64,7 +64,16 @@ defmodule Tuist.InvitationTest do
 
       # When
       {:ok, _} = Repo.insert(changeset)
-      {:error, got} = Repo.insert(changeset)
+
+      {:error, got} =
+        Repo.insert(
+          Invitation.create_changeset(%Invitation{}, %{
+            token: "new-token",
+            invitee_email: "test@tuist.io",
+            inviter_id: user.id,
+            organization_id: organization.id
+          })
+        )
 
       # Then
       assert "has already been taken" in errors_on(got).invitee_email

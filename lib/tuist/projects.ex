@@ -66,13 +66,13 @@ defmodule Tuist.Projects do
            {:account,
             Repo.one(
               from a in Account,
-                where: fragment("lower(?)", a.name) == ^String.downcase(account_name)
+                where: a.name == ^account_name
             )},
          {:project, project} <-
            {:project,
             Repo.one(
               from(p in Project,
-                where: fragment("lower(?)", p.name) == ^String.downcase(project_name),
+                where: p.name == ^project_name,
                 where: p.account_id == ^account_id
               )
             )} do
