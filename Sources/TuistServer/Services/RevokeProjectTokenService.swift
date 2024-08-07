@@ -16,7 +16,6 @@ enum RevokeProjectTokenServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
-    case badRequest(String)
     case unauthorized(String)
     case badRequest(String)
 

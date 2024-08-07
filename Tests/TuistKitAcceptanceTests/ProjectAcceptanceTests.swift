@@ -58,4 +58,3 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
         )
     }
 }
-
