@@ -1,11 +1,6 @@
 defmodule Tuist.Repo.Migrations.OwnerToUserAndOrganization do
   use Ecto.Migration
 
-  alias Tuist.Accounts.Account
-  alias Tuist.Repo
-
-  import Ecto.Query
-
   def up do
     alter table(:accounts) do
       add(:user_id, references(:users, on_delete: :delete_all))

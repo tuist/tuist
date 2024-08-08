@@ -3,12 +3,13 @@ defmodule Tuist.Application do
 
   use Application
   alias Tuist.Environment
+  import Environment, only: [run_if_error_tracking_enabled: 1]
 
   @impl true
   def start(_type, _args) do
     Environment.decrypt_secrets() |> Environment.put_application_secrets()
 
-    if not Environment.on_premise?() do
+    run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
       Appsignal.Logger.Handler.add("phoenix")
     end

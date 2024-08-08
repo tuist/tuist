@@ -77,18 +77,31 @@ defmodule Tuist.Analytics.Posthog do
     {:noreply, state, @default_publish_interval}
   end
 
-  def handle_event([:analytics | event_id], measurement, _metadata, config) do
+  def handle_event([:analytics | event_id], measurements, metadata, config) do
     table_id = config[:table_id]
     date = DateTime.utc_now()
-    {user_id, measurement} = measurement |> Map.pop(:user_id)
+
+    {user_id, metadata} = metadata |> Map.pop(:user_id)
+    {project_id, metadata} = metadata |> Map.pop(:project_id)
+
+    distinct_id_params =
+      cond do
+        not is_nil(user_id) -> %{distinct_id: "user_#{user_id}"}
+        not is_nil(project_id) -> %{distinct_id: "project_#{user_id}"}
+        true -> %{}
+      end
 
     event_name =
       event_id
       |> Enum.map_join("_", &Atom.to_string/1)
 
     event =
-      %{event: event_name, properties: measurement, timestamp: DateTime.to_iso8601(date)}
-      |> Map.merge(if user_id != nil, do: %{distinct_id: user_id}, else: %{})
+      %{
+        event: event_name,
+        properties: metadata |> Map.merge(measurements),
+        timestamp: DateTime.to_iso8601(date)
+      }
+      |> Map.merge(distinct_id_params)
 
     :ets.insert(
       table_id,

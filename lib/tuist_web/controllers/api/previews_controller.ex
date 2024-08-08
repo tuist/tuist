@@ -3,6 +3,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Projects.Preview
   alias Tuist.Projects
+  alias TuistWeb.Authentication
 
   alias TuistWeb.API.Schemas.{
     ArtifactMultipartUploadParts,
@@ -23,6 +24,8 @@ defmodule TuistWeb.API.PreviewsController do
 
   plug(EnsureProjectPresencePlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
+
+  tags ["Previews"]
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a preview artifact.",
@@ -248,6 +251,8 @@ defmodule TuistWeb.API.PreviewsController do
            end)
          ) do
       :ok ->
+        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+
         conn
         |> put_status(:ok)
         |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
@@ -316,6 +321,7 @@ defmodule TuistWeb.API.PreviewsController do
       )
 
     expires_at = System.system_time(:second) + expires_in
+    Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
     conn |> json(%{url: url, expires_at: expires_at})
   end
 
