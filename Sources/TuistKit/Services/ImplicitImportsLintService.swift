@@ -22,12 +22,9 @@ class ImplicitImportsLintService {
         let config = try await configLoader.loadConfig(path: projectPath)
         let generator = generatorFactory.defaultGenerator(config: config)
         let graph = try await generator.load(path: projectPath)
-        let lintingErrors = try await graphImplicitLintService.lint(graph: GraphTraverser(graph: graph))
-        for (target, implicitDependencies) in lintingErrors {
-            logger.warning("Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).")
-        }
-
-        if lintingErrors.count == 0 {
+        let lintingErrors = try await graphImplicitLintService.lint(graph: GraphTraverser(graph: graph), config: config)
+        lintingErrors.printWarningsIfNeeded()
+        if lintingErrors.isEmpty {
             logger.log(level: .info, "Implicit dependencies were not found.")
         }
     }

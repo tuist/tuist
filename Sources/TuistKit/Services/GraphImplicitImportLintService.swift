@@ -14,7 +14,7 @@ final class GraphImplicitImportLintService {
         self.importSourceCodeScanner = importSourceCodeScanner
     }
 
-    func lint(graph: GraphTraverser) async throws -> [Target: Set<String>] {
+    func lint(graph: GraphTraverser, config _: Config) async throws -> [LintingIssue] {
         let allTargets = graph
             .allTargets()
 
@@ -42,7 +42,12 @@ final class GraphImplicitImportLintService {
                 }
             }
         }
-        return implicitTargetImports
+        return implicitTargetImports.map { target, implicitDependencies in
+            return LintingIssue(
+                reason: "Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).",
+                severity: .warning
+            )
+        }
     }
 
     func imports(for target: XcodeGraph.Target) async throws -> Set<String> {

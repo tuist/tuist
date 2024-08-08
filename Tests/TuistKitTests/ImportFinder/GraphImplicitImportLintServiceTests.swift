@@ -56,8 +56,11 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
         ])
         let result = try await GraphImplicitImportLintService(
             importSourceCodeScanner: ImportSourceCodeScanner()
-        ).lint(graph: GraphTraverser(graph: graph))
-        XCTAssertEqual(result, [firstTarget: ["ImplicitTarget"]])
+        ).lint(graph: GraphTraverser(graph: graph), config: Config.test())
+        XCTAssertEqual(
+            result,
+            [LintingIssue(reason: "Target FirstTarget implicitly imports ImplicitTarget.", severity: .warning)]
+        )
     }
 
     func test_TargetHandleWithImports() async throws {
