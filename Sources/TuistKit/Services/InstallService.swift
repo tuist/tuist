@@ -38,7 +38,7 @@ final class InstallService {
         let path = try self.path(path)
 
         try await fetchPlugins(path: path)
-        try fetchDependencies(path: path, update: update)
+        try await fetchDependencies(path: path, update: update)
     }
 
     // MARK: - Helpers
@@ -60,20 +60,30 @@ final class InstallService {
         logger.notice("Plugins resolved and fetched successfully.", metadata: .success)
     }
 
-    private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
+    private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {
         guard let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: path)
         else {
             return
         }
 
+        let config = try await configLoader.loadConfig(path: path)
+
         if update {
             logger.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(at: packageManifestPath.parentDirectory, printOutput: true)
+            try swiftPackageManagerController.update(
+                at: packageManifestPath.parentDirectory,
+                arguments: config.installOptions.passthroughSwiftPackageManagerArguments,
+                printOutput: true
+            )
         } else {
             logger.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, printOutput: true)
+            try swiftPackageManagerController.resolve(
+                at: packageManifestPath.parentDirectory,
+                arguments: config.installOptions.passthroughSwiftPackageManagerArguments,
+                printOutput: true
+            )
         }
     }
 }

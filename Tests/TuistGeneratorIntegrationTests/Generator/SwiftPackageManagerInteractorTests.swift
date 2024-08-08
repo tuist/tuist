@@ -65,6 +65,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(resolveDependenciesWithSystemScm: true),
+            installOptions: .test(),
             path: nil
         )
 
@@ -189,6 +190,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),
+            installOptions: .test(),
             path: nil
         )
 

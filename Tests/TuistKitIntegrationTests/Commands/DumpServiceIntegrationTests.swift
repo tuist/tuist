@@ -151,7 +151,12 @@ final class DumpServiceTests: TuistTestCase {
             fullHandle: "tuist/tuist",
             swiftVersion: nil,
             plugins: [],
-            generationOptions: .options()
+            generationOptions: .options(),
+            installOptions: .options(
+                passthroughSwiftPackageManagerArguments: [
+                    "--replace-scm-with-registry"
+                ]
+            )
         )
         """
         try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
@@ -179,6 +184,11 @@ final class DumpServiceTests: TuistTestCase {
 
               }
             }
+          },
+          "installOptions": {
+            "passthroughSwiftPackageManagerArguments": [
+              "--replace-scm-with-registry"
+            ]
           },
           "plugins": [
 

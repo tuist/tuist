@@ -11,6 +11,9 @@ public struct Config: Equatable, Hashable {
     /// Generation options.
     public let generationOptions: GenerationOptions
 
+    /// Install options.
+    public let installOptions: InstallOptions
+
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
@@ -40,6 +43,9 @@ public struct Config: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all
             ),
+            installOptions: .init(
+                passthroughSwiftPackageManagerArguments: []
+            ),
             path: nil
         )
     }
@@ -52,6 +58,7 @@ public struct Config: Equatable, Hashable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
+    ///   - installOptions: Install options.
     ///   - path: The path of the config file.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
@@ -60,6 +67,7 @@ public struct Config: Equatable, Hashable {
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
+        installOptions: InstallOptions,
         path: AbsolutePath?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
@@ -68,6 +76,7 @@ public struct Config: Equatable, Hashable {
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
+        self.installOptions = installOptions
         self.path = path
     }
 
@@ -91,6 +100,7 @@ public struct Config: Equatable, Hashable {
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = Config.default.generationOptions,
+            installOptions: InstallOptions = Config.default.installOptions,
             path: AbsolutePath? = nil
         ) -> Config {
             .init(
@@ -100,6 +110,7 @@ public struct Config: Equatable, Hashable {
                 swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
+                installOptions: installOptions,
                 path: path
             )
         }
@@ -123,6 +134,16 @@ public struct Config: Equatable, Hashable {
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication
+            )
+        }
+    }
+
+    extension Config.InstallOptions {
+        public static func test(
+            passthroughSwiftPackageManagerArguments: [String] = []
+        ) -> Self {
+            .init(
+                passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
             )
         }
     }

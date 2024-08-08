@@ -31,6 +31,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// Generation options.
     public let generationOptions: GenerationOptions
 
+    /// Install options.
+    public let installOptions: InstallOptions
+
     /// Set the versions of Xcode that the project is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
@@ -61,6 +64,7 @@ public struct Config: Codable, Equatable, Sendable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
+    ///   - insgtallOptions: List of options to use when running `tuist install`.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
@@ -68,11 +72,13 @@ public struct Config: Codable, Equatable, Sendable {
         url: String = "https://cloud.tuist.io",
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: GenerationOptions = .options()
+        generationOptions: GenerationOptions = .options(),
+        installOptions: InstallOptions = .options()
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
         self.generationOptions = generationOptions
+        self.installOptions = installOptions
         self.cloud = cloud
         self.fullHandle = fullHandle
         self.url = url
