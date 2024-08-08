@@ -24,14 +24,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(infoPlist.libraries, [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
@@ -39,34 +39,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
                 architectures: [.arm64]
             ),
         ])
-        infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
-    }
-
-    func test_binaryPath_when_frameworkIsPresent() throws {
-        // Given
-        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
-
-        // Then
-        XCTAssertEqual(
-            binaryPath,
-            frameworkPath.appending(try RelativePath(validating: "ios-x86_64-simulator/MyFramework.framework/MyFramework"))
-        )
-    }
-
-    func test_binaryPath_when_frameworkIsPresentAndHasDifferentName() throws {
-        // Given
-        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFrameworkDifferentProductName.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
-
-        // Then
-        XCTAssertEqual(
-            binaryPath,
-            frameworkPath.appending(try RelativePath(validating: "ios-x86_64-simulator/MyFramework.framework/MyFramework"))
-        )
-
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
@@ -77,14 +49,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(infoPlist.libraries, [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
@@ -93,19 +65,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             ),
         ])
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "libMyStaticLibrary") }
-    }
-
-    func test_binaryPath_when_staticLibraryIsPresent() throws {
-        // Given
-        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
-
-        // Then
-        XCTAssertEqual(
-            binaryPath,
-            frameworkPath.appending(try RelativePath(validating: "ios-x86_64-simulator/libMyStaticLibrary.a"))
-        )
     }
 
     func test_loadMetadata_dynamicLibrary() throws {
@@ -117,14 +76,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
@@ -138,7 +97,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,
             infoPlist: expectedInfoPlist,
-            primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
             status: .required,
@@ -155,14 +113,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "MyMergeableFramework.framework"),
                 mergeable: true,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyMergeableFramework.framework"),
                 mergeable: true,
@@ -176,7 +134,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,
             infoPlist: expectedInfoPlist,
-            primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: true,
             status: .required,
@@ -193,14 +150,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "libMyStaticLibrary.a"),
                 mergeable: false,
@@ -213,7 +170,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,
             infoPlist: expectedInfoPlist,
-            primaryBinaryPath: expectedBinaryPath,
             linking: .static,
             mergeable: false,
             status: .required,
@@ -230,14 +186,14 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-x86_64-simulator", // Not present on disk
                 path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
                 mergeable: false,
                 platform: .iOS,
                 architectures: [.x8664]
             ),
-            .init(
+            XCFrameworkInfoPlist.Library(
                 identifier: "ios-arm64",
                 path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
                 mergeable: false,
@@ -250,7 +206,6 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,
             infoPlist: expectedInfoPlist,
-            primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
             status: .required,
@@ -283,5 +238,49 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)
+    }
+
+    func test_loadMetadataXCFrameworkDylibBinary() throws {
+        // Given
+        let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
+
+        // When
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+
+        // Then
+        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+            XCFrameworkInfoPlist.Library(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "libmymath_ios.dylib"),
+                mergeable: false,
+                platform: .iOS,
+                architectures: [.arm64]
+            ),
+
+            XCFrameworkInfoPlist.Library(
+                identifier: "ios-arm64_x86_64-simulator",
+                path: try RelativePath(validating: "libmymath_ios_sim.dylib"),
+                mergeable: false,
+                platform: .iOS,
+                architectures: [.arm64, .x8664]
+            ),
+
+            XCFrameworkInfoPlist.Library(
+                identifier: "macos-arm64_x86_64",
+                path: try RelativePath(validating: "libmymath_macos.dylib"),
+                mergeable: false,
+                platform: .macOS,
+                architectures: [.arm64, .x8664]
+            ),
+        ])
+
+        XCTAssertEqual(metadata, XCFrameworkMetadata(
+            path: frameworkPath,
+            infoPlist: expectedInfoPlist,
+            linking: .dynamic,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
+        ))
     }
 }

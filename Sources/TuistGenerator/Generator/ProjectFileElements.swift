@@ -219,7 +219,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .xcframework(path, _, _, _, _, _):
+            case let .xcframework(path, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,

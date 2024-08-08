@@ -1207,8 +1207,6 @@ public class GraphTraverser: GraphTraversing {
             return .xcframework(
                 path: xcframework.path,
                 infoPlist: xcframework.infoPlist,
-                primaryBinaryPath: xcframework.primaryBinaryPath,
-                binaryPath: xcframework.primaryBinaryPath,
                 status: xcframework.status,
                 condition: condition
             )
