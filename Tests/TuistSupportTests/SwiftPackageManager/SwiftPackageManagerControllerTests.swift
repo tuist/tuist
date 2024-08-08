@@ -33,7 +33,23 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.resolve(at: path, printOutput: false))
+        XCTAssertNoThrow(try subject.resolve(at: path, replaceScmWithRegistry: false, printOutput: false))
+    }
+
+    func test_resolve_replace_scm_with_registry() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When / Then
+        XCTAssertNoThrow(try subject.resolve(at: path, replaceScmWithRegistry: true, printOutput: false))
     }
 
     func test_update() throws {
@@ -48,7 +64,23 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, printOutput: false))
+        XCTAssertNoThrow(try subject.update(at: path, replaceScmWithRegistry: false, printOutput: false))
+    }
+
+    func test_update_replace_scm_with_registry() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "update",
+        ])
+
+        // When / Then
+        XCTAssertNoThrow(try subject.update(at: path, replaceScmWithRegistry: true, printOutput: false))
     }
 
     func test_setToolsVersion_specificVersion() throws {
