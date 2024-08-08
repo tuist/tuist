@@ -12,7 +12,8 @@ public struct LintCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "lint",
-            subcommands: [ImplicitImportsLintCommand.self]
+            subcommands: [ImplicitImportsLintCommand.self],
+            defaultSubcommand: ImplicitImportsLintCommand.self
         )
     }
 }
