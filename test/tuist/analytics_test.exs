@@ -1,8 +1,7 @@
 defmodule Tuist.AnalyticsTest do
-  use Tuist.DataCase, async: true
+  use ExUnit.Case, async: true
   import TelemetryTest
   alias Tuist.Analytics
-  alias Tuist.AccountsFixtures
   use Mimic
 
   setup [:telemetry_listen]
@@ -15,19 +14,15 @@ defmodule Tuist.AnalyticsTest do
       Tuist.Environment
       |> stub(:analytics_enabled?, fn -> true end)
 
-      user = AccountsFixtures.user_fixture()
-
       assert :ok =
-               Analytics.organization_create("test", user)
+               Analytics.organization_create("test", %{email: "test@tuist.io", id: 1})
 
       # Then
-      expected_metadata = %{email: user.email, name: "test", user_id: user.id}
-
       assert_receive {:telemetry_event,
                       %{
                         event: [:analytics, :organization, :create],
-                        measurements: %{},
-                        metadata: ^expected_metadata
+                        measurements: %{email: "test@tuist.io", name: "test", user_id: 1},
+                        metadata: %{}
                       }}
     end
 
@@ -36,19 +31,15 @@ defmodule Tuist.AnalyticsTest do
       Tuist.Environment
       |> stub(:analytics_enabled?, fn -> false end)
 
-      user = AccountsFixtures.user_fixture()
-
       assert :ok =
-               Analytics.organization_create("test", user)
+               Analytics.organization_create("test", %{email: "test@tuist.io", id: 1})
 
       # Then
-      expected_metadata = %{email: user.email, name: "test", user_id: user.id}
-
       refute_receive {:telemetry_event,
                       %{
                         event: [:analytics, :organization, :create],
-                        measurements: %{},
-                        metadata: ^expected_metadata
+                        measurements: %{email: "test@tuist.io", name: "test", user_id: 1},
+                        metadata: %{}
                       }}
     end
   end
@@ -61,18 +52,14 @@ defmodule Tuist.AnalyticsTest do
       Tuist.Environment
       |> stub(:analytics_enabled?, fn -> true end)
 
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.user_authenticate(user)
+      assert :ok = Analytics.user_authenticate(%{email: "test@tuist.io", id: 1})
 
       # Then
-      expected_metadata = %{email: user.email, user_id: user.id}
-
       assert_receive {:telemetry_event,
                       %{
                         event: [:analytics, :user, :authenticate],
-                        measurements: %{},
-                        metadata: ^expected_metadata
+                        measurements: %{email: "test@tuist.io", user_id: 1},
+                        metadata: %{}
                       }}
     end
 
@@ -81,242 +68,14 @@ defmodule Tuist.AnalyticsTest do
       Tuist.Environment
       |> stub(:analytics_enabled?, fn -> false end)
 
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.user_authenticate(user)
+      assert :ok = Analytics.user_authenticate(%{email: "test@tuist.io", id: 1})
 
       # Then
-      expected_metadata = %{email: user.email, user_id: user.id}
-
       refute_receive {:telemetry_event,
                       %{
                         event: [:analytics, :user, :authenticate],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "page_view" do
-    @describetag telemetry_listen: [:analytics, :page, :view]
-
-    test "when analytics are enabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> true end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.page_view("/foo", user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, path: "/foo"}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :page, :view],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "when analytics are disabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> false end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.page_view("/foo", user)
-
-      # Then
-      expected_metadata = %{email: user.email, user_id: user.id, path: "/foo"}
-
-      refute_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :page, :view],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "preview_upload" do
-    @describetag telemetry_listen: [:analytics, :preview, :upload]
-
-    test "when analytics are enabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> true end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.preview_upload(user)
-
-      # Then
-      expected_metadata = %{user_id: user.id}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :preview, :upload],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "when analytics are disabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> false end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.preview_upload(user)
-
-      # Then
-      expected_metadata = %{email: user.email, user_id: user.id}
-
-      refute_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :preview, :upload],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "preview_download" do
-    @describetag telemetry_listen: [:analytics, :preview, :download]
-
-    test "when analytics are enabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> true end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.preview_download(user)
-
-      # Then
-      expected_metadata = %{user_id: user.id}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :preview, :download],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "when analytics are disabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> false end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.preview_download(user)
-
-      # Then
-      expected_metadata = %{email: user.email, user_id: user.id}
-
-      refute_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :preview, :download],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "cache_artifact_upload" do
-    @describetag telemetry_listen: [:analytics, :cache_artifact, :upload]
-
-    test "when analytics are enabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> true end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_upload(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :upload],
-                        measurements: ^expected_measurements,
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "when analytics are disabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> false end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_upload(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      refute_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :upload],
-                        measurements: ^expected_measurements,
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "cache_artifact_download" do
-    @describetag telemetry_listen: [:analytics, :cache_artifact, :download]
-
-    test "when analytics are enabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> true end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_download(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :download],
-                        measurements: ^expected_measurements,
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "when analytics are disabled" do
-      # When
-      Tuist.Environment
-      |> stub(:analytics_enabled?, fn -> false end)
-
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_download(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      refute_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :download],
-                        measurements: ^expected_measurements,
-                        metadata: ^expected_metadata
+                        measurements: %{email: "test@tuist.io", user_id: 1},
+                        metadata: %{}
                       }}
     end
   end

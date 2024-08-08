@@ -79,6 +79,8 @@ config :phoenix_live_view, :debug_heex_annotations, true
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
+config :appsignal, :config, active: true
+
 # Disable caching of OpenAPI Spex as suggested in the docs
 config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
 

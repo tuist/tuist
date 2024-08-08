@@ -96,11 +96,6 @@ defmodule TuistWeb.API.CacheController do
         project_id: EnsureProjectPresencePlug.get_project(conn).id,
         hash: hash
       })
-
-      Tuist.Analytics.cache_artifact_download(
-        %{size: upload_event.size, category: cache_category},
-        TuistWeb.Authentication.authenticated_subject(conn)
-      )
     end
 
     expires_at = System.system_time(:second) + expires_in
@@ -491,11 +486,6 @@ defmodule TuistWeb.API.CacheController do
         project_id: EnsureProjectPresencePlug.get_project(conn).id,
         hash: hash
       })
-
-      Tuist.Analytics.cache_artifact_upload(
-        %{size: size, category: cache_category},
-        TuistWeb.Authentication.authenticated_subject(conn)
-      )
 
       conn |> json(%{status: "success", data: %{}})
     else

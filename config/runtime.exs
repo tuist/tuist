@@ -135,16 +135,24 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-if Tuist.Environment.error_tracking_enabled?() do
-  appsignal_name = "Tuist"
+appsignal_name = "Tuist"
 
-  config :appsignal, :config,
-    otp_app: :tuist,
-    name: appsignal_name,
-    push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
-    env: env,
-    active: [:prod, :stag, :can] |> Enum.member?(env),
-    request_headers: ~w(
+cond do
+  Tuist.Environment.on_premise?() and Mix.env() != :test ->
+    config :appsignal, :config,
+      otp_app: :tuist,
+      name: appsignal_name,
+      env: env,
+      active: false
+
+  not Tuist.Environment.on_premise?() ->
+    config :appsignal, :config,
+      otp_app: :tuist,
+      name: appsignal_name,
+      push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
+      env: env,
+      active: [:prod, :stag, :can] |> Enum.member?(env),
+      request_headers: ~w(
       accept accept-charset accept-encoding accept-language cache-control
       connection content-length path-info range request-method
       request-uri server-name server-port server-protocol

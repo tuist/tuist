@@ -18,18 +18,6 @@ defmodule Tuist.Environment do
 
   def env, do: @env
 
-  defmacro run_if_error_tracking_enabled(block) do
-    enabled = error_tracking_enabled?()
-
-    if enabled do
-      block
-    else
-      quote do
-        :ok
-      end
-    end
-  end
-
   def truthy?(value) do
     ["1", "true", "TRUE", "yes", "YES"] |> Enum.member?(value)
   end
@@ -64,10 +52,6 @@ defmodule Tuist.Environment do
 
   def analytics_enabled?() do
     not on_premise?() and env() == :prod
-  end
-
-  def error_tracking_enabled?() do
-    not on_premise?() and Enum.member?([:prod, :stag, :can], env())
   end
 
   def license_expiration_date() do
