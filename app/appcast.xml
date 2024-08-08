@@ -1,0 +1,15 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Tuist</title>
+        <item>
+            <title>0.1.0</title>
+            <pubDate>Wed, 21 Aug 2024 11:33:03 +0200</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.1.0</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/fortmarek/tuist/releases/download/0.1.0/app.dmg" length="19882163" type="application/octet-stream" sparkle:edSignature="F8xHWT3CAkKW9aXwS211MZ1c/QZKG86ekdorCcaAfBpsHC0utIbN+cBsVkup2McDMPRQmtUUqrhxVEwOvqjnBg=="/>
+        </item>
+    </channel>
+</rss>

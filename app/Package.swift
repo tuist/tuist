@@ -18,5 +18,6 @@ let package = Package(
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
         .package(url: "https://github.com/tuist/XcodeGraph.git", from: "0.8.1"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.4"),
     ]
 )
