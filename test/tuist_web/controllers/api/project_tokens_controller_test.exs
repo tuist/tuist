@@ -76,6 +76,28 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
                "message" => "The authenticated subject is not authorized to perform this action"
              }
     end
+
+    test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture(preloads: [:account])
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{project.account.name}/#{project.name}/tokens")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response == %{
+               "message" => "The authenticated subject is not authorized to perform this action"
+             }
+    end
   end
 
   describe "GET /projects/:account_handle/:project_handle/tokens" do
@@ -173,6 +195,28 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
              }
     end
 
+    test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture(preloads: [:account])
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> get("/api/projects/#{project.account.name}/#{project.name}/tokens")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response == %{
+               "message" => "The authenticated subject is not authorized to perform this action"
+             }
+    end
+
     test "returns not_found when the project does not exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -234,6 +278,36 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       conn =
         conn
         |> TuistWeb.Authentication.put_current_user(user)
+
+      full_token = Projects.create_project_token(project)
+
+      token =
+        Projects.get_project_tokens(project)
+        |> hd()
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/projects/#{project.account.name}/#{project.name}/tokens/#{token.id}")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response == %{
+               "message" => "The authenticated subject is not authorized to perform this action"
+             }
+
+      assert Projects.get_project_token(full_token) == {:ok, token}
+    end
+
+    test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture(preloads: [:account])
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_project(project)
 
       full_token = Projects.create_project_token(project)
 
