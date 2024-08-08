@@ -4,26 +4,25 @@ import OpenAPIURLSession
 import TuistSupport
 
 @Mockable
-public protocol RevokeProjectTokenServicing {
-    func revokeProjectToken(
-        projectTokenId: String,
+public protocol UpdateProjectServicing {
+    func updateProject(
         fullHandle: String,
-        serverURL: URL
-    ) async throws
+        serverURL: URL,
+        defaultBranch: String?
+    ) async throws -> ServerProject
 }
 
-enum RevokeProjectTokenServiceError: FatalError {
+enum UpdateProjectServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case badRequest(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound, .unauthorized, .badRequest:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -31,14 +30,14 @@ enum RevokeProjectTokenServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not revoke the project token due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
+            return "We could not update the project due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
 }
 
-public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
+public final class UpdateProjectService: UpdateProjectServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -53,49 +52,51 @@ public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func revokeProjectToken(
-        projectTokenId: String,
+    public func updateProject(
         fullHandle: String,
-        serverURL: URL
-    ) async throws {
+        serverURL: URL,
+        defaultBranch: String?
+    ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
+
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.revokeProjectToken(
+        let response = try await client.updateProject(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    id: projectTokenId
+                    project_handle: handles.projectHandle
+                ),
+                body: .json(
+                    .init(
+                        default_branch: defaultBranch
+                    )
                 )
             )
         )
         switch response {
-        case .noContent:
-            // noop
-            break
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(project):
+                return ServerProject(project)
+            }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw RevokeProjectTokenServiceError.notFound(error.message)
+                throw UpdateProjectServiceError.notFound(error.message)
             }
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw RevokeProjectTokenServiceError.forbidden(error.message)
+                throw UpdateProjectServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw RevokeProjectTokenServiceError.unauthorized(error.message)
-            }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
-            case let .json(error):
-                throw RevokeProjectTokenServiceError.badRequest(error.message)
+                throw UpdateProjectServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw RevokeProjectTokenServiceError.unknownError(statusCode)
+            throw UpdateProjectServiceError.unknownError(statusCode)
         }
     }
 }

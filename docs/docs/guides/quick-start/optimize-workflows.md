@@ -46,3 +46,17 @@ tuist generate
 ```
 
 And they'll suddenly get a project with the dependencies as binaries.
+
+## Optimizations on CI
+
+If want to access those optimizations on CI, 
+you'll have to generate a project-scoped token to authenticate requests in the CI environment.
+
+```bash
+tuist project tokens create my-handle/MyApp
+```
+
+Then expose the token as an environment variable `TUIST_CONFIG_TOKEN` in your CI environment. The presence of the token will automatically enable the optimizations and insights.
+
+> [!IMPORTANT] CI ENVIRONMENT DETECTION
+> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.

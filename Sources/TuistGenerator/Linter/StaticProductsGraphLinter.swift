@@ -91,6 +91,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
+            cache.cache(
+                results: results,
+                for: dependency
+            )
             return results
         }
 

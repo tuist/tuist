@@ -4,6 +4,7 @@ import Path
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistSupport
 import XcodeGraph
 import XcodeProj
 import XCTest
@@ -14,7 +15,7 @@ import XCTest
 
 final class GenerateServiceTests: TuistUnitTestCase {
     private var subject: GenerateService!
-    private var opener: MockOpener!
+    private var opener: MockOpening!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheStorageFactory: MockCacheStorageFactorying!
@@ -22,7 +23,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        opener = MockOpener()
+        opener = .init()
         generator = .init()
         generatorFactory = .init()
         given(generatorFactory)
@@ -50,10 +51,10 @@ final class GenerateServiceTests: TuistUnitTestCase {
     override func tearDown() {
         opener = nil
         generator = nil
-        subject = nil
         generatorFactory = nil
         cacheStorageFactory = nil
         clock = nil
+        subject = nil
         super.tearDown()
     }
 
@@ -79,12 +80,18 @@ final class GenerateServiceTests: TuistUnitTestCase {
     }
 
     func test_run() async throws {
+        // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
         given(generator)
             .generate(path: .any)
             .willReturn(workspacePath)
 
+        given(opener)
+            .open(path: .any)
+            .willReturn()
+
+        // When
         try await subject.run(
             path: nil,
             sources: [],
@@ -93,12 +100,19 @@ final class GenerateServiceTests: TuistUnitTestCase {
             ignoreBinaryCache: false
         )
 
-        XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
+        // Then
+        verify(opener)
+            .open(path: .value(workspacePath))
+            .called(1)
     }
 
     func test_run_timeIsPrinted() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+
+        given(opener)
+            .open(path: .any)
+            .willReturn()
 
         given(generator)
             .generate(path: .any)

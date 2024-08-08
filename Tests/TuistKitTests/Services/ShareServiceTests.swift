@@ -109,8 +109,9 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         let projectPath = try temporaryPath()
         let appTarget: Target = .test(
-            name: "App",
-            destinations: [.appleVision, .iPhone]
+            name: "AppTarget",
+            destinations: [.appleVision, .iPhone],
+            productName: "App"
         )
         let appTargetTwo: Target = .test(name: "AppTwo")
         let project: Project = .test(
