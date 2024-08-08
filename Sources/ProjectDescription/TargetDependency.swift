@@ -22,7 +22,14 @@ public enum SDKStatus: String, Codable, Hashable, Sendable {
 /// Dependency type used by `.sdk` target dependencies
 public enum SDKType: String, Codable, Hashable, Sendable {
     /// Library SDK dependency
+    /// Libraries are located in:
+    /// `{path-to-xcode}.app/Contents/Developer/Platforms/{platform}.platform/Developer/SDKs/{runtime}.sdk/usr/lib`
     case library
+
+    /// Swift library SDK dependency
+    /// Swift libraries are located in:
+    /// `{path-to-xcode}.app/Contents/Developer/Platforms/{platform}.platform/Developer/SDKs/{runtime}.sdk/usr/lib/swift`
+    case swiftLibrary
 
     /// Framework SDK dependency
     case framework

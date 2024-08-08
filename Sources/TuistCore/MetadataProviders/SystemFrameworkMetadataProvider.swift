@@ -48,11 +48,23 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
         source: SDKSource
     ) throws -> SystemFrameworkMetadata {
         let sdkNamePath = try AbsolutePath(validating: "/\(sdkName)")
-        guard let sdkExtension = sdkNamePath.extension,
-              let sdkType = SDKType(rawValue: sdkExtension)
-        else {
+        guard let sdkExtension = sdkNamePath.extension
+        else { throw SystemFrameworkMetadataProviderError.unsupportedSDK(name: sdkName) }
+
+        let sdkType: SDKType
+        switch sdkExtension {
+        case "framework":
+            sdkType = .framework
+        case "tbd":
+            if sdkName.starts(with: "libswift") {
+                sdkType = .swiftLibrary
+            } else {
+                sdkType = .library
+            }
+        default:
             throw SystemFrameworkMetadataProviderError.unsupportedSDK(name: sdkName)
         }
+
         let path = try sdkPath(name: sdkName, platform: platform, type: sdkType, source: source)
         return SystemFrameworkMetadata(
             name: sdkName,
@@ -82,6 +94,9 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
                 return sdkRootPath
                     .appending(try RelativePath(validating: "usr/lib"))
                     .appending(component: name)
+            case .swiftLibrary:
+                return sdkRootPath
+                    .appending(components: "usr", "lib", "swift", name)
             }
         }
     }
