@@ -1145,6 +1145,7 @@ public class GraphTraverser: GraphTraversing {
             .appClip,
             .unitTests,
             .uiTests,
+            .appExtension,
             .watch2Extension,
             .systemExtension,
             .xpc,

@@ -11,7 +11,7 @@ import XCTest
 final class ServerSessionControllerTests: TuistUnitTestCase {
     private var credentialsStore: MockServerCredentialsStoring!
     private var ciChecker: MockCIChecking!
-    private var opener: MockOpener!
+    private var opener: MockOpening!
     private var serverURL: URL!
     private var getAuthTokenService: MockGetAuthTokenServicing!
     private var uniqueIDGenerator: MockUniqueIDGenerating!
@@ -22,7 +22,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         super.setUp()
         credentialsStore = .init()
         ciChecker = .init()
-        opener = MockOpener()
+        opener = MockOpening()
         serverURL = URL.test()
         getAuthTokenService = MockGetAuthTokenServicing()
         uniqueIDGenerator = MockUniqueIDGenerating()
@@ -35,6 +35,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             uniqueIDGenerator: uniqueIDGenerator,
             serverAuthenticationController: serverAuthenticationController
         )
+
+        given(opener)
+            .open(url: .any)
+            .willReturn()
     }
 
     override func tearDown() {
