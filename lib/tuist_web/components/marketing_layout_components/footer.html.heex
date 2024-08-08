@@ -11,12 +11,47 @@
       </h2>
     </div>
 
-    <div class="marketing__footer__header__status">
-      <div class="marketing__footer__header__status__indicator"></div>
-      <div class="marketing__footer__header__status__text font-xxs">
-        <%= gettext("All systems are normal") %>
-      </div>
-    </div>
+    <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
+
+    <%= if any_ongoing_incident? do %>
+      <.link
+        href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:status)}
+        target="__blank"
+        class="marketing__footer__header__status"
+        role="status"
+        aria-live="assertive"
+      >
+        <div
+          class="marketing__footer__header__status__indicator"
+          data-status="incident"
+          aria-hidden="true"
+        >
+        </div>
+
+        <div class="marketing__footer__header__status__text font-xxs">
+          <%= gettext("Ongoing incident") %>
+        </div>
+      </.link>
+    <% else %>
+      <.link
+        href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:status)}
+        target="__blank"
+        class="marketing__footer__header__status"
+        role="status"
+        aria-live="polite"
+      >
+        <div
+          class="marketing__footer__header__status__indicator"
+          data-status="operational"
+          aria-hidden="true"
+        >
+        </div>
+
+        <div class="marketing__footer__header__status__text font-xxs">
+          <%= gettext("All systems are normal") %>
+        </div>
+      </.link>
+    <% end %>
   </div>
 
   <div class="marketing__footer__main">

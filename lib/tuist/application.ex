@@ -25,6 +25,13 @@ defmodule Tuist.Application do
         # Start the Finch HTTP client for sending emails
         {Finch, name: Tuist.Finch},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        # Distributed supervisor & process registry
+        {
+          Horde.DynamicSupervisor,
+          name: Tuist.DistributedSupervisor, strategy: :one_for_one, children: []
+        },
+        # Cache
+        {Tuist.Cache.tuist(), []},
         # Start a worker by calling: Tuist.Worker.start_link(arg)
         # {Tuist.Worker, arg},
         # Start to serve requests, typically the last entry

@@ -83,3 +83,6 @@ config :appsignal, :config, active: true
 
 # Disable caching of OpenAPI Spex as suggested in the docs
 config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
+
+# Nebulex
+config :tuist, nebulex_cache: Tuist.Cache

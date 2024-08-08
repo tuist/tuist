@@ -87,10 +87,14 @@ defmodule Tuist.MixProject do
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.1.0", override: true},
       {:hammer, "~> 6.0"},
-      {:memoize, "~> 1.4"},
       {:guardian, "~> 2.3"},
       {:guardian_db, "~> 3.0"},
-      {:uuidv7, "~> 0.2"}
+      {:uuidv7, "~> 0.2"},
+      {:decorator, "~> 1.4"},
+      # Cache
+      {:nebulex, "~> 2.6"},
+      {:horde, "~> 0.8.0"},
+      {:nebulex_adapters_horde, "~> 1.0"}
     ]
   end
 

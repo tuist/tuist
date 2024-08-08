@@ -27,7 +27,8 @@ config :tuist, :urls,
   mastodon: "https://fosstodon.org/@tuist",
   linkedin: "https://www.linkedin.com/company/tuistio",
   newsletter: "https://lists.tuist.io/subscription/form",
-  peertube: "https://videos.tuist.io"
+  peertube: "https://videos.tuist.io",
+  status: "https://status.tuist.io"
 
 # Configures the mailer
 #
@@ -202,6 +203,16 @@ config :tuist, :blocked_handles, [
   "careers",
   "jobs"
 ]
+
+config :tuist, Tuist.Cache,
+  # Max 1 million entries in cache
+  max_size: 1_000_000,
+  # Max 2 GB of memory
+  allocated_memory: 2_000_000_000,
+  # GC min timeout: 10 sec
+  gc_cleanup_min_timeout: :timer.seconds(10),
+  # GC max timeout: 10 min
+  gc_cleanup_max_timeout: :timer.minutes(10)
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

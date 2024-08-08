@@ -16,9 +16,6 @@ defmodule Tuist.GithubTest do
 
       latest_cli_release_url = Github.latest_cli_release_url()
 
-      Memoize.Cache
-      |> stub(:get_or_run, fn :get_most_recent_cli_release, func, _opts -> func.() end)
-
       Req
       |> stub(
         :get,
@@ -49,9 +46,6 @@ defmodule Tuist.GithubTest do
           {:error, %{}}
         end
       )
-
-      Memoize.Cache
-      |> stub(:get_or_run, fn :get_most_recent_cli_release, func, _opts -> func.() end)
 
       # When
       got = Github.get_most_recent_cli_release()

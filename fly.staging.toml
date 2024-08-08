@@ -18,7 +18,6 @@ console_command = "/app/bin/rails console"
   TUIST_HOSTED="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
   TUIST_DATABASE_POOL_SIZE="4"
-  RELEASE_COOKIE="x3_cqL_CJ1F4wx7H7QT2GYe__flTFvY-pU3RMz1lOU1lS7e83oeCMA=="
 
 [[vm]]
   cpu_kind = 'shared'

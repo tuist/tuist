@@ -132,6 +132,7 @@
 }
 
 .marketing__footer__header__status {
+  text-decoration: none;
   border-color: var(--light-violet);
   border-style: solid;
   border-width: 1px;
@@ -141,13 +142,28 @@
   flex-direction: row;
   align-items: center;
   gap: var(--spacing-8);
+
+  &:hover {
+    text-decoration: none;
+  }
+
+  &:visited {
+    text-decoration: none;
+  }
 }
 
 .marketing__footer__header__status__indicator {
-  background: var(--lime);
   height: 1rem;
   width: 1rem;
   border-radius: var(--radius-full);
+
+  &[data-status="operational"] {
+    background: var(--lime);
+  }
+
+  &[data-status="incident"] {
+    background: var(--red);
+  }
 }
 
 .marketing__footer__header__status__text {

@@ -1,5 +1,4 @@
 Mimic.copy(Hammer)
-Mimic.copy(Memoize.Cache)
 Mimic.copy(Phoenix.LiveView.Lifecycle)
 Mimic.copy(Req)
 Mimic.copy(Bcrypt)
