@@ -176,7 +176,8 @@ defmodule TuistWeb.API.ProjectsController do
         %{
           id: project_account.project.id,
           full_name: project_account.handle,
-          token: project_account.project.token
+          token: project_account.project.token,
+          default_branch: project_account.project.default_branch
         }
       end)
 

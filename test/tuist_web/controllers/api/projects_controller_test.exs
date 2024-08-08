@@ -301,7 +301,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_one.id,
                  "full_name" => "tuist-org/#{project_one.name}",
-                 "token" => project_one.token
+                 "token" => project_one.token,
+                 "default_branch" => project_one.default_branch
                }
              end) != nil
 
@@ -309,7 +310,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_two.id,
                  "full_name" => "tuist/#{project_two.name}",
-                 "token" => project_two.token
+                 "token" => project_two.token,
+                 "default_branch" => project_two.default_branch
                }
              end) != nil
 
@@ -364,7 +366,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_one.id,
                  "full_name" => "tuist-org/#{project_one.name}",
-                 "token" => project_one.token
+                 "token" => project_one.token,
+                 "default_branch" => project_one.default_branch
                }
              end) != nil
 
@@ -372,7 +375,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_two.id,
                  "full_name" => "tuist/#{project_two.name}",
-                 "token" => project_two.token
+                 "token" => project_two.token,
+                 "default_branch" => project_two.default_branch
                }
              end) != nil
 
