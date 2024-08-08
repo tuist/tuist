@@ -1,15 +1,21 @@
 import Foundation
 import SwiftUI
+import Sparkle
 
 struct MenuBarView: View {
     @State var isExpanded = false
     @StateObject var errorHandling = ErrorHandling()
-    let simulatorsView: SimulatorsView
+    private let simulatorsView: SimulatorsView
+    private let viewModel: MenuBarViewModel
 
     init(
-        appDelegate: AppDelegate
+        appDelegate: AppDelegate,
+        updaterController: SPUStandardUpdaterController
     ) {
         simulatorsView = SimulatorsView(appDelegate: appDelegate)
+        viewModel = MenuBarViewModel(
+            updater: updaterController.updater
+        )
     }
 
     var body: some View {
@@ -27,11 +33,15 @@ struct MenuBarView: View {
 
             Divider()
                 .padding([.leading, .trailing], 8)
+            
+            Button("Check for updates", action: viewModel.checkForUpdates)
+                .disabled(!viewModel.canCheckForUpdates)
+                .menuItemStyle()
+                .padding([.leading, .trailing], 8)
 
             Button("Quit Tuist") {
                 NSApplication.shared.terminate(nil)
             }
-            .buttonStyle(.plain)
             .menuItemStyle()
             .padding([.leading, .trailing], 8)
         }
