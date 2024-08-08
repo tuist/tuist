@@ -2,62 +2,42 @@ import Foundation
 import Path
 import Tools
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-enum GraphImplicitImportLintServiceError: LocalizedError {
-    case readFile
-
-    var errorDescription: String? {
-        switch self {
-        case .readFile:
-            "Error while reading file"
-        }
-    }
-}
-
 final class GraphImplicitImportLintService {
-    private let graph: Graph
+    let importSourceCodeScanner: ImportSourceCodeScanner
 
-    init(graph: Graph) {
-        self.graph = graph
+    init(importSourceCodeScanner: ImportSourceCodeScanner) {
+        self.importSourceCodeScanner = importSourceCodeScanner
     }
 
-    func lint() async throws -> [Target: Set<String>] {
+    func lint(graph: GraphTraverser) async throws -> [Target: Set<String>] {
         let allTargets = graph
-            .projects
-            .map(\.value.targets)
-            .flatMap { $0 }
-            .map(\.value)
+            .allTargets()
 
-        let allTargetNames = Set(allTargets.map(\.productName))
+        let allTargetNames = Set(allTargets.map(\.target.productName))
 
         var implicitTargetImports: [Target: Set<String>] = [:]
         for project in graph.projects.values {
             let allTargets = project.targets.values
 
             for target in allTargets {
-                let targetImports = Set(try await handleTarget(target: target))
+                let targetImports = Set(try await imports(for: target))
                 let targetTuistDeclaredDependencies = target.dependencies.compactMap {
-                    var dependencyName: String?
                     switch $0 {
                     case let .target(name: targetName, _):
-                        dependencyName = project.targets[targetName]?.productName
+                        return project.targets[targetName]?.productName
                     case let .project(target: targetName, path: projectPath, _):
-                        dependencyName = graph.projects[projectPath]?.targets[targetName]?.productName
+                        return graph.projects[projectPath]?.targets[targetName]?.productName
                     default:
-                        break
-                    }
-                    return dependencyName
-                }
-                var implicitImports: Set<String> = []
-                for targetImport in targetImports {
-                    if allTargetNames.contains(targetImport), !targetTuistDeclaredDependencies.contains(targetImport) {
-                        implicitImports.insert(targetImport)
+                        return nil
                     }
                 }
-                if implicitImports.count > 0 {
+                let implicitImports = targetImports.intersection(allTargetNames).subtracting(targetTuistDeclaredDependencies)
+                if !implicitImports.isEmpty {
                     implicitTargetImports[target] = implicitImports
                 }
             }
@@ -65,28 +45,21 @@ final class GraphImplicitImportLintService {
         return implicitTargetImports
     }
 
-    func handleTarget(target: XcodeGraph.Target) async throws -> Set<String> {
+    func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
         var filesToScan = target.sources.map(\.path)
         if let headers = target.headers {
             filesToScan.append(contentsOf: headers.private)
             filesToScan.append(contentsOf: headers.public)
             filesToScan.append(contentsOf: headers.project)
         }
-        return try await withThrowingTaskGroup(of: [String].self) { [weak self] group in
-            var imports = Set<String>()
-            guard let self else { return [] }
-
-            for file in filesToScan {
-                group.addTask {
-                    return try await self.matchPattern(at: file)
-                }
+        var imports = Set(
+            try await filesToScan.concurrentMap { file in
+                try await self.matchPattern(at: file)
             }
-            for try await entity in group {
-                imports.formUnion(entity)
-            }
-            imports.remove(target.productName)
-            return imports
-        }
+            .flatMap { $0 }
+        )
+        imports.remove(target.productName)
+        return imports
     }
 
     private func matchPattern(at path: AbsolutePath) async throws -> [String] {
@@ -100,9 +73,8 @@ final class GraphImplicitImportLintService {
             return []
         }
 
-        let sourceCode = String(data: try FileHandler.shared.readFile(path), encoding: .utf8)
-        guard let sourceCode else { throw GraphImplicitImportLintServiceError.readFile }
-        return try ImportSourceCodeScanner().extractImports(
+        let sourceCode = try FileHandler.shared.readTextFile(path)
+        return try importSourceCodeScanner.extractImports(
             from: sourceCode,
             language: language
         )

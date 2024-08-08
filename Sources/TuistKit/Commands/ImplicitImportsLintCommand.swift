@@ -8,9 +8,6 @@ import TuistSupport
 
 public struct ImplicitImportsLintCommand: AsyncParsableCommand {
     public init() {}
-
-    public var runId = UUID().uuidString
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "implicit-imports",
@@ -28,18 +25,14 @@ public struct ImplicitImportsLintCommand: AsyncParsableCommand {
 
     public func run() async throws {
         let projectPath = try path(path)
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
-        let manifestGraphLoader = ManifestGraphLoader(
-            manifestLoader: manifestLoader,
-            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
-            graphMapper: SequentialGraphMapper([])
+        try await ImplicitImportsLintService(
+            graphImplicitLintService: GraphImplicitImportLintService(
+                importSourceCodeScanner: ImportSourceCodeScanner()
+            ),
+            generatorFactory: GeneratorFactory(),
+            configLoader: ConfigLoader()
         )
-        let (graph, _, _, _) = try await manifestGraphLoader
-            .load(path: projectPath)
-        for (target, implicitDependencies) in try await GraphImplicitImportLintService(graph: graph).lint() {
-            logger.warning("Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).")
-        }
+        .run(projectPath: projectPath)
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

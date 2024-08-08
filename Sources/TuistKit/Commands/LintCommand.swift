@@ -9,8 +9,6 @@ import TuistSupport
 public struct LintCommand: AsyncParsableCommand {
     public init() {}
 
-    public var runId = UUID().uuidString
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "lint",

@@ -54,7 +54,9 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [
             path: project,
         ])
-        let result = try await GraphImplicitImportLintService(graph: graph).lint()
+        let result = try await GraphImplicitImportLintService(
+            importSourceCodeScanner: ImportSourceCodeScanner()
+        ).lint(graph: GraphTraverser(graph: graph))
         XCTAssertEqual(result, [firstTarget: ["ImplicitTarget"]])
     }
 
@@ -99,8 +101,8 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
             ]
         )
         let result = try await GraphImplicitImportLintService(
-            graph: Graph.test()
-        ).handleTarget(target: target)
+            importSourceCodeScanner: ImportSourceCodeScanner()
+        ).imports(for: target)
         XCTAssertEqual(result, ["SecondTarget", "ThirdTarget", "A"])
     }
 }
