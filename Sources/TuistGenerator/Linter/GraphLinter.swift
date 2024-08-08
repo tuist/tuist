@@ -223,28 +223,26 @@ public class GraphLinter: GraphLinting {
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let rootProjects = graphTraverser.rootProjects()
 
-        let knownConfigurations = rootProjects.reduce(into: Set()) {
-            $0.formUnion(Set($1.settings.configurations.keys))
+        var reasons = Set<String>()
+        for project in rootProjects {
+            let rootProjectConfigurations = Set(project.settings.configurations.keys)
+            let sortedRootProjectConfigurations = rootProjectConfigurations.sorted()
+
+            for target in project.targets.values {
+                for dependency in graphTraverser.allTargetDependencies(path: project.path, name: target.name) {
+                    let configurations = Set(dependency.project.settings.configurations.keys)
+
+                    if !rootProjectConfigurations.isSubset(of: configurations) {
+                        let sortedConfigurations = configurations.sorted()
+                        let reason =
+                            "The project '\(dependency.project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
+                        reasons.insert(reason)
+                    }
+                }
+            }
         }
 
-        let projectBuildConfigurations = graphTraverser.projects.compactMap { project in
-            (name: project.value.name, buildConfigurations: Set(project.value.settings.configurations.keys))
-        }
-
-        let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
-            !knownConfigurations.isSubset(of: $0.buildConfigurations)
-        }
-
-        return mismatchingBuildConfigurations.map {
-            let expectedConfigurations = knownConfigurations.sorted()
-            let configurations = $0.buildConfigurations.sorted()
-            let reason =
-                "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
-            return LintingIssue(
-                reason: reason,
-                severity: .warning
-            )
-        }
+        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning) }
     }
 
     /// It verifies setup for packages
