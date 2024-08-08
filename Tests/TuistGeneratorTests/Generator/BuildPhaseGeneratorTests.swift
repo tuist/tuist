@@ -1,6 +1,7 @@
 import Foundation
 import MockableTest
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -30,6 +31,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         super.setUp()
         subject = BuildPhaseGenerator()
         errorHandler = MockErrorHandler()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
     }
 
     override func tearDown() {

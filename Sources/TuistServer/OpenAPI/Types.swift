@@ -601,6 +601,32 @@ public enum Components {
                 case refresh_token
             }
         }
+        /// The URL to download a build.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildDownloadURL`.
+        public struct BuildDownloadURL: Codable, Equatable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/expires_at`.
+            public var expires_at: Swift.Int
+            /// The URL to download the artifact from the cache.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/url`.
+            public var url: Swift.String
+            /// Creates a new `BuildDownloadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to download the artifact from the cache.
+            public init(expires_at: Swift.Int, url: Swift.String) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
+        }
         /// The URL to download the artifact from the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL`.

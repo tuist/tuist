@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import MockableTest
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
@@ -32,6 +33,10 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             xcodeController: xcodeController,
             swiftVersionProvider: swiftVersionProvider
         )
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
     }
 
     override func tearDown() {

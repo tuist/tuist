@@ -1,3 +1,4 @@
+import MockableTest
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
@@ -162,6 +163,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.projectSettings(
             project: project,
@@ -183,6 +188,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.projectSettings(
             project: project,
@@ -203,6 +212,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.projectSettings(
             project: project,
@@ -218,6 +231,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .dynamicLibrary, mergeable: true)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -237,6 +254,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .app)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -253,6 +274,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .automatic)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -271,6 +296,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -288,6 +317,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let buildConfiguration: BuildConfiguration = .release
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -312,6 +345,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .app, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -333,6 +370,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -356,6 +397,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -376,6 +421,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             defaultSettings: .recommended
         )
         let project = Project.test(settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.projectSettings(
@@ -399,6 +448,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.projectSettings(
             project: project,
@@ -420,6 +473,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.projectSettings(
             project: project,
@@ -439,6 +496,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             defaultSettings: .none
         )
         let project = Project.test(settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.projectSettings(
@@ -460,7 +521,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(settings: settings)
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -478,6 +541,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         // Given
         let project = Project.test(settings: .test(defaultSettings: .essential))
         let target = Target.test(settings: nil)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -500,7 +567,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(settings: settings)
         let project = Project.test()
-        xcodeController.selectedVersionStub = .success(Version(10, 0, 0))
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(10, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -523,7 +593,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(settings: settings)
         let project = Project.test()
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -546,6 +618,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -575,6 +651,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             )
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -596,6 +676,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -640,7 +724,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -665,6 +751,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -688,6 +778,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -710,6 +804,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -755,6 +853,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -776,6 +878,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -799,6 +905,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
         let got = try subject.targetSettings(
             target: target,
@@ -820,6 +930,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(
@@ -846,6 +960,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             product: .framework,
             settings: settings
         )
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         // When
         let got = try subject.targetSettings(

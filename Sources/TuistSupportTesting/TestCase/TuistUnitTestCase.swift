@@ -6,7 +6,7 @@ import XCTest
 open class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
     public var developerEnvironment: MockDeveloperEnvironment!
-    public var xcodeController: MockXcodeController!
+    public var xcodeController: MockXcodeControlling!
     public var swiftVersionProvider: MockSwiftVersionProviding!
 
     override open func setUp() {
@@ -19,7 +19,7 @@ open class TuistUnitTestCase: TuistTestCase {
         SwiftVersionProvider._shared.mutate { $0 = swiftVersionProvider }
 
         // Xcode controller
-        xcodeController = MockXcodeController()
+        xcodeController = MockXcodeControlling()
         XcodeController._shared.mutate { $0 = xcodeController }
 
         // Developer environment

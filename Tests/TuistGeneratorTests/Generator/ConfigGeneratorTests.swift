@@ -1,5 +1,7 @@
 import Foundation
+import MockableTest
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
@@ -20,6 +22,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.add(object: pbxTarget)
         subject = ConfigGenerator()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
     }
 
     override func tearDown() {
