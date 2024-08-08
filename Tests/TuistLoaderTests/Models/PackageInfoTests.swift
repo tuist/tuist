@@ -2,7 +2,7 @@ import Foundation
 import TSCUtility
 import XCTest
 
-@testable import TuistSupport
+@testable import TuistLoader
 
 final class PackageInfoTests: XCTestCase {
     func test_packageInfo_codable() {
