@@ -9,6 +9,7 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "TuistAutomation"),
         .external(name: "XcodeGraph"),
         .external(name: "Command"),
+        .external(name: "Sparkle"),
     ]
 }
 
@@ -28,18 +29,21 @@ let project = Project(
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
-                    "CFBundleURLTypes": .array(
-                        [
-                            Plist.Value.dictionary(
-                                [
-                                    "CFBundleTypeRole": "Viewer",
-                                    "CFBundleURLName": "io.tuist.app",
-                                    "CFBundleURLSchemes": .array(["tuist"]),
-                                ]
-                            ),
-                        ]
-                    ),
-                    "LSUIElement": .boolean(true),
+                    "CFBundleURLTypes": [
+                        Plist.Value.dictionary(
+                            [
+                                "CFBundleTypeRole": "Viewer",
+                                "CFBundleURLName": "io.tuist.app",
+                                "CFBundleURLSchemes": ["tuist"],
+                            ]
+                        ),
+                    ],
+                    "LSUIElement": true,
+                    "LSApplicationCategoryType": "public.app-category.developer-tools",
+                    "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
+                    "SUFeedURL": "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
+                    "CFBundleShortVersionString": "0.2.0",
+                    "CFBundleVersion": "0.2.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
@@ -50,6 +54,10 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
+                ],
+                release: [
+                    "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
+                    "ENABLE_HARDENED_RUNTIME": true,
                 ]
             )
         ),

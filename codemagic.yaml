@@ -297,7 +297,7 @@ workflows:
         script: mise x -- tuist install
       - name: Run tests
         working_directory: $CM_BUILD_DIR/app
-        script: mise x -- tuist test
+        script: mise x -- tuist test -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
     triggering:
       << : *branch_triggering
   warm_app_cache:
