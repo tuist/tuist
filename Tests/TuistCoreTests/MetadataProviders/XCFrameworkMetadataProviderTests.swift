@@ -74,7 +74,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         // Given
         let xcframeworkPath = fixturePath(path: try RelativePath(validating: "DylibXCFramework.xcframework"))
         let infoPlist = try subject.infoPlist(xcframeworkPath: xcframeworkPath)
-        
+
         // When
         let binaryPath = try subject.binaryPath(xcframeworkPath: xcframeworkPath, libraries: infoPlist.libraries)
 
