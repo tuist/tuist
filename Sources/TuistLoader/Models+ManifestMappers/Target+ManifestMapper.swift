@@ -54,10 +54,6 @@ extension XcodeGraph.Target {
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let mergedBinaryType = try XcodeGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
 
-        let scripts = try manifest.scripts.map {
-            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
-        }
-
         let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
             manifest: manifest,
             targetName: name,
@@ -86,6 +82,10 @@ extension XcodeGraph.Target {
         let coreDataModels = try manifest.coreDataModels.map {
             try XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
         } + resourcesCoreDatas.map { try XcodeGraph.CoreDataModel.from(path: $0) }
+
+        let scripts = try manifest.scripts.map {
+            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
@@ -206,7 +206,7 @@ extension XcodeGraph.Target {
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try XcodeGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
+        let targetSources = try XcodeGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
             let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
@@ -219,7 +219,13 @@ extension XcodeGraph.Target {
             )
         } ?? [])
 
-        for sourceFile in allSources {
+        let scriptsSources = try manifest.scripts.flatMap(\.outputPaths)
+            .map { try generatorPaths.resolve(path: $0) }
+            .map { SourceFile(path: $0) }
+
+        let allSources = targetSources + scriptsSources
+
+        for sourceFile in allSources + scriptsSources {
             if sourceFile.path.extension == "playground" {
                 playgrounds.insert(sourceFile.path)
             } else {
