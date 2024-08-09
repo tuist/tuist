@@ -1,19 +1,11 @@
-import AnyCodable
 import ArgumentParser
-import Foundation
-import Path
-import TuistCore
-import TuistLoader
-import TuistSupport
 
-public struct LintCommand: AsyncParsableCommand {
-    public init() {}
-
-    public static var configuration: CommandConfiguration {
+struct LintCommand: AsyncParsableCommand {
+    static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "lint",
-            subcommands: [ImplicitImportsLintCommand.self],
-            defaultSubcommand: ImplicitImportsLintCommand.self
+            subcommands: [LintImplicitImportsCommand.self],
+            defaultSubcommand: LintImplicitImportsCommand.self
         )
     }
 }

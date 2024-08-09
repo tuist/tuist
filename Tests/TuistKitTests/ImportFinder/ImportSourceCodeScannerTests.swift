@@ -4,6 +4,12 @@ import XCTest
 @testable import TuistKit
 
 final class ImportSourceCodeScannerTests: TuistUnitTestCase {
+    var subject: ImportSourceCodeScanner!
+
+    override func setUp() {
+        subject = ImportSourceCodeScanner()
+    }
+
     func test_whenObjcCodeWithImports() throws {
         let code = """
         #import <UIKit/UIKit.h>
@@ -15,7 +21,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         @end
         """
-        let imports = try ImportSourceCodeScanner().extractImports(from: code, language: .objc)
+        let imports = try subject.extractImports(from: code, language: .objc)
         XCTAssertEqual(imports, ["UIKit", "A"])
     }
 
@@ -29,7 +35,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         @end
         """
-        let imports = try ImportSourceCodeScanner().extractImports(from: code, language: .objc)
+        let imports = try subject.extractImports(from: code, language: .objc)
         XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
     }
 
@@ -43,7 +49,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         @end
         """
-        let imports = try ImportSourceCodeScanner().extractImports(from: code, language: .objc)
+        let imports = try subject.extractImports(from: code, language: .objc)
         XCTAssertEqual(imports, ["ModuleA"])
     }
 
@@ -59,7 +65,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         #define AXTEXTMARKER_TAG "hs.axuielement.axtextmarker"
         #define AXTEXTMRKRNG_TAG "hs.axuielement.axtextmarkerrange"
         """
-        let imports = try ImportSourceCodeScanner().extractImports(from: code, language: .objc)
+        let imports = try subject.extractImports(from: code, language: .objc)
         XCTAssertEqual(imports, ["Cocoa", "LuaSkin"])
     }
 
@@ -72,7 +78,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         const char **_CFGetProcessPath(void);
         int _NSGetExecutablePath(char* buf, uint32_t* bufsize);
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .objc
         )
@@ -85,7 +91,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         func a() { }
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
@@ -98,7 +104,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         func a() { }
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
@@ -111,7 +117,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         func a() { }
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
@@ -126,7 +132,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
 
         func a() { }
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
@@ -146,7 +152,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             )
         #endif
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
@@ -164,7 +170,7 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
                 ]
             )
         """
-        let imports = try ImportSourceCodeScanner().extractImports(
+        let imports = try subject.extractImports(
             from: code,
             language: .swift
         )
