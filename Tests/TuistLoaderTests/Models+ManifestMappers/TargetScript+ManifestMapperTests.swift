@@ -150,4 +150,61 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
         )
     }
+
+    func test_doesntGlob_whenPointsToSpecificFile() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        try createFiles([
+            "foo/bar/a.swift",
+        ])
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "MyScript",
+            tool: "my_tool",
+            order: .pre,
+            outputPaths: ["foo/bar/a.swift"]
+        )
+        // When
+        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.name, "MyScript")
+        XCTAssertEqual(model.script, .tool(path: "my_tool"))
+        XCTAssertEqual(model.order, .pre)
+        XCTAssertEqual(
+            model.outputPaths,
+            [temporaryPath.appending(try RelativePath(validating: "foo/bar/a.swift")).pathString]
+        )
+    }
+
+    func test_doesntGlob_whenPointsToMissingFile() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        try createFiles([
+            "foo/bar/a.swift",
+        ])
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "MyScript",
+            tool: "my_tool",
+            order: .pre,
+            outputPaths: ["foo/bar/a.swift", "foo/bar/b.swift"]
+        )
+        // When
+        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.name, "MyScript")
+        XCTAssertEqual(model.script, .tool(path: "my_tool"))
+        XCTAssertEqual(model.order, .pre)
+        XCTAssertEqual(
+            model.outputPaths,
+            [
+                temporaryPath.appending(try RelativePath(validating: "foo/bar/a.swift")).pathString,
+                temporaryPath.appending(try RelativePath(validating: "foo/bar/b.swift")).pathString,
+            ]
+        )
+    }
 }
