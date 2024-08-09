@@ -153,7 +153,11 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
-        let aTestTarget = Target.test(name: targetNames[0] + "Tests", product: .unitTests, dependencies: [.target(name: targetNames[0])])
+        let aTestTarget = Target.test(
+            name: targetNames[0] + "Tests",
+            product: .unitTests,
+            dependencies: [.target(name: targetNames[0])]
+        )
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
         let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
