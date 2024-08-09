@@ -296,8 +296,13 @@ export const guidesSidebar = [
     ],
   },
   {
-    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</span>`,
-    link: "guides/share",
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</span>`,
+    items: [
+      {
+        text: "Previews",
+        link: "guides/share/previews",
+      },
+    ],
   },
   // {
   //   text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,

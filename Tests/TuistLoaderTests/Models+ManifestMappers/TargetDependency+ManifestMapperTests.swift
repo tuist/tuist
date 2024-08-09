@@ -176,6 +176,28 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(status, .required)
     }
 
+    func test_from_when_sdkSwiftLibrary() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.sdk(name: "Observation", type: .swiftLibrary, status: .required)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .sdk(name, status, _) = got[0] else {
+            XCTFail("Dependency should be sdk")
+            return
+        }
+        XCTAssertEqual(name, "libswiftObservation.tbd")
+        XCTAssertEqual(status, .required)
+    }
+
     func test_from_when_sdkFramework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "ARKit", type: .framework, status: .required)

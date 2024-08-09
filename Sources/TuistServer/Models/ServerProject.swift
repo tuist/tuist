@@ -5,23 +5,23 @@ public struct ServerProject: Codable {
     public init(
         id: Int,
         fullName: String,
-        token: String
+        defaultBranch: String
     ) {
         self.id = id
         self.fullName = fullName
-        self.token = token
+        self.defaultBranch = defaultBranch
     }
 
     public let id: Int
     public let fullName: String
-    public let token: String
+    public let defaultBranch: String
 }
 
 extension ServerProject {
     init(_ project: Components.Schemas.Project) {
         id = Int(project.id)
         fullName = project.full_name
-        token = project.token
+        defaultBranch = project.default_branch
     }
 }
 
@@ -30,12 +30,12 @@ extension ServerProject {
         public static func test(
             id: Int = 0,
             fullName: String = "test/test",
-            token: String = "token"
+            defaultBranch: String = "main"
         ) -> Self {
             .init(
                 id: id,
                 fullName: fullName,
-                token: token
+                defaultBranch: defaultBranch
             )
         }
     }

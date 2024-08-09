@@ -2266,6 +2266,104 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Updates a project
+    ///
+    /// Updates an project with given parameters.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
+    public func updateProject(_ input: Operations.updateProject.Input) async throws
+        -> Operations.updateProject.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.updateProject.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.updateProject.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.Project.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.updateProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.updateProject.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.updateProject.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.

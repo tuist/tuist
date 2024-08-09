@@ -383,6 +383,52 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(dynamicFrameworkBundleDependencies, [])
     }
 
+    func test_resourceBundleDependencies_when_app_extension_depends_on_external_static_framework_with_resources() {
+        // Given
+        // AppExtension -> StaticLibrary (External) -> Bundle
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let bundle = Target.test(name: "Bundle", product: .bundle)
+        let project = Project.test(targets: [appExtension])
+        let externalProject = Project.test(
+            path: try! AbsolutePath(validating: "/ExternalProject"),
+            targets: [staticLibrary, bundle],
+            isExternal: true
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appExtension.name, path: project.path): Set([.target(
+                name: staticLibrary.name,
+                path: externalProject.path
+            )]),
+            .target(name: staticLibrary.name, path: externalProject.path): Set([.target(
+                name: bundle.name,
+                path: externalProject.path
+            )]),
+            .target(name: bundle.name, path: externalProject.path): Set([]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appExtensionBundleDependencies = subject.resourceBundleDependencies(path: project.path, name: appExtension.name)
+            .sorted()
+
+        // Then
+        XCTAssertEqual(appExtensionBundleDependencies, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension),
+        ])
+    }
+
     func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
@@ -1926,6 +1972,63 @@ final class GraphTraverserTests: TuistUnitTestCase {
             GraphDependencyReference(dependencyDynamicXCFramework),
             GraphDependencyReference(dependencyStaticXCFrameworkA),
             GraphDependencyReference(dependencyStaticXCFrameworkB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertBetterEqual(embeddable, [
+            GraphDependencyReference(dependencyDynamicXCFramework),
+        ])
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
+    ) throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: "/test/StaticFrameworkA.xcframework",
+            linking: .static
+        )
+        let dependencyLibCpp = GraphDependency.testSDK(
+            name: "libc++.tbd",
+            path: try AbsolutePath(validating: "/libc++.tbd")
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+            dependencyStaticXCFrameworkA: Set(arrayLiteral: dependencyLibCpp),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertBetterEqual(got, [
+            .sdk(
+                path: try AbsolutePath(validating: "/libc++.tbd"),
+                status: .required,
+                source: .system,
+                condition: nil
+            ),
+            GraphDependencyReference(dependencyDynamicXCFramework),
+            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
 
         // When
