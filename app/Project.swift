@@ -9,6 +9,7 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "TuistAutomation"),
         .external(name: "Mockable"),
         .external(name: "XcodeGraph"),
+        .external(name: "Sparkle"),
     ]
 }
 
@@ -50,6 +51,10 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
+                    "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep"
+                ],
+                release: [
+                    "ENABLE_HARDENED_RUNTIME": true,
                 ]
             )
         ),
