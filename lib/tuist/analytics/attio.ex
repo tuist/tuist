@@ -72,13 +72,14 @@ defmodule Tuist.Analytics.Attio do
     {:noreply, state, @default_publish_interval}
   end
 
-  def handle_event([:analytics | event_id], measurement, _metadata, config) do
+  def handle_event([:analytics | event_id], measurement, metadata, config) do
     table_id = config[:table_id]
     date = DateTime.utc_now()
 
     :ets.insert(
       table_id,
-      {DateTime.to_unix(date, :millisecond), Map.merge(%{event_id: event_id}, measurement)}
+      {DateTime.to_unix(date, :millisecond),
+       Map.merge(%{event_id: event_id}, measurement |> Map.merge(metadata))}
     )
 
     :ok

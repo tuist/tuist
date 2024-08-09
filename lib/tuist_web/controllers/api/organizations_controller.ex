@@ -120,6 +120,7 @@ defmodule TuistWeb.API.OrganizationsController do
           Accounts.create_organization(%{name: organization_name, creator: user})
 
         organization_account = Accounts.get_account_from_organization(organization)
+        Tuist.Analytics.organization_create(organization_name, user)
 
         conn
         |> put_status(:ok)

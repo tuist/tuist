@@ -19,7 +19,6 @@ defmodule Tuist.Repo.DataMigrations.Account.MigratingSchema do
 end
 
 defmodule Tuist.Repo.Migrations.AddDefaultValuePlan do
-  alias Tuist.Accounts.Account
   alias Tuist.Repo
   use Ecto.Migration
   import Ecto.Query
