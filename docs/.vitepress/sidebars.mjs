@@ -261,6 +261,10 @@ export const guidesSidebar = [
             text: "Modular architecture",
             link: "guides/develop/projects/tma-architecture",
           },
+          {
+            text: "Best practices",
+            link: "guides/develop/projects/best-practices",
+          },
         ],
       },
       {

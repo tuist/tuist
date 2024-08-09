@@ -1,5 +1,6 @@
 ---
 title: Plugins
+titleTemplate: ":title | Projects | Tuist"
 description: Learn how to create and use plugins in Tuist to extend its functionality.
 ---
 

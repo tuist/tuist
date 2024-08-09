@@ -1,5 +1,6 @@
 ---
 title: Directory structure
+titleTemplate: ":title | Projects | Tuist"
 description: Learn about the structure of Tuist projects and how to organize them.
 ---
 

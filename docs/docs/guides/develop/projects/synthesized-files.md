@@ -1,5 +1,6 @@
 ---
 title: Synthesized files
+titleTemplate: ":title | Projects | Tuist"
 description: Learn about synthesized files in Tuist projects.
 ---
 
