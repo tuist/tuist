@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import MockableTest
 import Path
@@ -11,74 +12,133 @@ import XCTest
 
 final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
-    private var contentHasher: MockContentHashing!
-    private let sourceFile1Path = try! AbsolutePath(validating: "/file1")
-    private let sourceFile2Path = try! AbsolutePath(validating: "/file2")
-    private var sourceFile1: SourceFile!
-    private var sourceFile2: SourceFile!
+    private var sourceFile1Path: AbsolutePath!
+    private var sourceFile2Path: AbsolutePath!
+    private var fileSystem: FileSystem!
 
-    override func setUp() {
-        super.setUp()
-        contentHasher = .init()
-        subject = SourceFilesContentHasher(contentHasher: contentHasher)
-        sourceFile1 = SourceFile(path: sourceFile1Path, compilerFlags: "-fno-objc-arc")
-        sourceFile2 = SourceFile(path: sourceFile2Path, compilerFlags: "-print-objc-runtime-info")
-
-        given(contentHasher)
-            .hash(Parameter<String>.any)
-            .willProduce { $0 + "-hash" }
-        given(contentHasher)
-            .hash(Parameter<[String]>.any)
-            .willProduce { $0.joined(separator: ";") }
+    override func setUp() async throws {
+        try await super.setUp()
+        let contentHasher = ContentHasher()
+        fileSystem = FileSystem()
+        let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
+        subject = SourceFilesContentHasher(
+            contentHasher: contentHasher,
+            platformConditionContentHasher: platformConditionContentHasher
+        )
+        let temporaryDir = try temporaryPath()
+        sourceFile1Path = temporaryDir.appending(component: "sourceFile1")
+        sourceFile2Path = temporaryDir.appending(component: "sourceFile2")
     }
 
     override func tearDown() {
+        sourceFile1Path = nil
+        sourceFile2Path = nil
+        fileSystem = nil
         subject = nil
-        contentHasher = nil
-        sourceFile1 = nil
-        sourceFile2 = nil
         super.tearDown()
     }
 
     // MARK: - Tests
 
-    func test_hash_when_the_files_have_a_hash() throws {
-        // When
-        sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
-        sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
-        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
-
-        // Then
-        XCTAssertEqual(hash, "first;second")
-    }
-
-    func test_hash_returnsSameValue() throws {
-        // When
-        given(contentHasher)
-            .hash(path: .value(sourceFile1Path))
-            .willReturn("")
-        given(contentHasher)
-            .hash(path: .value(sourceFile2Path))
-            .willReturn("")
-        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
-
-        // Then
-        XCTAssertEqual(hash, "-fno-objc-arc-hash;-print-objc-runtime-info-hash")
-    }
-
-    func test_hash_includesFileContentHashAndCompilerFlags() throws {
+    func test_hash_when_sourcesHaveAHashSet() throws {
         // Given
-        given(contentHasher)
-            .hash(path: .value(sourceFile1Path))
-            .willReturn("file1-content-hash")
-        given(contentHasher)
-            .hash(path: .value(sourceFile2Path))
-            .willReturn("file2-content-hash")
+        let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
+        let sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
 
         // When
-        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
+        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(hash, "file1-content-hash-fno-objc-arc-hash;file2-content-hash-print-objc-runtime-info-hash")
+        XCTAssertEqual(node, MerkelNode(
+            hash: "95f4fb96482b97d5f2fb472598252ea2",
+            identifier: "sources",
+            children: [
+                MerkelNode(
+                    hash: "first",
+                    identifier: sourceFile1.path.pathString,
+                    children: []
+                ),
+                MerkelNode(
+                    hash: "second",
+                    identifier: sourceFile2.path.pathString,
+                    children: []
+                ),
+            ]
+        ))
+    }
+
+    func test_hash_when_sourcesHaveNoHashSet() async throws {
+        // Given
+        let sourceFile1 = SourceFile(
+            path: sourceFile1Path,
+            compilerFlags: "-fno-objc-arc;",
+            codeGen: .public,
+            compilationCondition: .when(Set([.macos]))
+        )
+        let sourceFile2 = SourceFile(
+            path: sourceFile2Path,
+            codeGen: .private
+        )
+        try await fileSystem.writeText("sourceFile1", at: sourceFile1Path)
+        try await fileSystem.writeText("sourceFile2", at: sourceFile2Path)
+
+        // When
+        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+
+        // Then
+        XCTAssertEqual(node, MerkelNode(
+            hash: "a399dc1a1cf69cb55d7b7dda76b62e0a",
+            identifier: "sources",
+            children: [
+                MerkelNode(
+                    hash: "0921d026fd1854efd0b5735265bec941",
+                    identifier: sourceFile1Path.pathString,
+                    children: [
+                        MerkelNode(
+                            hash: "082b4a6d39b5f89e0c48bac6bc6c157b",
+                            identifier: "content",
+                            children: []
+                        ),
+                        MerkelNode(
+                            hash: "b093fb8232ffd7d7696b9805744f1881",
+                            identifier: "compilerFlags",
+                            children: []
+                        ),
+                        MerkelNode(
+                            hash: "574f02bf81a557f25b5346e071cbaef8",
+                            identifier: "codeGen",
+                            children: []
+                        ),
+                        MerkelNode(
+                            hash: "4ed91b7e02b960dc31256de17f3f131f",
+                            identifier: "compilationCondition",
+                            children: [
+                                MerkelNode(
+                                    hash: "43b9d8ea18c48c3a64c4e37338fc668f",
+                                    identifier: "macos",
+                                    children: []
+                                ),
+                            ]
+                        ),
+                    ]
+                ),
+                MerkelNode(
+                    hash: "8b0b259086f1d24e1a0340e1abbae3b5",
+                    identifier: sourceFile2Path.pathString,
+                    children: [
+                        MerkelNode(
+                            hash: "ea109ebc1d271b006a1e76824e55df15",
+                            identifier: "content",
+                            children: []
+                        ),
+                        MerkelNode(
+                            hash: "11d51689d805daf9b5d2ecd0ca11c863",
+                            identifier: "codeGen",
+                            children: []
+                        ),
+                    ]
+                ),
+            ]
+        ))
     }
 }

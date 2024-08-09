@@ -33,7 +33,10 @@ public final class TargetContentHasher: TargetContentHashing {
     public convenience init(contentHasher: ContentHashing) {
         self.init(
             contentHasher: contentHasher,
-            sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
+            sourceFilesContentHasher: SourceFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: PlatformConditionContentHasher(contentHasher: contentHasher)
+            ),
             targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
@@ -80,7 +83,7 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String] = []
     ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
+        let sourcesHash = try sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
