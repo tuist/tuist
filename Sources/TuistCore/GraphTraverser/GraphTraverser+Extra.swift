@@ -24,6 +24,19 @@ extension GraphTraversing {
                     return false
                 }
                 if !includedTargets.isEmpty {
+                    if target.target.product == .unitTests {
+                        let dependencyTargetNames = Set(target.target.dependencies.compactMap { dependency in
+                            switch dependency {
+                            case let .target(targetName, _), let .project(targetName, _, _):
+                                return targetName
+                            case .framework, .xcframework, .library, .package, .sdk, .xctest:
+                                return nil
+                            }
+                        })
+                        if !dependencyTargetNames.intersection(includedTargets).isEmpty {
+                            return true
+                        }
+                    }
                     return includedTargets.contains(target.target.name)
                 }
                 if excludedTargets.contains(target.target.name) {
