@@ -6,7 +6,7 @@ import XcodeGraph
 
 @Mockable
 public protocol PlatformConditionContentHashing {
-    func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkelNode
+    func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkleNode
 }
 
 public struct PlatformConditionContentHasher: PlatformConditionContentHashing {
@@ -18,18 +18,18 @@ public struct PlatformConditionContentHasher: PlatformConditionContentHashing {
         self.contentHasher = contentHasher
     }
 
-    public func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkelNode {
-        var children: [MerkelNode] = []
+    public func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkleNode {
+        var children: [MerkleNode] = []
 
         try platformCondition.platformFilters.sorted().forEach { filter in
-            children.append(MerkelNode(
+            children.append(MerkleNode(
                 hash: try contentHasher.hash(filter.xcodeprojValue),
                 identifier: filter.xcodeprojValue,
                 children: []
             ))
         }
 
-        return MerkelNode(
+        return MerkleNode(
             hash: try contentHasher.hash(children.map(\.hash)),
             identifier: identifier,
             children: children

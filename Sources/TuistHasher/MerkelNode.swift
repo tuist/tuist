@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MerkelNode: Encodable, Equatable, Hashable {
+public struct MerkleNode: Encodable, Equatable, Hashable {
     /// The hash of the node.
     public var hash: String
 
@@ -8,5 +8,5 @@ public struct MerkelNode: Encodable, Equatable, Hashable {
     public var identifier: String
 
     /// Nodechildren.
-    public var children: [MerkelNode]
+    public var children: [MerkleNode]
 }
