@@ -430,6 +430,10 @@ components:
       type: object
     Project:
       properties:
+        default_branch:
+          description: The default branch of the project.
+          example: main
+          type: string
         full_name:
           description: The full name of the project (e.g. tuist/tuist)
           type: string
@@ -444,6 +448,7 @@ components:
         - id
         - full_name
         - token
+        - default_branch
       title: Project
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
@@ -1814,6 +1819,62 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
       summary: Returns a project based on the handle.
+      tags:
+        - Projects
+    put:
+      callbacks: {}
+      description: Updates an project with given parameters.
+      operationId: updateProject
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project to update.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                default_branch:
+                  description: The default branch for the project.
+                  type: string
+              type: object
+        description: Project update params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: The updated project
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project with the given account and project handles was not found
+      summary: Updates a project
       tags:
         - Projects
   /api/projects/{account_handle}/{project_handle}/cache/clean:

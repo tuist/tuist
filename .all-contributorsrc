@@ -1483,6 +1483,24 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "barakwei",
+      "name": "Barak Weiss",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5232161?v=4",
+      "profile": "https://github.com/barakwei",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hiltonc",
+      "name": "Hilton Campbell",
+      "avatar_url": "https://avatars.githubusercontent.com/u/470753?v=4",
+      "profile": "https://github.com/hiltonc",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

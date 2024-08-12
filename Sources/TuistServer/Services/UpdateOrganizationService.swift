@@ -31,7 +31,7 @@ enum UpdateOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the organization due to an unknown Tuist response of \(statusCode)."
+            return "We could not update the organization due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .notFound(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
