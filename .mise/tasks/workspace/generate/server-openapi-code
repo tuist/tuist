@@ -1,0 +1,6 @@
+#!/bin/bash
+# mise description="Generates the Swift code off the Open API specification."
+
+set -euo pipefail
+
+mint run apple/swift-openapi-generator@0.1.5 generate --mode types --mode client --output-directory $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI/server.yml

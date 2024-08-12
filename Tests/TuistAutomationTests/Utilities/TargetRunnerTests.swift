@@ -1,14 +1,15 @@
-import TSCBasic
+import MockableTest
+import Path
 import struct TSCUtility.Version
+import TuistAutomationTesting
 import TuistCore
+import TuistCoreTesting
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistAutomationTesting
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
 
 final class TargetRunnerErrorTests: XCTestCase {
     func test_description() {
@@ -29,16 +30,16 @@ final class TargetRunnerErrorTests: XCTestCase {
 }
 
 final class TargetRunnerTests: TuistUnitTestCase {
-    private var xcodeBuildController: MockXcodeBuildController!
-    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocator!
-    private var simulatorController: MockSimulatorController!
+    private var xcodeBuildController: MockXcodeBuildControlling!
+    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
+    private var simulatorController: MockSimulatorControlling!
     private var subject: TargetRunner!
 
     override func setUp() {
         super.setUp()
-        xcodeBuildController = MockXcodeBuildController()
-        xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocator()
-        simulatorController = MockSimulatorController()
+        xcodeBuildController = .init()
+        xcodeProjectBuildDirectoryLocator = .init()
+        simulatorController = .init()
         subject = TargetRunner(
             xcodeBuildController: xcodeBuildController,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
@@ -61,7 +62,14 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let workspacePath = path.appending(component: "App.xcworkspace")
         let outputPath = path.appending(component: ".build")
         let productPath = outputPath.appending(component: "Target.app")
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                platform: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(outputPath)
         fileHandler.stubExists = { _ in false }
 
         // When / Then
@@ -88,15 +96,16 @@ final class TargetRunnerTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in true }
         system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
 
-        let expectation = expectation(description: "locates with default configuration")
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _configuration in
-            // THEN
-            XCTAssertEqual(_configuration, BuildConfiguration.debug.name)
-            expectation.fulfill()
-            return try AbsolutePath(validating: "/path/to/proj.xcworkspace")
-        }
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                platform: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try AbsolutePath(validating: "/path/to/proj.xcworkspace"))
 
-        // WHEN
+        // When
         try await subject.runTarget(
             .test(target: .test(platform: .macOS, product: .commandLineTool)),
             platform: .macOS,
@@ -109,7 +118,15 @@ final class TargetRunnerTests: TuistUnitTestCase {
             arguments: []
         )
 
-        await fulfillment(of: [expectation], timeout: 1)
+        // Then
+        verify(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                platform: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .value(BuildConfiguration.debug.name)
+            )
+            .called(1)
     }
 
     func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
@@ -122,7 +139,14 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
 
         fileHandler.stubExists = { _ in true }
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                platform: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(outputPath)
         system.succeedCommand([executablePath.pathString] + arguments)
 
         // THEN
@@ -157,44 +181,88 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let bundleId = "com.tuist.bundleid"
 
         fileHandler.stubExists = { _ in true }
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
-        xcodeBuildController.showBuildSettingsStub = { _, _, _, _ in
-            let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
-            return [
-                graphTarget.target
-                    .name: XcodeBuildSettings(settings, target: graphTarget.target.name, configuration: "Debug"),
-            ]
-        }
-        simulatorController.findAvailableDeviceStub = { _platform, _version, _minVersion, _deviceName in
-            XCTAssertEqual(_platform, .iOS)
-            XCTAssertEqual(_version, version)
-            XCTAssertEqual(_minVersion, minVersion)
-            XCTAssertEqual(_deviceName, deviceName)
-            return .test(device: .test(), runtime: .test())
-        }
-        simulatorController.installAppStub = { _appPath, _ in
-            XCTAssertEqual(_appPath, appPath)
-        }
-        simulatorController.launchAppStub = { _bundleId, _, _arguments in
-            XCTAssertEqual(_bundleId, bundleId)
-            XCTAssertEqual(_arguments, arguments)
-        }
-
-        // THEN
-        do {
-            try await subject.runTarget(
-                graphTarget,
-                platform: .iOS,
-                workspacePath: workspacePath,
-                schemeName: "MyScheme",
-                configuration: nil,
-                minVersion: minVersion,
-                version: version,
-                deviceName: deviceName,
-                arguments: arguments
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                platform: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
             )
-        } catch {
-            XCTFail("Should not throw")
-        }
+            .willReturn(outputPath)
+        given(xcodeBuildController)
+            .showBuildSettings(
+                .any,
+                scheme: .any,
+                configuration: .any,
+                derivedDataPath: .any
+            )
+            .willReturn(
+                [
+                    graphTarget.target
+                        .name: XcodeBuildSettings(
+                            ["PRODUCT_BUNDLE_IDENTIFIER": bundleId],
+                            target: graphTarget.target.name, configuration: "Debug"
+                        ),
+                ]
+            )
+        given(simulatorController)
+            .launchApp(
+                bundleId: .any,
+                device: .any,
+                arguments: .any
+            )
+            .willReturn()
+        given(simulatorController)
+            .askForAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
+
+        given(simulatorController)
+            .installApp(
+                at: .any,
+                device: .any
+            )
+            .willReturn()
+
+        // Then
+        try await subject.runTarget(
+            graphTarget,
+            platform: .iOS,
+            workspacePath: workspacePath,
+            schemeName: "MyScheme",
+            configuration: nil,
+            minVersion: minVersion,
+            version: version,
+            deviceName: deviceName,
+            arguments: arguments
+        )
+
+        verify(simulatorController)
+            .askForAvailableDevice(
+                platform: .value(.iOS),
+                version: .value(version),
+                minVersion: .value(minVersion),
+                deviceName: .value(deviceName)
+            )
+            .called(1)
+
+        verify(simulatorController)
+            .installApp(
+                at: .value(appPath),
+                device: .any
+            )
+            .called(1)
+
+        verify(simulatorController)
+            .launchApp(
+                bundleId: .value(bundleId),
+                device: .any,
+                arguments: .value(arguments)
+            )
+            .called(1)
     }
 }

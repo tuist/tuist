@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol XcodeProjectBuildDirectoryLocating {
     /// Locates the build output directory for `xcodebuild` command.
     ///

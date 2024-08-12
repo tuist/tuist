@@ -353,4 +353,89 @@ final class ManifestLoaderTests: TuistTestCase {
             )
         )
     }
+
+    func test_validate_projectExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Project.swift")
+        )
+
+        // When / Then
+        try subject.validateHasRootManifest(at: path)
+    }
+
+    func test_validate_workspaceExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Workspace.swift")
+        )
+
+        // When / Then
+        try subject.validateHasRootManifest(at: path)
+    }
+
+    func test_validate_packageExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Package.swift")
+        )
+
+        // When / Then
+        try subject.validateHasRootManifest(at: path)
+    }
+
+    func test_validate_manifestDoesNotExist() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.validateHasRootManifest(at: path),
+            ManifestLoaderError.manifestNotFound(path)
+        )
+    }
+
+    func test_hasRootManifest_projectExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Project.swift")
+        )
+
+        // When / Then
+        XCTAssertTrue(subject.hasRootManifest(at: path))
+    }
+
+    func test_hasRootManifest_workspaceExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Workspace.swift")
+        )
+
+        // When / Then
+        XCTAssertTrue(subject.hasRootManifest(at: path))
+    }
+
+    func test_hasRootManifest_packageExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        try fileHandler.touch(
+            path.appending(component: "Package.swift")
+        )
+
+        // When / Then
+        XCTAssertTrue(subject.hasRootManifest(at: path))
+    }
+
+    func test_hasRootManifest_manifestDoesNotExist() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+
+        // When / Then
+        XCTAssertFalse(subject.hasRootManifest(at: path))
+    }
 }

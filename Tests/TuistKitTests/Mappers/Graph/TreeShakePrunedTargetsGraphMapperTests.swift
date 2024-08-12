@@ -94,6 +94,62 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
     }
 
+    func test_map_removes_project_schemes_with_whose_run_action_expand_variable_from_target_has_been_removed() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                runAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
+    func test_map_removes_project_schemes_with_whose_test_action_expand_variable_from_target_has_been_removed() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                testAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
     func test_map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {
         let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", prune: true)
