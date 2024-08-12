@@ -1,7 +1,7 @@
 ---
 title: Best practices
 titleTemplate: ":title | Projects | Tuist"
-description: Learn about the Modular Architecture (TMA) and how to structure your projects using it.
+description: Learn about the best practices for working with Tuist and Xcode projects.
 ---
 
 # Best practices
