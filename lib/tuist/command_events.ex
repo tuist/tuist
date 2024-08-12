@@ -861,16 +861,22 @@ defmodule Tuist.CommandEvents do
       from(
         t1 in TestCaseRun,
         join: t2 in TestCaseRun,
-        on: t1.test_case_id == t2.test_case_id,
-        where: t1.module_hash == t2.module_hash and t1.status != t2.status
+        on:
+          t1.test_case_id == t2.test_case_id and t1.module_hash == t2.module_hash and
+            t1.status != t2.status,
+        select: t1.id
       )
       |> Repo.update_all(set: [flaky: true])
 
-      from(
-        t in TestCase,
-        join: test_case_run in TestCaseRun,
-        on: t.id == test_case_run.test_case_id,
-        where: test_case_run.flaky == true,
+      subquery =
+        from(tcr in TestCaseRun,
+          where: tcr.flaky == true,
+          select: tcr.test_case_id,
+          distinct: true
+        )
+
+      from(t in TestCase,
+        where: t.id in subquery(subquery),
         select: t
       )
       |> Repo.update_all(set: [flaky: true])

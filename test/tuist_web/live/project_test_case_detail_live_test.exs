@@ -1,5 +1,5 @@
 defmodule TuistWeb.ProjectTestCaseDetailLiveTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistWeb.ConnCase, async: false
   use Mimic
 
   import Phoenix.LiveViewTest
@@ -32,10 +32,20 @@ defmodule TuistWeb.ProjectTestCaseDetailLiveTest do
   test "sets the right title", %{conn: conn, organization: organization, project: project} do
     # Given
     test_case_identifier = "test_case_identifier"
+    now = Timex.now()
 
     test_case = CommandEventsFixtures.test_case_fixture(identifier: test_case_identifier)
-    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id, flaky: true)
-    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id)
+
+    CommandEventsFixtures.test_case_run_fixture(
+      test_case_id: test_case.id,
+      flaky: true,
+      inserted_at: now
+    )
+
+    CommandEventsFixtures.test_case_run_fixture(
+      test_case_id: test_case.id,
+      inserted_at: now |> Timex.shift(seconds: -10)
+    )
 
     # When
     {:ok, _lv, html} =
@@ -53,10 +63,20 @@ defmodule TuistWeb.ProjectTestCaseDetailLiveTest do
     project: project
   } do
     test_case_identifier = "test_case_identifier"
+    now = Timex.now()
 
     test_case = CommandEventsFixtures.test_case_fixture(identifier: test_case_identifier)
-    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id, flaky: true)
-    CommandEventsFixtures.test_case_run_fixture(test_case_id: test_case.id)
+
+    CommandEventsFixtures.test_case_run_fixture(
+      test_case_id: test_case.id,
+      flaky: true,
+      inserted_at: now
+    )
+
+    CommandEventsFixtures.test_case_run_fixture(
+      test_case_id: test_case.id,
+      inserted_at: now |> Timex.shift(seconds: -10)
+    )
 
     {:ok, lv, _html} =
       conn
