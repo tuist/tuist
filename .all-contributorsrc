@@ -1483,6 +1483,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "barakwei",
+      "name": "Barak Weiss",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5232161?v=4",
+      "profile": "https://github.com/barakwei",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
