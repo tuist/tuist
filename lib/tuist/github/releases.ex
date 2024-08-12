@@ -40,13 +40,17 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp resolve_pid(pid) do
-    if is_nil(pid) do
-      Horde.DynamicSupervisor.which_children(Tuist.DistributedSupervisor)
-      |> Enum.find(fn {_, pid, _, [__MODULE__]} ->
-        pid
-      end)
-    else
+    with {:missing_pid, true} <- {:missing_pid, is_nil(pid)},
+         {:dynamic_supervisor_child, {_, pid, _, _}} <-
+           {:dynamic_supervisor_child,
+            Horde.DynamicSupervisor.which_children(Tuist.DistributedSupervisor)
+            |> Enum.find(fn {_, pid, _, [__MODULE__]} ->
+              pid
+            end)} do
       pid
+    else
+      {:missing_pid, false} -> pid
+      {:dynamic_supervisor_child, _} -> nil
     end
   end
 
