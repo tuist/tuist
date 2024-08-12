@@ -17,11 +17,6 @@ defmodule TuistWeb.LayoutLiveTest do
     user = AccountsFixtures.user_fixture(preloads: [:account])
     current_url = "https://test.tuist.io/path"
 
-    Tuist.Github
-    |> stub(:get_most_recent_cli_release, fn ->
-      nil
-    end)
-
     Phoenix.LiveView.Lifecycle
     |> stub(:attach_hook, fn _, _, _, func ->
       {:cont, socket} = func.(%{}, current_url, %LiveView.Socket{})

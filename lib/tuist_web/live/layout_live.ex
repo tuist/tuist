@@ -8,7 +8,6 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Github
   import Phoenix.Component
   import TuistWeb.AppLayoutComponents
 
@@ -53,7 +52,7 @@ defmodule TuistWeb.LayoutLive do
            %{content: project.name, href: ~p"/#{account_handle}/#{project.name}"}
          end)
      })
-     |> assign_most_recent_release()
+     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, project)
      |> assign(:current_user, current_user)
@@ -95,7 +94,7 @@ defmodule TuistWeb.LayoutLive do
        :can_read_billing,
        Authorization.can(current_user, :read, selected_account, :billing)
      )
-     |> assign_most_recent_release()
+     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:current_user, current_user)
      |> assign(:current_user_accounts, current_user_accounts)}
@@ -138,17 +137,22 @@ defmodule TuistWeb.LayoutLive do
     user
   end
 
-  def assign_most_recent_release(socket) do
-    assign_async(socket, :most_recent_release, fn ->
-      %{published_at: published_at} =
-        most_recent_release = Github.get_most_recent_cli_release()
+  def assign_latest_cli_release(socket) do
+    assign_async(socket, :latest_cli_release, &get_latest_cli_release/0)
+  end
 
-      most_recent_release =
+  defp get_latest_cli_release() do
+    latest_cli_release = Tuist.GitHub.Releases.get_latest_cli_release()
+
+    latest_cli_release =
+      if not is_nil(latest_cli_release) do
+        %{published_at: published_at} = latest_cli_release
+
         if Timex.after?(published_at, Timex.shift(Timex.today(), days: -1)),
-          do: most_recent_release,
+          do: latest_cli_release,
           else: nil
+      end
 
-      {:ok, %{most_recent_release: most_recent_release}}
-    end)
+    {:ok, %{latest_cli_release: latest_cli_release}}
   end
 end

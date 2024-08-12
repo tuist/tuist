@@ -45,7 +45,16 @@ defmodule Tuist.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Tuist.Supervisor]
-    Supervisor.start_link(children, opts)
+    application = Supervisor.start_link(children, opts)
+
+    if not Tuist.Environment.test?() do
+      Horde.DynamicSupervisor.start_child(
+        Tuist.DistributedSupervisor,
+        {Tuist.GitHub.Releases, []}
+      )
+    end
+
+    application
   end
 
   # Tell Phoenix to update the endpoint configuration

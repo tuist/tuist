@@ -118,7 +118,7 @@ defmodule TuistWeb.AppLayoutComponents do
   attr :breadcrumbs, :list, required: true
   attr :current_user, :map, required: true
   attr :selected_account, :map, required: true
-  attr :most_recent_release, :map, required: false
+  attr :latest_cli_release, :map, required: false
 
   def headerbar(assigns) do
     ~H"""
@@ -136,12 +136,12 @@ defmodule TuistWeb.AppLayoutComponents do
       <!-- Links -->
       <nav class="headerbar__links">
         <a
-          :if={most_recent_release = @most_recent_release.ok? && @most_recent_release.result}
+          :if={latest_cli_release = @latest_cli_release.ok? && @latest_cli_release.result}
           class="headerbar__links__release-badge"
           target="_blank"
-          href={most_recent_release.html_url}
+          href={latest_cli_release.html_url}
         >
-          <.badge title={"#{gettext("New release:")} #{most_recent_release.name}"} kind={:brand} />
+          <.badge title={"#{gettext("New release:")} #{latest_cli_release.name}"} kind={:brand} />
         </a>
         <a class="headerbar__links__link text--small" href="https://docs.tuist.io" target="_blank">
           <.book_open_icon class="headerbar__links__icon" />
