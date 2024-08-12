@@ -8,9 +8,11 @@ description: Learn how to use Tuist in your CI workflows.
 
 Integration is the automated process of ensuring that changes are valid. It is often performed continuously (CI) and is a key part of the development process. Configuration is typically handled through a file in the repository, which the integration platform uses to determine how to integrate the changes.
 
+## Examples
+
 To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment. The following sections provide examples of how to do this on different CI platforms.
 
-## Xcode Cloud
+### Xcode Cloud
 
 In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
 
@@ -31,7 +33,7 @@ brew install --formula tuist@x.y.z
 tuist generate
 ```
 :::
-## Codemagic
+### Codemagic
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
 
@@ -67,7 +69,7 @@ workflows:
 ```
 :::
 
-## GitHub Actions
+### GitHub Actions
 
 On [GitHub Actions](https://docs.github.com/en/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
@@ -111,3 +113,17 @@ jobs:
 ::: tip
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 :::
+
+## Authentication
+
+When using server-side features such as [cache](/guides/develop/build/cache), you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+
+```bash
+tuist project tokens create my-handle/MyApp
+```
+
+The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable 
+`TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret so it's not exposed.
+
+> [!IMPORTANT] CI ENVIRONMENT DETECTION
+> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
