@@ -1024,9 +1024,9 @@ defmodule Tuist.CommandEvents do
     type = Keyword.get(opts, :type)
 
     if is_nil(type) do
-      json[key]["_values"]
+      get_in(json, [key, "_values"]) || []
     else
-      json[key]["_values"]
+      (get_in(json, [key, "_values"]) || [])
       |> Enum.filter(fn value -> value["_type"]["_name"] == type end)
     end
   end
