@@ -64,7 +64,7 @@ public struct Config: Codable, Equatable, Sendable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
-    ///   - insgtallOptions: List of options to use when running `tuist install`.
+    ///   - installOptions: List of options to use when running `tuist install`.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
