@@ -145,9 +145,9 @@ if Tuist.Environment.error_tracking_enabled?() do
     env: env,
     active: [:prod, :stag, :can] |> Enum.member?(env),
     ignore_errors: [
-      TuistWeb.Errors.NotFoundError,
-      TuistWeb.Errors.TooManyRequestsError,
-      TuistWeb.Errors.UnauthorizedError
+      "Elixir.TuistWeb.Errors.NotFoundError",
+      "Elixir.TuistWeb.Errors.TooManyRequestsError",
+      "Elixir.TuistWeb.Errors.UnauthorizedError"
     ],
     request_headers: ~w(
       accept accept-charset accept-encoding accept-language cache-control
