@@ -290,8 +290,15 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
-        link: "guides/develop/workflows",
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Integrate ${cloudBlank02Icon()}</span>`,
+        link: "guides/develop/integrate",
+        collapsed: true,
+        items: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${comingSoonBadge()}</span>`,
+            link: "guides/develop/integrate/workflows",
+          },
+        ],
       },
     ],
   },

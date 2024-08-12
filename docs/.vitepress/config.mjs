@@ -108,6 +108,7 @@ export default defineConfig({
 /cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
 /reference/project-description/* /references/project-description/:splat 301
 /reference/examples/* /references/examples/:splat 301
+/guides/develop/workflows /guides/develop/integrate/workflows 301
 
 /documentation/tuist/* / 301
     `;
