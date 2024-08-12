@@ -1,5 +1,8 @@
 defmodule TuistWeb.ProjectRunDetailLiveTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistWeb.ConnCase, async: false
+
+  setup :set_mimic_from_context
+
   use Mimic
 
   import Phoenix.LiveViewTest

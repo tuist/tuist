@@ -352,7 +352,8 @@ defmodule TuistWeb.API.AnalyticsController do
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project doesn't exist", "application/json", Error}
+      not_found: {"The project doesn't exist", "application/json", Error},
+      internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
   )
 
@@ -377,19 +378,25 @@ defmodule TuistWeb.API.AnalyticsController do
     object_key =
       get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
 
-    :ok =
-      Storage.multipart_complete_upload(
-        object_key,
-        upload_id,
-        parts
-        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end)
-      )
+    case Storage.multipart_complete_upload(
+           object_key,
+           upload_id,
+           parts
+           |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end)
+         ) do
+      :ok ->
+        conn
+        |> put_status(:no_content)
+        |> json(%{})
 
-    conn
-    |> put_status(:no_content)
-    |> json(%{})
+      {:error, {:raw, error_message}} ->
+        conn |> put_status(:internal_server_error) |> json(%{message: error_message})
+
+      {:error, {:http, status, error_message}} ->
+        conn |> put_status(status) |> json(%{message: error_message})
+    end
   end
 
   operation(:complete_artifacts_uploads,
