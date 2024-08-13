@@ -75,7 +75,7 @@ On [GitHub Actions](https://docs.github.com/en/actions) you can an additional st
 
 ::: code-group
 ```yaml [Mise]
-name: test
+name: Build Application
 on:
   pull_request:
     branches:
@@ -84,7 +84,7 @@ on:
     branches:
       - main
 jobs:
-  lint:
+  build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
