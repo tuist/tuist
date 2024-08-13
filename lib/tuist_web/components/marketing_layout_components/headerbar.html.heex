@@ -44,7 +44,12 @@
       <a class="font-xxs marketing__headerbar__links__link"><%= gettext("Blog") %></a>
     </nav>
 
-    <.primary_small_button><%= gettext("Get started") %></.primary_small_button>
+    <.primary_button
+      size="small"
+      href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:get_started)}
+    >
+      <%= gettext("Get started") %>
+    </.primary_button>
   </div>
   <!-- Features Menu -->
   <nav class="marketing__headerbar__app-lifecycle" aria-labelledby="app-lifecycle">

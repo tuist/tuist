@@ -2,6 +2,7 @@
 @import "./marketing/tokens.css";
 @import "./marketing/utilities.css";
 @import "./marketing/components.css";
+@import "./marketing/pages.css";
 
 body {
   padding: 0px;

@@ -28,7 +28,8 @@ config :tuist, :urls,
   linkedin: "https://www.linkedin.com/company/tuistio",
   newsletter: "https://lists.tuist.io/subscription/form",
   peertube: "https://videos.tuist.io",
-  status: "https://status.tuist.io"
+  status: "https://status.tuist.io",
+  get_started: "https://docs.tuist.io"
 
 # Configures the mailer
 #
