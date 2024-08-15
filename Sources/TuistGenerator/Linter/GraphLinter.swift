@@ -140,6 +140,7 @@ public class GraphLinter: GraphLinting {
             guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
                   let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
 
+            guard fromTarget.target.product != .bundle else { return [] }
             let fromPlatforms = fromTarget.target.supportedPlatforms
 
             let dependencies: [LintingIssue] = graphTraverser.directTargetDependencies(path: fromTargetPath, name: fromTargetName)
@@ -465,6 +466,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
             LintableTarget(platform: .iOS, product: .appClip),
+            LintableTarget(platform: .macOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .appExtension): [
@@ -515,6 +517,13 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .xpc),
             LintableTarget(platform: .macOS, product: .systemExtension),
             LintableTarget(platform: .macOS, product: .macro),
+        ],
+        LintableTarget(platform: .macOS, product: .bundle): [
+            LintableTarget(platform: .iOS, product: .app),
+            LintableTarget(platform: .iOS, product: .staticLibrary),
+            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+            LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .iOS, product: .framework),
         ],
         LintableTarget(platform: .macOS, product: .staticLibrary): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
