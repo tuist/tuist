@@ -23,7 +23,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
         binaryPath: AbsolutePath,
-        status: FrameworkStatus,
+        status: LinkingStatus,
         condition: PlatformCondition? = nil
     )
     case library(
@@ -41,12 +41,12 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product,
-        status: FrameworkStatus,
+        status: LinkingStatus,
         condition: PlatformCondition? = nil
     )
     case bundle(path: AbsolutePath, condition: PlatformCondition? = nil)
     case product(target: String, productName: String, condition: PlatformCondition? = nil)
-    case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, condition: PlatformCondition? = nil)
+    case sdk(path: AbsolutePath, status: LinkingStatus, source: SDKSource, condition: PlatformCondition? = nil)
 
     init(_ dependency: GraphDependency, condition: PlatformCondition? = nil) {
         switch dependency {

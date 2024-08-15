@@ -198,7 +198,7 @@ public final class GraphLoader: GraphLoading {
     private func loadFramework(
         path: AbsolutePath,
         cache: Cache,
-        status: FrameworkStatus
+        status: LinkingStatus
     ) throws -> GraphDependency {
         if let loaded = cache.frameworks[path] {
             return loaded
@@ -250,7 +250,7 @@ public final class GraphLoader: GraphLoading {
     private func loadXCFramework(
         path: AbsolutePath,
         cache: Cache,
-        status: FrameworkStatus
+        status: LinkingStatus
     ) throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
@@ -276,7 +276,7 @@ public final class GraphLoader: GraphLoading {
     private func loadSDK(
         name: String,
         platform: Platform,
-        status: SDKStatus,
+        status: LinkingStatus,
         source: SDKSource
     ) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(
