@@ -42,7 +42,10 @@ defmodule Tuist.Application do
           do: [Tuist.Analytics.Posthog, Tuist.Analytics.Attio],
           else:
             [] ++
-              if(Tuist.Environment.test?(), do: [], else: [{Tuist.GitHub.Releases, []}])
+              if(Tuist.Environment.test?(),
+                do: [],
+                else: [{Tuist.GitHub.Releases, name: Tuist.GitHub.Releases}]
+              )
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
