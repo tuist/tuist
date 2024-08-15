@@ -17,7 +17,7 @@ final class TuistVersionLoaderTests: TuistUnitTestCase {
     func test_getVersion_passesRightArguments() throws {
         // given
         let version = "4.0.1"
-        mockSystem.stubs = ["tuist version": (stderror: nil, stdout: version, exitstatus: 0)]
+        mockSystem.succeedCommand(["tuist version"], output: version)
 
         // when
         let result = try sut.getVersion()
@@ -30,7 +30,7 @@ final class TuistVersionLoaderTests: TuistUnitTestCase {
     func test_getVersion_removesNewLines() throws {
         // given
         let version = "4.0.1\n"
-        mockSystem.stubs = ["tuist version": (stderror: nil, stdout: version, exitstatus: 0)]
+        mockSystem.succeedCommand(["tuist version"], output: version)
 
         // when
         let result = try sut.getVersion()
