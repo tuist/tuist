@@ -18,7 +18,7 @@ defmodule Tuist.GitHub.Releases do
   @refresh_interval :timer.hours(1)
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   def init(_opts) do
@@ -30,28 +30,7 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_cli_release(pid \\ nil) do
-    pid = resolve_pid(pid)
-
-    if is_nil(pid) do
-      nil
-    else
-      GenServer.call(pid, :get_release)
-    end
-  end
-
-  defp resolve_pid(pid) do
-    with {:missing_pid, true} <- {:missing_pid, is_nil(pid)},
-         {:dynamic_supervisor_child, {_, pid, _, _}} <-
-           {:dynamic_supervisor_child,
-            Horde.DynamicSupervisor.which_children(Tuist.DistributedSupervisor)
-            |> Enum.find(fn {_, pid, _, [__MODULE__]} ->
-              pid
-            end)} do
-      pid
-    else
-      {:missing_pid, false} -> pid
-      {:dynamic_supervisor_child, _} -> nil
-    end
+    GenServer.call(pid || __MODULE__, :get_release)
   end
 
   def handle_continue(:fetch_release, state) do

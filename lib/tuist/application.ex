@@ -40,21 +40,14 @@ defmodule Tuist.Application do
       ] ++
         if Tuist.Environment.analytics_enabled?(),
           do: [Tuist.Analytics.Posthog, Tuist.Analytics.Attio],
-          else: []
+          else:
+            [] ++
+              if(Tuist.Environment.test?(), do: [], else: [{Tuist.GitHub.Releases, []}])
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Tuist.Supervisor]
-    application = Supervisor.start_link(children, opts)
-
-    if not Tuist.Environment.test?() do
-      Horde.DynamicSupervisor.start_child(
-        Tuist.DistributedSupervisor,
-        {Tuist.GitHub.Releases, []}
-      )
-    end
-
-    application
+    Supervisor.start_link(children, opts)
   end
 
   # Tell Phoenix to update the endpoint configuration
