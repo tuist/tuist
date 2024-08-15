@@ -54,7 +54,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// Clock for measuring build duration.
     private let clock: Clock
-    private let fileSystem: FileSystem
+    private let fileHandler: FileHandling
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -70,13 +70,13 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         clock: Clock = WallClock(),
-        fileSystem: FileSystem = FileSystem()
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
-        self.fileSystem = fileSystem
+        self.fileHandler = fileHandler
     }
 
     public func build(
@@ -169,7 +169,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             let dylibName = "lib\(name).dylib"
             let modulePath = moduleCacheDirectory.appending(component: dylibName)
             let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
-            try FileHandler.shared.createFolder(moduleCacheDirectory)
+            try fileHandler.createFolder(moduleCacheDirectory)
 
             let command = createCommand(
                 moduleName: name,
@@ -205,7 +205,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) -> [String] {
         let swiftFilesGlob = "**/*.swift"
-        let files = FileHandler.shared.glob(directory, glob: swiftFilesGlob)
+        let files = fileHandler.glob(directory, glob: swiftFilesGlob)
 
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",
