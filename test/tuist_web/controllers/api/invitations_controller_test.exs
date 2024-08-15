@@ -151,6 +151,30 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       assert response["organization_id"] == organization.id
     end
 
+    test "returns an error if the invitee email is not a valid email address", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations", invitee_email: "invalid")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response["message"] ==
+               "The invitee email address is not a valid email address."
+    end
+
     test "returns :bad_request when a user was already invited to an organization", %{
       conn: conn,
       user: user

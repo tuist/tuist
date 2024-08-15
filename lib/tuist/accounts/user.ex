@@ -11,6 +11,8 @@ defmodule Tuist.Accounts.User do
   alias Tuist.Accounts.Account
   alias Tuist.Projects.Project
 
+  @valid_email_regex ~r/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+
   schema "users" do
     field :token, :string
     field :email, :string
@@ -86,5 +88,9 @@ defmodule Tuist.Accounts.User do
     email = email |> String.trim() |> String.downcase()
     hash = :crypto.hash(:md5, email) |> Base.encode16(case: :lower)
     "https://www.gravatar.com/avatar/" <> hash
+  end
+
+  def email_valid?(email) do
+    String.match?(email, @valid_email_regex)
   end
 end

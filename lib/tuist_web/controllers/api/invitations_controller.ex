@@ -67,6 +67,7 @@ defmodule TuistWeb.API.InvitationsController do
 
     organization_account = Accounts.get_organization_account_by_name(organization_name)
 
+    invitee_email_valid? = Tuist.Accounts.User.email_valid?(invitee_email)
     invitee = Accounts.get_user_by_email(invitee_email)
 
     cond do
@@ -96,6 +97,11 @@ defmodule TuistWeb.API.InvitationsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The user is already a member of the organization."})
+
+      not invitee_email_valid? ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The invitee email address is not a valid email address."})
 
       !is_nil(organization_account) ->
         invitation =
