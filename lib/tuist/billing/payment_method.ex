@@ -3,6 +3,6 @@ defmodule Tuist.Billing.PaymentMethod do
   A module that represents a payment method.
   """
 
-  @enforce_keys [:id, :card]
-  defstruct [:id, :card]
+  @enforce_keys [:id, :card, :type]
+  defstruct [:id, :card, :type]
 end

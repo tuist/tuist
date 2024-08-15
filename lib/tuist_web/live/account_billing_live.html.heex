@@ -123,13 +123,20 @@
             <.stack gap="lg" class="billing__overview__payment-card__billing-details__labels">
               <.stack gap="none">
                 <p class="text--small font--medium color--text-secondary">
-                  <%= if is_nil(@payment_method) do %>
-                    <%= gettext("Missing payment method") %>
-                  <% else %>
-                    <%= gettext("%{card_name} ending in %{last_4_digits}",
-                      card_name: @payment_method.card.brand |> String.capitalize(),
-                      last_4_digits: @payment_method.card.last4
-                    ) %>
+                  <%= cond do %>
+                    <% is_nil(@payment_method) -> %>
+                      <%= gettext("Missing payment method") %>
+                    <% not is_nil(@payment_method.card) -> %>
+                      <%= gettext("%{card_name} ending in %{last_4_digits}",
+                        card_name: @payment_method.card.brand |> String.capitalize(),
+                        last_4_digits: @payment_method.card.last4
+                      ) %>
+                    <% true -> %>
+                      <%= gettext(
+                        "Type: %{payment_method_type}",
+                        payment_method_type:
+                          Tuist.Billing.humanize_payment_method_type(@payment_method.type)
+                      ) %>
                   <% end %>
                 </p>
                 <p class="text--small font--regular color--text-tertiary">

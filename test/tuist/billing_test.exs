@@ -415,7 +415,7 @@ defmodule Tuist.BillingTest do
 
       Stripe.PaymentMethod
       |> stub(:retrieve, fn ^payment_method_id ->
-        {:ok, %Stripe.PaymentMethod{id: payment_method_id, card: card}}
+        {:ok, %Stripe.PaymentMethod{id: payment_method_id, card: card, type: "card"}}
       end)
 
       # When
@@ -424,6 +424,7 @@ defmodule Tuist.BillingTest do
       # Then
       assert payment_method == %PaymentMethod{
                id: payment_method_id,
+               type: "card",
                card: %Card{
                  brand: "visa",
                  last4: "4242",

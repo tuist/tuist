@@ -202,14 +202,20 @@ defmodule Tuist.Billing do
   def get_payment_method_by_id(payment_method_id) do
     {:ok, payment_method} = Stripe.PaymentMethod.retrieve(payment_method_id)
 
+    card =
+      if is_nil(payment_method.card),
+        do: nil,
+        else: %Card{
+          brand: payment_method.card.brand,
+          last4: payment_method.card.last4,
+          exp_month: payment_method.card.exp_month,
+          exp_year: payment_method.card.exp_year
+        }
+
     %PaymentMethod{
       id: payment_method.id,
-      card: %Card{
-        brand: payment_method.card.brand,
-        last4: payment_method.card.last4,
-        exp_month: payment_method.card.exp_month,
-        exp_year: payment_method.card.exp_year
-      }
+      type: payment_method.type,
+      card: card
     }
   end
 
@@ -228,5 +234,46 @@ defmodule Tuist.Billing do
 
   def enabled? do
     Environment.stripe_configured?()
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  def humanize_payment_method_type(type) do
+    case type do
+      "acss_debit" -> "ACSS Debit"
+      "affirm" -> "Affirm"
+      "afterpay_clearpay" -> "Afterpay/Clearpay"
+      "alipay" -> "Alipay"
+      "au_becs_debit" -> "AU BECS Debit"
+      "bacs_debit" -> "BACS Debit"
+      "bancontact" -> "Bancontact"
+      "blik" -> "BLIK"
+      "boleto" -> "Boleto"
+      "card" -> "Card"
+      "card_present" -> "Card Present"
+      "cashapp" -> "Cash App"
+      "customer_balance" -> "Customer Balance"
+      "eps" -> "EPS"
+      "fpx" -> "FPX"
+      "giropay" -> "Giropay"
+      "grabpay" -> "GrabPay"
+      "ideal" -> "iDEAL"
+      "interac_present" -> "Interac Present"
+      "klarna" -> "Klarna"
+      "konbini" -> "Konbini"
+      "link" -> "Link"
+      "oxxo" -> "OXXO"
+      "p24" -> "Przelewy24"
+      "paynow" -> "PayNow"
+      "paypal" -> "PayPal"
+      "pix" -> "PIX"
+      "promptpay" -> "PromptPay"
+      "revolut_pay" -> "Revolut Pay"
+      "sepa_debit" -> "SEPA Debit"
+      "sofort" -> "Sofort"
+      "us_bank_account" -> "US Bank Account"
+      "wechat_pay" -> "WeChat Pay"
+      "zip" -> "Zip"
+      _ -> "Unknown"
+    end
   end
 end
