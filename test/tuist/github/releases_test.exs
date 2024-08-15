@@ -7,6 +7,7 @@ defmodule Tuist.GitHub.ReleasesTest do
 
   describe "get_latest_cli_release/0" do
     test "returns a release if the response is successful" do
+      # Given
       published_at = Timex.now()
 
       release = %{
@@ -25,11 +26,33 @@ defmodule Tuist.GitHub.ReleasesTest do
         end
       )
 
+      # When
       {:ok, pid} = Releases.start_link([])
 
+      # Then
       release = Releases.get_latest_cli_release(pid)
       assert release.name == "v2.0.0"
       assert release.html_url == "https://github.com/release"
     end
+  end
+
+  test "returns nil when the status is in the range 500..599" do
+    # Given
+    latest_cli_release_url = Releases.latest_cli_release_url()
+
+    Req
+    |> stub(
+      :get,
+      fn ^latest_cli_release_url ->
+        {:ok, %Req.Response{status: 502}}
+      end
+    )
+
+    # When
+    {:ok, pid} = Releases.start_link([])
+
+    # Then
+    release = Releases.get_latest_cli_release(pid)
+    assert release == nil
   end
 end

@@ -30,7 +30,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
     """
   end
 
-  attr :size, :string, required: true, values: ["medium"]
+  attr :size, :string, default: "medium", values: ["medium"]
   attr :href, :string, required: false
   attr :rest, :global
   attr :target, :string, required: false

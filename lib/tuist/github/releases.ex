@@ -83,6 +83,9 @@ defmodule Tuist.GitHub.Releases do
           html_url: release["html_url"]
         }
 
+      {:ok, %Req.Response{status: status}} when status in 500..599 ->
+        nil
+
       {:error, _reason} ->
         nil
     end

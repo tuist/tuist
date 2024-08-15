@@ -2,7 +2,6 @@ defmodule TuistWeb.MarketingHTML do
   use TuistWeb, :html
 
   import TuistWeb.MarketingLayoutComponents
-  import TuistWeb.MarketingIcons
 
   embed_templates "marketing_html/*"
 
