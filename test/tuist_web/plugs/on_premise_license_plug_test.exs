@@ -18,7 +18,7 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     assert got == conn
   end
 
-  test "returns an error if the license has expired", %{conn: conn} do
+  test "returns a halted connection with a JSON error if the license has expired", %{conn: conn} do
     # Given
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
@@ -32,6 +32,8 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     got = conn |> OnPremiseLicensePlug.call(opts)
 
     # Then
+    assert got.halted == true
+
     assert json_response(got, 422) == %{
              "message" =>
                "The license has expired. Please, contact contact@tuist.io to renovate it."

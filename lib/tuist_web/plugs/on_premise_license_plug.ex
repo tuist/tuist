@@ -17,6 +17,7 @@ defmodule TuistWeb.OnPremiseLicensePlug do
           |> json(%{
             message: "The license has expired. Please, contact contact@tuist.io to renovate it."
           })
+          |> halt()
 
         Environment.license_expiration_days_span() < 30 ->
           TuistWeb.WarningsHeaderPlug.put_warning(
