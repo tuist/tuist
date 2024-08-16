@@ -65,7 +65,7 @@ public final class ServerSessionController: ServerSessionControlling {
         let authURL = components.url!
 
         logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
-        try opener.open(url: authURL)
+        try opener.open(url: authURL, fresh: false)
 
         if Environment.shared.shouldOutputBeColoured {
             logger.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)

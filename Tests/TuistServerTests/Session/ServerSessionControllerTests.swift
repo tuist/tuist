@@ -37,7 +37,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         )
 
         given(opener)
-            .open(url: .any)
+            .open(url: .any, fresh: .any)
             .willReturn()
     }
 
