@@ -1501,6 +1501,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "rgnns",
+      "name": "Gabriel Liévano",
+      "avatar_url": "https://avatars.githubusercontent.com/u/811827?v=4",
+      "profile": "https://github.com/rgnns",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
