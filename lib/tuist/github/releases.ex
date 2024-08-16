@@ -29,6 +29,10 @@ defmodule Tuist.GitHub.Releases do
     @latest_cli_release_url
   end
 
+  def foo() do
+    __MODULE__
+  end
+
   def get_latest_cli_release(pid \\ nil) do
     GenServer.call(pid || __MODULE__, :get_release)
   end

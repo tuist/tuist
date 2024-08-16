@@ -7,15 +7,28 @@ defmodule Tuist.Application do
 
   @impl true
   def start(_type, _args) do
-    Environment.decrypt_secrets() |> Environment.put_application_secrets()
+    load_secrets_in_application()
+    start_error_tracking()
+    start_telemetry()
+    Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
+  end
 
+  defp load_secrets_in_application() do
+    Environment.decrypt_secrets() |> Environment.put_application_secrets()
+  end
+
+  defp start_error_tracking() do
     run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
       Appsignal.Logger.Handler.add("phoenix")
     end
+  end
 
+  defp start_telemetry() do
     Oban.Telemetry.attach_default_logger()
+  end
 
+  defp get_children() do
     children =
       [
         TuistWeb.Telemetry,
@@ -37,20 +50,23 @@ defmodule Tuist.Application do
         # {Tuist.Worker, arg},
         # Start to serve requests, typically the last entry
         TuistWeb.Endpoint
-      ] ++
-        if Tuist.Environment.analytics_enabled?(),
-          do: [Tuist.Analytics.Posthog, Tuist.Analytics.Attio],
-          else:
-            [] ++
-              if(Tuist.Environment.test?(),
-                do: [],
-                else: [{Tuist.GitHub.Releases, name: Tuist.GitHub.Releases}]
-              )
+      ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Tuist.Supervisor]
-    Supervisor.start_link(children, opts)
+    children =
+      if Environment.analytics_enabled?() do
+        children ++ [Tuist.Analytics.Posthog, Tuist.Analytics.Attio]
+      else
+        children
+      end
+
+    children =
+      if Environment.test?() do
+        children
+      else
+        children ++ [{Tuist.GitHub.Releases, name: Tuist.GitHub.Releases}]
+      end
+
+    children
   end
 
   # Tell Phoenix to update the endpoint configuration
