@@ -14,7 +14,7 @@ final class GraphImplicitImportLintService {
 
     func lint(graphTraverser: GraphTraverser, config _: Config) async throws -> [LintingIssue] {
         let allTargets = graphTraverser
-            .allTargets()
+            .allInternalTargets()
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
@@ -23,8 +23,8 @@ final class GraphImplicitImportLintService {
             let allTargets = project.targets.values
 
             for target in allTargets {
-                let targetImports = Set(try await targetScanner.imports(for: target))
-                let targetTuistDeclaredDependencies = target.dependencies.compactMap {
+                let sourceDependencies = Set(try await targetScanner.imports(for: target))
+                let explicitTargetDependencies = target.dependencies.compactMap {
                     switch $0 {
                     case let .target(name: targetName, _):
                         return project.targets[targetName]?.productName
@@ -34,7 +34,7 @@ final class GraphImplicitImportLintService {
                         return nil
                     }
                 }
-                let implicitImports = targetImports.intersection(allTargetNames).subtracting(targetTuistDeclaredDependencies)
+                let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
                 if !implicitImports.isEmpty {
                     implicitTargetImports[target] = implicitImports
                 }

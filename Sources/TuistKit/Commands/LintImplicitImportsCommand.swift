@@ -8,7 +8,7 @@ struct LintImplicitImportsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "implicit-imports",
-            abstract: "Find implicit imports in project"
+            abstract: "Find implicit imports in Tuist projects."
         )
     }
 

@@ -11,8 +11,8 @@ import XCTest
 
 final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
     func test_targetLintWithImports() async throws {
-        let fileSystem = FileSystem()
         // Given
+        let fileSystem = FileSystem()
         let path = try temporaryPath()
         let targetPath = path
             .appending(components: "FirstTarget", "Sources")

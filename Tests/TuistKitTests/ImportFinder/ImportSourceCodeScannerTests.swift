@@ -10,6 +10,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         subject = ImportSourceCodeScanner()
     }
 
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
     func test_whenObjcCodeWithImports() throws {
         let code = """
         #import <UIKit/UIKit.h>
