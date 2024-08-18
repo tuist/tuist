@@ -290,6 +290,17 @@ export const guidesSidebar = [
         ],
       },
       {
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Verification</span>`,
+        link: "guides/develop/verification",
+        collapsed: true,
+        items: [
+          {
+            text: "Implicit dependencies",
+            link: "guides/develop/verification/implicit-dependencies",
+          },
+        ],
+      },
+      {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
         link: "guides/develop/workflows",
       },
