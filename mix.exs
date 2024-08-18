@@ -82,7 +82,7 @@ defmodule Tuist.MixProject do
       {:req, "~> 0.5.0"},
       {:telemetry_test, "~> 0.1.2"},
       {:timescale, "~> 0.1.0"},
-      {:flop, "~> 0.25.0"},
+      {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7"},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.1.0", override: true},
