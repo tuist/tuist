@@ -844,14 +844,29 @@ extension ProjectDescription.ResourceFileElements {
         // Add default resources path if necessary
         // They are handled like a `.process` rule
         if sources == nil {
-            resourceFileElements += try defaultResourcePaths(from: path)
-                .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
+            // Already included resources should not be added as default resource
+            let excludedPaths: Set<AbsolutePath> = Set(
+                resourceFileElements.map {
+                    switch $0 {
+                    case let .folderReference(path: path, _, _):
+                        AbsolutePath(stringLiteral: path.pathString)
+                    case let .glob(pattern: path, _, _, _):
+                        AbsolutePath(stringLiteral: path.pathString).upToLastNonGlob
+                    }
+                }
+            )
+            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
+                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
+                let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
+                return candidateNotInExcludedDirectory
+            }
+            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
         guard !resourceFileElements.isEmpty else { return nil }
 
-        return .resources(resourceFileElements)
+        return .resources(resourceFileElements.uniqued())
     }
 
     // These files are automatically added as resource if they are inside targets directory.
@@ -865,8 +880,16 @@ extension ProjectDescription.ResourceFileElements {
         "strings",
     ])
 
-    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        Array(FileHandler.shared.files(in: path, nameFilter: nil, extensionFilter: defaultSpmResourceFileExtensions))
+    private static func defaultResourcePaths(
+        from path: AbsolutePath,
+        filter: @escaping (Foundation.URL) -> Bool
+    ) -> [AbsolutePath] {
+        Array(FileHandler.shared.files(
+            in: path,
+            filter: filter,
+            nameFilter: nil,
+            extensionFilter: defaultSpmResourceFileExtensions
+        ))
     }
 }
 

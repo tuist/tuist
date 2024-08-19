@@ -15,6 +15,7 @@ let project = Project(
                 .sdk(name: "ARKit", type: .framework, status: .required),
                 .sdk(name: "StoreKit", type: .framework, status: .optional),
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required),
+                .sdk(name: "Observation", type: .swiftLibrary),
                 .project(target: "StaticFramework", path: "Modules/StaticFramework"),
             ]
         ),

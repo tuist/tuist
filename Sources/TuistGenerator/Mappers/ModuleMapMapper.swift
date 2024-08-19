@@ -26,7 +26,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
     public init() {}
 
     // swiftlint:disable function_body_length
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
@@ -94,7 +94,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
             return (projectPath, project)
         })
-        return (graph, [])
+        return (graph, [], environment)
     } // swiftlint:enable function_body_length
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)

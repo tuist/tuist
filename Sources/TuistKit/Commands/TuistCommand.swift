@@ -16,32 +16,46 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [],
             groupedSubcommands: [
-                CommandGroup(name: "Start", subcommands: [
-                    InitCommand.self,
-                ]),
-                CommandGroup(name: "Develop", subcommands: [
-                    BuildCommand.self,
-                    CleanCommand.self,
-                    DumpCommand.self,
-                    EditCommand.self,
-                    InstallCommand.self,
-                    GenerateCommand.self,
-                    GraphCommand.self,
-                    MigrationCommand.self,
-                    PluginCommand.self,
-                    RunCommand.self,
-                    ScaffoldCommand.self,
-                    TestCommand.self,
-                    CleanCommand.self,
-                    CacheCommand.self,
-                ]),
-                CommandGroup(name: "Account", subcommands: [
-                    ProjectCommand.self,
-                    OrganizationCommand.self,
-                    AuthCommand.self,
-                    SessionCommand.self,
-                    LogoutCommand.self,
-                ]),
+                CommandGroup(
+                    name: "Start",
+                    subcommands: [
+                        InitCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Develop",
+                    subcommands: [
+                        BuildCommand.self,
+                        CacheCommand.self,
+                        CleanCommand.self,
+                        DumpCommand.self,
+                        EditCommand.self,
+                        GenerateCommand.self,
+                        GraphCommand.self,
+                        InstallCommand.self,
+                        MigrationCommand.self,
+                        PluginCommand.self,
+                        RunCommand.self,
+                        ScaffoldCommand.self,
+                        TestCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Share",
+                    subcommands: [
+                        ShareCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Account",
+                    subcommands: [
+                        ProjectCommand.self,
+                        OrganizationCommand.self,
+                        AuthCommand.self,
+                        SessionCommand.self,
+                        LogoutCommand.self,
+                    ]
+                ),
             ]
         )
     }

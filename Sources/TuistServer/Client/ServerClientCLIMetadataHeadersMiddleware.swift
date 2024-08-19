@@ -5,7 +5,7 @@ import TuistSupport
 /// This middleware includes the release date of the CLI in the headers so that we can show
 /// warnings if the on-premise installation is too old.
 struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
-    let releaseDate = "2024.07.19"
+    let releaseDate = "2024.08.05"
 
     func intercept(
         _ request: Request,

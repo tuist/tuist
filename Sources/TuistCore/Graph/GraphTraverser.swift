@@ -1,6 +1,7 @@
 import Foundation
 import Path
-import TSCBasic
+import func TSCBasic.topologicalSort
+import func TSCBasic.transitiveClosure
 import TuistSupport
 import XcodeGraph
 
@@ -115,13 +116,18 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTarget> {
         guard let target = target(path: path, name: name) else { return [] }
-        return transitiveClosure([target]) { target in
+        return allTargetDependencies(traversingFromTargets: [target])
+    }
+
+    public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
+        return transitiveClosure(traversingFromTargets) { target in
             Array(
                 directTargetDependencies(
                     path: target.path,
                     name: target.target.name
                 )
-            ).map(\.graphTarget)
+            )
+            .map(\.graphTarget)
         }
     }
 
@@ -393,9 +399,24 @@ public class GraphTraverser: GraphTraversing {
             skip: { $0.xcframeworkDependency == nil }
         )
 
+        let libraryDependenciesLinkedByStaticXCFrameworks = try staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
+            guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
+            return try dependencies.filter {
+                switch $0 {
+                case .sdk:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
+
         let precompiledLibrariesAndFrameworks =
-            (precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies)
-                .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+            (
+                precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies +
+                    libraryDependenciesLinkedByStaticXCFrameworks
+            )
+            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(Set(precompiledLibrariesAndFrameworks))
 
@@ -1140,6 +1161,7 @@ public class GraphTraverser: GraphTraversing {
             .appClip,
             .unitTests,
             .uiTests,
+            .appExtension,
             .watch2Extension,
             .systemExtension,
             .xpc,

@@ -1,8 +1,10 @@
 import DOT
 import Foundation
 import GraphViz
+import MockableTest
 import Path
 import ProjectAutomation
+import TuistCore
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
@@ -15,14 +17,14 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GraphServiceTests: TuistUnitTestCase {
-    var manifestGraphLoader: MockManifestGraphLoader!
+    var manifestGraphLoader: MockManifestGraphLoading!
     var graphVizMapper: MockGraphToGraphVizMapper!
     var subject: GraphService!
 
     override func setUp() {
         super.setUp()
         graphVizMapper = MockGraphToGraphVizMapper()
-        manifestGraphLoader = MockManifestGraphLoader()
+        manifestGraphLoader = .init()
 
         subject = GraphService(
             graphVizGenerator: graphVizMapper,
@@ -46,6 +48,10 @@ final class GraphServiceTests: TuistUnitTestCase {
         try FileHandler.shared.touch(graphPath)
         try FileHandler.shared.touch(projectManifestPath)
         graphVizMapper.stubMap = Graph()
+
+        given(manifestGraphLoader)
+            .load(path: .any)
+            .willReturn((.test(), [], MapperEnvironment(), []))
 
         // When
         try await subject.run(
@@ -77,6 +83,10 @@ final class GraphServiceTests: TuistUnitTestCase {
 
         try FileHandler.shared.touch(graphPath)
         try FileHandler.shared.touch(projectManifestPath)
+
+        given(manifestGraphLoader)
+            .load(path: .any)
+            .willReturn((.test(), [], MapperEnvironment(), []))
 
         // When
         try await subject.run(

@@ -76,27 +76,34 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
     public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
         if ciChecker.isCI() {
-            if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+                return .project(configToken)
+            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
                 logger
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
                 return .project(deprecatedToken)
             } else {
-                return environment.tuistVariables[Constants.EnvironmentVariables.token].map { .project($0) }
+                return nil
             }
         } else {
             let credentials = try credentialsStore.read(serverURL: serverURL)
             return try credentials.map {
-                if $0.token != nil {
+                if let refreshToken = $0.refreshToken {
+                    return .user(
+                        legacyToken: nil,
+                        accessToken: try $0.accessToken.map(parseJWT),
+                        refreshToken: try parseJWT(refreshToken)
+                    )
+                } else {
                     logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                    return .user(
+                        legacyToken: $0.token,
+                        accessToken: nil,
+                        refreshToken: nil
+                    )
                 }
-
-                return .user(
-                    legacyToken: $0.token,
-                    accessToken: try $0.accessToken.map(parseJWT),
-                    refreshToken: try $0.refreshToken.map(parseJWT)
-                )
             }
         }
     }

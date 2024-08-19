@@ -17,12 +17,13 @@ enum RevokeProjectTokenServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case badRequest(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound, .unauthorized:
+        case .forbidden, .notFound, .unauthorized, .badRequest:
             return .abort
         }
     }
@@ -31,7 +32,7 @@ enum RevokeProjectTokenServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not revoke the project token due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -87,6 +88,11 @@ public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw RevokeProjectTokenServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw RevokeProjectTokenServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw RevokeProjectTokenServiceError.unknownError(statusCode)

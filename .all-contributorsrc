@@ -1474,6 +1474,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "alvar-bolt",
+      "name": "Alvar Hansen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/72379847?v=4",
+      "profile": "https://github.com/alvar-bolt",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "barakwei",
+      "name": "Barak Weiss",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5232161?v=4",
+      "profile": "https://github.com/barakwei",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hiltonc",
+      "name": "Hilton Campbell",
+      "avatar_url": "https://avatars.githubusercontent.com/u/470753?v=4",
+      "profile": "https://github.com/hiltonc",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "rgnns",
+      "name": "Gabriel Liévano",
+      "avatar_url": "https://avatars.githubusercontent.com/u/811827?v=4",
+      "profile": "https://github.com/rgnns",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

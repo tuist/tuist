@@ -1,5 +1,5 @@
 {
-  "originHash" : "532dcca51293c6a6694bd767d597f2dae8a53728c004e375ec6cb87496eb9658",
+  "originHash" : "87bcc64457d6f46746dad13b0f06d8fab58d49517e8eda1547b0604ab357c8fe",
   "pins" : [
     {
       "identity" : "aexml",
@@ -274,19 +274,19 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/filipracki/XcodeGraph.git",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "branch" : "add-metal-diagnostics-options-to-run-action",
-        "revision" : "272c368d15b1802d96ce794051e276123a1f029a"
+        "revision" : "179fbd4fa5da6ddbdd67e541f4eb4afe6438f86d",
+        "version" : "0.10.0"
       }
     },
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/filipracki/XcodeProj.git",
+      "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "branch" : "fix-metal-diagnostics-options-to-launch-action",
-        "revision" : "3b249f1b191730bd130787fa1557ab9b01d99788"
+        "revision" : "75e787fb3eb5a8397c3d06d5a71e667ac2d20ac1",
+        "version" : "8.19.0"
       }
     },
     {

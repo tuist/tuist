@@ -109,6 +109,10 @@ public class CachedManifestLoader: ManifestLoading {
         try manifestLoader.validateHasRootManifest(at: path)
     }
 
+    public func hasRootManifest(at path: AbsolutePath) -> Bool {
+        manifestLoader.hasRootManifest(at: path)
+    }
+
     public func register(plugins: Plugins) throws {
         try pluginsHashCache.mutate { $0 = try calculatePluginsHash(for: plugins) }
         try manifestLoader.register(plugins: plugins)

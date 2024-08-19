@@ -3,20 +3,19 @@ import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
 
 final class GraphLinterTests: TuistUnitTestCase {
-    var subject: GraphLinter!
-    var graphTraverser: MockGraphTraverser!
+    private var subject: GraphLinter!
+    private var graphTraverser: MockGraphTraversing!
 
     override func setUp() {
         super.setUp()
-        graphTraverser = MockGraphTraverser()
+        graphTraverser = .init()
         subject = GraphLinter(
             projectLinter: MockProjectLinter(),
             staticProductsLinter: MockStaticProductsGraphLinter()
