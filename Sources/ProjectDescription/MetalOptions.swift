@@ -14,6 +14,13 @@ public struct MetalOptions: Equatable, Codable, Sendable {
     /// Log graphics overview
     public var logGraphicsOverview: Bool
 
+    /// Creates a `MetalOptions` instance
+    ///
+    /// - Parameters:
+    ///     - apiValidation: Specifies whether API validation is enabled.
+    ///     - shaderValidation: Specifies whether shader validation is enabled.
+    ///     - showGraphicsOverview: Specifies whether to show the graphics overview.
+    ///     - logGraphicsOverview: Specifies whether to log the graphics overview.
     public static func options(
         apiValidation: Bool = true,
         shaderValidation: Bool = false,
