@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.24.0 - 2024-08-19
+
+### Tuist
+
+#### Changed
+
+- Favor TUIST_CONFIG_TOKEN over TUIST_CONFIG_CLOUD_TOKEN [#6610](https://github.com/tuist/tuist/pull/6610) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add classPrefix support [#6439](https://github.com/tuist/tuist/pull/6439) by [@darrarski](https://github.com/darrarski)
+- Add Swift library sdk type [#6605](https://github.com/tuist/tuist/pull/6605) by [@fortmarek](https://github.com/fortmarek)
+- Add support for updating Tuist project's default branch [#6589](https://github.com/tuist/tuist/pull/6589) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix missing external resource bundle in app extension [#6604](https://github.com/tuist/tuist/pull/6604) by [@fortmarek](https://github.com/fortmarek)
+- Fix app not found when running tuist share with different target and product names [#6611](https://github.com/tuist/tuist/pull/6611) by [@fortmarek](https://github.com/fortmarek)
+- Skip user token deprecation warning when new user tokens are available [#6614](https://github.com/tuist/tuist/pull/6614) by [@fortmarek](https://github.com/fortmarek)
+- Fix missing linked system libraries in Tuist Cache [#6613](https://github.com/tuist/tuist/pull/6613) by [@fortmarek](https://github.com/fortmarek)
+- Support #import with spaces prefix in umbrella headers. [#6630](https://github.com/tuist/tuist/pull/6630) by [@barakwei](https://github.com/barakwei)
+- Prune schemes when expandVariableFromTarget is pruned [#6627](https://github.com/tuist/tuist/pull/6627) by [@hiltonc](https://github.com/hiltonc)
+- Fix scheme archive action not respecting custom configurations [#6636](https://github.com/tuist/tuist/pull/6636) by [@kwridan](https://github.com/kwridan)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.23.0 - 2024-08-05
 
 ### Tuist
