@@ -1752,6 +1752,41 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.revealArchiveInOrganizer, true)
     }
 
+    func test_schemeArchiveAction_whenNoBuildActionSpecified() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let archiveAction = ArchiveAction.test(
+            configurationName: "Beta Release",
+            revealArchiveInOrganizer: true,
+            customArchiveName: "App [Beta]"
+        )
+        let scheme = Scheme.test(
+            buildAction: nil,
+            archiveAction: archiveAction
+        )
+
+        let project = Project.test(path: projectPath, targets: [target])
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeArchiveAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
+        XCTAssertEqual(result.customArchiveName, "App [Beta]")
+        XCTAssertEqual(result.revealArchiveInOrganizer, true)
+    }
+
     func test_schemeGenerationModes_customOnly() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
