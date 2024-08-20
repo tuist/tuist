@@ -2000,4 +2000,89 @@ final class GraphLinterTests: TuistUnitTestCase {
             )]
         )
     }
+
+    func test_lint_multipleDependencies_when_directAndTransitiveDependenciesWithSameProductName() throws {
+        // Given
+        let path = try temporaryPath()
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let directFramework = Target.test(name: "Direct", destinations: [.iPhone], product: .framework, productName: "Framework")
+        let transitiveFramework = Target.test(
+            name: "Transitive",
+            destinations: [.iPhone],
+            product: .framework,
+            productName: "Framework"
+        )
+        let project = Project.test(
+            path: path,
+            targets: [
+                app,
+                directFramework,
+                transitiveFramework,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): [
+                    .target(name: directFramework.name, path: path),
+                ],
+                .target(name: directFramework.name, path: path): [
+                    .target(name: transitiveFramework.name, path: path),
+                ],
+            ]
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            results,
+            [LintingIssue(
+                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                severity: .error
+            )]
+        )
+    }
+
+    func test_lint_multipleDependencies_when_multipleDirectDependenciesWithSameProductName() throws {
+        // Given
+        let path = try temporaryPath()
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let targetA = Target.test(name: "TargetA", destinations: [.iPhone], product: .framework, productName: "Framework")
+        let targetB = Target.test(name: "TargetB", destinations: [.iPhone], product: .framework, productName: "Framework")
+        let project = Project.test(
+            path: path,
+            targets: [
+                app,
+                targetA,
+                targetB,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): [
+                    .target(name: targetA.name, path: path),
+                    .target(name: targetB.name, path: path),
+                ],
+            ]
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(
+            results,
+            [LintingIssue(
+                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                severity: .error
+            )]
+        )
+    }
 }
