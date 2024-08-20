@@ -1,6 +1,7 @@
 import Foundation
 import Path
-import TSCBasic
+import func TSCBasic.topologicalSort
+import func TSCBasic.transitiveClosure
 import TuistSupport
 import XcodeGraph
 
@@ -398,9 +399,24 @@ public class GraphTraverser: GraphTraversing {
             skip: { $0.xcframeworkDependency == nil }
         )
 
+        let libraryDependenciesLinkedByStaticXCFrameworks = try staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
+            guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
+            return try dependencies.filter {
+                switch $0 {
+                case .sdk:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
+
         let precompiledLibrariesAndFrameworks =
-            (precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies)
-                .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+            (
+                precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies +
+                    libraryDependenciesLinkedByStaticXCFrameworks
+            )
+            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(Set(precompiledLibrariesAndFrameworks))
 
