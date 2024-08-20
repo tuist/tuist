@@ -117,6 +117,7 @@ public class ManifestLoader: ManifestLoading {
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let packageInfoLoader: PackageInfoLoading
 
     // MARK: - Init
 
@@ -128,7 +129,8 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
+            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared),
+            packageInfoLoader: PackageInfoLoader()
         )
     }
 
@@ -139,7 +141,8 @@ public class ManifestLoader: ManifestLoading {
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
         xcodeController: XcodeControlling,
-        swiftPackageManagerController: SwiftPackageManagerControlling
+        swiftPackageManagerController: SwiftPackageManagerControlling,
+        packageInfoLoader: PackageInfoLoading
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -148,6 +151,7 @@ public class ManifestLoader: ManifestLoading {
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.packageInfoLoader = packageInfoLoader
         decoder = JSONDecoder()
     }
 
@@ -184,7 +188,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try swiftPackageManagerController.loadPackageInfo(
+        try packageInfoLoader.loadPackageInfo(
             at: path
         )
     }

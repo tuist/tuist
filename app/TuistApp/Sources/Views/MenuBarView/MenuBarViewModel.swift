@@ -3,7 +3,7 @@ import Sparkle
 
 final class MenuBarViewModel: ObservableObject {
     @Published private(set) var canCheckForUpdates = false
-    
+
     private let updater: SPUUpdater
 
     init(updater: SPUUpdater) {
@@ -12,7 +12,7 @@ final class MenuBarViewModel: ObservableObject {
         updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
     }
-    
+
     func checkForUpdates() {
         updater.checkForUpdates()
     }

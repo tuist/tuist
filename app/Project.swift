@@ -29,20 +29,20 @@ let project = Project(
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
-                    "CFBundleURLTypes": .array(
-                        [
-                            Plist.Value.dictionary(
-                                [
-                                    "CFBundleTypeRole": "Viewer",
-                                    "CFBundleURLName": "io.tuist.Tuist.App",
-                                    "CFBundleURLSchemes": .array(["tuist"]),
-                                ]
-                            ),
-                        ]
-                    ),
-                    "LSUIElement": .boolean(true),
-                    "SUPublicEDKey": .string("ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k="),
-                    "CFBundleShortVersionString": "0.1.0",
+                    "CFBundleURLTypes": [
+                        Plist.Value.dictionary(
+                            [
+                                "CFBundleTypeRole": "Viewer",
+                                "CFBundleURLName": "io.tuist.Tuist.App",
+                                "CFBundleURLSchemes": ["tuist"],
+                            ]
+                        ),
+                    ],
+                    "LSUIElement": true,
+                    "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
+                    "SUFeedURL": "https://github.com/tuist/tuist/tree/app/sparkle/app/appcast.xml",
+                    "CFBundleShortVersionString": "0.2.0",
+                    "CFBundleVersion": "0.2.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
@@ -53,7 +53,7 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
-                    "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep"
+                    "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                 ],
                 release: [
                     "ENABLE_HARDENED_RUNTIME": true,

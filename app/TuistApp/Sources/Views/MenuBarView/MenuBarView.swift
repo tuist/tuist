@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 import Sparkle
+import SwiftUI
 
 struct MenuBarView: View {
     @State var isExpanded = false
@@ -33,7 +33,7 @@ struct MenuBarView: View {
 
             Divider()
                 .padding([.leading, .trailing], 8)
-            
+
             Button("Check for updates", action: viewModel.checkForUpdates)
                 .disabled(!viewModel.canCheckForUpdates)
                 .menuItemStyle()

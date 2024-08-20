@@ -1,5 +1,5 @@
-import SwiftUI
 import Sparkle
+import SwiftUI
 
 final class CheckForUpdatesViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
@@ -10,13 +10,12 @@ final class CheckForUpdatesViewModel: ObservableObject {
     }
 }
 
-
 @main
 struct TuistShareApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    
+
     private let updaterController: SPUStandardUpdaterController
-    
+
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
