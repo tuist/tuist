@@ -42,6 +42,7 @@ let project = Project(
                     ),
                     "LSUIElement": .boolean(true),
                     "SUPublicEDKey": .string("ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k="),
+                    "CFBundleShortVersionString": "0.1.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
