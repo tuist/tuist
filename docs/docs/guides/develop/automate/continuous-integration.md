@@ -1,12 +1,12 @@
 ---
-title: Integrate
+title: Continuous Integration (CI)
 titleTemplate: ":title | Develop | Tuist"
 description: Learn how to use Tuist in your CI workflows.
 ---
 
-# Integrate
+# Continuous Integration (CI)
 
-Integration is the automated process of ensuring that changes are valid. It is often performed continuously (CI) and is a key part of the development process. Configuration is typically handled through a file in the repository, which the integration platform uses to determine how to integrate the changes.
+You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) environments. The following sections provide examples of how to do this on different CI platforms.
 
 ## Examples
 
