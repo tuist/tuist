@@ -1,6 +1,7 @@
 import Foundation
 import MockableTest
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
@@ -61,6 +62,9 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             XCTFail("Error while creating files for stub project")
         }
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.4.0")
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 3, 0))
         subject = CacheGraphContentHasher(contentHasher: CachedContentHasher())
     }
 
@@ -186,8 +190,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "733b86d9009e7e3d23cd9eb030fb635f")
-        XCTAssertEqual(contentHash[framework2], "644e0bd4ff2868a9c9f74c349df77163")
+        XCTAssertEqual(contentHash[framework1], "ed446c23f3327663c85968146cf9bc8b")
+        XCTAssertEqual(contentHash[framework2], "856dc2d5a7df61c597f53147ab8fa5f8")
     }
 
     // MARK: - Resources

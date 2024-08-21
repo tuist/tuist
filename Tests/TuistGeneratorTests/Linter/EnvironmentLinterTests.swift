@@ -36,7 +36,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             Config.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
         ]
 
-        xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
+        given(xcodeController)
+            .selected()
+            .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
         // When
         let got = try configs.flatMap { try subject.lintXcodeVersion(config: $0) }
@@ -58,7 +60,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             Config.test(compatibleXcodeVersions: .list(["3.2.1"])),
         ]
 
-        xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
+        given(xcodeController)
+            .selected()
+            .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
         for config in configs {
             // When
@@ -74,7 +78,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
     func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() throws {
         // Given
         let config = Config.test(compatibleXcodeVersions: .all)
-        xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
+        given(xcodeController)
+            .selected()
+            .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
         // When
         let got = try subject.lintXcodeVersion(config: config)
@@ -87,6 +93,10 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
 
+        given(xcodeController)
+            .selected()
+            .willReturn(nil)
+
         // When
         let got = try subject.lintXcodeVersion(config: config)
 
@@ -98,7 +108,9 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
         let error = NSError.test()
-        xcodeController.selectedStub = .failure(error)
+        given(xcodeController)
+            .selected()
+            .willThrow(error)
 
         // Then
         XCTAssertThrowsError(try subject.lintXcodeVersion(config: config)) {
