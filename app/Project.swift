@@ -7,8 +7,8 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "TuistCore"),
         .external(name: "TuistServer"),
         .external(name: "TuistAutomation"),
-        .external(name: "Mockable"),
         .external(name: "XcodeGraph"),
+        .external(name: "Command"),
     ]
 }
 
@@ -24,7 +24,7 @@ let project = Project(
             name: "Tuist",
             destinations: .macOS,
             product: .app,
-            bundleId: "io.tuist.Tuist.App",
+            bundleId: "io.tuist.app",
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
@@ -33,7 +33,7 @@ let project = Project(
                             Plist.Value.dictionary(
                                 [
                                     "CFBundleTypeRole": "Viewer",
-                                    "CFBundleURLName": "io.tuist.Tuist.App",
+                                    "CFBundleURLName": "io.tuist.app",
                                     "CFBundleURLSchemes": .array(["tuist"]),
                                 ]
                             ),

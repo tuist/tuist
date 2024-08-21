@@ -1,5 +1,5 @@
 {
-  "originHash" : "2797c4085bae7f5efc0d929c3e117266b31162fdaf7d47027c60bd935d15f1b8",
+  "originHash" : "e1acc6da7ed6b9f7c56b6f9eaaa9b5824dd9ed3b8f8d008c6431e6ae5be20f1b",
   "pins" : [
     {
       "identity" : "aexml",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
         "version" : "0.2.1"
+      }
+    },
+    {
+      "identity" : "command",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/command",
+      "state" : {
+        "revision" : "27270402bfb9cd65f6a8b83bdf59941a8c9ae368",
+        "version" : "0.8.0"
       }
     },
     {
@@ -87,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "81ccaead99a3c038c09345caa2888ae74b644ee9",
-        "version" : "0.0.9"
+        "revision" : "da977ecb20974c4b1cf185f5fd38771b2d4674fb",
+        "version" : "0.0.10"
       }
     },
     {
@@ -105,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Path",
       "state" : {
-        "revision" : "4490da629937fc3994f72dd787dcc3f50d6973fe",
-        "version" : "0.3.0"
+        "revision" : "25b8619f75e3d2141940a64a7b870d893164c352",
+        "version" : "0.3.3"
       }
     },
     {
@@ -229,7 +238,7 @@
     {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-syntax.git",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "revision" : "303e5c5c36d6a558407d364878df131c3546fad8",
         "version" : "510.0.2"

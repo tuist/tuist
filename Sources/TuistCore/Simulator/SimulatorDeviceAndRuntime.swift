@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SimulatorDeviceAndRuntime: Codable, Identifiable, Hashable, Equatable {
+public struct SimulatorDeviceAndRuntime: Codable, Identifiable, Hashable, Equatable, Sendable {
     public var id: String {
         device.udid
     }

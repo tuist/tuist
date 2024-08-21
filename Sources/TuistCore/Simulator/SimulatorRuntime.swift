@@ -28,6 +28,7 @@ public struct SimulatorRuntime: Equatable, Codable, Hashable, CustomStringConver
     public let name: String
 
     public var platform: Platform? {
+        // We pluck out the platform name from the name of the runtime (e.g. iOS 13.5)
         guard let platformName = name.components(separatedBy: " ").first
         else { return nil }
 

@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import TuistCore
 import TuistSupport
@@ -5,18 +6,18 @@ import TuistSupport
 @Observable
 final class SimulatorRowViewModel {
     private let simulatorController: SimulatorControlling
-    private let system: Systeming
+    private let commandRunner: CommandRunning
 
     init(
         simulatorController: SimulatorControlling = SimulatorController(),
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.simulatorController = simulatorController
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
-    func launchSimulator(_ simulator: SimulatorDeviceAndRuntime) throws {
+    func launchSimulator(_ simulator: SimulatorDeviceAndRuntime) async throws {
         _ = try simulatorController.booted(device: simulator.device, forced: true)
-        try system.run(["open", "-a", "Simulator"])
+        _ = try await commandRunner.run(arguments: ["open", "-a", "Simulator"]).concatenatedString()
     }
 }

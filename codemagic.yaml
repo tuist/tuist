@@ -269,8 +269,8 @@ workflows:
         script: mise x -- tuist test TuistKitAcceptanceTests
     triggering:
       << : *branch_triggering
-  tuist_app_tests:
-    name: TuistApp tests
+  app_tests:
+    name: App tests
     max_build_duration: 60
     environment:
       xcode: 15.3
@@ -300,8 +300,8 @@ workflows:
         script: mise x -- tuist test -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
     triggering:
       << : *branch_triggering
-  tuist_app_cache:
-    name: Tuist App Cache
+  warm_app_cache:
+    name: Warm app cache
     max_build_duration: 60
     environment:
       xcode: 15.3

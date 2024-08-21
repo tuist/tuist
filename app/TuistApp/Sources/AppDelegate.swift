@@ -1,11 +1,12 @@
 import AppKit
+import Combine
 import Foundation
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    var onChangeOfURL: ((URL?) -> Void)?
+    let onChangeOfURLs = PassthroughSubject<[URL], Never>()
 
     func application(_: NSApplication, open urls: [URL]) {
-        onChangeOfURL?(urls.first)
+        onChangeOfURLs.send(urls)
     }
 }

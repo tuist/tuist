@@ -56,7 +56,7 @@ struct SimulatorRow: View, ErrorViewHandling {
                     "Launch"
                 ) {
                     tryWithErrorHandler {
-                        try viewModel.launchSimulator(simulator)
+                        try await viewModel.launchSimulator(simulator)
                     }
                 }
                 Divider()

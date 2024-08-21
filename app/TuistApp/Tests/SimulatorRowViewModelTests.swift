@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import MockableTest
 import TuistCore
@@ -9,6 +10,7 @@ import TuistSupportTesting
 final class SimulatorRowViewModelTests: TuistUnitTestCase {
     private var subject: SimulatorRowViewModel!
     private var simulatorController: MockSimulatorControlling!
+    private var commandRunner: MockCommandRunning!
 
     private let iPhone15: SimulatorDeviceAndRuntime = .test(
         device: .test(
@@ -21,33 +23,41 @@ final class SimulatorRowViewModelTests: TuistUnitTestCase {
         super.setUp()
 
         simulatorController = .init()
+        commandRunner = .init()
         subject = SimulatorRowViewModel(
             simulatorController: simulatorController,
-            system: system
+            commandRunner: commandRunner
         )
     }
 
     override func tearDown() {
         simulatorController = nil
+        commandRunner = nil
         subject = nil
 
         super.tearDown()
     }
 
-    func test_launchSimulator() throws {
+    func test_launchSimulator() async throws {
         // Given
         given(simulatorController)
             .booted(device: .any, forced: .any)
             .willReturn(.test())
-        system.succeedCommand(
-            [
-                "open",
-                "-a",
-                "Simulator",
-            ]
-        )
+        given(commandRunner)
+            .run(
+                arguments: .value(["open", "-a", "Simulator"]),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(
+                .init(
+                    unfolding: {
+                        nil
+                    }
+                )
+            )
 
         // When / Then
-        try subject.launchSimulator(iPhone15)
+        try await subject.launchSimulator(iPhone15)
     }
 }

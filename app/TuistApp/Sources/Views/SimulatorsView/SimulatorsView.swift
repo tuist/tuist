@@ -1,3 +1,4 @@
+import Combine
 import Path
 import SwiftUI
 import TuistCore
@@ -8,28 +9,31 @@ struct SimulatorsView: View, ErrorViewHandling {
     @State var viewModel = SimulatorsViewModel()
     @EnvironmentObject var errorHandling: ErrorHandling
     @State var isExpanded = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(appDelegate: AppDelegate) {
         // We can't rely on the SimulatorsView to be rendered before a deeplink is triggered.
         // Instead, we listen to the deeplink URL through an `AppDelegate` callback
         // that's eagerly set up in this `init` on startup.
         let viewModel = viewModel
+        let errorHandling = ErrorHandling()
         Task {
             do {
                 try await viewModel.onAppear()
             } catch {
-                ErrorHandling().handle(error: error)
+                errorHandling.handle(error: error)
             }
         }
-        appDelegate.onChangeOfURL = { url in
+        appDelegate.onChangeOfURLs.sink { urls in
             Task {
                 do {
-                    try await viewModel.onChangeOfURL(url)
+                    try await viewModel.onChangeOfURL(urls.first)
                 } catch {
-                    ErrorHandling().handle(error: error)
+                    errorHandling.handle(error: error)
                 }
             }
         }
+        .store(in: &cancellables)
     }
 
     var body: some View {

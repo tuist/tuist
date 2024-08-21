@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import TuistSupport
 
-final class ErrorHandling: ObservableObject {
+final class ErrorHandling: ObservableObject, Sendable {
     func handle(error: Error) {
         DispatchQueue.main.async {
             let alert = NSAlert()

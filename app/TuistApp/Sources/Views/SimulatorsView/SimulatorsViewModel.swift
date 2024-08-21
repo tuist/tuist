@@ -40,17 +40,17 @@ enum SimulatorsViewModelError: FatalError, Equatable {
 }
 
 struct PinnedSimulatorsKey: AppStorageKey {
-    static var key = "pinnedSimulators"
-    static var defaultValue: [SimulatorDeviceAndRuntime] = []
+    static let key = "pinnedSimulators"
+    static let defaultValue: [SimulatorDeviceAndRuntime] = []
 }
 
 struct SelectedSimulatorKey: AppStorageKey {
-    static var key = "selectedSimulator"
-    static var defaultValue: SimulatorDeviceAndRuntime? = nil
+    static let key = "selectedSimulator"
+    static let defaultValue: SimulatorDeviceAndRuntime? = nil
 }
 
 @Observable
-final class SimulatorsViewModel {
+final class SimulatorsViewModel: Sendable {
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
     private(set) var unpinnedSimulators: [SimulatorDeviceAndRuntime] = []
     private(set) var selectedSimulator: SimulatorDeviceAndRuntime?
