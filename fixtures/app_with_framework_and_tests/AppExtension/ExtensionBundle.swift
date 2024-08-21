@@ -1,12 +1,5 @@
-//
-//  ExtensionBundle.swift
-//  Extension
-//
-//  Created by msimons on 8/21/24.
-//
-
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
 @main
 struct ExtensionBundle: WidgetBundle {
