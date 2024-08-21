@@ -11,5 +11,14 @@
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/tuist/tuist/releases/download/untagged-ab852650de42a570508c/app.dmg" length="19882138" type="application/octet-stream" sparkle:edSignature="INZB/AJ/ke4ve21B7dxJ7OMS5cr0XNvF8lAX2AS/fJ+u804MtiQtpf3QstXAZx+CiFsiAKg2oJ8nlUv27DpzDQ=="/>
         </item>
+        <item>
+            <title>app@app@0.1.2</title>
+            <pubDate>Wed, 21 Aug 2024 08:57:16 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>app@app@0.1.2</sparkle:version>
+            <sparkle:shortVersionString>app@app@0.1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@app@app@0.1.2/app.dmg" length="19882177" type="application/octet-stream" sparkle:edSignature="LmDKZxvQxCWL6GtK8TgKIdfgjLMAM/ODbma0aagoHqZEKDHs7oIThpna4BRh1VoqyLKPLE/VeKKTxn5PIHgzBw=="/>
+        </item>
     </channel>
 </rss>

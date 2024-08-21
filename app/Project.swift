@@ -41,8 +41,8 @@ let project = Project(
                     "LSUIElement": true,
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL": "https://github.com/tuist/tuist/blob/app/sparkle/app/appcast.xml",
-                    "CFBundleShortVersionString": "app@0.1.1",
-                    "CFBundleVersion": "app@0.1.1",
+                    "CFBundleShortVersionString": "app@app@0.1.2",
+                    "CFBundleVersion": "app@app@0.1.2",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
