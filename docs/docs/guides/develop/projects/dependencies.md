@@ -182,7 +182,7 @@ let package = Package(
         .library(name: "Framework", targets: ["Framework"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", .upToNextMajor(from: "0.56.1")),
     ],
     targets: [
         .target(
@@ -203,13 +203,13 @@ import ProjectDescription
 let project = Project(
     name: "Framework",
     packages: [
-        .package(url: "https://github.com/lukepistrol/SwiftLintPlugin", from: "0.55.0"),
+        .remote(url: "https://github.com/SimplyDanny/SwiftLintPlugins", requirement: .upToNextMajor(from: "0.56.1")),
     ],
     targets: [
         .target(
             name: "Framework",
             dependencies: [
-                .package(product: "SwiftLint", type: .plugin),
+                .package(product: "SwiftLintBuildToolPlugin", type: .plugin),
             ]
         ),
     ]
@@ -246,7 +246,7 @@ pod install
 
 ## Static or dynamic
 
-Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration. 
+Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration.
 
 The **general rule of thumb** is that you want as many things as possible to be statically linked in release builds to achieve fast boot times, and as many things as possible to be dynamically linked in debug builds to achieve fast iteration times.
 

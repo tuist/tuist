@@ -1,6 +1,7 @@
 import Foundation
 import MockableTest
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
@@ -19,6 +20,10 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.2")
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
 
         subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .serial))
     }
