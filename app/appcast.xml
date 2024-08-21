@@ -9,7 +9,7 @@
             <sparkle:version>0.1.0</sparkle:version>
             <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/fortmarek/tuist/releases/download/0.1.0/app.dmg" length="19882163" type="application/octet-stream" sparkle:edSignature="F8xHWT3CAkKW9aXwS211MZ1c/QZKG86ekdorCcaAfBpsHC0utIbN+cBsVkup2McDMPRQmtUUqrhxVEwOvqjnBg=="/>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg" length="19931532" type="application/octet-stream" sparkle:edSignature="DXGLz6u7vmVvcLo2Q+yuGlGUosnbkWyqeYlySexnNUGoJrJrdtpu7yTJj811w3gr2SGtTOjYsLju1ZaSNrqABQ=="/>
         </item>
     </channel>
 </rss>
