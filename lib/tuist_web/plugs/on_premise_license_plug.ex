@@ -24,6 +24,9 @@ defmodule TuistWeb.OnPremiseLicensePlug do
             conn,
             "The license will expire in #{Environment.license_expiration_days_span()} days. Please, contact contact@tuist.io to renovate it."
           )
+
+        true ->
+          conn
       end
     else
       conn

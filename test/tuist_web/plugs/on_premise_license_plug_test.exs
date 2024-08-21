@@ -64,4 +64,25 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
                "The license will expire in 29 days. Please, contact contact@tuist.io to renovate it."
              ]
   end
+
+  test "returns the same connection if it's on-premise and the license will expire in more than 30 days",
+       %{conn: conn} do
+    # Given
+    Tuist.Environment
+    |> stub(:on_premise?, fn -> true end)
+
+    Tuist.Environment
+    |> stub(:license_expired?, fn -> false end)
+
+    Tuist.Environment
+    |> stub(:license_expiration_days_span, fn -> 120 end)
+
+    opts = OnPremiseLicensePlug.init(:api)
+
+    # When
+    got = conn |> OnPremiseLicensePlug.call(opts)
+
+    # Then
+    assert got == conn
+  end
 end
