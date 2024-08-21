@@ -1,4 +1,4 @@
-## What's Changed in 0.1.0
+## What's Changed in app@0.1.0
 * Add cliff releases
 * Add CFBundleShortVersionString to Info.plist
 * Implement distribution for the Tuist App
