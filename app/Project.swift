@@ -56,6 +56,7 @@ let project = Project(
                     "CODE_SIGN_IDENTITY": "Apple Development",
                 ],
                 release: [
+                    // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
                 ]

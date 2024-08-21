@@ -772,14 +772,13 @@ public struct DependenciesGraph: Equatable, Codable {
     extension DependenciesGraph {
         fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
             let platforms = destinations.platforms
-            let applicableVersions = PLATFORM_TEST_VERSION.filter { platforms.contains($0.key) }
 
             return .multiplatform(
-                iOS: applicableVersions[Platform.iOS],
-                macOS: applicableVersions[Platform.macOS],
-                watchOS: applicableVersions[Platform.watchOS],
-                tvOS: applicableVersions[Platform.tvOS],
-                visionOS: applicableVersions[Platform.visionOS]
+                iOS: platforms.contains(.iOS) ? ProjectDescription.Platform.iOS.testVersion() : nil,
+                macOS: platforms.contains(.macOS) ? ProjectDescription.Platform.macOS.testVersion() : nil,
+                watchOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.watchOS.testVersion() : nil,
+                tvOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.tvOS.testVersion() : nil,
+                visionOS: platforms.contains(.visionOS) ? ProjectDescription.Platform.visionOS.testVersion() : nil
             )
         }
     }

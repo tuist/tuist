@@ -2,13 +2,16 @@
     import Foundation
     import ProjectDescription
 
-    /// Global configuration of which platform versions used during mock generation
-    public var PLATFORM_TEST_VERSION: [Platform: String] = [ // swiftlint:disable:this identifier_name
-        .iOS: "11.0",
-        .macOS: "10.15",
-        .watchOS: "8.5",
-        .tvOS: "11.0",
-        .visionOS: "1.0",
-    ]
+    extension Platform {
+        func testVersion() -> String {
+            switch self {
+            case .iOS: return "11.0"
+            case .macOS: return "10.15"
+            case .watchOS: return "8.5"
+            case .tvOS: return "11.0"
+            case .visionOS: return "1.0"
+            }
+        }
+    }
 
 #endif
