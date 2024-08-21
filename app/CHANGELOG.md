@@ -1,4 +1,10 @@
+## What's Changed in app@0.1.1
+* Update prefix
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.1.0...app@0.1.1
+
 ## What's Changed in app@0.1.0
+* [Release] Tuist App 0.1.0
 * Add cliff releases
 * Add CFBundleShortVersionString to Info.plist
 * Implement distribution for the Tuist App
