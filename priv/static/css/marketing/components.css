@@ -91,7 +91,7 @@
 
     &:hover {
       border-color: var(--gray-violet);
-      background-color: rgba(var(--gray-violet), 0.05);
+      background-color: oklch(from var(--gray-violet) l c h / 0.05);
     }
   }
   &[data-variant="light"] {
@@ -101,7 +101,7 @@
     border-style: solid;
     &:hover {
       border-color: var(--dark-violet);
-      background-color: var(--light-gray-violet);
+      background-color: oklch(from var(--gray-violet) l c h / 0.2);
     }
   }
 }

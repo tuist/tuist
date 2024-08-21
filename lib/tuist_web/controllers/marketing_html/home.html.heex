@@ -1,3 +1,44 @@
+<!-- Time saved section -->
+<div class="marketing__home__section__time_saved">
+  <.marketing_shell class="marketing__home__section__time_saved__logo" />
+  <h2 class="font-xxl marketing__home__section__time_saved__title">
+    <span class="font-xxl-strong"><%= gettext("Millions") %></span><%= gettext(
+      " of minutes saved"
+    ) %>
+  </h2>
+  <.marketing_shell class="marketing__home__section__time_saved__logo" />
+</div>
+<!-- Highlights section -->
+<% highlights = [
+  %{
+    title: "4x",
+    subtitle: gettext("Faster builds"),
+    cta_href: "/",
+    cta_text: gettext("Read story"),
+    cta_variant: "dark"
+  },
+  %{
+    title: gettext("Happier devs"),
+    subtitle: gettext("We aim to empower developers to create great products."),
+    cta_href: "/",
+    cta_text: gettext("Know more"),
+    cta_variant: "light"
+  },
+  %{title: "7+", subtitle: gettext("Years building an OSS foundation")},
+  %{title: "10K", subtitle: gettext("Teams using Tuist")},
+  %{title: "300+", subtitle: gettext("Contributors")}
+] %>
+
+<div class="marketing__home__section__highlights">
+  <.home_highlight_card
+    :for={highlight <- highlights}
+    title={highlight.title}
+    subtitle={highlight.subtitle}
+    cta_href={Map.get(highlight, :cta_href)}
+    cta_text={Map.get(highlight, :cta_text)}
+    cta_variant={Map.get(highlight, :cta_variant)}
+  />
+</div>
 <!-- Learn section -->
 <div class="marketing__home__section__learn_more">
   <div class="marketing__home__section__learn_more__header">
@@ -56,8 +97,8 @@
 </div>
 <!-- CTA section -->
 <div class="marketing__home__section__cta">
-  <h2 class="font-xxxl-strong marketing__home__section__cta__title">
-    <%= gettext("Build apps faster") %>
+  <h2 class="font-xxl-strong marketing__home__section__cta__title">
+    <%= gettext("Supercharge your tools") %>
   </h2>
   <.primary_button
     href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:get_started)}
