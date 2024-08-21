@@ -10,7 +10,7 @@ You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Cont
 
 ## Examples
 
-To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment. The following sections provide examples of how to do this on different CI platforms.
+To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment.
 
 ### Xcode Cloud
 
