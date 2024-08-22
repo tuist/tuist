@@ -20,9 +20,9 @@ extension Project {
             targets: targets
         )
     }
-    
+
     // MARK: - Private
-    
+
     /// Helper function to create a framework target and an associated unit test target
     private static func makeFrameworkTargets(name: String, destinations: ProjectDescription.Destinations) -> [Target] {
         let sources: Target = .target(
@@ -47,9 +47,13 @@ extension Project {
         )
         return [sources, tests]
     }
-    
+
     /// Helper function to create the application target and the unit test target.
-    private static func makeAppTargets(name: String, destinations: ProjectDescription.Destinations, dependencies: [TargetDependency]) -> [Target] {
+    private static func makeAppTargets(
+        name: String,
+        destinations: ProjectDescription.Destinations,
+        dependencies: [TargetDependency]
+    ) -> [Target] {
         let destinations: ProjectDescription.Destinations = destinations
         let infoPlist: [String: Plist.Value] = [
             "CFBundleShortVersionString": "1.0",
@@ -57,11 +61,11 @@ extension Project {
             "UIMainStoryboardFile": "",
             "UILaunchStoryboardName": "LaunchScreen",
         ]
-        
+
         let entitlements: [String: Plist.Value] = [
             "aps-environment": "development",
         ]
-        
+
         let mainTarget: Target = .target(
             name: name,
             destinations: destinations,
@@ -73,7 +77,7 @@ extension Project {
             entitlements: .dictionary(entitlements),
             dependencies: dependencies
         )
-        
+
         let testTarget: Target = .target(
             name: "\(name)Tests",
             destinations: destinations,
