@@ -9,14 +9,38 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   alias Tuist.Billing
   alias Tuist.Accounts
   alias TuistWeb.API.EnsureProjectPresencePlug
-
+  alias Tuist.Environment
   @remote_cache_hits_threshold 200
 
   def init(opts), do: opts
 
-  def call(conn, _) do
-    account = Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
+  def call(conn, params) do
+    if Environment.on_premise?() do
+      call_on_premise(conn, params)
+    else
+      call_tuist_hosted(conn, params)
+    end
+  end
 
+  defp call_on_premise(conn, _) do
+    on_premise_license_expired? = Environment.license_expired?()
+
+    if on_premise_license_expired? do
+      conn
+      |> put_status(:payment_required)
+      |> json(%{
+        message: ~s"""
+        The current license is expired. Please update your license to continue using the service. Contact your administrator for more information.
+        """
+      })
+      |> halt()
+    else
+      conn
+    end
+  end
+
+  def call_tuist_hosted(conn, _) do
+    account = Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
     subscription = Billing.get_current_active_subscription(account)
 
     case {subscription, account.current_month_remote_cache_hits_count} do
