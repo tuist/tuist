@@ -49,9 +49,9 @@ jobs:
   
           # Compare the outputs and set the result
           if [ "${bumped_output}" = "${changelog_content}" ]; then
-            echo "should-release=false" >> $GITHUB_ENV
-          else
             echo "should-release=true" >> $GITHUB_ENV
+          else
+            echo "should-release=false" >> $GITHUB_ENV
           fi
       - name: Get next version
         working-directory: app
