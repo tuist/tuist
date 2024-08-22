@@ -196,7 +196,7 @@ public class GraphTraverser: GraphTraversing {
                 isDependencyResourceBundle(dependency: dependency) && isDependencyExternal(dependency) &&
                     canEmbedBundles(target: target)
             },
-            skip: canDependencyEmbedBinaries
+            skip: canDependencyEmbedBundles
         )
 
         return Set(
@@ -276,7 +276,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        guard let target = target(path: path, name: name), canEmbedBinaries(target: target.target) else { return Set() }
+        guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target) else { return Set() }
 
         var references: Set<GraphDependencyReference> = Set([])
 
@@ -566,7 +566,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
         guard let target = target(path: path, name: name),
-              canEmbedBinaries(target: target.target),
+              canEmbedFrameworks(target: target.target),
               target.target.product == .unitTests,
               unitTestHost(path: path, name: name) == nil
         else {
@@ -1133,8 +1133,15 @@ public class GraphTraverser: GraphTraversing {
     func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
-        return canEmbedBinaries(target: target.target)
+        return canEmbedFrameworks(target: target.target)
     }
+    
+    func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path) = dependency,
+              let target = target(path: path, name: name) else { return false }
+        return canEmbedBundles(target: target.target)
+    }
+
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
         switch dependency {
@@ -1154,7 +1161,7 @@ public class GraphTraverser: GraphTraversing {
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
-    func canEmbedBinaries(target: Target) -> Bool {
+    func canEmbedFrameworks(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
             .watch2App,
