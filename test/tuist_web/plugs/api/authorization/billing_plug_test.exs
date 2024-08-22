@@ -1,4 +1,5 @@
 defmodule TuistWeb.API.Authorization.BillingPlugTest do
+  alias Tuist.Environment
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias TuistWeb.API.Authorization.BillingPlug
@@ -237,6 +238,66 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
              The account '#{project.account.name}' has reached the limit of remote cache hits #{BillingPlug.remote_cache_hits_threshold()} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{project.account.name}/billing")}.
+             """
+           }
+  end
+
+  @tag current_month_remote_cache_hits_count: 201
+  test "returns the same connection if the on premise license is not expired",
+       %{
+         conn: conn,
+         project: project
+       } do
+    # Given
+    Environment
+    |> stub(:on_premise?, fn -> true end)
+
+    Environment
+    |> stub(:license_expired?, fn -> false end)
+
+    project = project |> Repo.reload() |> Repo.preload(:account)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    got = conn |> BillingPlug.call(plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
+  @tag current_month_remote_cache_hits_count: 201
+  test "returns an error if the on premise license is expired",
+       %{
+         conn: conn,
+         project: project
+       } do
+    # Given
+    Environment
+    |> stub(:on_premise?, fn -> true end)
+
+    Environment
+    |> stub(:license_expired?, fn -> true end)
+
+    project = project |> Repo.reload() |> Repo.preload(:account)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    got = conn |> BillingPlug.call(plug_opts)
+
+    # Then
+    assert json_response(got, :payment_required) == %{
+             "message" => ~s"""
+             The current license is expired. Please update your license to continue using the service. Contact your administrator for more information.
              """
            }
   end
