@@ -1135,13 +1135,12 @@ public class GraphTraverser: GraphTraversing {
               let target = target(path: path, name: name) else { return false }
         return canEmbedFrameworks(target: target.target)
     }
-    
+
     func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
         return canEmbedBundles(target: target.target)
     }
-
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
         switch dependency {

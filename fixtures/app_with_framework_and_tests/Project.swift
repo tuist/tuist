@@ -30,7 +30,7 @@ let project = Project(
             name: "AppExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.extension",
+            bundleId: "io.tuist.app.extension",
             infoPlist: "AppExtension/Info.plist",
             sources: "AppExtension/**",
             dependencies: [
