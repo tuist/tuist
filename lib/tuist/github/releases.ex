@@ -5,7 +5,7 @@ defmodule Tuist.GitHub.Releases do
   ensuring that the information is up-to-date while minimizing API calls.
 
   The module offers the following main features:
-  - Fetches the latest CLI release information from the Tuist GitHub repository
+  - Fetches the latest CLI and App release information from the Tuist GitHub repository
   - Caches the release data and refreshes it periodically
   - Provides a function to retrieve the latest CLI release information
 
@@ -14,7 +14,7 @@ defmodule Tuist.GitHub.Releases do
   """
   use GenServer
 
-  @latest_cli_release_url "https://api.github.com/repos/tuist/tuist/releases/latest"
+  @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @refresh_interval :timer.hours(1)
 
   def start_link(opts) do
@@ -22,49 +22,88 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def init(_opts) do
-    {:ok, %{most_recent_cli_release: nil}, {:continue, :fetch_release}}
+    {:ok, %{most_recent_cli_release: nil, most_recent_app_release: nil},
+     {:continue, :fetch_release}}
   end
 
-  def latest_cli_release_url() do
-    @latest_cli_release_url
-  end
-
-  def foo() do
-    __MODULE__
+  def releases_url() do
+    @releases_url
   end
 
   def get_latest_cli_release(pid \\ nil) do
-    GenServer.call(pid || __MODULE__, :get_release)
+    GenServer.call(pid || __MODULE__, :get_cli_release)
+  end
+
+  def get_latest_app_release(pid \\ nil) do
+    GenServer.call(pid || __MODULE__, :get_app_release)
   end
 
   def handle_continue(:fetch_release, state) do
-    new_state = %{state | most_recent_cli_release: fetch_release()}
+    new_state = %{
+      state
+      | most_recent_cli_release: fetch_latest_cli_release(),
+        most_recent_app_release: fetch_latest_app_release()
+    }
+
     schedule_refresh()
     {:noreply, new_state}
   end
 
   def handle_info(:refresh, state) do
-    new_state = %{state | most_recent_cli_release: fetch_release()}
+    new_state = %{
+      state
+      | most_recent_cli_release: fetch_latest_cli_release(),
+        most_recent_app_release: fetch_latest_app_release()
+    }
+
     schedule_refresh()
     {:noreply, new_state}
   end
 
-  def handle_call(:get_release, _from, state) do
+  def handle_call(:get_cli_release, _from, state) do
     {:reply, Map.get(state, :most_recent_cli_release, nil), state}
+  end
+
+  def handle_call(:get_app_release, _from, state) do
+    {:reply, Map.get(state, :most_recent_app_release, nil), state}
   end
 
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_interval)
   end
 
-  defp fetch_release do
-    case Req.get(latest_cli_release_url()) do
-      {:ok, %Req.Response{status: 200, body: release}} ->
-        %{
-          name: release["name"],
-          published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
-          html_url: release["html_url"]
-        }
+  def fetch_latest_app_release do
+    fetch_release(&String.contains?(&1, "app@"))
+  end
+
+  defp fetch_latest_cli_release do
+    fetch_release(&(not String.contains?(&1, "@")))
+  end
+
+  defp fetch_release(filter) do
+    case Req.get(releases_url()) do
+      {:ok, %Req.Response{status: 200, body: releases}} ->
+        release =
+          releases
+          |> Enum.find(&(Map.get(&1, "name") |> filter.()))
+
+        if is_nil(release) do
+          nil
+        else
+          %{
+            name: release["name"],
+            published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
+            html_url: release["html_url"],
+            assets:
+              release["assets"]
+              |> Enum.map(
+                &%{
+                  name: &1["name"],
+                  browser_download_url: &1["browser_download_url"]
+                }
+              )
+          }
+        end
 
       {:ok, %Req.Response{status: status}} when status in 500..599 ->
         nil

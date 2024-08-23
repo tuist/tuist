@@ -1,0 +1,22 @@
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: var(--spacing-5xl);
+  justify-content: center;
+  height: 100vh;
+  gap: var(--spacing-lg);
+}
+
+.preview__title {
+  padding-bottom: var(--spacing-lg);
+}
+
+.preview__logo {
+  object-fit: contain;
+  width: 64px;
+  height: auto;
+  flex-direction: row;
+  display: flex;
+  align-items: center;
+}

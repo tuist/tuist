@@ -242,6 +242,7 @@ defmodule TuistWeb.Router do
     ]
 
     get "/:account_handle/billing/manage", BillingController, :manage
+    get "/:account_handle/:project_handle/previews/:id", PreviewController, :preview
 
     live_session :dashboard,
       layout: {TuistWeb.Layouts, :account},
@@ -279,7 +280,6 @@ defmodule TuistWeb.Router do
       live "/runs/:id", ProjectRunDetailLive
       live "/tests", ProjectTestsLive
       live "/tests/cases/:identifier", ProjectTestCaseDetailLive
-      get "/previews/:id", PreviewsController, :download
       # Used in tuist analytics command
       live "/analytics", ProjectDashboardLive
     end

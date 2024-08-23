@@ -22,6 +22,7 @@ Mimic.copy(Tuist.Guardian)
 Mimic.copy(Tuist.Authentication)
 Mimic.copy(Tuist.Projects)
 Mimic.copy(Tuist.Base64)
+Mimic.copy(Tuist.GitHub.Releases)
 
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
