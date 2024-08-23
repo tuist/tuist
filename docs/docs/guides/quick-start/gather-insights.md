@@ -13,17 +13,39 @@ First of all, you'll need to authenticate by running:
 tuist auth
 ```
 
+## Create an organization (optional)
+
+Unless you work on a personal project, you will need to create a Tuist organization, so that all your teammates get access to the new Tuist project. Run the following to create one:
+```bash
+tuist organization create MyOrganization
+```
+
+You will then need to invite your teammates:
+```bash
+tuist organization invite MyOrganization teammate1@org.com
+tuist organization invite MyOrganization teammate2@org.com
+```
+
+Alternatively, you can use Google single sign-on (SSO):
+```bash
+tuist organization update --provider google --organization-id org.com
+```
+
+That way, anyone in your Google organization automatically gets access to projects created in your Tuist organization.
+
 ## Create a project
 
 You can then create a project by running:
 
 ```bash
-tuist project create my-handle/MyApp
+tuist project create MyOrganization/MyApp
 
-# Tuist project my-handle/MyApp was successfully created 🎉
+# Tuist project MyOrganization/MyApp was successfully created 🎉
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+If you are creating a personal project, replace `MyOrganization` with your personal handle.
+
+Copy `MyOrganization/MyApp`, which represents the full handle of the project.
 
 ## Connect projects
 
