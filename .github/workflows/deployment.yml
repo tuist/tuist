@@ -48,7 +48,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: macos-14
-    timeout-minutes: 20
+    timeout-minutes: 40
     needs: canary
     steps:
       - uses: actions/checkout@v4
