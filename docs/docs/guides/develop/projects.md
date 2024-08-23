@@ -1,5 +1,6 @@
 ---
 title: Projects
+titleTemplate: ":title | Develop | Tuist"
 description: Learn about Tuist's DSL for defining Xcode projects.
 ---
 

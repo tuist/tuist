@@ -1,5 +1,6 @@
 ---
 title: Build
+titleTemplate: ":title | Develop | Tuist"
 description: Learn how to use Tuist to build your projects efficiently.
 ---
 

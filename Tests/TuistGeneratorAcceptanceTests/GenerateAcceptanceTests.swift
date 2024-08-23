@@ -5,6 +5,14 @@ import TuistSupportTesting
 import XcodeProj
 import XCTest
 
+final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
+    func test_app_with_framework_and_tests() async throws {
+        try await setUpFixture(.appWithFrameworkAndTests)
+        try await run(GenerateCommand.self)
+        try XCTAssertFrameworkNotEmbedded("Framework", by: "AppExtension")
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try await setUpFixture(.iosAppWithTests)

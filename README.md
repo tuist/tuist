@@ -581,6 +581,8 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/barakwei"><img src="https://avatars.githubusercontent.com/u/5232161?v=4" width="100px;" alt=""/><br /><sub><b>Barak Weiss</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hiltonc"><img src="https://avatars.githubusercontent.com/u/470753?v=4" width="100px;" alt=""/><br /><sub><b>Hilton Campbell</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/rgnns"><img src="https://avatars.githubusercontent.com/u/811827?v=4" width="100px;" alt=""/><br /><sub><b>Gabriel Liévano</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vijaytholpadi"><img src="https://avatars.githubusercontent.com/u/1171868?v=4" width="100px;" alt=""/><br /><sub><b>Vijay Tholpadi</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://withiosdeveloper.blogspot.com/"><img src="https://avatars.githubusercontent.com/u/27220138?v=4" width="100px;" alt=""/><br /><sub><b>Minhoi Goo</b></sub></a></td>
     </tr>
   </tbody>
 </table>
