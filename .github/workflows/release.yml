@@ -23,8 +23,9 @@ jobs:
     timeout-minutes: 50
     if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist App') }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.TUIST_APP_RELEASE_TOKEN }}
           fetch-depth: 0
       - uses: jdx/mise-action@v2
         with:
@@ -115,8 +116,6 @@ jobs:
         id: auto-commit-action
         uses: stefanzweifel/git-auto-commit-action@v5
         if: env.should-release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_APP_RELEASE_TOKEN }}
         with:
           tagging_message: ${{ steps.next-version.outputs.NEXT_VERSION }}
           commit_message: "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
