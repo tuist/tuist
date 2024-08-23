@@ -75,5 +75,18 @@ final class InstallService {
 
             try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, printOutput: true)
         }
+
+        try savePackageResolved(at: packageManifestPath.parentDirectory)
+    }
+
+    private func savePackageResolved(at path: AbsolutePath) throws {
+        let sourcePath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        let destinationPath = path.appending(components: [
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        try fileHandler.createFolder(destinationPath.parentDirectory)
+        try fileHandler.replace(destinationPath, with: sourcePath)
     }
 }
