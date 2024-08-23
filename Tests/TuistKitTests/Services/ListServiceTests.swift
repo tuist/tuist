@@ -1,26 +1,27 @@
+import MockableTest
 import Path
 import TuistCore
+import TuistLoader
+import TuistLoaderTesting
 import TuistPluginTesting
+import TuistScaffold
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistCore
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistScaffoldTesting
-@testable import TuistSupportTesting
 
 final class ListServiceTests: TuistUnitTestCase {
-    var subject: ListService!
-    var pluginService: MockPluginService!
-    var templateLoader: MockTemplateLoader!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    private var subject: ListService!
+    private var pluginService: MockPluginService!
+    private var templateLoader: MockTemplateLoading!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
 
     override func setUp() {
         super.setUp()
         pluginService = MockPluginService()
-        templateLoader = MockTemplateLoader()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        templateLoader = MockTemplateLoading()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         subject = ListService(
             pluginService: pluginService,
             templatesDirectoryLocator: templatesDirectoryLocator,
@@ -46,13 +47,15 @@ final class ListServiceTests: TuistUnitTestCase {
         customTemplate  description
         """
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn(try expectedTemplates.map(temporaryPath().appending))
 
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template(description: "description", items: [])
+            )
 
         // When
         try await subject.run(path: nil, outputFormat: .table)
@@ -77,13 +80,15 @@ final class ListServiceTests: TuistUnitTestCase {
         ]
         """
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn(try expectedTemplates.map(temporaryPath().appending))
 
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template(description: "description", items: [])
+            )
 
         // When
         try await subject.run(path: nil, outputFormat: .json)
@@ -108,13 +113,15 @@ final class ListServiceTests: TuistUnitTestCase {
             Plugins.test(templatePaths: [pluginTemplatePath])
         }
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn(try expectedTemplates.map(temporaryPath().appending))
 
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template(description: "description", items: [])
+            )
 
         // When
         try await subject.run(path: nil, outputFormat: .table)

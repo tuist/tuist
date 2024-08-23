@@ -1,3 +1,4 @@
+import AnyCodable
 import Foundation
 import Path
 import TuistAutomation
@@ -142,7 +143,8 @@ struct ShareService {
                   let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
             let url = try await previewsUploadService.uploadPreviews(
-                appPaths,
+                name: appName,
+                previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
@@ -259,11 +261,18 @@ struct ShareService {
                 .uniqued()
 
             let url = try await previewsUploadService.uploadPreviews(
-                appPaths,
+                name: app,
+                previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
             logger.notice("\(app) uploaded – share it with others using the following link: \(url.absoluteString)")
+
+            ShareCommand.analyticsDelegate?.addParameters(
+                [
+                    "preview_url": "\(url.absoluteString)",
+                ]
+            )
         }
     }
 }

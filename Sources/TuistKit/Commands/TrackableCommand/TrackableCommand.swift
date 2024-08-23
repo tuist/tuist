@@ -81,7 +81,7 @@ public class TrackableCommand: TrackableParametersDelegate {
             durationInMs: durationInMs,
             status: status
         )
-        let commandEvent = commandEventFactory.make(from: info)
+        let commandEvent = try commandEventFactory.make(from: info)
         try asyncQueue.dispatch(event: commandEvent)
         asyncQueue.waitIfCI()
     }

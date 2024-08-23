@@ -108,7 +108,10 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             macOSVersion: "12.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .success
+            status: .success,
+            commitSHA: "26f4fda1548502c474642ce63db7630307242312",
+            gitRef: nil,
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist"
         )
     }
 

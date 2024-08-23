@@ -5,6 +5,7 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadStartPreviewsServicing {
     func startPreviewsMultipartUpload(
+        name: String,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload
@@ -51,6 +52,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
     }
 
     public func startPreviewsMultipartUpload(
+        name: String,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload {
@@ -61,6 +63,9 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle
+                ),
+                body: .json(
+                    .init(name: name)
                 )
             )
         )

@@ -1,22 +1,23 @@
+import MockableTest
 import Path
+import ProjectDescription
 import TuistCore
+import TuistLoaderTesting
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
-@testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
 
 final class TemplateGitLoaderTests: TuistUnitTestCase {
-    var subject: TemplateGitLoader!
-    var templateLoader: MockTemplateLoader!
-    var gitHandler: MockGitHandler!
+    private var subject: TemplateGitLoader!
+    private var templateLoader: MockTemplateLoading!
+    private var gitHandler: MockGitHandling!
 
     override func setUp() {
         super.setUp()
-        templateLoader = MockTemplateLoader()
-        gitHandler = MockGitHandler()
+        templateLoader = MockTemplateLoading()
+        gitHandler = MockGitHandling()
         subject = TemplateGitLoader(
             templateLoader: templateLoader,
             fileHandler: FileHandler.shared,
@@ -34,24 +35,32 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
 
     func test_loadTemplatePath_isSameWithClonedRepository() async throws {
         // Given
-        var clonedRepositoryPath: AbsolutePath?
-        gitHandler.cloneToStub = { _, path in
-            clonedRepositoryPath = path
-        }
+        given(gitHandler)
+            .clone(url: .any, to: .any)
+            .willReturn()
 
         var pathToLoadTemplateFrom: AbsolutePath?
-        templateLoader.loadTemplateStub = { path in
-            pathToLoadTemplateFrom = path
-            return TuistCore.Template(
-                description: ""
-            )
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willProduce { path, _ in
+                pathToLoadTemplateFrom = path
+                return TuistCore.Template(
+                    description: ""
+                )
+            }
 
         // When
         try await subject.loadTemplate(from: "https://url/to/repo.git", closure: { _ in })
 
         // Then
-        XCTAssertNotNil(pathToLoadTemplateFrom)
-        XCTAssertEqual(pathToLoadTemplateFrom, clonedRepositoryPath)
+        verify(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .called(1)
+        verify(gitHandler)
+            .clone(
+                url: .any,
+                to: .value(pathToLoadTemplateFrom)
+            )
+            .called(1)
     }
 }

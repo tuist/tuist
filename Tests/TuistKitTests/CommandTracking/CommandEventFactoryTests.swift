@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MockableTest
 import TuistAnalytics
 import TuistCore
 import TuistSupport
@@ -10,17 +11,28 @@ import XCTest
 
 final class CommandEventFactoryTests: TuistUnitTestCase {
     private var subject: CommandEventFactory!
-    private var mockMachineEnv: MachineEnvironmentRetrieving!
+    private var machineEnvironment: MachineEnvironmentRetrieving!
+    private var gitHandler: MockGitHandling!
+    private var gitRefReader: MockGitRefReading!
 
     override func setUp() {
         super.setUp()
-        mockMachineEnv = MockMachineEnvironment()
-        subject = CommandEventFactory(machineEnvironment: mockMachineEnv)
+        machineEnvironment = MockMachineEnvironment()
+        gitHandler = MockGitHandling()
+        gitRefReader = MockGitRefReading()
+        subject = CommandEventFactory(
+            environment: environment,
+            machineEnvironment: machineEnvironment,
+            gitHandler: gitHandler,
+            gitRefReader: gitRefReader
+        )
     }
 
     override func tearDown() {
         subject = nil
-        mockMachineEnv = nil
+        machineEnvironment = nil
+        gitHandler = nil
+        gitRefReader = nil
         super.tearDown()
     }
 
@@ -50,11 +62,25 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             macOSVersion: "10.15.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .failure("Failed!")
+            status: .failure("Failed!"),
+            commitSHA: "commit-sha",
+            gitRef: "github-ref",
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist"
         )
+        given(gitHandler)
+            .currentCommitSHA()
+            .willReturn("commit-sha")
+
+        given(gitHandler)
+            .urlOrigin()
+            .willReturn("https://github.com/tuist/tuist")
+
+        given(gitRefReader)
+            .read()
+            .willReturn("github-ref")
 
         // When
-        let event = subject.make(from: info)
+        let event = try subject.make(from: info)
 
         // Then
         XCTAssertEqual(event.name, expectedEvent.name)

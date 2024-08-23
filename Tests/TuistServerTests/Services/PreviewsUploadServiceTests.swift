@@ -66,6 +66,7 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
+                name: .value("App"),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
@@ -95,7 +96,8 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         // When
         let got = try await subject.uploadPreviews(
-            [preview],
+            name: "App",
+            previewPaths: [preview],
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )

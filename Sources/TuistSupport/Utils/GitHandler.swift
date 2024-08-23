@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import Path
 import TSCUtility
 
+@Mockable
 public protocol GitHandling {
     /// Clones the given `url` **into** the given `path`.
     /// `path` must point to a directory where a git repo can be cloned.
@@ -36,6 +38,12 @@ public protocol GitHandling {
     /// - Parameters:
     ///   - url: The `url` of the git repository.
     func remoteTaggedVersions(url: String) throws -> [Version]
+
+    /// Return the current commit SHA
+    func currentCommitSHA() throws -> String
+
+    /// Return the git URL origin
+    func urlOrigin() throws -> String
 }
 
 /// An implementation of `GitHandling`.
@@ -71,6 +79,16 @@ public final class GitHandler: GitHandling {
         } else {
             try run(command: "git", "checkout", id)
         }
+    }
+
+    public func currentCommitSHA() throws -> String {
+        try capture(command: "git", "rev-parse", "HEAD")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func urlOrigin() throws -> String {
+        try capture(command: "git", "remote", "get-url", "origin")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func remoteTaggedVersions(url: String) throws -> [Version] {

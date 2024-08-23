@@ -109,4 +109,26 @@ final class GitHandlerTests: TuistUnitTestCase {
         XCTAssertTrue(system.called(expectedCommand))
         XCTAssertEqual(result, expectedResult)
     }
+
+    func test_currentCommitSHA() throws {
+        // Given
+        system.succeedCommand(["git", "rev-parse", "HEAD"], output: "5e17254d4a3c14454ecab6575b4a44d6685d3865\n")
+
+        // When
+        let commitSHA = try subject.currentCommitSHA()
+
+        // Then
+        XCTAssertEqual(commitSHA, "5e17254d4a3c14454ecab6575b4a44d6685d3865")
+    }
+
+    func test_urlOrigin() throws {
+        // Given
+        system.succeedCommand(["git", "remote", "get-url", "origin"], output: "https://github.com/tuist/tuist\n")
+
+        // When
+        let urlOrigin = try subject.urlOrigin()
+
+        // Then
+        XCTAssertEqual(urlOrigin, "https://github.com/tuist/tuist")
+    }
 }

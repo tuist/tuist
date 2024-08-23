@@ -8,15 +8,26 @@ import TuistSupport
 /// from different sources and tells `analyticsTagger` to send the event to a provider
 
 public final class CommandEventFactory {
+    private let environment: Environmenting
     private let machineEnvironment: MachineEnvironmentRetrieving
+    private let gitHandler: GitHandling
+    private let gitRefReader: GitRefReading
 
     public init(
-        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared
+        environment: Environmenting = Environment.shared,
+        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+        gitHandler: GitHandling = GitHandler(),
+        gitRefReader: GitRefReading = GitRefReader()
     ) {
+        self.environment = environment
         self.machineEnvironment = machineEnvironment
+        self.gitHandler = gitHandler
+        self.gitRefReader = gitRefReader
     }
 
-    public func make(from info: TrackableCommandInfo) -> CommandEvent {
+    public func make(from info: TrackableCommandInfo) throws -> CommandEvent {
+        let commitSHA = try? gitHandler.currentCommitSHA()
+        let gitRemoteURLOrigin = try? gitHandler.urlOrigin()
         let commandEvent = CommandEvent(
             runId: info.runId,
             name: info.name,
@@ -30,7 +41,10 @@ public final class CommandEventFactory {
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: machineEnvironment.isCI,
-            status: info.status
+            status: info.status,
+            commitSHA: commitSHA,
+            gitRef: gitRefReader.read(),
+            gitRemoteURLOrigin: gitRemoteURLOrigin
         )
         return commandEvent
     }

@@ -55,7 +55,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     }
 
     public func send(commandEvent: CommandEvent) async throws {
-        let cloudCommandEvent = try await createCommandEventService.createCommandEvent(
+        let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
             projectId: fullHandle,
             serverURL: url
@@ -76,7 +76,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
                 resultBundle,
                 targetHashes: targetHashes,
                 graphPath: graphPath,
-                commandEventId: cloudCommandEvent.id,
+                commandEventId: serverCommandEvent.id,
                 serverURL: url
             )
         }
@@ -88,7 +88,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         if #available(macOS 13.0, *), ciChecker.isCI() {
             logger
                 .info(
-                    "You can view a detailed report at: \(cloudCommandEvent.url.absoluteString)"
+                    "You can view a detailed report at: \(serverCommandEvent.url.absoluteString)"
                 )
         }
     }
