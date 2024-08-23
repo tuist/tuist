@@ -11,6 +11,18 @@ final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
+
+    func test_focused_targets() async throws {
+        func generatedTargets() throws -> [String] {
+            try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
+        }
+
+        try await setUpFixture(.iosAppWithTests)
+        try await run(GenerateCommand.self)
+        XCTAssertEqual(try generatedTargets(), ["App", "App-dash", "App-dashUITests", "AppCore", "AppCoreTests", "AppTests", "AppUITests", "MacFramework", "MacFrameworkTests"])
+        try await run(GenerateCommand.self, "AppCore")
+        XCTAssertEqual(try generatedTargets(), ["AppCore"])
+    }
 }
 
 final class GenerateAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
