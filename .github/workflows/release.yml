@@ -115,9 +115,11 @@ jobs:
         id: auto-commit-action
         uses: stefanzweifel/git-auto-commit-action@v5
         if: env.should-release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.TUIST_APP_RELEASE_TOKEN }}
         with:
           tagging_message: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          commit_message: "[Release] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          commit_message: "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: env.should-release == 'true'
