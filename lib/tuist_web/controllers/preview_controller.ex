@@ -15,9 +15,9 @@ defmodule TuistWeb.PreviewController do
       if is_nil(latest_app_release) do
         nil
       else
-        latest_app_release["assets"]
-        |> Enum.find(&String.ends_with?(&1["browser_download_url"], "dmg"))
-        |> Map.get("browser_download_url")
+        latest_app_release.assets
+        |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
+        |> Map.get(:browser_download_url)
       end
 
     conn =

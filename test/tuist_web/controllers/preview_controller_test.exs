@@ -19,13 +19,13 @@ defmodule TuistWeb.PreviewControllerTest do
     Tuist.GitHub.Releases
     |> stub(:get_latest_app_release, fn ->
       %{
-        "published_at" => Timex.format!(Timex.now(), "{ISO:Extended}"),
-        "name" => "v2.0.0",
-        "html_url" => "https://github.com/release",
-        "assets" => [
+        published_at: Timex.format!(Timex.now(), "{ISO:Extended}"),
+        name: "v2.0.0",
+        html_url: "https://github.com/release",
+        assets: [
           %{
-            "name" => "tuist.zip",
-            "browser_download_url" =>
+            name: "tuist.zip",
+            browser_download_url:
               "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
