@@ -48,7 +48,7 @@ jobs:
           echo "${changelog_content}"
   
           # Compare the outputs and set the result
-          if [ "${bumped_output}" = "${changelog_content}" ]; then
+          if [ "${bumped_output}" != "${changelog_content}" ]; then
             echo "should-release=true" >> $GITHUB_ENV
           else
             echo "should-release=false" >> $GITHUB_ENV
