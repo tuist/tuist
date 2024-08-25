@@ -290,7 +290,6 @@ export const guidesSidebar = [
         ],
       },
       {
-<<<<<<< HEAD
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Verification</span>`,
         link: "guides/develop/verification",
         collapsed: true,
@@ -302,9 +301,6 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
-        link: "guides/develop/workflows",
-=======
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Automate ${cloudBlank02Icon()}</span>`,
         collapsed: true,
         items: [
@@ -317,7 +313,6 @@ export const guidesSidebar = [
             link: "guides/develop/automate/workflows",
           },
         ],
->>>>>>> main
       },
     ],
   },
