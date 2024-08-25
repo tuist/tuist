@@ -50,6 +50,22 @@ final class TargetImportsScannerTests: TuistUnitTestCase {
             .imports(for: target)
 
         // Then
-        XCTAssertEqual(result, ["SecondTarget", "ThirdTarget", "A"])
+        XCTAssertEqual(result, [
+            FileImport(
+                module: "SecondTarget",
+                line: 1,
+                file: targetFirstFile
+            ),
+            FileImport(
+                module: "A",
+                line: 2,
+                file: targetFirstFile
+            ),
+            FileImport(
+                module: "ThirdTarget",
+                line: 1,
+                file: targetSecondFile
+            ),
+        ])
     }
 }

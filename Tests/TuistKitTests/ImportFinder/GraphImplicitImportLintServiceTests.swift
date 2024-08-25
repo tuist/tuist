@@ -66,7 +66,15 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             result,
-            [LintingIssue(reason: "Target FirstTarget implicitly imports ImplicitTarget.", severity: .warning)]
+            [
+                firstTarget: [
+                    FileImport(
+                        module: "ImplicitTarget",
+                        line: 2,
+                        file: filePath
+                    ),
+                ],
+            ]
         )
     }
 }

@@ -88,6 +88,8 @@ public enum EnvKey: String, CaseIterable {
 
     // LINT
     case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+    case lintImplicitDependenciesXcode = "TUIST_LINT_IMPLICIT_DEPENDENCIES_XCODE"
+    case lintImplicitDependenciesStrict = "TUIST_LINT_IMPLICIT_DEPENDENCIES_STRICT"
 
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"

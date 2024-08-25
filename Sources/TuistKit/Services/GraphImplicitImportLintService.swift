@@ -12,18 +12,18 @@ final class GraphImplicitImportLintService {
         self.targetScanner = targetScanner
     }
 
-    func lint(graphTraverser: GraphTraverser, config _: Config) async throws -> [LintingIssue] {
+    func lint(graphTraverser: GraphTraverser, config _: Config) async throws -> [Target: [FileImport]] {
         let allTargets = graphTraverser
             .allInternalTargets()
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
-        var implicitTargetImports: [Target: Set<String>] = [:]
+        var implicitTargetImports: [Target: [FileImport]] = [:]
         for project in graphTraverser.projects.values {
             let allTargets = project.targets.values
 
             for target in allTargets {
-                let sourceDependencies = Set(try await targetScanner.imports(for: target))
+                let sourceDependencies = try await targetScanner.imports(for: target)
                 let explicitTargetDependencies = target.dependencies.compactMap {
                     switch $0 {
                     case let .target(name: targetName, _):
@@ -34,17 +34,16 @@ final class GraphImplicitImportLintService {
                         return nil
                     }
                 }
-                let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
+
+                let implicitImports = sourceDependencies
+                    .filter {
+                        allTargetNames.contains($0.module) && !explicitTargetDependencies.contains($0.module)
+                    }
                 if !implicitImports.isEmpty {
                     implicitTargetImports[target] = implicitImports
                 }
             }
         }
-        return implicitTargetImports.map { target, implicitDependencies in
-            return LintingIssue(
-                reason: "Target \(target.name) implicitly imports \(implicitDependencies.joined(separator: ", ")).",
-                severity: .warning
-            )
-        }
+        return implicitTargetImports
     }
 }
