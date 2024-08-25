@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import struct TSCUtility.Version
 import TuistCore
@@ -56,7 +57,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(10, 0, 0)
-        xcodeController.selectedVersionStub = .success(versionStub)
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -75,7 +78,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(11, 0, 0)
-        xcodeController.selectedVersionStub = .success(versionStub)
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -193,7 +198,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let error = NSError.test()
-        xcodeController.selectedVersionStub = .failure(error)
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(error)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)

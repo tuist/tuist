@@ -41,7 +41,7 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "Don't open the project after generating it.",
         envKey: .generateOpen
     )
-    var open: Bool = true
+    var open: Bool = !CIChecker().isCI()
 
     @Flag(
         help: "Ignore binary cache and use sources only.",

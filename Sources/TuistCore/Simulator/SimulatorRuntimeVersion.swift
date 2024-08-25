@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Decodable {
+public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Codable {
     // MARK: - Attributes
 
     public let major: Int
@@ -18,6 +18,11 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         self.init(stringLiteral: try container.decode(String.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(description)
     }
 
     // MARK: - Internal

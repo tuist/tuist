@@ -1483,6 +1483,51 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "barakwei",
+      "name": "Barak Weiss",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5232161?v=4",
+      "profile": "https://github.com/barakwei",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hiltonc",
+      "name": "Hilton Campbell",
+      "avatar_url": "https://avatars.githubusercontent.com/u/470753?v=4",
+      "profile": "https://github.com/hiltonc",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "rgnns",
+      "name": "Gabriel Liévano",
+      "avatar_url": "https://avatars.githubusercontent.com/u/811827?v=4",
+      "profile": "https://github.com/rgnns",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "vijaytholpadi",
+      "name": "Vijay Tholpadi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1171868?v=4",
+      "profile": "https://github.com/vijaytholpadi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "doulos76",
+      "name": "Minhoi Goo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/27220138?v=4",
+      "profile": "https://withiosdeveloper.blogspot.com/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -94,6 +94,18 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 return nil
             }
 
+            if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
+                return nil
+            }
+
+            if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
+                return nil
+            }
+
             return scheme
         }
     }

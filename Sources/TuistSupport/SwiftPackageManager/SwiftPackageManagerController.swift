@@ -26,10 +26,6 @@ public protocol SwiftPackageManagerControlling {
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
     func setToolsVersion(at path: AbsolutePath, to version: Version) throws
 
-    /// Loads the information from the package.
-    /// - Parameter path: Directory where the `Package.swift` is defined.
-    func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
-
     /// Builds a release binary containing release binaries compatible with arm64 and x86.
     /// - Parameters:
     ///     - packagePath: Directory where the `Package.swift` is defined.
@@ -84,17 +80,6 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
 
         let rawVersion = try system.capture(command).trimmingCharacters(in: .whitespacesAndNewlines)
         return try Version(versionString: rawVersion)
-    }
-
-    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
-        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["dump-package"])
-
-        let json = try system.capture(command)
-
-        let data = Data(json.utf8)
-        let decoder = JSONDecoder()
-
-        return try decoder.decode(PackageInfo.self, from: data)
     }
 
     public func buildFatReleaseBinary(

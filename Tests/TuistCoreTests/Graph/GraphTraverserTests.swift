@@ -1614,7 +1614,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenHostedTestTarget_transitiveDependencies() throws {
+    func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1659,7 +1659,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenUITest_andAppPrecompiledDependencies() throws {
+    func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
@@ -1687,6 +1687,26 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: uiTests.name).sorted()
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
+    func test_embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
+        // Given
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(targets: [appExtension, framework])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: appExtension.name, path: project.path): Set([.target(name: framework.name, path: project.path)]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: appExtension.name).sorted()
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -1972,6 +1992,63 @@ final class GraphTraverserTests: TuistUnitTestCase {
             GraphDependencyReference(dependencyDynamicXCFramework),
             GraphDependencyReference(dependencyStaticXCFrameworkA),
             GraphDependencyReference(dependencyStaticXCFrameworkB),
+        ])
+
+        // When
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertBetterEqual(embeddable, [
+            GraphDependencyReference(dependencyDynamicXCFramework),
+        ])
+    }
+
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
+    ) throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: "/test/StaticFrameworkA.xcframework",
+            linking: .static
+        )
+        let dependencyLibCpp = GraphDependency.testSDK(
+            name: "libc++.tbd",
+            path: try AbsolutePath(validating: "/libc++.tbd")
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+            dependencyStaticXCFrameworkA: Set(arrayLiteral: dependencyLibCpp),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertBetterEqual(got, [
+            .sdk(
+                path: try AbsolutePath(validating: "/libc++.tbd"),
+                status: .required,
+                source: .system,
+                condition: nil
+            ),
+            GraphDependencyReference(dependencyDynamicXCFramework),
+            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
 
         // When
