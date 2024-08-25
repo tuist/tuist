@@ -121,7 +121,3 @@ struct ContentView_Previews: PreviewProvider {
 ```
 
 Run the app from Xcode, and you should see the image loaded from the URL.
-
-## Check your dependencies on implicitness
-
-Run the command `tuist lint implicit-imports` to lint the project for implicit imports. This command will scan all source files and display any implicit imports present in your codebase. To make an import explicit, simply add the imported module to the target in your Tuist project.
