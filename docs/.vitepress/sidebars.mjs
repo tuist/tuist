@@ -301,8 +301,18 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
-        link: "guides/develop/workflows",
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Automate ${cloudBlank02Icon()}</span>`,
+        collapsed: true,
+        items: [
+          {
+            text: `Continuous Integration`,
+            link: "guides/develop/automate/continuous-integration",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${comingSoonBadge()}</span>`,
+            link: "guides/develop/automate/workflows",
+          },
+        ],
       },
     ],
   },

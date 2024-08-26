@@ -8,6 +8,7 @@ import TuistSupport
 
 final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let packageInfoLoader: PackageInfoLoading
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
     private let fileSystem: FileSystem
@@ -17,11 +18,13 @@ final class PluginArchiveService {
             system: System.shared,
             fileHandler: FileHandler.shared
         ),
+        packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileSystem: FileSystem = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.packageInfoLoader = packageInfoLoader
         self.manifestLoader = manifestLoader
         self.fileArchiverFactory = fileArchiverFactory
         self.fileSystem = fileSystem
@@ -30,7 +33,7 @@ final class PluginArchiveService {
     func run(path: String?) async throws {
         let path = try self.path(path)
 
-        let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
+        let packageInfo = try packageInfoLoader.loadPackageInfo(at: path)
         let taskProducts = packageInfo.products
             .filter {
                 switch $0.type {

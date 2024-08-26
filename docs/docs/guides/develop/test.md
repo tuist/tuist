@@ -1,5 +1,6 @@
 ---
 title: tuist test
+titleTemplate: ":title | Develop | Tuist"
 description: Learn how to run tests efficiently with Tuist.
 ---
 

@@ -1,6 +1,7 @@
 import Foundation
 import Path
-import TSCBasic
+import func TSCBasic.topologicalSort
+import func TSCBasic.transitiveClosure
 import TuistSupport
 import XcodeGraph
 
@@ -193,9 +194,9 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 isDependencyResourceBundle(dependency: dependency) && isDependencyExternal(dependency) &&
-                    canEmbedProducts(target: target)
+                    canEmbedBundles(target: target)
             },
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBundles
         )
 
         return Set(
@@ -275,7 +276,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        guard let target = target(path: path, name: name), canEmbedProducts(target: target.target) else { return Set() }
+        guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target) else { return Set() }
 
         var references: Set<GraphDependencyReference> = Set([])
 
@@ -283,7 +284,7 @@ public class GraphTraverser: GraphTraversing {
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: { $0.isPrecompiledDynamicAndLinkable },
-            skip: or(canDependencyEmbedProducts, isDependencyPrecompiledMacro)
+            skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
         if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
@@ -299,7 +300,7 @@ public class GraphTraverser: GraphTraversing {
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: isDependencyDynamicTarget,
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBinaries
         )
 
         if target.target.mergedBinaryType != .disabled {
@@ -398,9 +399,24 @@ public class GraphTraverser: GraphTraversing {
             skip: { $0.xcframeworkDependency == nil }
         )
 
+        let libraryDependenciesLinkedByStaticXCFrameworks = try staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
+            guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
+            return try dependencies.filter {
+                switch $0 {
+                case .sdk:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
+
         let precompiledLibrariesAndFrameworks =
-            (precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies)
-                .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+            (
+                precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies +
+                    libraryDependenciesLinkedByStaticXCFrameworks
+            )
+            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(Set(precompiledLibrariesAndFrameworks))
 
@@ -550,7 +566,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
         guard let target = target(path: path, name: name),
-              canEmbedProducts(target: target.target),
+              canEmbedFrameworks(target: target.target),
               target.target.product == .unitTests,
               unitTestHost(path: path, name: name) == nil
         else {
@@ -563,7 +579,7 @@ public class GraphTraverser: GraphTraversing {
         let precompiledFrameworksPaths = filterDependencies(
             from: from,
             test: { $0.isPrecompiledDynamicAndLinkable },
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBinaries
         )
         .lazy
         .compactMap { (dependency: GraphDependency) -> Path.AbsolutePath? in
@@ -1114,10 +1130,16 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func canDependencyEmbedProducts(dependency: GraphDependency) -> Bool {
+    func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
-        return canEmbedProducts(target: target.target)
+        return canEmbedFrameworks(target: target.target)
+    }
+
+    func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path) = dependency,
+              let target = target(path: path, name: name) else { return false }
+        return canEmbedBundles(target: target.target)
     }
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
@@ -1138,14 +1160,28 @@ public class GraphTraverser: GraphTraversing {
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
-    func canEmbedProducts(target: Target) -> Bool {
+    func canEmbedFrameworks(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
             .watch2App,
             .appClip,
             .unitTests,
             .uiTests,
+            .watch2Extension,
+            .systemExtension,
+            .xpc,
+        ]
+        return validProducts.contains(target.product)
+    }
+
+    func canEmbedBundles(target: Target) -> Bool {
+        let validProducts: [Product] = [
+            .app,
             .appExtension,
+            .watch2App,
+            .appClip,
+            .unitTests,
+            .uiTests,
             .watch2Extension,
             .systemExtension,
             .xpc,

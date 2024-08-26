@@ -1,4 +1,5 @@
 import Foundation
+import MockableTest
 import Path
 import struct TSCUtility.Version
 import TuistCore
@@ -56,7 +57,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(10, 0, 0)
-        xcodeController.selectedVersionStub = .success(versionStub)
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -75,7 +78,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(11, 0, 0)
-        xcodeController.selectedVersionStub = .success(versionStub)
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -193,7 +198,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let error = NSError.test()
-        xcodeController.selectedVersionStub = .failure(error)
+        given(xcodeController)
+            .selectedVersion()
+            .willThrow(error)
         let graph = Graph.test(packages: [path: ["package": package]])
         let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -463,44 +470,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             .target(name: bundle.name, path: path): Set([]),
             .target(name: unitTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
             .target(name: uiTests.name, path: path): Set([.target(name: bundle.name, path: path)]),
-        ]
-
-        let graph = Graph.test(
-            path: path,
-            projects: [path: project],
-            dependencies: dependencies
-        )
-        let config = Config.test()
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let result = subject.lint(graphTraverser: graphTraverser, config: config)
-
-        // Then
-        XCTAssertTrue(result.isEmpty)
-    }
-
-    func test_lint_testTargetsDependsOnAppExtension() throws {
-        // Given
-        let path: AbsolutePath = "/project"
-        let appTarget = Target.test(name: "AppTarget", product: .app)
-        let appExtension = Target.test(name: "app_extension", platform: .iOS, product: .appExtension)
-        let appExtensionTests = Target.test(name: "unitTests", platform: .iOS, product: .unitTests)
-
-        let project = Project.test(path: "/tmp/app", name: "App", targets: [
-            appTarget,
-            appExtension,
-            appExtensionTests,
-        ])
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: appTarget.name, path: path): Set([
-                .target(name: appExtension.name, path: path),
-            ]),
-            .target(name: appExtension.name, path: path): Set([]),
-            .target(name: appExtensionTests.name, path: path): Set([
-                .target(name: appExtension.name, path: path),
-            ]),
         ]
 
         let graph = Graph.test(
