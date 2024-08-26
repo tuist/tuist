@@ -7,6 +7,6 @@ public struct MerkleNode: Codable, Equatable, Hashable {
     /// A human-readable identifier
     public var identifier: String
 
-    /// Nodechildren.
+    /// Node children.
     public var children: [MerkleNode]
 }
