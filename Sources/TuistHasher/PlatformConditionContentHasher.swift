@@ -11,24 +11,22 @@ public protocol PlatformConditionContentHashing {
 
 public struct PlatformConditionContentHasher: PlatformConditionContentHashing {
     private let contentHasher: ContentHashing
-
+    
     // MARK: - Init
-
+    
     public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
     }
-
+    
     public func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkleNode {
-        var children: [MerkleNode] = []
-
-        try platformCondition.platformFilters.sorted().forEach { filter in
-            children.append(MerkleNode(
+        let children = try platformCondition.platformFilters.sorted().map { filter in
+            MerkleNode(
                 hash: try contentHasher.hash(filter.xcodeprojValue),
                 identifier: filter.xcodeprojValue,
                 children: []
-            ))
+            )
         }
-
+        
         return MerkleNode(
             hash: try contentHasher.hash(children.map(\.hash)),
             identifier: identifier,
