@@ -22,13 +22,6 @@ workflows:
         - pattern: '*'
           include: true
       cancel_previous_builds: true
-    triggering: &main_triggering
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'main'
-          include: true
-      cancel_previous_builds: true
   spm_build:
     name: SPM Build
     max_build_duration: 60
@@ -117,8 +110,13 @@ workflows:
         script: mise x -- tuist cache --print-hashes
       - name: Cache
         script: mise x -- tuist cache
-    triggering:
-      << : *main_triggering
+    triggering: &main_triggering
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
 
   deploy_docs:
     name: Deploy Documentation
