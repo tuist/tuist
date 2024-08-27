@@ -3,7 +3,7 @@ import {
   cubeOutlineIcon,
   cube02Icon,
   cube01Icon,
-  barChartSquare02Icon,
+  microscopeIcon,
   code02Icon,
   dataIcon,
   checkCircleIcon,
@@ -290,13 +290,12 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Verification</span>`,
-        link: "guides/develop/verification",
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Inspect ${microscopeIcon()}</span>`,
         collapsed: true,
         items: [
           {
             text: "Implicit dependencies",
-            link: "guides/develop/verification/implicit-dependencies",
+            link: "guides/develop/inspect/implicit-dependencies",
           },
         ],
       },
