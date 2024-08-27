@@ -25,6 +25,7 @@ public class GraphTraverser: GraphTraversing {
     private let graph: Graph
     private let conditionCache = ConditionCache()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding = SystemFrameworkMetadataProvider()
+    private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> = ThreadSafe([:])
 
     public required init(graph: Graph) {
         self.graph = graph
@@ -121,13 +122,21 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
         return transitiveClosure(traversingFromTargets) { target in
-            Array(
-                directTargetDependencies(
-                    path: target.path,
-                    name: target.target.name
+            if let cachedTargetDependencies = targetDirectTargetDependenciesCache.value[target] {
+                return cachedTargetDependencies
+            } else {
+                let values = Array(
+                    directTargetDependencies(
+                        path: target.path,
+                        name: target.target.name
+                    )
                 )
-            )
-            .map(\.graphTarget)
+                .map(\.graphTarget)
+                targetDirectTargetDependenciesCache.mutate { cache in
+                    cache[target] = values
+                }
+                return values
+            }
         }
     }
 
