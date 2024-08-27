@@ -19,7 +19,20 @@ final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
 
         try await setUpFixture(.iosAppWithTests)
         try await run(GenerateCommand.self)
-        XCTAssertEqual(try generatedTargets(), ["App", "App-dash", "App-dashUITests", "AppCore", "AppCoreTests", "AppTests", "AppUITests", "MacFramework", "MacFrameworkTests"])
+        XCTAssertEqual(
+            try generatedTargets(),
+            [
+                "App",
+                "App-dash",
+                "App-dashUITests",
+                "AppCore",
+                "AppCoreTests",
+                "AppTests",
+                "AppUITests",
+                "MacFramework",
+                "MacFrameworkTests",
+            ]
+        )
         try await run(GenerateCommand.self, "AppCore")
         XCTAssertEqual(try generatedTargets(), ["AppCore"])
     }
