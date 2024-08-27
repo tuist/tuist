@@ -189,7 +189,7 @@ public protocol APIProtocol: Sendable {
         -> Operations.showProject.Output
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -599,32 +599,6 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case access_token
                 case refresh_token
-            }
-        }
-        /// The URL to download a build.
-        ///
-        /// - Remark: Generated from `#/components/schemas/BuildDownloadURL`.
-        public struct BuildDownloadURL: Codable, Equatable, Hashable, Sendable {
-            /// The UNIX timestamp when the URL expires.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/expires_at`.
-            public var expires_at: Swift.Int
-            /// The URL to download the artifact from the cache.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/url`.
-            public var url: Swift.String
-            /// Creates a new `BuildDownloadURL`.
-            ///
-            /// - Parameters:
-            ///   - expires_at: The UNIX timestamp when the URL expires.
-            ///   - url: The URL to download the artifact from the cache.
-            public init(expires_at: Swift.Int, url: Swift.String) {
-                self.expires_at = expires_at
-                self.url = url
-            }
-            public enum CodingKeys: String, CodingKey {
-                case expires_at
-                case url
             }
         }
         /// The URL to download the artifact from the cache.
@@ -1388,6 +1362,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/id`.
             public var id: Swift.Double
+            /// The URL of the connected git repository.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
+            public var repository_url: Swift.String?
             /// The token that should be used to authenticate the project. For CI only.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
@@ -1398,22 +1376,26 @@ public enum Components {
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
+            ///   - repository_url: The URL of the connected git repository.
             ///   - token: The token that should be used to authenticate the project. For CI only.
             public init(
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
+                repository_url: Swift.String? = nil,
                 token: Swift.String
             ) {
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
+                self.repository_url = repository_url
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
                 case default_branch
                 case full_name
                 case id
+                case repository_url
                 case token
             }
         }
@@ -1560,6 +1542,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/command_arguments`.
                     public var command_arguments: [Swift.String]?
+                    /// The commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/commit_sha`.
+                    public var commit_sha: Swift.String?
                     /// The duration of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/duration`.
@@ -1568,6 +1554,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/error_message`.
                     public var error_message: Swift.String?
+                    /// The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// The git remote URL origin.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
                     /// Whether the command was run in a CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/is_ci`.
@@ -1596,6 +1590,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/local_test_target_hits`.
                         public var local_test_target_hits: [Swift.String]?
+                        /// The preview URL.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/preview_url`.
+                        public var preview_url: Swift.String?
                         /// A list of remote cache target hits.
                         ///
                         /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/remote_cache_target_hits`.
@@ -1614,6 +1612,7 @@ public enum Operations {
                         ///   - cacheable_targets: A list of cacheable targets.
                         ///   - local_cache_target_hits: A list of local cache target hits.
                         ///   - local_test_target_hits: A list of local targets whose tests were skipped.
+                        ///   - preview_url: The preview URL.
                         ///   - remote_cache_target_hits: A list of remote cache target hits.
                         ///   - remote_test_target_hits: A list of remote targets whose tests were skipped.
                         ///   - test_targets: The list of targets that were tested.
@@ -1621,6 +1620,7 @@ public enum Operations {
                             cacheable_targets: [Swift.String]? = nil,
                             local_cache_target_hits: [Swift.String]? = nil,
                             local_test_target_hits: [Swift.String]? = nil,
+                            preview_url: Swift.String? = nil,
                             remote_cache_target_hits: [Swift.String]? = nil,
                             remote_test_target_hits: [Swift.String]? = nil,
                             test_targets: [Swift.String]? = nil
@@ -1628,6 +1628,7 @@ public enum Operations {
                             self.cacheable_targets = cacheable_targets
                             self.local_cache_target_hits = local_cache_target_hits
                             self.local_test_target_hits = local_test_target_hits
+                            self.preview_url = preview_url
                             self.remote_cache_target_hits = remote_cache_target_hits
                             self.remote_test_target_hits = remote_test_target_hits
                             self.test_targets = test_targets
@@ -1636,6 +1637,7 @@ public enum Operations {
                             case cacheable_targets
                             case local_cache_target_hits
                             case local_test_target_hits
+                            case preview_url
                             case remote_cache_target_hits
                             case remote_test_target_hits
                             case test_targets
@@ -1695,8 +1697,11 @@ public enum Operations {
                     /// - Parameters:
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
+                    ///   - commit_sha: The commit SHA.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
+                    ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
                     ///   - name: The name of the command.
@@ -1708,8 +1713,11 @@ public enum Operations {
                     public init(
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
+                        commit_sha: Swift.String? = nil,
                         duration: Swift.Double,
                         error_message: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String,
                         name: Swift.String,
@@ -1723,8 +1731,11 @@ public enum Operations {
                     ) {
                         self.client_id = client_id
                         self.command_arguments = command_arguments
+                        self.commit_sha = commit_sha
                         self.duration = duration
                         self.error_message = error_message
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.name = name
@@ -1737,8 +1748,11 @@ public enum Operations {
                     public enum CodingKeys: String, CodingKey {
                         case client_id
                         case command_arguments
+                        case commit_sha
                         case duration
                         case error_message
+                        case git_ref
+                        case git_remote_url_origin
                         case is_ci
                         case macos_version
                         case name
@@ -6714,7 +6728,7 @@ public enum Operations {
     }
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -6759,14 +6773,26 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/default_branch`.
                     public var default_branch: Swift.String?
+                    /// The repository URL for the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/repository_url`.
+                    public var repository_url: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    public init(default_branch: Swift.String? = nil) {
+                    ///   - repository_url: The repository URL for the project.
+                    public init(
+                        default_branch: Swift.String? = nil,
+                        repository_url: Swift.String? = nil
+                    ) {
                         self.default_branch = default_branch
+                        self.repository_url = repository_url
                     }
-                    public enum CodingKeys: String, CodingKey { case default_branch }
+                    public enum CodingKeys: String, CodingKey {
+                        case default_branch
+                        case repository_url
+                    }
                 }
                 case json(Operations.updateProject.Input.Body.jsonPayload)
             }
@@ -6825,6 +6851,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.updateProject.Output.Ok)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateProject.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateProject.Output.BadRequest.Headers = .init(),
+                    body: Operations.updateProject.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request is invalid, for example when updating to a non-supported git repository
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateProject.Output.BadRequest)
             public struct Unauthorized: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -7625,7 +7682,24 @@ public enum Operations {
                 public init() {}
             }
             public var cookies: Operations.startPreviewsMultipartUpload.Input.Cookies
-            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Preview upload request params
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The name of the preview
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/name`.
+                    public var name: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name: The name of the preview
+                    public init(name: Swift.String? = nil) { self.name = name }
+                    public enum CodingKeys: String, CodingKey { case name }
+                }
+                case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
+            }
             public var body: Operations.startPreviewsMultipartUpload.Input.Body?
             /// Creates a new `Input`.
             ///
@@ -9120,6 +9194,45 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            public struct InternalServerError: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(
+                Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+            )
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

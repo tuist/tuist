@@ -62,11 +62,18 @@ struct ProjectShowService {
                 serverURL: serverURL
             )
 
-            logger.info("""
-            \("Project".bold())
-            Full handle: \(fullHandle)
-            Default branch: \(project.defaultBranch)
-            """)
+            var projectInfo = [
+                "Project".bold(),
+                "Full handle: \(fullHandle)",
+            ]
+
+            if let repositoryURL = project.repositoryURL {
+                projectInfo.append("Repository: \(repositoryURL)")
+            }
+
+            projectInfo.append("Default branch: \(project.defaultBranch)")
+
+            logger.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

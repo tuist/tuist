@@ -440,6 +440,9 @@ components:
         id:
           description: ID of the project
           type: number
+        repository_url:
+          description: The URL of the connected git repository.
+          type: string
         token:
           deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
@@ -548,11 +551,20 @@ paths:
                   items:
                     type: string
                   type: array
+                commit_sha:
+                  description: The commit SHA.
+                  type: string
                 duration:
                   description: The duration of the command.
                   type: number
                 error_message:
                   description: The error message of the command.
+                  type: string
+                git_ref:
+                  description: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                  type: string
+                git_remote_url_origin:
+                  description: The git remote URL origin.
                   type: string
                 is_ci:
                   description: Whether the command was run in a CI environment.
@@ -581,6 +593,9 @@ paths:
                       items:
                         type: string
                       type: array
+                    preview_url:
+                      description: The preview URL.
+                      type: string
                     remote_cache_target_hits:
                       description: A list of remote cache target hits.
                       items:
@@ -1823,7 +1838,7 @@ paths:
         - Projects
     put:
       callbacks: {}
-      description: Updates an project with given parameters.
+      description: Updates a project with given parameters.
       operationId: updateProject
       parameters:
         - description: The handle of the project's account.
@@ -1846,6 +1861,9 @@ paths:
                 default_branch:
                   description: The default branch for the project.
                   type: string
+                repository_url:
+                  description: The repository URL for the project.
+                  type: string
               type: object
         description: Project update params
         required: false
@@ -1856,6 +1874,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The updated project
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid, for example when updating to a non-supported git repository
         401:
           content:
             application/json:
@@ -1987,7 +2011,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It completes a multi-part upload.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/generate-url:
     post:
       callbacks: {}
@@ -2048,7 +2073,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
@@ -2067,6 +2093,17 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The name of the preview
+                  type: string
+              type: object
+        description: Preview upload request params
+        required: false
       responses:
         200:
           content:
@@ -2117,7 +2154,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It initiates a multipart upload for a preview artifact.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
     get:
       callbacks: {}
@@ -2168,7 +2206,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The build doesn't exist
       summary: Downloads a preview.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}
@@ -2413,6 +2452,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal server error occurred
       summary: It completes a multi-part upload.
       tags:
         - Analytics

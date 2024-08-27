@@ -55,19 +55,26 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             .updateProject(
                 fullHandle: .any,
                 serverURL: .any,
-                defaultBranch: .any
+                defaultBranch: .any,
+                repositoryURL: .any
             )
             .willReturn(.test())
 
         // When
-        try await subject.run(fullHandle: nil, defaultBranch: "new-default-branch", path: nil)
+        try await subject.run(
+            fullHandle: nil,
+            defaultBranch: "new-default-branch",
+            repository: "https://github.com/tuist/tuist",
+            path: nil
+        )
 
         // Then
         verify(updateProjectService)
             .updateProject(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
-                defaultBranch: .value("new-default-branch")
+                defaultBranch: .value("new-default-branch"),
+                repositoryURL: .value("https://github.com/tuist/tuist")
             )
             .called(1)
         XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
@@ -86,13 +93,19 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             .updateProject(
                 fullHandle: .any,
                 serverURL: .any,
-                defaultBranch: .any
+                defaultBranch: .any,
+                repositoryURL: .any
             )
             .willReturn(.test())
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.run(fullHandle: nil, defaultBranch: "new-default-branch", path: nil),
+            try await subject.run(
+                fullHandle: nil,
+                defaultBranch: "new-default-branch",
+                repository: nil,
+                path: nil
+            ),
             ProjectUpdateServiceError.missingFullHandle
         )
     }
@@ -106,19 +119,26 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             .updateProject(
                 fullHandle: .any,
                 serverURL: .any,
-                defaultBranch: .any
+                defaultBranch: .any,
+                repositoryURL: .any
             )
             .willReturn(.test())
 
         // When
-        try await subject.run(fullHandle: "tuist/tuist", defaultBranch: "new-default-branch", path: nil)
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            defaultBranch: "new-default-branch",
+            repository: nil,
+            path: nil
+        )
 
         // Then
         verify(updateProjectService)
             .updateProject(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
-                defaultBranch: .value("new-default-branch")
+                defaultBranch: .value("new-default-branch"),
+                repositoryURL: .value(nil)
             )
             .called(1)
         XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
