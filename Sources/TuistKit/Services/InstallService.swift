@@ -81,6 +81,8 @@ final class InstallService {
 
     private func savePackageResolved(at path: AbsolutePath) throws {
         let sourcePath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        guard fileHandler.exists(sourcePath) else { return }
+
         let destinationPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
             Constants.DerivedDirectory.name,
