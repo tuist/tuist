@@ -1,10 +1,7 @@
 import ArgumentParser
-import Path
-import TuistLoader
 import TuistSupport
 
 struct LintImplicitImportsCommand: AsyncParsableCommand {
-    init() {}
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "implicit-imports",
