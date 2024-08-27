@@ -6,13 +6,13 @@ import TuistLoader
 import XcodeGraph
 
 final class GraphImplicitImportLintService {
-    let targetScanner: TargetImportsScanning
+    private let targetScanner: TargetImportsScanning
 
     init(targetScanner: TargetImportsScanning = TargetImportsScanner()) {
         self.targetScanner = targetScanner
     }
 
-    func lint(graphTraverser: GraphTraverser, config _: Config) async throws -> [LintingIssue] {
+    func lint(graphTraverser: GraphTraverser) async throws -> [LintingIssue] {
         let allTargets = graphTraverser
             .allInternalTargets()
 

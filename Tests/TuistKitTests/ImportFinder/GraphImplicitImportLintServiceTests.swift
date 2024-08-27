@@ -61,7 +61,7 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
 
         // When
         let result = try await GraphImplicitImportLintService()
-            .lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+            .lint(graphTraverser: GraphTraverser(graph: graph))
 
         // Then
         XCTAssertEqual(

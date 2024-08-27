@@ -40,7 +40,7 @@ final class LintImplicitImportsService {
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config)
         let graph = try await generator.load(path: path)
-        let lintingErrors = try await graphImplicitLintService.lint(graphTraverser: GraphTraverser(graph: graph), config: config)
+        let lintingErrors = try await graphImplicitLintService.lint(graphTraverser: GraphTraverser(graph: graph))
         guard lintingErrors.isEmpty else {
             throw LintImplicitImportsServiceError.implicitImportsFound(lintingErrors)
         }
