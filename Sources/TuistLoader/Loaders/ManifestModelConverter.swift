@@ -16,7 +16,7 @@ public protocol ManifestModelConverting {
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         isExternal: Bool
     ) throws -> XcodeGraph.Project
-    func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> XcodeGraph.DependenciesGraph
+    func convert(manifest: TuistLoader.DependenciesGraph, path: AbsolutePath) throws -> XcodeGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -79,7 +79,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
     }
 
     public func convert(
-        manifest: TuistCore.DependenciesGraph,
+        manifest: TuistLoader.DependenciesGraph,
         path: AbsolutePath
     ) throws -> XcodeGraph.DependenciesGraph {
         var externalDependencies: [String: [XcodeGraph.TargetDependency]] = .init()

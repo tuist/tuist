@@ -1614,7 +1614,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenHostedTestTarget_transitiveDependencies() throws {
+    func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1659,7 +1659,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenUITest_andAppPrecompiledDependencies() throws {
+    func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
@@ -1687,6 +1687,26 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // When
         let got = subject.embeddableFrameworks(path: project.path, name: uiTests.name).sorted()
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
+    func test_embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
+        // Given
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(targets: [appExtension, framework])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: appExtension.name, path: project.path): Set([.target(name: framework.name, path: project.path)]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: appExtension.name).sorted()
 
         // Then
         XCTAssertTrue(got.isEmpty)

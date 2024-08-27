@@ -5,6 +5,14 @@ import TuistSupportTesting
 import XcodeProj
 import XCTest
 
+final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
+    func test_app_with_framework_and_tests() async throws {
+        try await setUpFixture(.appWithFrameworkAndTests)
+        try await run(GenerateCommand.self)
+        try XCTAssertFrameworkNotEmbedded("Framework", by: "AppExtension")
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try await setUpFixture(.iosAppWithTests)
@@ -487,21 +495,6 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             destination: "Debug-iphonesimulator",
             resource: "Bundle.bundle/dummy.jpg"
         )
-    }
-}
-
-final class GenerateAcceptanceTestiOSAppWithExtensionAndTests: TuistAcceptanceTestCase {
-    func test_ios_app_with_extension_and_tests() async throws {
-        try await setUpFixture(.iosAppWithExtensionAndTests)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-
-        try await XCTAssertProductWithDestinationContainsExtension(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            extension: "AppExtension"
-        )
-        try await run(TestCommand.self, "--test-targets", "AppExtensionTests/ExtensionTests")
     }
 }
 

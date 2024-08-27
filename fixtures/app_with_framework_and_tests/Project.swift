@@ -12,6 +12,7 @@ let project = Project(
             sources: "App/**",
             dependencies: [
                 .target(name: "Framework"),
+                .target(name: "AppExtension"),
             ]
         ),
         .target(
@@ -23,6 +24,17 @@ let project = Project(
             sources: "AppTests/**",
             dependencies: [
                 .target(name: "App"),
+            ]
+        ),
+        .target(
+            name: "AppExtension",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "io.tuist.app.extension",
+            infoPlist: "AppExtension/Info.plist",
+            sources: "AppExtension/**",
+            dependencies: [
+                .target(name: "Framework"),
             ]
         ),
         .target(
