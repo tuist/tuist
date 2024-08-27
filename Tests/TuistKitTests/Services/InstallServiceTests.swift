@@ -193,7 +193,12 @@ final class InstallServiceTests: TuistUnitTestCase {
             update: false
         )
 
-        let savedPackageResolvedPath = temporaryDirectory.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
+        let savedPackageResolvedPath = temporaryDirectory.appending(components: [
+            "Tuist",
+            ".build",
+            "Derived",
+            "Package.resolved",
+        ])
         let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
 
         // Then
