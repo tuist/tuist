@@ -6,12 +6,12 @@ final class CacheAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
         try await setUpFixture(.iosAppWithFrameworks)
         try await run(CacheCommand.self, "--print-hashes")
         XCTAssertStandardOutput(pattern: """
-        Framework1 - 6d268b6b438bcfdc867669241a3bcce5
-        Framework2-iOS - ad3b0514c80921a12c5eb5ecc9f22494
-        Framework2-macOS - 6095f4bda9c5506f41840c05ccd8d2bb
-        Framework3 - 85fcd249b4baf6be8fcb77a151c9565f
-        Framework4 - 4c3930dcaa86dd556ac505bb25ce7e3a
-        Framework5 - 447f79879eb602cae38b1e5e51ee92aa
+        Framework1 - 663553b66e63092f75dd7493d61d4b0c
+        Framework2-iOS - 434fe77143dd5fc022e13f3342d7cbb9
+        Framework2-macOS - 1b2c1e8437d59b21f5826954dd832b08
+        Framework3 - 1aa1061078d69e5f1dfad69517f899b0
+        Framework4 - f839bd406fb2b59d35679765f3a97e88
+        Framework5 - 2f5efe485dd028c76986eb5e62a9628a
         """)
     }
 }
