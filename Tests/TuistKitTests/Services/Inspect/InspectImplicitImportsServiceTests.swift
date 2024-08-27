@@ -16,7 +16,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var generatorFactory: MockGeneratorFactorying!
     private var targetScanner: MockTargetImportsScanning!
-    private var subject: LintImplicitImportsService!
+    private var subject: InspectImplicitImportsService!
     private var generator: MockGenerating!
 
     override func setUp() async throws {
@@ -25,7 +25,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
-        subject = LintImplicitImportsService(
+        subject = InspectImplicitImportsService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
             targetScanner: targetScanner
@@ -56,8 +56,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = LintImplicitImportsServiceError.implicitImportsFound([
-            LintImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
+        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
+            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
         ])
 
         // When
@@ -87,8 +87,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = LintImplicitImportsServiceError.implicitImportsFound([
-            LintImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
+        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
+            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
         ])
 
         // When

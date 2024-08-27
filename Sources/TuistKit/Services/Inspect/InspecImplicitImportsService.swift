@@ -5,13 +5,13 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-struct LintImplicitImportsServiceErrorIssue: Equatable {
+struct InspectImplicitImportsServiceErrorIssue: Equatable {
     let target: String
     let implicitDependencies: Set<String>
 }
 
-enum LintImplicitImportsServiceError: FatalError, Equatable {
-    case implicitImportsFound([LintImplicitImportsServiceErrorIssue])
+enum InspectImplicitImportsServiceError: FatalError, Equatable {
+    case implicitImportsFound([InspectImplicitImportsServiceErrorIssue])
 
     public var description: String {
         switch self {
@@ -31,7 +31,7 @@ enum LintImplicitImportsServiceError: FatalError, Equatable {
     }
 }
 
-final class LintImplicitImportsService {
+final class InspectImplicitImportsService {
     private let configLoader: ConfigLoading
     private let generatorFactory: GeneratorFactorying
     private let targetScanner: TargetImportsScanning
@@ -53,12 +53,12 @@ final class LintImplicitImportsService {
         let graph = try await generator.load(path: path)
         let issues = try await lint(graphTraverser: GraphTraverser(graph: graph))
         guard issues.isEmpty else {
-            throw LintImplicitImportsServiceError.implicitImportsFound(issues)
+            throw InspectImplicitImportsServiceError.implicitImportsFound(issues)
         }
         logger.log(level: .info, "We did not find any implicit dependencies in your project.")
     }
 
-    private func lint(graphTraverser: GraphTraverser) async throws -> [LintImplicitImportsServiceErrorIssue] {
+    private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
         let allTargets = graphTraverser
             .allInternalTargets()
 
@@ -80,7 +80,7 @@ final class LintImplicitImportsService {
             }
         }
         return implicitTargetImports.map { target, implicitDependencies in
-            return LintImplicitImportsServiceErrorIssue(target: target.name, implicitDependencies: implicitDependencies)
+            return InspectImplicitImportsServiceErrorIssue(target: target.name, implicitDependencies: implicitDependencies)
         }
     }
 

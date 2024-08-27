@@ -6,20 +6,20 @@ import XCTest
 final class LintAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_headers() async throws {
         try await setUpFixture(.iosAppWithHeaders)
-        try await run(LintImplicitImportsCommand.self)
+        try await run(InspectImplicitImportsCommand.self)
         XCTAssertStandardOutput(pattern: "We did not find any implicit dependencies in your project.")
     }
 
     func test_ios_app_with_implicit_dependencies() async throws {
         try await setUpFixture(.iosAppWithImplicitDependencies)
         do {
-            try await run(LintImplicitImportsCommand.self)
-        } catch let error as LintImplicitImportsServiceError {
+            try await run(InspectImplicitImportsCommand.self)
+        } catch let error as InspectImplicitImportsServiceError {
             XCTAssertEqual(
                 error.description,
                 """
-                Implicit dependencies were found.
-                Target FrameworkA implicitly imports FrameworkB.
+                The following implicit dependencies were found:
+                 - FrameworkA implicitly depends on: FrameworkB
                 """
             )
         }
