@@ -1,6 +1,7 @@
 import MockableTest
 import Path
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
@@ -18,7 +19,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                 .swiftVersion()
                 .willReturn("5.2")
 
-            xcodeController.selectedVersionStub = .success("11.0.0")
+            given(xcodeController)
+                .selectedVersion()
+                .willReturn(TSCUtility.Version(11, 0, 0))
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)

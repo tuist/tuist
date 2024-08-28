@@ -71,7 +71,38 @@ extension TuistAcceptanceTestCase {
         guard xcframeworkDependencies.contains("\(framework).framework")
         else {
             XCTFail(
-                "Target \(targetName) doesn't link the framework \(framework)",
+                "Target \(targetName) doesn't embed the framework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
+    /// Given a framework name and a target, it asserts that a framework is configured to be embedded.
+    /// - Parameters:
+    ///   - framework: Name of the framework without the extension.
+    ///   - targetName: Name of the target.
+    public func XCTAssertFrameworkNotEmbedded(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        let embededFrameworks = target.embedFrameworksBuildPhases()
+            .filter { $0.dstSubfolderSpec == .frameworks }
+            .map(\.files)
+            .compactMap { $0 }
+            .flatMap { $0 }
+            .compactMap(\.file?.nameOrPath)
+            .filter { $0.contains(".framework") }
+
+        if embededFrameworks.contains("\(framework).framework") {
+            XCTFail(
+                "Target \(targetName) embeds the framework \(framework)",
                 file: file,
                 line: line
             )

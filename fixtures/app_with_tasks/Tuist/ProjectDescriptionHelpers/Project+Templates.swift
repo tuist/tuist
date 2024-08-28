@@ -7,13 +7,13 @@ import ProjectDescription
 
 extension Project {
     /// Helper function to create the Project for this ExampleApp
-    public static func app(name: String, platform: Platform, additionalTargets: [String]) -> Project {
+    public static func app(name: String, destinations: ProjectDescription.Destinations, additionalTargets: [String]) -> Project {
         var targets = makeAppTargets(
             name: name,
-            platform: platform,
+            destinations: destinations,
             dependencies: additionalTargets.map { TargetDependency.target(name: $0) }
         )
-        targets += additionalTargets.flatMap { makeFrameworkTargets(name: $0, platform: platform) }
+        targets += additionalTargets.flatMap { makeFrameworkTargets(name: $0, destinations: destinations) }
         return Project(
             name: name,
             organizationName: "tuist.io",
@@ -24,10 +24,10 @@ extension Project {
     // MARK: - Private
 
     /// Helper function to create a framework target and an associated unit test target
-    private static func makeFrameworkTargets(name: String, platform: Platform) -> [Target] {
-        let sources = .target(
+    private static func makeFrameworkTargets(name: String, destinations: ProjectDescription.Destinations) -> [Target] {
+        let sources: Target = .target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: .framework,
             bundleId: "io.tuist.\(name)",
             infoPlist: .default,
@@ -35,9 +35,9 @@ extension Project {
             resources: [],
             dependencies: []
         )
-        let tests = .target(
+        let tests: Target = .target(
             name: "\(name)Tests",
-            platform: platform,
+            destinations: destinations,
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,
@@ -49,8 +49,12 @@ extension Project {
     }
 
     /// Helper function to create the application target and the unit test target.
-    private static func makeAppTargets(name: String, platform: Platform, dependencies: [TargetDependency]) -> [Target] {
-        let platform: Platform = platform
+    private static func makeAppTargets(
+        name: String,
+        destinations: ProjectDescription.Destinations,
+        dependencies: [TargetDependency]
+    ) -> [Target] {
+        let destinations: ProjectDescription.Destinations = destinations
         let infoPlist: [String: Plist.Value] = [
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
@@ -64,7 +68,7 @@ extension Project {
 
         let mainTarget: Target = .target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: .app,
             bundleId: "io.tuist.\(name)",
             infoPlist: .extendingDefault(with: infoPlist),
@@ -76,7 +80,7 @@ extension Project {
 
         let testTarget: Target = .target(
             name: "\(name)Tests",
-            platform: platform,
+            destinations: destinations,
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,

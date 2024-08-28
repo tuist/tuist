@@ -29,7 +29,6 @@ var targets: [Target] = [
         name: "TuistCore",
         dependencies: [
             pathDependency,
-            "ProjectDescription",
             "TuistSupport",
             "XcodeGraph",
             "XcodeProj",
@@ -102,7 +101,6 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "KeychainAccess",
             "ZIPFoundation",
-            "ProjectDescription",
             "Mockable",
             "FileSystem",
         ],

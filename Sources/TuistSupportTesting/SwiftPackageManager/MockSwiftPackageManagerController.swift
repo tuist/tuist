@@ -33,22 +33,6 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
         return try getToolsVersionStub?(path) ?? Version("5.4.0")
     }
 
-    public var invokedLoadPackageInfo = false
-    public var loadPackageInfoStub: ((AbsolutePath) throws -> PackageInfo)?
-    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
-        invokedLoadPackageInfo = true
-        return try loadPackageInfoStub?(path)
-            ?? .init(
-                name: "Package",
-                products: [],
-                targets: [],
-                platforms: [],
-                cLanguageStandard: nil,
-                cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
-            )
-    }
-
     public var invokedBuildFatReleaseBinary = false
     public var loadBuildFatReleaseBinaryStub: ((AbsolutePath, String, AbsolutePath, AbsolutePath) throws -> Void)?
     public func buildFatReleaseBinary(
