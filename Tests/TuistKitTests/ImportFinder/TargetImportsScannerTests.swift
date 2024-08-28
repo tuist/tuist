@@ -51,17 +51,17 @@ final class TargetImportsScannerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, [
-            FileImport(
+            ModuleImport(
                 module: "SecondTarget",
                 line: 1,
                 file: targetFirstFile
             ),
-            FileImport(
+            ModuleImport(
                 module: "A",
                 line: 2,
                 file: targetFirstFile
             ),
-            FileImport(
+            ModuleImport(
                 module: "ThirdTarget",
                 line: 1,
                 file: targetSecondFile

@@ -12,7 +12,7 @@ import XCTest
 
 @testable import TuistKit
 
-final class LintImplicitImportsServiceTests: TuistUnitTestCase {
+final class InspectImplicitImportsServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var generatorFactory: MockGeneratorFactorying!
     private var targetScanner: MockTargetImportsScanning!
@@ -53,15 +53,19 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config)).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn([ModuleImport(module: "Framework", line: 1, file: path)])
+        given(targetScanner).imports(for: .value(framework)).willReturn([])
 
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-        ])
+        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound(
+            ["Target App implicitly imports Framework."]
+        )
 
         // When
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
+        await XCTAssertThrowsSpecific({ try await subject.run(
+            path: path.pathString,
+            xcode: false,
+            strict: true
+        ) }, expectedError)
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
@@ -84,14 +88,14 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config)).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
-
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-        ])
+        given(targetScanner).imports(for: .value(app)).willReturn([])
+        given(targetScanner).imports(for: .value(framework)).willReturn([])
 
         // When
-        try await subject.run(path: path.pathString)
+        try await subject.run(
+            path: path.pathString,
+            xcode: false,
+            strict: true
+        )
     }
 }

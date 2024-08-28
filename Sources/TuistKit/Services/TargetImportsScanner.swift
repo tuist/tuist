@@ -3,19 +3,15 @@ import Mockable
 import Path
 import XcodeGraph
 
-struct FileImport: Equatable {
+struct ModuleImport: Equatable {
     let module: String
     let line: Int
     let file: AbsolutePath
 }
 
-protocol TargetImportsScanning {
-    func imports(for target: XcodeGraph.Target) async throws -> [FileImport]
-
-
 @Mockable
 protocol TargetImportsScanning {
-    func imports(for target: XcodeGraph.Target) async throws -> Set<String>
+    func imports(for target: XcodeGraph.Target) async throws -> [ModuleImport]
 }
 
 final class TargetImportsScanner: TargetImportsScanning {
@@ -30,22 +26,21 @@ final class TargetImportsScanner: TargetImportsScanning {
         self.fileSystem = fileSystem
     }
 
-    func imports(for target: XcodeGraph.Target) async throws -> [FileImport] {
+    func imports(for target: XcodeGraph.Target) async throws -> [ModuleImport] {
         var filesToScan = target.sources.map(\.path)
         if let headers = target.headers {
             filesToScan.append(contentsOf: headers.private)
             filesToScan.append(contentsOf: headers.public)
             filesToScan.append(contentsOf: headers.project)
         }
-        var imports = try await filesToScan.concurrentMap { file in
+        return try await filesToScan.concurrentMap { file in
             try await self.matchPattern(at: file)
         }
         .flatMap { $0 }
         .filter { $0.module != target.productName }
-        return imports
     }
 
-    private func matchPattern(at path: AbsolutePath) async throws -> [FileImport] {
+    private func matchPattern(at path: AbsolutePath) async throws -> [ModuleImport] {
         let language: ProgrammingLanguage
         switch path.extension {
         case "swift":
@@ -62,7 +57,7 @@ final class TargetImportsScanner: TargetImportsScanning {
             language: language
         )
         .map {
-            FileImport(
+            ModuleImport(
                 module: $0.module,
                 line: $0.line,
                 file: path

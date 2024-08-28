@@ -11,17 +11,14 @@ struct InspectImplicitImportsServiceErrorIssue: Equatable {
 }
 
 enum InspectImplicitImportsServiceError: FatalError, Equatable {
-    case implicitImportsFound([InspectImplicitImportsServiceErrorIssue])
+    case implicitImportsFound([String])
 
     public var description: String {
         switch self {
         case let .implicitImportsFound(issues):
             """
             The following implicit dependencies were found:
-            \(
-                issues.map { " - \($0.target) implicitly depends on: \($0.implicitDependencies.joined(separator: ", "))" }
-                    .joined(separator: "\n")
-            )
+            \(issues)
             """
         }
     }
@@ -46,42 +43,69 @@ final class InspectImplicitImportsService {
         self.targetScanner = targetScanner
     }
 
-    func run(path: String?) async throws {
+    func run(
+        path: String?,
+        xcode: Bool,
+        strict: Bool
+    ) async throws {
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config)
         let graph = try await generator.load(path: path)
-        let issues = try await lint(graphTraverser: GraphTraverser(graph: graph))
+        let implicitImports = try await lint(graphTraverser: GraphTraverser(graph: graph))
+        let issues = implicitImports.map { target, implicitDependencies in
+            if xcode {
+                return implicitDependencies.map { implicitImport in
+                    "\(implicitImport.file.pathString):\(implicitImport.line): warning: Target \(implicitImport.module) was implicitly imported"
+                }
+            } else {
+                let targetNames = implicitDependencies.map(\.module)
+                return [
+                    "Target \(target.name) implicitly imports \(targetNames.joined(separator: ", ")).",
+                ]
+            }
+        }
+        .flatMap { $0 }
+
         guard issues.isEmpty else {
-            throw InspectImplicitImportsServiceError.implicitImportsFound(issues)
+            if strict {
+                throw InspectImplicitImportsServiceError.implicitImportsFound(issues)
+            } else {
+                logger.warning("The following implicit dependencies were found:")
+                for issue in issues {
+                    logger.warning("\(issue)")
+                }
+                return
+            }
         }
         logger.log(level: .info, "We did not find any implicit dependencies in your project.")
     }
 
-    private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
+    private func lint(graphTraverser: GraphTraverser) async throws -> [Target: [ModuleImport]] {
         let allTargets = graphTraverser
             .allInternalTargets()
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
-        var implicitTargetImports: [Target: Set<String>] = [:]
+        var implicitTargetImports: [Target: [ModuleImport]] = [:]
         for project in graphTraverser.projects.values {
             let allTargets = project.targets.values
 
             for target in allTargets {
-                let sourceDependencies = Set(try await targetScanner.imports(for: target))
+                let sourceDependencies = try await targetScanner.imports(for: target)
                 let explicitTargetDependencies = graphTraverser
                     .directTargetDependencies(path: project.path, name: target.name)
                     .map(\.graphTarget.target.productName)
-                let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
+                let implicitImports = sourceDependencies
+                    .filter {
+                        allTargetNames.contains($0.module) && !explicitTargetDependencies.contains($0.module)
+                    }
                 if !implicitImports.isEmpty {
                     implicitTargetImports[target] = implicitImports
                 }
             }
         }
-        return implicitTargetImports.map { target, implicitDependencies in
-            return InspectImplicitImportsServiceErrorIssue(target: target.name, implicitDependencies: implicitDependencies)
-        }
+        return implicitTargetImports
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

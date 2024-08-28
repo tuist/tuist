@@ -68,7 +68,7 @@ final class GraphImplicitImportLintServiceTests: TuistUnitTestCase {
             result,
             [
                 firstTarget: [
-                    FileImport(
+                    ModuleImport(
                         module: "ImplicitTarget",
                         line: 2,
                         file: filePath
