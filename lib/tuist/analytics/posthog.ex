@@ -47,10 +47,19 @@ defmodule Tuist.Analytics.Posthog do
   def attach(table_id) do
     :telemetry.attach_many(
       @handler_id,
-      Tuist.Analytics.all_events(),
+      events(),
       &__MODULE__.handle_event/4,
       %{table_id: table_id}
     )
+  end
+
+  defp events() do
+    Tuist.Analytics.all_events()
+    |> Enum.reject(fn event ->
+      # We send many of these events so it's expensive.
+      event == [:analytics, :cache_artifact, :upload] or
+        event == [:analytics, :cache_artifact, :download]
+    end)
   end
 
   def detach() do
