@@ -144,14 +144,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
-                if let path = target.path {
-                    // local binary
+                if let path = target.path, !path.hasSuffix(".zip") {
+                    // local non .zip binary
                     result[target.name] = .path(
                         packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
                             .pathString
                     )
                 }
-                // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
+                // remote or .zip binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                 // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
                 else if let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] {
                     result[target.name] = .path(artifactPath.pathString)

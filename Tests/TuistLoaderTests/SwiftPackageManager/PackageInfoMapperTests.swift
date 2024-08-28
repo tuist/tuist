@@ -31,7 +31,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTarget_mapsToXcframework() throws {
+    func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -43,7 +43,82 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
                     targets: [
-                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com/target1.xcframework.zip"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": try!
+                    .init(validating: "/artifacts/Package/Target_1.xcframework"),
+            ]]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+    
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+    
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework.zip"),
                         .test(name: "Target_2"),
                     ],
                     platforms: [.ios],
