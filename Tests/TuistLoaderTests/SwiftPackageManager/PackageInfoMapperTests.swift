@@ -69,7 +69,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
@@ -105,7 +105,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
