@@ -180,7 +180,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let currentData = try? fileHandler.readFile(currentPackageResolvedPath)
 
         if currentData != savedData {
-            logger.warning("We found outdated dependencies. Run `tuist install` to resolve.")
+            logger.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
         }
     }
 }
