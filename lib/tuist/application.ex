@@ -60,7 +60,7 @@ defmodule Tuist.Application do
       end
 
     children =
-      if Environment.test?() do
+      if Environment.test?() or Environment.on_premise?() do
         children
       else
         children ++ [{Tuist.GitHub.Releases, name: Tuist.GitHub.Releases}]
