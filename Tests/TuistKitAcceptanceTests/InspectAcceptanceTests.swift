@@ -26,7 +26,7 @@ final class InspectAcceptanceTests: TuistAcceptanceTestCase {
         try await setUpFixture(.iosAppWithImplicitDependencies)
         do {
             try await run(InspectImplicitImportsCommand.self)
-        } catch let error as LintImplicitImportsServiceError {
+        } catch let error as InspectImplicitImportsServiceError {
             XCTAssertEqual(
                 error.description,
                 """

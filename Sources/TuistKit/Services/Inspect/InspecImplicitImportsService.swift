@@ -5,11 +5,6 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-struct InspectImplicitImportsServiceErrorIssue: Equatable {
-    let target: String
-    let implicitDependencies: Set<String>
-}
-
 enum InspectImplicitImportsServiceError: FatalError, Equatable {
     case implicitImportsFound([String])
 
