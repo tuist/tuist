@@ -50,10 +50,10 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
         let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
         try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
         try await run(GenerateCommand.self)
-        XCTAssertStandardOutput(pattern: "We found outdated dependencies. Run `tuist install` to resolve.")
+        XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
         TestingLogHandler.reset()
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        XCTAssertStandardOutputNotContains("We found outdated dependencies. Run `tuist install` to resolve.")
+        XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
     }
 }
