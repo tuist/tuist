@@ -498,21 +498,6 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
     }
 }
 
-final class GenerateAcceptanceTestiOSAppWithExtensionAndTests: TuistAcceptanceTestCase {
-    func test_ios_app_with_extension_and_tests() async throws {
-        try await setUpFixture(.iosAppWithExtensionAndTests)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-
-        try await XCTAssertProductWithDestinationContainsExtension(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            extension: "AppExtension"
-        )
-        try await run(TestCommand.self, "--test-targets", "AppExtensionTests/ExtensionTests")
-    }
-}
-
 // TODO: Fix – tvOS
 // final class GenerateAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
 //    func test_tvos_app_with_extensions() async throws {

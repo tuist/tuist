@@ -1,4 +1,5 @@
 import FileSystem
+import Mockable
 import Path
 import XcodeGraph
 
@@ -10,14 +11,23 @@ struct FileImport: Equatable {
 
 protocol TargetImportsScanning {
     func imports(for target: XcodeGraph.Target) async throws -> [FileImport]
+
+
+@Mockable
+protocol TargetImportsScanning {
+    func imports(for target: XcodeGraph.Target) async throws -> Set<String>
 }
 
 final class TargetImportsScanner: TargetImportsScanning {
     private let importSourceCodeScanner: ImportSourceCodeScanner
-    private let fileSystem = FileSystem()
+    private let fileSystem: FileSystem
 
-    init(importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner()) {
+    init(
+        importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
+        fileSystem: FileSystem = FileSystem()
+    ) {
         self.importSourceCodeScanner = importSourceCodeScanner
+        self.fileSystem = fileSystem
     }
 
     func imports(for target: XcodeGraph.Target) async throws -> [FileImport] {
