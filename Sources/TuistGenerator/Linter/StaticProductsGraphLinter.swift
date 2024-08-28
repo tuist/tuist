@@ -120,6 +120,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return []
         }
 
+        // Statically linking a macro does not present a problem so it should not be flagged
+        if case let .target(name, path) = staticProduct,
+           !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
+        {
+            return []
+        }
+
         // Common dependencies between test bundles and their hosts are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
