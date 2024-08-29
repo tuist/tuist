@@ -31,7 +31,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTarget_mapsToXcframework() throws {
+    func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -43,7 +43,82 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
                     targets: [
-                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com/target1.xcframework.zip"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": try!
+                    .init(validating: "/artifacts/Package/Target_1.xcframework"),
+            ]]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework.zip"),
                         .test(name: "Target_2"),
                     ],
                     platforms: [.ios],
@@ -2749,7 +2824,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetPathByNameDependency_mapsToXcFramework() throws {
+    func testMap_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2770,7 +2845,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
-                        .test(name: "Dependency1", type: .binary, path: "Dependency1/Dependency1.xcframework"),
+                        .test(name: "Dependency1", type: .binary, path: "Package/Sources/Target1/Dependency1.xcframework"),
                     ],
                     platforms: [.ios],
                     cLanguageStandard: nil,
@@ -2789,7 +2864,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         dependencies: [.xcframework(path: .path(
                             basePath
-                                .appending(try RelativePath(validating: "artifacts/Package/Dependency1/Dependency1.xcframework"))
+                                .appending(try RelativePath(validating: "Package/Sources/Target1/Dependency1.xcframework"))
+                                .pathString
+                        ))]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Dependency1", type: .binary, path: "Package/Sources/Target1/Dependency1.xcframework.zip"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.xcframework(path: .path(
+                            basePath
+                                .appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
                                 .pathString
                         ))]
                     ),
@@ -3759,9 +3883,9 @@ extension PackageInfoMapping {
                         guard target.type == .binary else {
                             return
                         }
-                        if let path = target.path {
+                        if let path = target.path, !path.hasSuffix(".zip") {
                             targetsResult[target.name] = basePath.appending(
-                                try RelativePath(validating: "artifacts/\(packageName)/\(path)")
+                                try RelativePath(validating: "\(path)")
                             )
                         } else {
                             targetsResult[target.name] = basePath.appending(
