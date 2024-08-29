@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.25.0 - 2024-08-27
+
+### Tuist
+
+#### Fixed
+
+- Prohibit unit test depending on an app extension as it's an invalid combination [#6664](https://github.com/tuist/tuist/pull/6664) by [@InderKumarRathore](https://github.com/InderKumarRathore)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.24.0 - 2024-08-19
 
 ### Tuist
