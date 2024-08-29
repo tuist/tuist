@@ -65,7 +65,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                     project_handle: handles.projectHandle
                 ),
                 body: .json(
-                    .init(name: name)
+                    .init(display_name: name)
                 )
             )
         )

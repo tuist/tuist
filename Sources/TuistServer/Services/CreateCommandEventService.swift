@@ -66,9 +66,9 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                     .init(
                         client_id: commandEvent.clientId,
                         command_arguments: commandEvent.commandArguments,
-                        commit_sha: commandEvent.commitSHA,
                         duration: Double(commandEvent.durationInMs),
                         error_message: errorMessage,
+                        git_commit_sha: commandEvent.commitSHA,
                         git_ref: commandEvent.gitRef,
                         git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
                         is_ci: commandEvent.isCI,
@@ -78,11 +78,11 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                             cacheable_targets: commandEvent.params["cacheable_targets"]?.value as? [String],
                             local_cache_target_hits: commandEvent.params["local_cache_target_hits"]?.value as? [String],
                             local_test_target_hits: commandEvent.params["local_test_target_hits"]?.value as? [String],
-                            preview_url: commandEvent.params["preview_url"]?.value as? String,
                             remote_cache_target_hits: commandEvent.params["remote_cache_target_hits"]?.value as? [String],
                             remote_test_target_hits: commandEvent.params["remote_test_target_hits"]?.value as? [String],
                             test_targets: commandEvent.params["test_targets"]?.value as? [String]
                         ),
+                        preview_id: commandEvent.params["preview_id"]?.value as? String,
                         status: status,
                         subcommand: commandEvent.subcommand,
                         swift_version: commandEvent.swiftVersion,

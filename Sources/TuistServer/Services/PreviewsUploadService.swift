@@ -11,7 +11,7 @@ public protocol PreviewsUploadServicing {
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL
+    ) async throws -> Preview
 }
 
 public final class PreviewsUploadService: PreviewsUploadServicing {
@@ -60,7 +60,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL {
+    ) async throws -> Preview {
         let buildPath = try fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
 
         return try await retryProvider.runWithRetries { [self] in
@@ -83,12 +83,17 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
                 }
             )
 
-            return try await multipartUploadCompletePreviewsService.completePreviewUpload(
+            let previewURL = try await multipartUploadCompletePreviewsService.completePreviewUpload(
                 previewUpload.previewId,
                 uploadId: previewUpload.uploadId,
                 parts: parts,
                 fullHandle: fullHandle,
                 serverURL: serverURL
+            )
+
+            return Preview(
+                id: previewUpload.previewId,
+                url: previewURL
             )
         }
     }

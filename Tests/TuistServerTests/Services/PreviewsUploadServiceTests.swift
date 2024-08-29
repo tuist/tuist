@@ -103,6 +103,12 @@ final class PreviewsUploadServiceTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, shareURL)
+        XCTAssertEqual(
+            got,
+            .test(
+                id: "preview-id",
+                url: shareURL
+            )
+        )
     }
 }

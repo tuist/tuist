@@ -1534,10 +1534,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/command_arguments`.
                     public var command_arguments: [Swift.String]?
-                    /// The commit SHA.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/commit_sha`.
-                    public var commit_sha: Swift.String?
                     /// The duration of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/duration`.
@@ -1546,11 +1542,15 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/error_message`.
                     public var error_message: Swift.String?
-                    /// The git ref.
+                    /// The commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
+                    /// The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_ref`.
                     public var git_ref: Swift.String?
-                    /// The git remote URL orizgin.
+                    /// The git remote URL origin.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_remote_url_origin`.
                     public var git_remote_url_origin: Swift.String?
@@ -1582,10 +1582,6 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/local_test_target_hits`.
                         public var local_test_target_hits: [Swift.String]?
-                        /// The preview URL.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/preview_url`.
-                        public var preview_url: Swift.String?
                         /// A list of remote cache target hits.
                         ///
                         /// - Remark: Generated from `#/paths/api/analytics/POST/json/params/remote_cache_target_hits`.
@@ -1604,7 +1600,6 @@ public enum Operations {
                         ///   - cacheable_targets: A list of cacheable targets.
                         ///   - local_cache_target_hits: A list of local cache target hits.
                         ///   - local_test_target_hits: A list of local targets whose tests were skipped.
-                        ///   - preview_url: The preview URL.
                         ///   - remote_cache_target_hits: A list of remote cache target hits.
                         ///   - remote_test_target_hits: A list of remote targets whose tests were skipped.
                         ///   - test_targets: The list of targets that were tested.
@@ -1612,7 +1607,6 @@ public enum Operations {
                             cacheable_targets: [Swift.String]? = nil,
                             local_cache_target_hits: [Swift.String]? = nil,
                             local_test_target_hits: [Swift.String]? = nil,
-                            preview_url: Swift.String? = nil,
                             remote_cache_target_hits: [Swift.String]? = nil,
                             remote_test_target_hits: [Swift.String]? = nil,
                             test_targets: [Swift.String]? = nil
@@ -1620,7 +1614,6 @@ public enum Operations {
                             self.cacheable_targets = cacheable_targets
                             self.local_cache_target_hits = local_cache_target_hits
                             self.local_test_target_hits = local_test_target_hits
-                            self.preview_url = preview_url
                             self.remote_cache_target_hits = remote_cache_target_hits
                             self.remote_test_target_hits = remote_test_target_hits
                             self.test_targets = test_targets
@@ -1629,7 +1622,6 @@ public enum Operations {
                             case cacheable_targets
                             case local_cache_target_hits
                             case local_test_target_hits
-                            case preview_url
                             case remote_cache_target_hits
                             case remote_test_target_hits
                             case test_targets
@@ -1640,6 +1632,10 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/params`.
                     public var params:
                         Operations.createCommandEvent.Input.Body.jsonPayload.paramsPayload?
+                    /// The preview identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/preview_id`.
+                    public var preview_id: Swift.String?
                     /// The status of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/status`.
@@ -1689,15 +1685,16 @@ public enum Operations {
                     /// - Parameters:
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
-                    ///   - commit_sha: The commit SHA.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
-                    ///   - git_ref: The git ref.
-                    ///   - git_remote_url_origin: The git remote URL orizgin.
+                    ///   - git_commit_sha: The commit SHA.
+                    ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
                     ///   - name: The name of the command.
                     ///   - params: Extra parameters.
+                    ///   - preview_id: The preview identifier.
                     ///   - status: The status of the command.
                     ///   - subcommand: The subcommand of the command.
                     ///   - swift_version: The version of Swift that ran the command.
@@ -1705,9 +1702,9 @@ public enum Operations {
                     public init(
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
-                        commit_sha: Swift.String? = nil,
                         duration: Swift.Double,
                         error_message: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
                         is_ci: Swift.Bool,
@@ -1715,6 +1712,7 @@ public enum Operations {
                         name: Swift.String,
                         params: Operations.createCommandEvent.Input.Body.jsonPayload
                             .paramsPayload? = nil,
+                        preview_id: Swift.String? = nil,
                         status: Operations.createCommandEvent.Input.Body.jsonPayload
                             .statusPayload? = nil,
                         subcommand: Swift.String? = nil,
@@ -1723,15 +1721,16 @@ public enum Operations {
                     ) {
                         self.client_id = client_id
                         self.command_arguments = command_arguments
-                        self.commit_sha = commit_sha
                         self.duration = duration
                         self.error_message = error_message
+                        self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.name = name
                         self.params = params
+                        self.preview_id = preview_id
                         self.status = status
                         self.subcommand = subcommand
                         self.swift_version = swift_version
@@ -1740,15 +1739,16 @@ public enum Operations {
                     public enum CodingKeys: String, CodingKey {
                         case client_id
                         case command_arguments
-                        case commit_sha
                         case duration
                         case error_message
+                        case git_commit_sha
                         case git_ref
                         case git_remote_url_origin
                         case is_ci
                         case macos_version
                         case name
                         case params
+                        case preview_id
                         case status
                         case subcommand
                         case swift_version
@@ -7636,16 +7636,18 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
-                    /// The name of the preview
+                    /// The display name of the preview.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/name`.
-                    public var name: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/display_name`.
+                    public var display_name: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - name: The name of the preview
-                    public init(name: Swift.String? = nil) { self.name = name }
-                    public enum CodingKeys: String, CodingKey { case name }
+                    ///   - display_name: The display name of the preview.
+                    public init(display_name: Swift.String? = nil) {
+                        self.display_name = display_name
+                    }
+                    public enum CodingKeys: String, CodingKey { case display_name }
                 }
                 case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
             }

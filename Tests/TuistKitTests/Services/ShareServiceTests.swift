@@ -183,7 +183,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -281,7 +281,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -434,7 +434,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -518,7 +518,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
