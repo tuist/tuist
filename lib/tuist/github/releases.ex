@@ -31,11 +31,13 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_cli_release(pid \\ nil) do
-    GenServer.call(pid || __MODULE__, :get_cli_release)
+    pid = pid || Process.whereis(__MODULE__)
+    if is_nil(pid), do: nil, else: GenServer.call(pid, :get_cli_release)
   end
 
   def get_latest_app_release(pid \\ nil) do
-    GenServer.call(pid || __MODULE__, :get_app_release)
+    pid = pid || Process.whereis(__MODULE__)
+    if is_nil(pid), do: nil, else: GenServer.call(pid, :get_app_release)
   end
 
   def handle_continue(:fetch_release, state) do

@@ -1,13 +1,14 @@
-name: Phoenix
+name: Tuist
 
 on:
   push:
     branches:
       - main
   pull_request:
+  merge_group: {}
 
 concurrency:
-  group: phoenix-${{ github.head_ref }}
+  group: tuist-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
