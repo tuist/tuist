@@ -1,4 +1,6 @@
 import Foundation
+import Mockable
+import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
@@ -8,26 +10,31 @@ import TuistSupport
 /// from different sources and tells `analyticsTagger` to send the event to a provider
 
 public final class CommandEventFactory {
-    private let environment: Environmenting
     private let machineEnvironment: MachineEnvironmentRetrieving
-    private let gitHandler: GitHandling
-    private let gitRefReader: GitRefReading
+    private let gitController: GitControlling
 
     public init(
-        environment: Environmenting = Environment.shared,
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitHandler: GitHandling = GitHandler(),
-        gitRefReader: GitRefReading = GitRefReader()
+        gitController: GitControlling = GitController()
     ) {
-        self.environment = environment
         self.machineEnvironment = machineEnvironment
-        self.gitHandler = gitHandler
-        self.gitRefReader = gitRefReader
+        self.gitController = gitController
     }
 
-    public func make(from info: TrackableCommandInfo) throws -> CommandEvent {
-        let commitSHA = try? gitHandler.currentCommitSHA()
-        let gitRemoteURLOrigin = try? gitHandler.urlOrigin()
+    public func make(
+        from info: TrackableCommandInfo,
+        path: AbsolutePath,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> CommandEvent {
+        let gitCommitSHA: String?
+        let gitRemoteURLOrigin: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
+            gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
+            gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
+        } else {
+            gitCommitSHA = nil
+            gitRemoteURLOrigin = nil
+        }
         let commandEvent = CommandEvent(
             runId: info.runId,
             name: info.name,
@@ -42,8 +49,8 @@ public final class CommandEventFactory {
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: machineEnvironment.isCI,
             status: info.status,
-            commitSHA: commitSHA,
-            gitRef: gitRefReader.read(),
+            gitCommitSHA: gitCommitSHA,
+            gitRef: gitController.ref(environment: environment),
             gitRemoteURLOrigin: gitRemoteURLOrigin
         )
         return commandEvent

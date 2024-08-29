@@ -109,7 +109,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             machineHardwareName: "arm64",
             isCI: false,
             status: .success,
-            commitSHA: "26f4fda1548502c474642ce63db7630307242312",
+            gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
             gitRef: nil,
             gitRemoteURLOrigin: "https://github.com/tuist/tuist"
         )

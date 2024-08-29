@@ -16,7 +16,7 @@ import XCTest
 final class PluginServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
-    private var gitHandler: MockGitHandling!
+    private var gitController: MockGitControlling!
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactoring!
@@ -27,7 +27,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         super.setUp()
         manifestLoader = .init()
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
-        gitHandler = MockGitHandling()
+        gitController = MockGitControlling()
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         given(cacheDirectoriesProvider)
@@ -47,7 +47,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
-            gitHandler: gitHandler,
+            gitController: gitController,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             fileArchivingFactory: fileArchivingFactory,
             fileClient: fileClient
@@ -57,7 +57,7 @@ final class PluginServiceTests: TuistUnitTestCase {
     override func tearDown() {
         manifestLoader = nil
         templatesDirectoryLocator = nil
-        gitHandler = nil
+        gitController = nil
         cacheDirectoriesProvider = nil
         cacheDirectoryProviderFactory = nil
         fileUnarchiver = nil
@@ -131,10 +131,10 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil, releaseUrl: nil),
             ]
         )
-        given(gitHandler)
+        given(gitController)
             .clone(url: .any, to: .any)
             .willReturn()
-        given(gitHandler)
+        given(gitController)
             .checkout(id: .any, in: .any)
             .willReturn()
         given(cacheDirectoriesProvider)
@@ -145,7 +145,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
-        verify(gitHandler)
+        verify(gitController)
             .clone(
                 url: .value(pluginGitURL),
                 to: .value(
@@ -154,7 +154,7 @@ final class PluginServiceTests: TuistUnitTestCase {
                 )
             )
             .called(1)
-        verify(gitHandler)
+        verify(gitController)
             .checkout(
                 id: .value(pluginGitSha),
                 in: .value(
@@ -175,10 +175,10 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
         )
-        given(gitHandler)
+        given(gitController)
             .clone(url: .any, to: .any)
             .willReturn()
-        given(gitHandler)
+        given(gitController)
             .checkout(id: .any, in: .any)
             .willReturn()
         given(cacheDirectoriesProvider)
@@ -189,7 +189,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
-        verify(gitHandler)
+        verify(gitController)
             .clone(
                 url: .value(pluginGitURL),
                 to: .value(
@@ -198,7 +198,7 @@ final class PluginServiceTests: TuistUnitTestCase {
                 )
             )
             .called(1)
-        verify(gitHandler)
+        verify(gitController)
             .checkout(
                 id: .value(pluginGitTag),
                 in: .value(

@@ -4,12 +4,12 @@ import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class GitHandlerTests: TuistUnitTestCase {
-    private var subject: GitHandler!
+final class GitControllerTests: TuistUnitTestCase {
+    private var subject: GitController!
 
     override func setUp() {
         super.setUp()
-        subject = GitHandler(system: system)
+        subject = GitController(system: system)
     }
 
     override func tearDown() {
@@ -112,23 +112,79 @@ final class GitHandlerTests: TuistUnitTestCase {
 
     func test_currentCommitSHA() throws {
         // Given
-        system.succeedCommand(["git", "rev-parse", "HEAD"], output: "5e17254d4a3c14454ecab6575b4a44d6685d3865\n")
+        let path = try temporaryPath()
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "5e17254d4a3c14454ecab6575b4a44d6685d3865\n"
+        )
 
         // When
-        let commitSHA = try subject.currentCommitSHA()
+        let gitCommitSHA = try subject.currentCommitSHA(workingDirectory: path)
 
         // Then
-        XCTAssertEqual(commitSHA, "5e17254d4a3c14454ecab6575b4a44d6685d3865")
+        XCTAssertEqual(gitCommitSHA, "5e17254d4a3c14454ecab6575b4a44d6685d3865")
     }
 
     func test_urlOrigin() throws {
         // Given
-        system.succeedCommand(["git", "remote", "get-url", "origin"], output: "https://github.com/tuist/tuist\n")
+        let path = try temporaryPath()
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist\n"
+        )
 
         // When
-        let urlOrigin = try subject.urlOrigin()
+        let urlOrigin = try subject.urlOrigin(workingDirectory: path)
 
         // Then
         XCTAssertEqual(urlOrigin, "https://github.com/tuist/tuist")
+    }
+
+    func test_ref_when_githubRef() throws {
+        // When
+        let got = subject.ref(
+            environment: [
+                "GITHUB_REF": "refs/pull/1/merge",
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(got, "refs/pull/1/merge")
+    }
+
+    func test_ref_when_codemagicPullRequestNumber() throws {
+        // When
+        let got = subject.ref(
+            environment: [
+                "CM_PULL_REQUEST_NUMBER": "2",
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(got, "refs/pull/2/merge")
+    }
+
+    func test_inGitRepository_when_rev_parse_succeeds() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let isInGitRepository = subject.isInGitRepository(workingDirectory: path)
+
+        // Then
+        XCTAssertTrue(isInGitRepository)
+    }
+
+    func test_inGitRepository_when_rev_parse_fails() throws {
+        // Given
+        let path = try temporaryPath()
+        system.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let isInGitRepository = subject.isInGitRepository(workingDirectory: path)
+
+        // Then
+        XCTAssertFalse(isInGitRepository)
     }
 }

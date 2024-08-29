@@ -7,7 +7,7 @@ import XcodeGraph
 @Mockable
 public protocol PreviewsUploadServicing {
     func uploadPreviews(
-        name: String,
+        displayName: String,
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
@@ -56,7 +56,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
     }
 
     public func uploadPreviews(
-        name: String,
+        displayName: String,
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
@@ -65,7 +65,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
 
         return try await retryProvider.runWithRetries { [self] in
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
-                name: name,
+                displayName: displayName,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )

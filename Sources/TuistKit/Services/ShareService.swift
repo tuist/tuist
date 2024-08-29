@@ -143,7 +143,7 @@ struct ShareService {
                   let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
             let preview = try await previewsUploadService.uploadPreviews(
-                name: appName,
+                displayName: appName,
                 previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
@@ -261,7 +261,7 @@ struct ShareService {
                 .uniqued()
 
             let preview = try await previewsUploadService.uploadPreviews(
-                name: app,
+                displayName: app,
                 previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL

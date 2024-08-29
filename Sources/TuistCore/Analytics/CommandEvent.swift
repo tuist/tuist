@@ -17,7 +17,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let machineHardwareName: String
     public let isCI: Bool
     public let status: Status
-    public let commitSHA: String?
+    public let gitCommitSHA: String?
     public let gitRef: String?
     public let gitRemoteURLOrigin: String?
 
@@ -43,7 +43,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case machineHardwareName
         case isCI
         case status
-        case commitSHA
+        case gitCommitSHA
         case gitRef
         case gitRemoteURLOrigin
     }
@@ -62,7 +62,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         machineHardwareName: String,
         isCI: Bool,
         status: Status,
-        commitSHA: String?,
+        gitCommitSHA: String?,
         gitRef: String?,
         gitRemoteURLOrigin: String?
     ) {
@@ -79,7 +79,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.machineHardwareName = machineHardwareName
         self.isCI = isCI
         self.status = status
-        self.commitSHA = commitSHA
+        self.gitCommitSHA = gitCommitSHA
         self.gitRef = gitRef
         self.gitRemoteURLOrigin = gitRemoteURLOrigin
     }
@@ -100,7 +100,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             macOSVersion: String = "10.15",
             machineHardwareName: String = "arm64",
             status: Status = .success,
-            commitSHA: String? = "0f783ea776192241154f5c192cd143efde7443aa",
+            gitCommitSHA: String? = "0f783ea776192241154f5c192cd143efde7443aa",
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist"
         ) -> CommandEvent {
@@ -118,7 +118,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 machineHardwareName: machineHardwareName,
                 isCI: false,
                 status: status,
-                commitSHA: commitSHA,
+                gitCommitSHA: gitCommitSHA,
                 gitRef: gitRef,
                 gitRemoteURLOrigin: gitRemoteURLOrigin
             )

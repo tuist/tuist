@@ -12,22 +12,22 @@ import XCTest
 final class TemplateGitLoaderTests: TuistUnitTestCase {
     private var subject: TemplateGitLoader!
     private var templateLoader: MockTemplateLoading!
-    private var gitHandler: MockGitHandling!
+    private var gitController: MockGitControlling!
 
     override func setUp() {
         super.setUp()
         templateLoader = MockTemplateLoading()
-        gitHandler = MockGitHandling()
+        gitController = MockGitControlling()
         subject = TemplateGitLoader(
             templateLoader: templateLoader,
             fileHandler: FileHandler.shared,
-            gitHandler: gitHandler,
+            gitController: gitController,
             templateLocationParser: TemplateLocationParser()
         )
     }
 
     override func tearDown() {
-        gitHandler = nil
+        gitController = nil
         subject = nil
         templateLoader = nil
         super.tearDown()
@@ -35,7 +35,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
 
     func test_loadTemplatePath_isSameWithClonedRepository() async throws {
         // Given
-        given(gitHandler)
+        given(gitController)
             .clone(url: .any, to: .any)
             .willReturn()
 
@@ -56,7 +56,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         verify(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
             .called(1)
-        verify(gitHandler)
+        verify(gitController)
             .clone(
                 url: .any,
                 to: .value(pathToLoadTemplateFrom)

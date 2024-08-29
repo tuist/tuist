@@ -96,7 +96,7 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         // When
         let got = try await subject.uploadPreviews(
-            name: "App",
+            displayName: "App",
             previewPaths: [preview],
             fullHandle: "tuist/tuist",
             serverURL: serverURL

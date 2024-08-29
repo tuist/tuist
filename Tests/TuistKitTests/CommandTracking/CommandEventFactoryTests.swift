@@ -12,27 +12,22 @@ import XCTest
 final class CommandEventFactoryTests: TuistUnitTestCase {
     private var subject: CommandEventFactory!
     private var machineEnvironment: MachineEnvironmentRetrieving!
-    private var gitHandler: MockGitHandling!
-    private var gitRefReader: MockGitRefReading!
+    private var gitController: MockGitControlling!
 
     override func setUp() {
         super.setUp()
         machineEnvironment = MockMachineEnvironment()
-        gitHandler = MockGitHandling()
-        gitRefReader = MockGitRefReading()
+        gitController = MockGitControlling()
         subject = CommandEventFactory(
-            environment: environment,
             machineEnvironment: machineEnvironment,
-            gitHandler: gitHandler,
-            gitRefReader: gitRefReader
+            gitController: gitController
         )
     }
 
     override func tearDown() {
         subject = nil
         machineEnvironment = nil
-        gitHandler = nil
-        gitRefReader = nil
+        gitController = nil
         super.tearDown()
     }
 
@@ -40,6 +35,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
 
     func test_tagCommand_tagsExpectedCommand() throws {
         // Given
+        let path = try temporaryPath()
         let info = TrackableCommandInfo(
             runId: "run-id",
             name: "cache",
@@ -63,24 +59,31 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             machineHardwareName: "arm64",
             isCI: false,
             status: .failure("Failed!"),
-            commitSHA: "commit-sha",
+            gitCommitSHA: "commit-sha",
             gitRef: "github-ref",
             gitRemoteURLOrigin: "https://github.com/tuist/tuist"
         )
-        given(gitHandler)
-            .currentCommitSHA()
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(path))
             .willReturn("commit-sha")
 
-        given(gitHandler)
-            .urlOrigin()
+        given(gitController)
+            .urlOrigin(workingDirectory: .value(path))
             .willReturn("https://github.com/tuist/tuist")
 
-        given(gitRefReader)
-            .read()
+        given(gitController)
+            .ref(environment: .any)
             .willReturn("github-ref")
 
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
         // When
-        let event = try subject.make(from: info)
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
 
         // Then
         XCTAssertEqual(event.name, expectedEvent.name)
@@ -93,6 +96,42 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.macOSVersion, expectedEvent.macOSVersion)
         XCTAssertEqual(event.machineHardwareName, expectedEvent.machineHardwareName)
         XCTAssertEqual(event.isCI, expectedEvent.isCI)
+        XCTAssertEqual(event.gitCommitSHA, expectedEvent.gitCommitSHA)
+        XCTAssertEqual(event.gitRemoteURLOrigin, expectedEvent.gitRemoteURLOrigin)
+        XCTAssertEqual(event.gitRef, expectedEvent.gitRef)
+    }
+
+    func test_make_when_is_not_in_git_repository() throws {
+        // Given
+        let path = try temporaryPath()
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "cache",
+            subcommand: "warm",
+            parameters: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
+            durationInMs: 5000,
+            status: .failure("Failed!")
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn(nil)
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        XCTAssertEqual(event.gitCommitSHA, nil)
+        XCTAssertEqual(event.gitRemoteURLOrigin, nil)
+        XCTAssertEqual(event.gitRef, nil)
     }
 }
 
