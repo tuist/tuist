@@ -214,7 +214,7 @@ final class RunService {
     ) async throws {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
-        let generator = generatorFactory.defaultGenerator(config: config)
+        let generator = generatorFactory.defaultGenerator(config: config, sources: [])
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             logger.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: path).1
