@@ -1,8 +1,8 @@
 defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.ArtifactDownloadURL
   alias TuistWeb.API.EnsureProjectPresencePlug
-  alias Tuist.Projects.Preview
-  alias Tuist.Projects
+  alias Tuist.Previews
+  alias Tuist.Previews.Preview
   alias TuistWeb.Authentication
 
   alias TuistWeb.API.Schemas.{
@@ -46,6 +46,14 @@ defmodule TuistWeb.API.PreviewsController do
         description: "The handle of the project."
       ]
     ],
+    request_body:
+      {"Preview upload request params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           display_name: %Schema{type: :string, description: "The display name of the preview."}
+         }
+       }},
     responses: %{
       ok:
         {"The upload has been started", "application/json",
@@ -79,13 +87,17 @@ defmodule TuistWeb.API.PreviewsController do
   )
 
   def multipart_start(
-        conn,
+        %{body_params: body_params} = conn,
         _params
       ) do
     project =
       EnsureProjectPresencePlug.get_project(conn)
 
-    %Preview{id: preview_id} = Projects.create_preview(project)
+    %Preview{id: preview_id} =
+      Previews.create_preview(%{
+        project: project,
+        display_name: Map.get(body_params, :display_name)
+      })
 
     case Storage.multipart_start(get_object_key(conn, preview_id)) do
       {:ok, upload_id} ->

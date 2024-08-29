@@ -5,6 +5,7 @@ defmodule Tuist.CommandEvents.Event do
   use Ecto.Schema
   import Ecto.Query
   import Ecto.Changeset
+  alias Tuist.Previews.Preview
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
@@ -25,6 +26,9 @@ defmodule Tuist.CommandEvents.Event do
     field :client_id, :string
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
     field :error_message, :string
+    field :git_commit_sha, :string
+    field :git_ref, :string
+    field :git_remote_url_origin, :string
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -39,6 +43,7 @@ defmodule Tuist.CommandEvents.Event do
     field :remote_test_target_hits_count, :integer
 
     # Associations
+    belongs_to :preview, Preview, type: UUIDv7
     belongs_to :project, Project
     belongs_to :user, User
 
@@ -77,7 +82,11 @@ defmodule Tuist.CommandEvents.Event do
         :client_id,
         :created_at,
         :status,
-        :error_message
+        :error_message,
+        :preview_id,
+        :git_commit_sha,
+        :git_ref,
+        :git_remote_url_origin
       ])
 
     is_ci = get_field(changeset, :is_ci)

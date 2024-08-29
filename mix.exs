@@ -91,6 +91,7 @@ defmodule Tuist.MixProject do
       {:guardian_db, "~> 3.0"},
       {:uuidv7, "~> 0.2"},
       {:decorator, "~> 1.4"},
+      {:jose, "~> 1.11"},
       # Cache
       {:nebulex, "~> 2.6"},
       {:horde, "~> 0.8.0"},

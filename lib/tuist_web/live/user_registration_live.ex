@@ -58,7 +58,7 @@ defmodule TuistWeb.UserRegistrationLive do
           </.stack>
         </.simple_form>
 
-        <%= if @github_configured do %>
+        <%= if @github_auth_configured do %>
           <.social_button>
             <a href={~p"/users/auth/github"}>
               <%= gettext("Sign up with GitHub") %>
@@ -104,7 +104,7 @@ defmodule TuistWeb.UserRegistrationLive do
       :ok,
       socket
       |> assign(:form, form)
-      |> assign(:github_configured, Environment.github_configured?())
+      |> assign(:github_auth_configured, Environment.github_auth_configured?())
       |> assign(:google_configured, Environment.google_oauth_configured?())
       |> assign(:okta_configured, Environment.okta_configured?()),
       temporary_assigns: [form: nil]

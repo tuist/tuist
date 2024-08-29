@@ -1,6 +1,7 @@
 defmodule TuistWeb.API.AnalyticsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Module
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
@@ -136,6 +137,23 @@ defmodule TuistWeb.API.AnalyticsController do
            error_message: %Schema{
              type: :string,
              description: "The error message of the command."
+           },
+           git_commit_sha: %Schema{
+             type: :string,
+             description: "The commit SHA."
+           },
+           git_ref: %Schema{
+             type: :string,
+             description:
+               "The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`."
+           },
+           git_remote_url_origin: %Schema{
+             type: :string,
+             description: "The git remote URL origin."
+           },
+           preview_id: %Schema{
+             type: :string,
+             description: "The preview identifier."
            }
          },
          required: [
@@ -177,6 +195,11 @@ defmodule TuistWeb.API.AnalyticsController do
       EnsureProjectPresencePlug.get_project(conn)
       |> Repo.preload(:account)
 
+    git_commit_sha = Map.get(body_params, :git_commit_sha)
+    git_ref = Map.get(body_params, :git_ref)
+    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    preview_id = Map.get(body_params, :preview_id)
+
     command_event =
       CommandEvents.create_command_event(%{
         name: body_params.name,
@@ -197,8 +220,24 @@ defmodule TuistWeb.API.AnalyticsController do
         client_id: body_params.client_id,
         project_id: project.id,
         status: Map.get(body_params, :status),
-        error_message: Map.get(body_params, :error_message)
+        error_message: Map.get(body_params, :error_message),
+        preview_id: preview_id,
+        git_commit_sha: git_commit_sha,
+        git_ref: git_ref,
+        git_remote_url_origin: git_remote_url_origin
       })
+
+    VCS.Reporter.post_vcs_pull_request_comment(%{
+      command_name: body_params.name,
+      git_commit_sha: git_commit_sha,
+      git_ref: git_ref,
+      git_remote_url_origin: git_remote_url_origin,
+      project: project,
+      preview_url:
+        &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
+      command_run_url:
+        &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}")
+    })
 
     conn
     |> put_status(:ok)

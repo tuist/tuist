@@ -1,4 +1,7 @@
 defmodule TuistWeb.AnalyticsControllerTest do
+  alias Tuist.VCS
+  alias Tuist.Previews
+  alias Tuist.Environment
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Repo
   alias Tuist.Storage
@@ -14,6 +17,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+
+    Environment
+    |> stub(:github_app_configured?, fn -> true end)
+
     %{user: user}
   end
 
@@ -105,6 +112,52 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.cacheable_targets == ["target1", "target2"]
     end
 
+    test "returns newly created preview command event", %{conn: conn, user: user} do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      preview = Previews.create_preview(%{project: project, display_name: "App"})
+
+      VCS.Reporter
+      |> expect(:post_vcs_pull_request_comment, fn _ ->
+        :ok
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "share",
+            subcommand: "",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            preview_id: preview.id,
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert response["name"] == "share"
+      assert command_event.preview_id == preview.id
+    end
+
     test "returns newly created command event when cacheable analytics are missing", %{
       conn: conn,
       user: user
@@ -116,6 +169,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      VCS.Reporter
+      |> expect(:post_vcs_pull_request_comment, fn _ ->
+        :ok
+      end)
 
       # When
       conn =
@@ -164,6 +222,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      VCS.Reporter
+      |> expect(:post_vcs_pull_request_comment, fn _ ->
+        :ok
+      end)
 
       # When
       conn =

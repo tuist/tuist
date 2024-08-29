@@ -1,0 +1,338 @@
+defmodule Tuist.VCS.ReporterTest do
+  alias Tuist.VCS.Comment
+  alias Tuist.Environment
+  alias Tuist.GitHub
+  alias Tuist.VCS
+  alias Tuist.ProjectsFixtures
+  alias Tuist.Previews
+  alias Tuist.CommandEventsFixtures
+  use ExUnit.Case, async: true
+  use Mimic
+  use Tuist.DataCase
+
+  describe "post_vcs_pull_request_comment/1" do
+    @git_ref "refs/pull/1/merge"
+    @git_remote_url_origin "https://github.com/tuist/tuist"
+    @git_commit_sha "1234567890"
+
+    setup do
+      Environment
+      |> stub(:github_app_client_id, fn -> "client_id" end)
+
+      Environment
+      |> stub(:github_app_configured?, fn -> true end)
+
+      :ok
+    end
+
+    test "creates a comment with a full report" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one = Previews.create_preview(%{project: project, display_name: "App"})
+
+      _preview_command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          preview_id: preview_one.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      preview_two = Previews.create_preview(%{project: project, display_name: "App"})
+
+      _preview_command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          preview_id: preview_two.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 02:00:00]
+        )
+
+      preview_three = Previews.create_preview(%{project: project, display_name: "WatchApp"})
+
+      _preview_command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          preview_id: preview_three.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 01:00:00]
+        )
+
+      test_command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          command_arguments: ["test"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      test_command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          command_arguments: ["test App"],
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 04:00:00],
+          cacheable_targets: ["A", "B", "C", "D"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: ["C"],
+          test_targets: ["ATests", "BTests", "CTests", "DTests"],
+          local_test_target_hits: ["ATests", "BTests"],
+          remote_test_target_hits: ["CTests"],
+          status: :failure
+        )
+
+      GitHub.Client
+      |> expect(:get_comments, fn _ -> {:ok, []} end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tuist Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.io/previews/#{preview_one.id}) | #{commit_link} |
+        | [WatchApp](https://tuist.io/previews/#{preview_three.id}) | #{commit_link} |
+
+
+        #### Tuist Tests 🧪
+
+        | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.io/runs/#{test_command_event_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | [test App](https://tuist.io/runs/#{test_command_event_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+
+        """
+
+      GitHub.Client
+      |> expect(:create_comment, fn %{
+                                      repository: "tuist/tuist",
+                                      issue_id: "1",
+                                      body: ^expected_body
+                                    } ->
+        {:ok, %{}}
+      end)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        command_name: "share",
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "updates a comment if one already exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview = Previews.create_preview(%{project: project, display_name: "App"})
+
+      _preview_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          git_remote_url_origin: @git_remote_url_origin,
+          preview_id: preview.id,
+          git_commit_sha: "1234567890"
+        )
+
+      GitHub.Client
+      |> expect(:get_comments, fn _ ->
+        {:ok,
+         [
+           %Comment{
+             client_id: "client_id"
+           }
+         ]}
+      end)
+
+      GitHub.Client
+      |> expect(:update_comment, fn _ ->
+        {:ok, %{}}
+      end)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when there is nothing to report" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      GitHub.Client
+      |> expect(:get_comments, fn _ -> {:ok, [%{client_id: nil}]} end)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the command is not reportable" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "generate",
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the GitHub app is not configured" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      Environment
+      |> stub(:github_app_configured?, fn -> false end)
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the git ref is not a pull request" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_commit_sha: @git_commit_sha,
+        git_ref: "tags/1.0.0",
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the git ref is missing" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_ref: nil,
+        git_commit_sha: @git_commit_sha,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the git remote url origin is missing" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.Reporter.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_remote_url_origin: nil,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+  end
+end

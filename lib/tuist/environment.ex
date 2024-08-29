@@ -195,16 +195,24 @@ defmodule Tuist.Environment do
     get_in(secrets, [:stripe, :prices])
   end
 
-  def github_oauth_id(secrets \\ secrets()) do
-    get([:github, :oauth_id], secrets)
+  def github_app_client_id(secrets \\ secrets()) do
+    get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
 
-  def github_oauth_secret(secrets \\ secrets()) do
-    get([:github, :oauth_secret], secrets)
+  def github_app_client_secret(secrets \\ secrets()) do
+    get([:github, :app_client_secret], secrets) || get([:github, :oauth_secret], secrets)
   end
 
-  def github_configured?(secrets \\ secrets()) do
-    github_oauth_id(secrets) != nil and github_oauth_secret(secrets) != nil
+  def github_app_private_key(secrets \\ secrets()) do
+    get([:github, :app_private_key], secrets)
+  end
+
+  def github_auth_configured?(secrets \\ secrets()) do
+    github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
+  end
+
+  def github_app_configured?(secrets \\ secrets()) do
+    github_auth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do

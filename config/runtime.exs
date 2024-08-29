@@ -187,8 +187,8 @@ end
 # Omniauth
 
 config :ueberauth, Ueberauth.Strategy.Github.OAuth,
-  client_id: Tuist.Environment.github_oauth_id(secrets),
-  client_secret: Tuist.Environment.github_oauth_secret(secrets)
+  client_id: Tuist.Environment.github_app_client_id(secrets),
+  client_secret: Tuist.Environment.github_app_client_secret(secrets)
 
 config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: Tuist.Environment.google_oauth_client_id(secrets),

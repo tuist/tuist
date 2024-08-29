@@ -149,6 +149,10 @@ for _event <- 1..10000 do
     client_id: "client-id",
     status: status,
     error_message: nil,
+    preview_id: nil,
+    git_ref: nil,
+    git_remote_url_origin: nil,
+    git_commit_sha: nil,
     created_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),

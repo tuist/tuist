@@ -110,6 +110,26 @@ defmodule Tuist.CommandEvents do
     |> Flop.validate_and_run!(attrs)
   end
 
+  def get_command_events_by_name_git_ref_and_remote(
+        %{
+          name: name,
+          git_ref: git_ref,
+          git_remote_url_origin: git_remote_url_origin
+        },
+        opts \\ []
+      ) do
+    preload = opts |> Keyword.get(:preload, [])
+
+    from(e in Event,
+      where:
+        e.name == ^name and e.git_ref == ^git_ref and
+          e.git_remote_url_origin == ^git_remote_url_origin,
+      select: e
+    )
+    |> Repo.all()
+    |> Repo.preload(preload)
+  end
+
   def get_command_event_by_id(id, opts \\ []) do
     preloads = opts |> Keyword.get(:preloads, user: :account)
 
@@ -595,7 +615,11 @@ defmodule Tuist.CommandEvents do
           user_id: user_id,
           client_id: client_id,
           status: status,
-          error_message: error_message
+          error_message: error_message,
+          preview_id: preview_id,
+          git_commit_sha: git_commit_sha,
+          git_ref: git_ref,
+          git_remote_url_origin: git_remote_url_origin
         } = event
       ) do
     command_event =
@@ -622,6 +646,10 @@ defmodule Tuist.CommandEvents do
         client_id: client_id,
         status: status,
         error_message: error_message |> truncate_error_message(),
+        preview_id: preview_id,
+        git_commit_sha: git_commit_sha,
+        git_ref: git_ref,
+        git_remote_url_origin: git_remote_url_origin,
         created_at: Map.get(event, :created_at, Time.utc_now())
       })
       |> Repo.insert!()

@@ -1100,6 +1100,23 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.can(user, :create, project, :preview) == false
   end
 
+  test "can.create.project.preview when the subject is the same project previews are being created for" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(project, :create, project, :preview) == true
+  end
+
+  test "can.create.project.preview when the subject is not the same project previews are being created for" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    another_project = ProjectsFixtures.project_fixture()
+
+    # When
+    assert Authorization.can(another_project, :create, project, :preview) == false
+  end
+
   test "can.read.project.preview when the subject is not the same project account being read" do
     # Given
     user = AccountsFixtures.user_fixture()

@@ -15,7 +15,7 @@ defmodule Tuist.CommandEventsFixtures do
     CommandEvents.create_command_event(%{
       name: Keyword.get(attrs, :name, "generate"),
       subcommand: "",
-      command_arguments: [],
+      command_arguments: Keyword.get(attrs, :command_arguments, []),
       duration: Keyword.get(attrs, :duration, 0),
       tuist_version: "4.1.0",
       swift_version: "5.2",
@@ -32,6 +32,10 @@ defmodule Tuist.CommandEventsFixtures do
       user_id: Keyword.get(attrs, :user_id, 1),
       status: Keyword.get(attrs, :status, :success),
       error_message: Keyword.get(attrs, :error_message),
+      preview_id: Keyword.get(attrs, :preview_id),
+      git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+      git_ref: Keyword.get(attrs, :git_ref),
+      git_remote_url_origin: Keyword.get(attrs, :git_remote_url_origin),
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     })
   end

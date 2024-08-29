@@ -1,5 +1,5 @@
-defmodule Tuist.Projects.PreviewTest do
-  alias Tuist.Projects.Preview
+defmodule Tuist.Previews.PreviewTest do
+  alias Tuist.Previews.Preview
   use Tuist.DataCase
 
   describe "create_changeset/1" do

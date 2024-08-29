@@ -1,5 +1,5 @@
 defmodule TuistWeb.PreviewsControllerTest do
-  alias Tuist.Projects.Preview
+  alias Tuist.Previews.Preview
   alias Tuist.Repo
   alias TuistWeb.Authentication
   alias Tuist.Storage
@@ -42,6 +42,40 @@ defmodule TuistWeb.PreviewsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
       assert response_data["preview_id"] == Repo.all(Preview) |> hd() |> Map.get(:id)
+    end
+
+    test "starts multipart upload with a preview name", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      Storage
+      |> expect(:multipart_start, fn _ ->
+        {:ok, upload_id}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "preview-name"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+      assert Repo.all(Preview) |> hd() |> Map.get(:display_name) == "preview-name"
     end
 
     test "starts multipart upload when it returns a raw error", %{

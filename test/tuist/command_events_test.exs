@@ -72,6 +72,10 @@ defmodule Tuist.CommandEventsTest do
           user_id: 1,
           client_id: "client-id",
           status: :success,
+          preview_id: nil,
+          git_ref: nil,
+          git_remote_url_origin: nil,
+          git_commit_sha: nil,
           error_message: nil
         })
 
@@ -1276,6 +1280,73 @@ defmodule Tuist.CommandEventsTest do
       assert Repo.get(TestCase, test_case.id).flaky == true
 
       assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
+    end
+  end
+
+  describe "get_command_events_by_name_git_ref_and_remote/1" do
+    test "gets command events by name, git ref and remote" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          git_commit_sha: "commit-sha-one",
+          git_ref: "refs/pull/2/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        )
+
+      command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          git_commit_sha: "commit-sha-two",
+          git_ref: "refs/pull/2/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        )
+
+      _command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          git_commit_sha: "commit-sha-three",
+          git_ref: "main",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        )
+
+      # When
+      got =
+        CommandEvents.get_command_events_by_name_git_ref_and_remote(%{
+          name: "test",
+          git_ref: "refs/pull/2/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        })
+
+      # Then
+      assert got == [command_event_one, command_event_two]
+    end
+
+    test "gets command events by name, git ref and remote when there are none" do
+      # Given
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          git_commit_sha: "commit-sha-three",
+          git_ref: "main",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        )
+
+      # When
+      got =
+        CommandEvents.get_command_events_by_name_git_ref_and_remote(%{
+          name: "test",
+          git_ref: "refs/pull/2/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist"
+        })
+
+      # Then
+      assert got == []
     end
   end
 end

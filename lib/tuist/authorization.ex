@@ -115,6 +115,10 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, %{id: project.account_id})
   end
 
+  def can(%Project{} = current_project, :create, %Project{} = project, :preview) do
+    current_project.id == project.id
+  end
+
   def can(%User{} = user, :create, %Project{} = project, :preview) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
