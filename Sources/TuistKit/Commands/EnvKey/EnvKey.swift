@@ -86,6 +86,9 @@ public enum EnvKey: String, CaseIterable {
     case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
     case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
 
+    // LINT
+    case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"

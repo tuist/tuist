@@ -118,6 +118,7 @@ public class GraphLinter: GraphLinting {
     private func lintDependencies(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
+        issues.append(contentsOf: lintDuplicatedProductNamesInDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintLinkableDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
@@ -170,6 +171,32 @@ public class GraphLinter: GraphLinting {
         }
 
         return dependencyIssues
+    }
+
+    private func lintDuplicatedProductNamesInDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        return graphTraverser.targets().flatMap { projectPath, projectTargets in
+            return projectTargets.flatMap { targetName, _ in
+                var seenProductNames: Set<String> = []
+                var duplicatedProductNames: Set<String> = []
+                for productName in graphTraverser
+                    .allTargetDependencies(path: projectPath, name: targetName)
+                    .map(\.target.productNameWithExtension)
+                {
+                    if seenProductNames.contains(productName) {
+                        duplicatedProductNames.insert(productName)
+                    } else {
+                        seenProductNames.insert(productName)
+                    }
+                }
+                guard duplicatedProductNames.isEmpty else {
+                    return [LintingIssue(
+                        reason: "The target '\(targetName)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
+                        severity: .error
+                    )]
+                }
+                return []
+            }
+        }
     }
 
     private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
@@ -416,7 +443,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .watch2App),
             LintableTarget(platform: .watchOS, product: .app),
             LintableTarget(platform: .iOS, product: .appClip),
-//            LintableTarget(platform: .watchOS, product: .watchApp),
+            //            LintableTarget(platform: .watchOS, product: .watchApp),
             LintableTarget(platform: .iOS, product: .extensionKitExtension),
             LintableTarget(platform: .macOS, product: .macro),
         ],
