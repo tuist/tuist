@@ -45,10 +45,9 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
             )
 
         if let privacyManifest = resources.privacyManifest {
-            children.append(MerkleNode(
-                hash: try privacyManifestContentHasher.hash(privacyManifest),
+            children.append(try privacyManifestContentHasher.hash(
                 identifier: "privacyManifest",
-                children: []
+                privacyManifest: privacyManifest
             ))
         }
 
