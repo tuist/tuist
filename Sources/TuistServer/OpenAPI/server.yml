@@ -551,14 +551,14 @@ paths:
                   items:
                     type: string
                   type: array
-                commit_sha:
-                  description: The commit SHA.
-                  type: string
                 duration:
                   description: The duration of the command.
                   type: number
                 error_message:
                   description: The error message of the command.
+                  type: string
+                git_commit_sha:
+                  description: The commit SHA.
                   type: string
                 git_ref:
                   description: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
@@ -593,9 +593,6 @@ paths:
                       items:
                         type: string
                       type: array
-                    preview_url:
-                      description: The preview URL.
-                      type: string
                     remote_cache_target_hits:
                       description: A list of remote cache target hits.
                       items:
@@ -612,6 +609,9 @@ paths:
                         type: string
                       type: array
                   type: object
+                preview_id:
+                  description: The preview identifier.
+                  type: string
                 status:
                   description: The status of the command.
                   enum:
@@ -2098,8 +2098,8 @@ paths:
           application/json:
             schema:
               properties:
-                name:
-                  description: The name of the preview
+                display_name:
+                  description: The display name of the preview.
                   type: string
               type: object
         description: Preview upload request params
