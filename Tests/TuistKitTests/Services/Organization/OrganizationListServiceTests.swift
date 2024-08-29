@@ -66,7 +66,7 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertPrinterOutputContains(
-            "You currently have no Cloud organizations. Create one by running `tuist organization create`."
+            "You currently have no Tuist organizations. Create one by running `tuist organization create`."
         )
     }
 }

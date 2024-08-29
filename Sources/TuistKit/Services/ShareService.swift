@@ -22,13 +22,13 @@ enum ShareServiceError: Equatable, FatalError {
         case let .noAppsFound(app: app, configuration: configuration):
             return "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
         case .appNotSpecified:
-            return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms iOS`."
         case .platformsNotSpecified:
-            return "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms iOS`."
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return "You are missing full handle in your Config.swift."
+            return "You are missing full handle for your Tuist Project in the Config.swift file. If you don't have a Tuist Project, yet, follow the steps in our documentation: https://docs.tuist.io/guides/quick-start/gather-insights"
         }
     }
 
