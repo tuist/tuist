@@ -27,14 +27,14 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
 public final class FocusTargetsGraphMappers: GraphMapping {
     // When specified, if includedTargets is empty it will automatically include all targets in the test plan
     public let testPlan: String?
-    /// The targets name to be kept as non prunable with their respective dependencies and tests targets
-    public let includedTargets: Set<String>
-    public let excludedTargets: Set<String>
+    /// The targets to be kept as non prunable with their respective dependencies and tests targets
+    public let includedTargets: Set<TargetPattern>
+    public let excludedTargets: Set<TargetPattern>
 
     public init(
         testPlan: String? = nil,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String> = []
+        includedTargets: Set<TargetPattern>,
+        excludedTargets: Set<TargetPattern> = []
     ) {
         self.testPlan = testPlan
         self.includedTargets = includedTargets
@@ -52,7 +52,11 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             excludingExternalTargets: true
         )
 
-        let unavailableIncludedTargets = Set(includedTargets).subtracting(userSpecifiedSourceTargets.map(\.target.name))
+        let includedTargetNames: [String] = includedTargets.compactMap {
+            guard case let .named(name) = $0 else { return nil }
+            return name
+        }
+        let unavailableIncludedTargets = Set(includedTargetNames).subtracting(userSpecifiedSourceTargets.map(\.target.name))
         if !unavailableIncludedTargets.isEmpty {
             throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
         }
