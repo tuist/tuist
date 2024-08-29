@@ -284,4 +284,6 @@ defmodule TuistWeb.Router do
       live "/analytics", ProjectDashboardLive
     end
   end
+
+  get "/download", TuistWeb.DownloadController, :download
 end

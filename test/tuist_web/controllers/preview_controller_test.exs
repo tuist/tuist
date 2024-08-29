@@ -14,24 +14,7 @@ defmodule TuistWeb.PreviewControllerTest do
     %{conn: conn, user: user}
   end
 
-  test "sets the download url", %{conn: conn} do
-    # Given
-    Tuist.GitHub.Releases
-    |> stub(:get_latest_app_release, fn ->
-      %{
-        published_at: Timex.format!(Timex.now(), "{ISO:Extended}"),
-        name: "v2.0.0",
-        html_url: "https://github.com/release",
-        assets: [
-          %{
-            name: "tuist.zip",
-            browser_download_url:
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
-          }
-        ]
-      }
-    end)
-
+  test "renders a download button", %{conn: conn} do
     # When
     conn =
       conn
@@ -39,6 +22,6 @@ defmodule TuistWeb.PreviewControllerTest do
 
     # Then
     assert html_response(conn, 200) =~
-             "Don't have the Tuist app installed? <a style=\"display: inline;\" href=\"https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg\">Click here to download it.</a>"
+             "Don't have the Tuist app installed? <a style=\"display: inline;\" href=\"/download\">Click here to download it.</a>"
   end
 end

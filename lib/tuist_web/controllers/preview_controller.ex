@@ -9,23 +9,8 @@ defmodule TuistWeb.PreviewController do
           "id" => preview_id
         } = _params
       ) do
-    latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
-
-    app_download_url =
-      if is_nil(latest_app_release) do
-        nil
-      else
-        latest_app_release.assets
-        |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
-        |> Map.get(:browser_download_url)
-      end
-
     conn =
       conn
-      |> assign(
-        :app_download_url,
-        app_download_url
-      )
       |> assign(
         :page_title,
         gettext("Redirecting...")
