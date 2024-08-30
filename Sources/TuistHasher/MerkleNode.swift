@@ -18,4 +18,10 @@ public struct MerkleNode: Codable, Equatable, Hashable {
 
     /// Node children.
     public var children: [MerkleNode]
+
+    public init(hash: String, identifier: String, children: [MerkleNode] = []) {
+        self.hash = hash
+        self.identifier = identifier
+        self.children = children
+    }
 }
