@@ -26,13 +26,6 @@ tuist organization invite MyOrganization teammate1@org.com
 tuist organization invite MyOrganization teammate2@org.com
 ```
 
-Alternatively, you can use Google single sign-on (SSO):
-```bash
-tuist organization update --provider google --organization-id org.com
-```
-
-That way, anyone in your Google organization automatically gets access to projects created in your Tuist organization.
-
 ## Create a project
 
 You can then create a project by running:
@@ -54,7 +47,7 @@ After creating the project on the server, you'll have to connect it to your loca
 ```swift
 import ProjectDescription
 
-let config = Config(fullHandle: "my-handle/MyApp")
+let config = Config(fullHandle: "MyOrganization/MyApp")
 ```
 
 Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
