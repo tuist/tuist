@@ -61,7 +61,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 ## Pull request comments
 
 > [!IMPORTANT] REQUIREMENTS
-> To get automatic pull request comments, integrate with your [git repository provider](../develop/automate/connect-tools) first.
+> To get automatic pull request comments, integrate with your [Git host](../develop/automate/connect-tools) first.
 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all.
 
