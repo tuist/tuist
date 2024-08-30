@@ -886,13 +886,21 @@ defmodule Tuist.CommandEvents do
 
       Repo.insert_all(TestCaseRun, test_case_runs)
 
+      # By grouping the case runs by case id and module hash,
+      # which takes advantage of the composite index test_case_runs_test_case_id_module_hash_status_index,
+      # we speed up the following query, since joins are only done with the identified groups.
+      subquery =
+        from(
+          t in TestCaseRun,
+          group_by: [t.test_case_id, t.module_hash],
+          having: fragment("count(distinct ?) > 1", t.status),
+          select: %{test_case_id: t.test_case_id, module_hash: t.module_hash}
+        )
+
       from(
         t1 in TestCaseRun,
-        join: t2 in TestCaseRun,
-        on:
-          t1.test_case_id == t2.test_case_id and t1.module_hash == t2.module_hash and
-            t1.status != t2.status,
-        select: t1.id
+        join: s in subquery(subquery),
+        on: t1.test_case_id == s.test_case_id and t1.module_hash == s.module_hash
       )
       |> Repo.update_all(set: [flaky: true])
 
