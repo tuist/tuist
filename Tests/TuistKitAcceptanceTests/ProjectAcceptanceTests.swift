@@ -70,7 +70,7 @@ final class ProjectAcceptanceTestProjectRepository: ServerAcceptanceTestCase {
             Default branch: main
             """
         )
-        try await run(ProjectUpdateCommand.self, fullHandle, "--repository", "https://github.com/tuist/tuist")
+        try await run(ProjectUpdateCommand.self, fullHandle, "--repository-url", "https://github.com/tuist/tuist")
         TestingLogHandler.reset()
         try await run(ProjectShowCommand.self, fullHandle)
         XCTAssertStandardOutput(

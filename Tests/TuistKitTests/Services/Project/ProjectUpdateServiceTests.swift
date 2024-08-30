@@ -64,7 +64,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
         try await subject.run(
             fullHandle: nil,
             defaultBranch: "new-default-branch",
-            repository: "https://github.com/tuist/tuist",
+            repositoryURL: "https://github.com/tuist/tuist",
             path: nil
         )
 
@@ -103,7 +103,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
             try await subject.run(
                 fullHandle: nil,
                 defaultBranch: "new-default-branch",
-                repository: nil,
+                repositoryURL: nil,
                 path: nil
             ),
             ProjectUpdateServiceError.missingFullHandle
@@ -128,7 +128,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
         try await subject.run(
             fullHandle: "tuist/tuist",
             defaultBranch: "new-default-branch",
-            repository: nil,
+            repositoryURL: nil,
             path: nil
         )
 
