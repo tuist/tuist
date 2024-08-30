@@ -66,7 +66,7 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
-                name: .value("App"),
+                displayName: .value("App"),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )

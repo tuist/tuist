@@ -178,7 +178,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -197,7 +197,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -276,7 +276,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -295,7 +295,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -429,7 +429,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -448,7 +448,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
@@ -513,7 +513,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                name: .any,
+                displayName: .any,
                 previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
@@ -535,7 +535,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                name: .value("App"),
+                displayName: .value("App"),
                 previewPaths: .value([iosApp, visionOSApp]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
