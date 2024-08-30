@@ -440,6 +440,9 @@ components:
         id:
           description: ID of the project
           type: number
+        repository_url:
+          description: The URL of the connected git repository.
+          type: string
         token:
           deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
@@ -1858,6 +1861,9 @@ paths:
                 default_branch:
                   description: The default branch for the project.
                   type: string
+                repository_url:
+                  description: The repository URL for the project.
+                  type: string
               type: object
         description: Project update params
         required: false
@@ -1868,6 +1874,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The updated project
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid, for example when updating to a non-supported git repository
         401:
           content:
             application/json:

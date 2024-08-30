@@ -1362,6 +1362,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/id`.
             public var id: Swift.Double
+            /// The URL of the connected git repository.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
+            public var repository_url: Swift.String?
             /// The token that should be used to authenticate the project. For CI only.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
@@ -1372,22 +1376,26 @@ public enum Components {
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
+            ///   - repository_url: The URL of the connected git repository.
             ///   - token: The token that should be used to authenticate the project. For CI only.
             public init(
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
+                repository_url: Swift.String? = nil,
                 token: Swift.String
             ) {
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
+                self.repository_url = repository_url
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
                 case default_branch
                 case full_name
                 case id
+                case repository_url
                 case token
             }
         }
@@ -6765,14 +6773,26 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/default_branch`.
                     public var default_branch: Swift.String?
+                    /// The repository URL for the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/repository_url`.
+                    public var repository_url: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    public init(default_branch: Swift.String? = nil) {
+                    ///   - repository_url: The repository URL for the project.
+                    public init(
+                        default_branch: Swift.String? = nil,
+                        repository_url: Swift.String? = nil
+                    ) {
                         self.default_branch = default_branch
+                        self.repository_url = repository_url
                     }
-                    public enum CodingKeys: String, CodingKey { case default_branch }
+                    public enum CodingKeys: String, CodingKey {
+                        case default_branch
+                        case repository_url
+                    }
                 }
                 case json(Operations.updateProject.Input.Body.jsonPayload)
             }
@@ -6831,6 +6851,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.updateProject.Output.Ok)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateProject.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateProject.Output.BadRequest.Headers = .init(),
+                    body: Operations.updateProject.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request is invalid, for example when updating to a non-supported git repository
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateProject.Output.BadRequest)
             public struct Unauthorized: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.

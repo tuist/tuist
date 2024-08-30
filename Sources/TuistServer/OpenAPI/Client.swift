@@ -2320,6 +2320,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 400:
+                    let headers: Operations.updateProject.Output.BadRequest.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.BadRequest.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .badRequest(.init(headers: headers, body: body))
                 case 401:
                     let headers: Operations.updateProject.Output.Unauthorized.Headers = .init()
                     try converter.validateContentTypeIfPresent(

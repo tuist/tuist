@@ -22,6 +22,11 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
     var defaultBranch: String?
 
     @Option(
+        help: "Set the connected Git repository. Example: --repository-url https://github.com/tuist/tuist"
+    )
+    var repositoryURL: String?
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the Tuist project.",
         completion: .directory
@@ -33,6 +38,7 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
             .run(
                 fullHandle: fullHandle,
                 defaultBranch: defaultBranch,
+                repositoryURL: repositoryURL,
                 path: path
             )
     }
