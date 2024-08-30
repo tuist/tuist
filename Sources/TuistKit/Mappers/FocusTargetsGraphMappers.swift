@@ -7,10 +7,11 @@ import XcodeGraph
 
 public enum FocusTargetsGraphMappersError: FatalError, Equatable {
     case targetsNotFound([String])
+    case noTargetsFound
 
     public var type: ErrorType {
         switch self {
-        case .targetsNotFound:
+        case .targetsNotFound, .noTargetsFound:
             return .abort
         }
     }
@@ -19,6 +20,8 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
         switch self {
         case let .targetsNotFound(targets):
             return "The following targets were not found: \(targets.joined(separator: ", ")). Please, make sure they exist."
+        case .noTargetsFound:
+            return "No targets were found."
         }
     }
 }
@@ -59,6 +62,10 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         let unavailableIncludedTargets = Set(includedTargetNames).subtracting(userSpecifiedSourceTargets.map(\.target.name))
         if !unavailableIncludedTargets.isEmpty {
             throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
+        }
+
+        if !includedTargets.isEmpty || !excludedTargets.isEmpty, userSpecifiedSourceTargets.isEmpty {
+            throw FocusTargetsGraphMappersError.noTargetsFound
         }
 
         let filteredTargets = Set(try topologicalSort(
