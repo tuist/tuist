@@ -341,6 +341,10 @@ export const guidesSidebar = [
         collapsed: true,
         items: [
           {
+            text: `Connect tools`,
+            link: "guides/develop/automate/connect-tools",
+          },
+          {
             text: `Continuous Integration`,
             link: "/guides/develop/automate/continuous-integration",
           },
