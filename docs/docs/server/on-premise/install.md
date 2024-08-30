@@ -135,7 +135,7 @@ For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/d
 
 ### Git host configuration
 
-We integrate with your Git hosts to provide extra features such as automatically posting pull request comments in your pull requests. We recommend first going through the [configuration](../../develop/automate/connect-tools#git-repositories) in non-on-premise environments.
+We integrate with your Git hosts to provide extra features such as automatically posting comments in your pull requests. We recommend first going through the [configuration](../../develop/automate/connect-tools#git-repositories) in non-on-premise environments.
 
 #### GitHub
 

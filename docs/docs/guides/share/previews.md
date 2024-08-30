@@ -65,5 +65,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all.
 
-But what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app? Once you are connected with your git repository provider such as GitHub and add a `tuist share MyApp` to your CI workflow, Tuist will do exactly that:
+But what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app? 
+
+Once your Tuist project is connected with your Git host such as GitHub, add a `tuist share MyApp` to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](./images/github-app-with-preview.png)
