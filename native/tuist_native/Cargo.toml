@@ -10,10 +10,12 @@ path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
+reqwest = { version = "0.11", features = ["json", "blocking"] }
 obfstr = "0.4.3"
 rustler = "0.32.0"
 base64 = "0.13"
 openssl = "0.10"
+chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rust-s3 = { git = "https://github.com/tuist/rust-s3.git", rev="b80b2314cdca50e097fefac40d6802986d4a8066", features = ["blocking"]}

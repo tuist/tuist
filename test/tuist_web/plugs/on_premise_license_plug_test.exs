@@ -23,8 +23,8 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Tuist.Environment
-    |> stub(:license_expired?, fn -> true end)
+    Tuist.License
+    |> stub(:valid?, fn -> false end)
 
     opts = OnPremiseLicensePlug.init(:api)
 
@@ -47,11 +47,11 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Tuist.Environment
-    |> stub(:license_expired?, fn -> false end)
+    Tuist.License
+    |> stub(:valid?, fn -> true end)
 
-    Tuist.Environment
-    |> stub(:license_expiration_days_span, fn -> 29 end)
+    Tuist.License
+    |> stub(:expiration_days_span, fn -> 29 end)
 
     opts = OnPremiseLicensePlug.init(:api)
 
@@ -71,11 +71,11 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Tuist.Environment
-    |> stub(:license_expired?, fn -> false end)
+    Tuist.License
+    |> stub(:valid?, fn -> true end)
 
-    Tuist.Environment
-    |> stub(:license_expiration_days_span, fn -> 120 end)
+    Tuist.License
+    |> stub(:expiration_days_span, fn -> 120 end)
 
     opts = OnPremiseLicensePlug.init(:api)
 

@@ -23,9 +23,11 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   end
 
   defp call_on_premise(conn, _) do
-    on_premise_license_expired? = Environment.license_expired?()
+    license_valid? = Tuist.License.valid?()
 
-    if on_premise_license_expired? do
+    if license_valid? do
+      conn
+    else
       conn
       |> put_status(:payment_required)
       |> json(%{
@@ -34,8 +36,6 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
         """
       })
       |> halt()
-    else
-      conn
     end
   end
 

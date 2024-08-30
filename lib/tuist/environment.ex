@@ -74,21 +74,6 @@ defmodule Tuist.Environment do
     not on_premise?() and Enum.member?([:prod, :stag, :can], env())
   end
 
-  def license_expiration_date() do
-    {:ok, expiration_date} =
-      Date.from_iso8601(Application.get_env(:tuist, :license).expiration_date)
-
-    expiration_date
-  end
-
-  def license_expired?() do
-    Tuist.Native.License.expired?(Application.get_env(:tuist, :license))
-  end
-
-  def license_expiration_days_span() do
-    Date.diff(license_expiration_date(), Date.utc_today())
-  end
-
   def version() do
     version = get([:version])
 

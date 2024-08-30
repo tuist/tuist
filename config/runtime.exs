@@ -166,24 +166,6 @@ if Tuist.Environment.stripe_configured?(secrets) do
     signing_secret: Tuist.Environment.stripe_endpoint_secret(secrets)
 end
 
-# License
-if not Enum.member?([:dev, :test], env) do
-  with {:license, {:ok, license}} <- {:license, Tuist.Native.license()},
-       {:expired, false} <- {:expired, Tuist.Native.License.expired?(license)} do
-    config :tuist, :license, license
-  else
-    {:license, {:error, error}} ->
-      raise """
-      We couldn't boot up the server because we couldn't load the license due to the following error: #{error}
-      """
-
-    {:expired, true} ->
-      raise """
-      The license has expired. Please contact contact@tuist.io to renew it.
-      """
-  end
-end
-
 # Omniauth
 
 config :ueberauth, Ueberauth.Strategy.Github.OAuth,

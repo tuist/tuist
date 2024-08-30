@@ -4,7 +4,8 @@ pub mod s3;
 rustler::init!(
   "Elixir.Tuist.Native",
   [
-      license::license,
+      license::keygen_license,
+      license::local_license,
       s3::s3_download_presigned_url,
       s3::s3_exists,
       s3::s3_multipart_start,

@@ -252,8 +252,8 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Environment
-    |> stub(:license_expired?, fn -> false end)
+    Tuist.License
+    |> stub(:valid?, fn -> true end)
 
     project = project |> Repo.reload() |> Repo.preload(:account)
 
@@ -280,8 +280,8 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Environment
-    |> stub(:license_expired?, fn -> true end)
+    Tuist.License
+    |> stub(:valid?, fn -> false end)
 
     project = project |> Repo.reload() |> Repo.preload(:account)
 
