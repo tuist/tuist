@@ -66,6 +66,7 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
+                displayName: .value("App"),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
@@ -95,12 +96,19 @@ final class PreviewsUploadServiceTests: TuistTestCase {
 
         // When
         let got = try await subject.uploadPreviews(
-            [preview],
+            displayName: "App",
+            previewPaths: [preview],
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )
 
         // Then
-        XCTAssertEqual(got, shareURL)
+        XCTAssertEqual(
+            got,
+            .test(
+                id: "preview-id",
+                url: shareURL
+            )
+        )
     }
 }

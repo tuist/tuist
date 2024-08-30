@@ -87,10 +87,6 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-        ])
-
         // When
         try await subject.run(path: path.pathString)
     }

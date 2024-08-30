@@ -178,11 +178,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -196,7 +197,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -274,11 +276,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -292,7 +295,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -425,11 +429,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -443,7 +448,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -507,11 +513,12 @@ final class ShareServiceTests: TuistUnitTestCase {
         let shareURL: URL = .test()
         given(previewsUploadService)
             .uploadPreviews(
-                .any,
+                displayName: .any,
+                previewPaths: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -528,7 +535,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                .value([iosApp, visionOSApp]),
+                displayName: .value("App"),
+                previewPaths: .value([iosApp, visionOSApp]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
