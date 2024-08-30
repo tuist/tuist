@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Path
 import TSCUtility
 
-public protocol GitHandling {
+@Mockable
+public protocol GitControlling {
     /// Clones the given `url` **into** the given `path`.
     /// `path` must point to a directory where a git repo can be cloned.
     ///
@@ -36,11 +38,23 @@ public protocol GitHandling {
     /// - Parameters:
     ///   - url: The `url` of the git repository.
     func remoteTaggedVersions(url: String) throws -> [Version]
+
+    /// Return the current commit SHA
+    func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String
+
+    /// Return the git URL origin
+    func urlOrigin(workingDirectory: AbsolutePath) throws -> String
+
+    /// - Returns: A git ref based on the CI environment value. Returns `nil` in non-CI environments.
+    func ref(environment: [String: String]) -> String?
+
+    /// - Returns: `true` if we recognize that we're in a `git` repository
+    func isInGitRepository(workingDirectory: AbsolutePath) -> Bool
 }
 
-/// An implementation of `GitHandling`.
+/// An implementation of `GitControlling`.
 /// Uses the system to execute git commands.
-public final class GitHandler: GitHandling {
+public final class GitController: GitControlling {
     private let system: Systeming
     private let environment: Environmenting
 
@@ -73,8 +87,58 @@ public final class GitHandler: GitHandling {
         }
     }
 
+    public func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String {
+        try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func urlOrigin(workingDirectory: AbsolutePath) throws -> String {
+        try capture(command: "git", "-C", workingDirectory.pathString, "remote", "get-url", "origin")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public func remoteTaggedVersions(url: String) throws -> [Version] {
         try parseVersions(lsRemote(url: url))
+    }
+
+    public func isInGitRepository(workingDirectory: AbsolutePath) -> Bool {
+        do {
+            try run(command: "git", "-C", workingDirectory.pathString, "rev-parse")
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private static let pullRequestIDEnvironmentVariables = [
+        // Codemagic
+        "CM_PULL_REQUEST_NUMBER",
+        // GitLab
+        "CI_EXTERNAL_PULL_REQUEST_IID",
+        // Bitrise
+        "BITRISE_PULL_REQUEST",
+        // AppCircle
+        "AC_PULL_NUMBER",
+        // Xcode Cloud
+        "CI_PULL_REQUEST_NUMBER",
+        // CircleCI
+        "CIRCLE_PR_NUMBER",
+        // Buildkite
+        "BUILDKITE_PULL_REQUEST",
+    ]
+
+    public func ref(environment: [String: String]) -> String? {
+        if let githubRef = environment["GITHUB_REF"] {
+            return githubRef
+        } else if let pullRequestID = Self.pullRequestIDEnvironmentVariables
+            .compactMap({ environment[$0] })
+            .first(where: { !$0.isEmpty })
+        {
+            // We're aligning the pull request ID with the PR GITHUB_REF environment variable
+            return "refs/pull/\(pullRequestID)/merge"
+        } else {
+            return nil
+        }
     }
 
     private func run(command: String...) throws {

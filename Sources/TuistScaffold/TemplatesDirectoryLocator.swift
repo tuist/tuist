@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 
+@Mockable
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
     func locateTuistTemplates() -> AbsolutePath?

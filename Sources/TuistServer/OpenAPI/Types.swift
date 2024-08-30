@@ -189,7 +189,7 @@ public protocol APIProtocol: Sendable {
         -> Operations.showProject.Output
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -599,32 +599,6 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case access_token
                 case refresh_token
-            }
-        }
-        /// The URL to download a build.
-        ///
-        /// - Remark: Generated from `#/components/schemas/BuildDownloadURL`.
-        public struct BuildDownloadURL: Codable, Equatable, Hashable, Sendable {
-            /// The UNIX timestamp when the URL expires.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/expires_at`.
-            public var expires_at: Swift.Int
-            /// The URL to download the artifact from the cache.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/url`.
-            public var url: Swift.String
-            /// Creates a new `BuildDownloadURL`.
-            ///
-            /// - Parameters:
-            ///   - expires_at: The UNIX timestamp when the URL expires.
-            ///   - url: The URL to download the artifact from the cache.
-            public init(expires_at: Swift.Int, url: Swift.String) {
-                self.expires_at = expires_at
-                self.url = url
-            }
-            public enum CodingKeys: String, CodingKey {
-                case expires_at
-                case url
             }
         }
         /// The URL to download the artifact from the cache.
@@ -1568,6 +1542,18 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/error_message`.
                     public var error_message: Swift.String?
+                    /// The commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
+                    /// The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// The git remote URL origin.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
                     /// Whether the command was run in a CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/is_ci`.
@@ -1646,6 +1632,10 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/params`.
                     public var params:
                         Operations.createCommandEvent.Input.Body.jsonPayload.paramsPayload?
+                    /// The preview identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/preview_id`.
+                    public var preview_id: Swift.String?
                     /// The status of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/status`.
@@ -1697,10 +1687,14 @@ public enum Operations {
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
+                    ///   - git_commit_sha: The commit SHA.
+                    ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
                     ///   - name: The name of the command.
                     ///   - params: Extra parameters.
+                    ///   - preview_id: The preview identifier.
                     ///   - status: The status of the command.
                     ///   - subcommand: The subcommand of the command.
                     ///   - swift_version: The version of Swift that ran the command.
@@ -1710,11 +1704,15 @@ public enum Operations {
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Double,
                         error_message: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String,
                         name: Swift.String,
                         params: Operations.createCommandEvent.Input.Body.jsonPayload
                             .paramsPayload? = nil,
+                        preview_id: Swift.String? = nil,
                         status: Operations.createCommandEvent.Input.Body.jsonPayload
                             .statusPayload? = nil,
                         subcommand: Swift.String? = nil,
@@ -1725,10 +1723,14 @@ public enum Operations {
                         self.command_arguments = command_arguments
                         self.duration = duration
                         self.error_message = error_message
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.name = name
                         self.params = params
+                        self.preview_id = preview_id
                         self.status = status
                         self.subcommand = subcommand
                         self.swift_version = swift_version
@@ -1739,10 +1741,14 @@ public enum Operations {
                         case command_arguments
                         case duration
                         case error_message
+                        case git_commit_sha
+                        case git_ref
+                        case git_remote_url_origin
                         case is_ci
                         case macos_version
                         case name
                         case params
+                        case preview_id
                         case status
                         case subcommand
                         case swift_version
@@ -6714,7 +6720,7 @@ public enum Operations {
     }
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -7625,7 +7631,26 @@ public enum Operations {
                 public init() {}
             }
             public var cookies: Operations.startPreviewsMultipartUpload.Input.Cookies
-            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Preview upload request params
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The display name of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/display_name`.
+                    public var display_name: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - display_name: The display name of the preview.
+                    public init(display_name: Swift.String? = nil) {
+                        self.display_name = display_name
+                    }
+                    public enum CodingKeys: String, CodingKey { case display_name }
+                }
+                case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
+            }
             public var body: Operations.startPreviewsMultipartUpload.Input.Body?
             /// Creates a new `Input`.
             ///
@@ -9120,6 +9145,45 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            public struct InternalServerError: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(
+                Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+            )
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

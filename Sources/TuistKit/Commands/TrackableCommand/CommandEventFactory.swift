@@ -1,4 +1,6 @@
 import Foundation
+import Mockable
+import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
@@ -9,14 +11,30 @@ import TuistSupport
 
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
+    private let gitController: GitControlling
 
     public init(
-        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared
+        machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+        gitController: GitControlling = GitController()
     ) {
         self.machineEnvironment = machineEnvironment
+        self.gitController = gitController
     }
 
-    public func make(from info: TrackableCommandInfo) -> CommandEvent {
+    public func make(
+        from info: TrackableCommandInfo,
+        path: AbsolutePath,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> CommandEvent {
+        let gitCommitSHA: String?
+        let gitRemoteURLOrigin: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
+            gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
+            gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
+        } else {
+            gitCommitSHA = nil
+            gitRemoteURLOrigin = nil
+        }
         let commandEvent = CommandEvent(
             runId: info.runId,
             name: info.name,
@@ -30,7 +48,10 @@ public final class CommandEventFactory {
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: machineEnvironment.isCI,
-            status: info.status
+            status: info.status,
+            gitCommitSHA: gitCommitSHA,
+            gitRef: gitController.ref(environment: environment),
+            gitRemoteURLOrigin: gitRemoteURLOrigin
         )
         return commandEvent
     }

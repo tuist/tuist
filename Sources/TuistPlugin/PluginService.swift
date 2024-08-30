@@ -65,7 +65,7 @@ public final class PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling
-    private let gitHandler: GitHandling
+    private let gitController: GitControlling
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
@@ -76,7 +76,7 @@ public final class PluginService: PluginServicing {
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
     ///   - templatesDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
-    ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
+    ///   - gitController: A git handler for cloning and interacting with remote plugins.
     ///   - cacheDirectoryProviderFactory: A cache directory provider
     ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
     ///   - fileClient: FileClient for downloading plugin releases.
@@ -84,7 +84,7 @@ public final class PluginService: PluginServicing {
         manifestLoader: ManifestLoading = ManifestLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
-        gitHandler: GitHandling = GitHandler(),
+        gitController: GitControlling = GitController(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileClient: FileClienting = FileClient(),
@@ -93,7 +93,7 @@ public final class PluginService: PluginServicing {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.fileHandler = fileHandler
-        self.gitHandler = gitHandler
+        self.gitController = gitController
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
@@ -261,8 +261,8 @@ public final class PluginService: PluginServicing {
 
         logger.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         logger.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
-        try gitHandler.clone(url: url, to: pluginRepositoryDirectory)
-        try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
+        try gitController.clone(url: url, to: pluginRepositoryDirectory)
+        try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
     private func fetchGitPluginRelease(

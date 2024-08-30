@@ -129,7 +129,7 @@ public enum Module: String, CaseIterable {
     public var testingTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation, .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache:
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -454,7 +454,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectAutomation.targetName),
                 .target(name: Module.loader.testingTargetName!),
                 .target(name: Module.generator.testingTargetName!),
-                .target(name: Module.scaffold.testingTargetName!),
                 .target(name: Module.automation.testingTargetName!),
                 .target(name: Module.migration.testingTargetName!),
                 .target(name: Module.asyncQueue.testingTargetName!),
@@ -521,7 +520,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.loader.testingTargetName!),
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
-                .target(name: Module.scaffold.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
                 .external(name: "XcodeGraph"),
             ]
@@ -589,7 +587,7 @@ public enum Module: String, CaseIterable {
     public var testingDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] = switch self {
         case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .server, .hasher, .analytics,
-             .migration, .tuistFixtureGenerator, .cache:
+             .migration, .tuistFixtureGenerator, .cache, .scaffold:
             []
         case .asyncQueue:
             [
@@ -622,11 +620,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.testingTargetName!),
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeProj"),
-                .external(name: "XcodeGraph"),
-            ]
-        case .scaffold:
-            [
-                .target(name: Module.core.targetName),
                 .external(name: "XcodeGraph"),
             ]
         case .loader:
