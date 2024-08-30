@@ -1,16 +1,16 @@
 import MockableTest
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
 
 final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
-    var swiftPackageManagerController: MockSwiftPackageManagerController!
-    var packageInfoMapper: MockPackageInfoMapping!
-    var manifestLoader: MockManifestLoading!
-    var subject: SwiftPackageManagerGraphLoader!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var packageInfoMapper: MockPackageInfoMapping!
+    private var manifestLoader: MockManifestLoading!
+    private var subject: SwiftPackageManagerGraphLoader!
 
     override func setUp() {
         super.setUp()
@@ -90,7 +90,11 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
             atomically: true
         )
 
-        try fileHandler.touch(temporaryPath.appending(components: [".build", "Derived", "Package.resolved"]))
+        let savedPackageResolvedPath = temporaryPath.appending(components: [".build", "Derived", "Package.resolved"])
+        let currentPackageResolvedPath = temporaryPath.appending(component: "Package.resolved")
+        try fileHandler.touch(savedPackageResolvedPath)
+        try fileHandler.write("outdated", path: savedPackageResolvedPath, atomically: true)
+        try fileHandler.touch(currentPackageResolvedPath)
 
         given(packageInfoMapper)
             .resolveExternalDependencies(packageInfos: .any, packageToFolder: .any, packageToTargetsToArtifactPaths: .any)
