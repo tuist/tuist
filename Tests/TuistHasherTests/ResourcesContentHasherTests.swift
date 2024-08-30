@@ -81,18 +81,72 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, MerkleNode(
-            hash: "93fdd9b5838add3a2b695d6d07389ca6",
+            hash: "a1e41502d881675442e20a7a0ce58245",
             identifier: "resources",
             children: [
                 MerkleNode(
-                    hash: "c4ca4238a0b923820dcc509a6f75849b",
+                    hash: "069310d0d484da1c8bcc98386a1f36e7",
                     identifier: resource1.pathString,
-                    children: []
+                    children: [
+                        MerkleNode(
+                            hash: "c4ca4238a0b923820dcc509a6f75849b",
+                            identifier: "content",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "cfcd208495d565ef66e7dff9f98764da",
+                            identifier: "isReference",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "e9bae3ce1d7ac00b0b1aa2fbddc50cfb",
+                            identifier: "tags",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "4ed91b7e02b960dc31256de17f3f131f",
+                            identifier: "inclusionCondition",
+                            children: [
+                                MerkleNode(
+                                    hash: "43b9d8ea18c48c3a64c4e37338fc668f",
+                                    identifier: "macos",
+                                    children: []
+                                ),
+                            ]
+                        ),
+                    ]
                 ),
                 MerkleNode(
-                    hash: "c81e728d9d4c2f636f067f89cc14862c",
+                    hash: "09eb77e7eb4c9f21384c143fc399c5ca",
                     identifier: resource2.parentDirectory.pathString,
-                    children: []
+                    children: [
+                        MerkleNode(
+                            hash: "c81e728d9d4c2f636f067f89cc14862c",
+                            identifier: "content",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "c4ca4238a0b923820dcc509a6f75849b",
+                            identifier: "isReference",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "f32af7d8e6b19f67a63af85e5e7b8a82",
+                            identifier: "tags",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "12ee3b51be5e4bd87bf7a4c8895cc088",
+                            identifier: "inclusionCondition",
+                            children: [
+                                MerkleNode(
+                                    hash: "9e304d4e8df1b74cfa009913198428ab",
+                                    identifier: "ios",
+                                    children: []
+                                ),
+                            ]
+                        ),
+                    ]
                 ),
                 MerkleNode(
                     hash: "bdb8825693f6a3fef832665ef7b93d14",
