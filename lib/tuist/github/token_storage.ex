@@ -92,9 +92,6 @@ defmodule Tuist.GitHub.TokenStorage do
 
       {:token, {:error, reason}} ->
         {:error, "Request failed when getting the token: #{inspect(reason)}"}
-
-      {:ok, %Req.Response{} = response} ->
-        {:error, response}
     end
   end
 

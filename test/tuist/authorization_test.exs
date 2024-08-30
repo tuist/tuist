@@ -1,9 +1,11 @@
 defmodule Tuist.AuthorizationTest do
+  alias Tuist.VCS
   alias Tuist.Accounts
   alias Tuist.AccountsFixtures
   alias Tuist.Authorization
   alias Tuist.ProjectsFixtures
   use Tuist.DataCase
+  use Mimic
 
   test "can.update.account.billing when the subject is the same account being read" do
     # Given
@@ -512,6 +514,133 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can(user, :read, account, :project) == false
+  end
+
+  test "can.update.project.repository when the subject is a user that doesn't belong to the project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+  end
+
+  test "can.update.project.repository when the subject is a user that is a user of the project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization)
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+  end
+
+  test "can.update.project.repository when the subject is a user that is an admin of the project organization and has write repository permission" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    VCS
+    |> stub(:get_user_permission, fn _ ->
+      {:ok, %VCS.Repositories.Permission{permission: "write"}}
+    end)
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == true
+  end
+
+  test "can.update.project.repository when the subject is a user that is an admin of the project organization and has admin repository permission" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    VCS
+    |> stub(:get_user_permission, fn _ ->
+      {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+    end)
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == true
+  end
+
+  test "can.update.project.repository when the subject is a user that is an admin of the project organization and has read repository permission" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    VCS
+    |> stub(:get_user_permission, fn _ ->
+      {:ok, %VCS.Repositories.Permission{permission: "read"}}
+    end)
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == false
+  end
+
+  test "can.update.project.repository when the subject is a user that is an admin of the project organization and the permission was not found" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    VCS
+    |> stub(:get_user_permission, fn _ ->
+      {:error, :not_found}
+    end)
+
+    repository = %VCS.Repositories.Repository{
+      full_handle: "tuist/tuist",
+      provider: :github,
+      default_branch: "main"
+    }
+
+    # When
+    assert Authorization.can(user, :update, project, %{repository: repository}) == false
   end
 
   test "can.read.project.dashboard when the subject is a user that belongs to an organization" do

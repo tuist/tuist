@@ -26,6 +26,11 @@ defmodule TuistWeb.API.Schemas.Project do
         type: :string,
         description: "The default branch of the project.",
         example: "main"
+      },
+      repository_url: %Schema{
+        type: :string,
+        description:
+          "The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git"
       }
     }
   })

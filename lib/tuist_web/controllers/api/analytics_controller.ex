@@ -227,7 +227,7 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin
       })
 
-    VCS.Reporter.post_vcs_pull_request_comment(%{
+    VCS.post_vcs_pull_request_comment(%{
       command_name: body_params.name,
       git_commit_sha: git_commit_sha,
       git_ref: git_ref,

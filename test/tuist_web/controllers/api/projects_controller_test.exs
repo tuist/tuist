@@ -1,4 +1,6 @@
 defmodule TuistWeb.API.ProjectsControllerTest do
+  alias Tuist.VCS
+  alias Tuist.GitHub
   alias Tuist.ProjectsFixtures
   alias Tuist.AccountsFixtures
   alias Tuist.Accounts
@@ -37,7 +39,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => response["id"],
                "full_name" => "#{user.account.name}/my-project",
                "token" => response["token"],
-               "default_branch" => "main"
+               "default_branch" => "main",
+               "repository_url" => nil
              }
     end
 
@@ -63,7 +66,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => response["id"],
                "full_name" => "tuist/my-project",
                "token" => response["token"],
-               "default_branch" => "main"
+               "default_branch" => "main",
+               "repository_url" => nil
              }
     end
 
@@ -90,7 +94,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
                "token" => response["token"],
-               "default_branch" => "main"
+               "default_branch" => "main",
+               "repository_url" => nil
              }
     end
 
@@ -117,7 +122,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
                "token" => response["token"],
-               "default_branch" => "main"
+               "default_branch" => "main",
+               "repository_url" => nil
              }
     end
 
@@ -406,7 +412,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
                "token" => project.token,
-               "default_branch" => project.default_branch
+               "default_branch" => project.default_branch,
+               "repository_url" => nil
              }
     end
 
@@ -436,7 +443,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
                "token" => project.token,
-               "default_branch" => project.default_branch
+               "default_branch" => project.default_branch,
+               "repository_url" => nil
              }
     end
 
@@ -532,6 +540,60 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["default_branch"] == "new-default-branch"
     end
 
+    test "updates a project with a repository url and its default branch", %{
+      conn: conn
+    } do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          }
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           default_branch: "main",
+           provider: :github,
+           full_handle: "tuist/tuist"
+         }}
+      end)
+
+      GitHub.Client
+      |> expect(:get_user_by_id, fn "123" ->
+        {:ok, %VCS.User{username: "tuist"}}
+      end)
+
+      GitHub.Client
+      |> expect(:get_user_permission, fn %{username: "tuist", full_handle: "tuist/tuist"} ->
+        {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}",
+          repository_url: "https://github.com/tuist/tuist"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["default_branch"] == "main"
+      assert response["repository_url"] == "https://github.com/tuist/tuist"
+    end
+
     test "returns :forbidden when user is not an admin of an organization", %{
       conn: conn,
       user: user
@@ -574,6 +636,90 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       response = json_response(conn, :not_found)
       assert response["message"] == "Project tuist/non-existing-project was not found."
+    end
+
+    test "returns :bad_request when the updated repository is from an unsupported git provider",
+         %{
+           conn: conn,
+           user: user
+         } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}",
+          repository_url: "https://gitlab.com/tuist/tuist"
+        )
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response["message"] ==
+               "The given Git host is not supported. The supported Git hosts are: GitHub."
+    end
+
+    test "returns :forbidden when a user does not have admin or write permissions to the repository",
+         %{
+           conn: conn
+         } do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          }
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      GitHub.Client
+      |> expect(:get_user_by_id, fn "123" ->
+        {:ok, %VCS.User{username: "tuist"}}
+      end)
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           default_branch: "main",
+           provider: :github,
+           full_handle: "tuist/tuist"
+         }}
+      end)
+
+      GitHub.Client
+      |> expect(:get_user_permission, fn %{username: "tuist", full_handle: "tuist/tuist"} ->
+        {:error, "Not found"}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{account.name}/#{project.name}",
+          repository_url: "https://github.com/tuist/tuist"
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "You are not authorized to update the Git repository URL."
     end
   end
 

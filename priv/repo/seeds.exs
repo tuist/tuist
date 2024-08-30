@@ -5,7 +5,7 @@ alias Tuist.CommandEvents
 import Ecto.Query, only: [from: 2]
 
 # Stubs
-email = "tuist@tuist.io"
+email = "tuistrocks@tuist.io"
 password = "tuistrocks"
 
 account =
@@ -48,23 +48,23 @@ _public_project =
       )
   end
 
+org_account =
+  if Accounts.get_organization_account_by_name("tuist") do
+    Accounts.get_organization_account_by_name("tuist").organization
+  else
+    Accounts.create_organization(%{name: "tuist", creator: user}, start_trial: false)
+  end
+
 tuist_cloud_acceptance_tests_project =
   with {:ok, project} <- Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
     project
   else
     {:error, _} ->
-      Projects.create_project(%{name: "ios_app_with_frameworks", account: %{id: account.id}})
-  end
-
-org_account =
-  if Accounts.get_organization_account_by_name("tuist-org") do
-    Accounts.get_organization_account_by_name("tuist-org").organization
-  else
-    Accounts.create_organization(%{name: "tuist-org", creator: user}, start_trial: false)
+      Projects.create_project(%{name: "ios_app_with_frameworks", account: %{id: org_account.id}})
   end
 
 _org_project =
-  Projects.get_project_by_slug("tuist-org/tuist") ||
+  Projects.get_project_by_slug("tuist/tuist") ||
     Projects.create_project(%{name: "tuist", account: %{id: org_account.id}}, token: "tuist")
 
 for _event <- 1..10000 do

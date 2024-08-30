@@ -1,14 +1,115 @@
-defmodule Tuist.VCS.ReporterTest do
+defmodule Tuist.VCSTest do
+  use ExUnit.Case, async: false
+  use Tuist.DataCase
+  use Mimic
+
+  alias Tuist.GitHub
+  alias Tuist.Billing
+  alias Tuist.Accounts
+  alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.Environment
-  alias Tuist.GitHub
-  alias Tuist.VCS
   alias Tuist.ProjectsFixtures
   alias Tuist.Previews
   alias Tuist.CommandEventsFixtures
-  use ExUnit.Case, async: true
-  use Mimic
-  use Tuist.DataCase
+
+  describe "get_user_permission/1" do
+    test "returns user permission when admin" do
+      # Given
+      Billing |> stub(:start_trial, fn _ -> :ok end)
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          }
+        })
+
+      GitHub.Client
+      |> expect(:get_user_by_id, fn "123" ->
+        {:ok, %VCS.User{username: "tuist"}}
+      end)
+
+      GitHub.Client
+      |> expect(:get_user_permission, fn %{full_handle: "tuist/tuist", username: "tuist"} ->
+        {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+      end)
+
+      # When
+      got =
+        VCS.get_user_permission(%{
+          user: user,
+          repository: %VCS.Repositories.Repository{
+            provider: :github,
+            full_handle: "tuist/tuist",
+            default_branch: "main"
+          }
+        })
+
+      # Then
+      assert got == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+    end
+  end
+
+  describe "get_repository_from_repository_url/1" do
+    test "returns repository when it exists" do
+      # Given
+      repository_url = "https://github.com/tuist/tuist"
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           provider: :github,
+           full_handle: "tuist/tuist",
+           default_branch: "main"
+         }}
+      end)
+
+      # When
+      got =
+        VCS.get_repository_from_repository_url(repository_url)
+
+      # Then
+      assert got ==
+               {:ok,
+                %VCS.Repositories.Repository{
+                  provider: :github,
+                  full_handle: "tuist/tuist",
+                  default_branch: "main"
+                }}
+    end
+
+    test "returns repository with .git suffix" do
+      # Given
+      repository_url = "https://github.com/tuist/tuist.git"
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           provider: :github,
+           full_handle: "tuist/tuist",
+           default_branch: "main"
+         }}
+      end)
+
+      # When
+      got =
+        VCS.get_repository_from_repository_url(repository_url)
+
+      # Then
+      assert got ==
+               {:ok,
+                %VCS.Repositories.Repository{
+                  provider: :github,
+                  full_handle: "tuist/tuist",
+                  default_branch: "main"
+                }}
+    end
+  end
 
   describe "post_vcs_pull_request_comment/1" do
     @git_ref "refs/pull/1/merge"
@@ -27,7 +128,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "creates a comment with a full report" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       preview_one = Previews.create_preview(%{project: project, display_name: "App"})
 
@@ -128,7 +233,7 @@ defmodule Tuist.VCS.ReporterTest do
       end)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         command_name: "share",
         project: project,
         git_commit_sha: @git_commit_sha,
@@ -143,7 +248,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "updates a comment if one already exists" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       preview = Previews.create_preview(%{project: project, display_name: "App"})
 
@@ -161,6 +270,7 @@ defmodule Tuist.VCS.ReporterTest do
         {:ok,
          [
            %Comment{
+             id: 1,
              client_id: "client_id"
            }
          ]}
@@ -175,7 +285,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_commit_sha: @git_commit_sha,
@@ -190,7 +300,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "does not create a comment when there is nothing to report" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       GitHub.Client
       |> expect(:get_comments, fn _ -> {:ok, [%{client_id: nil}]} end)
@@ -199,7 +313,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_commit_sha: @git_commit_sha,
@@ -214,7 +328,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "does not create a comment when the command is not reportable" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       GitHub.Client
       |> reject(:get_comments, 1)
@@ -223,7 +341,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "generate",
         git_commit_sha: @git_commit_sha,
@@ -238,7 +356,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "does not create a comment when the GitHub app is not configured" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       Environment
       |> stub(:github_app_configured?, fn -> false end)
@@ -250,7 +372,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_commit_sha: @git_commit_sha,
@@ -274,7 +396,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_commit_sha: @git_commit_sha,
@@ -289,7 +411,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "does not create a comment when the git ref is missing" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       GitHub.Client
       |> reject(:get_comments, 1)
@@ -298,7 +424,7 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_ref: nil,
@@ -313,7 +439,11 @@ defmodule Tuist.VCS.ReporterTest do
 
     test "does not create a comment when the git remote url origin is missing" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
 
       GitHub.Client
       |> reject(:get_comments, 1)
@@ -322,10 +452,38 @@ defmodule Tuist.VCS.ReporterTest do
       |> reject(:create_comment, 1)
 
       # When / Then
-      VCS.Reporter.post_vcs_pull_request_comment(%{
+      VCS.post_vcs_pull_request_comment(%{
         project: project,
         command_name: "test",
         git_remote_url_origin: nil,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "does not create a comment when the git remote url origin has a different handle" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/different-handle",
+          vcs_provider: :github
+        )
+
+      GitHub.Client
+      |> reject(:get_comments, 1)
+
+      GitHub.Client
+      |> reject(:create_comment, 1)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        command_name: "test",
+        git_remote_url_origin: @git_remote_url_origin,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,

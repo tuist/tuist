@@ -123,7 +123,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       preview = Previews.create_preview(%{project: project, display_name: "App"})
 
-      VCS.Reporter
+      VCS
       |> expect(:post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
@@ -170,7 +170,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      VCS.Reporter
+      VCS
       |> expect(:post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
@@ -223,7 +223,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      VCS.Reporter
+      VCS
       |> expect(:post_vcs_pull_request_comment, fn _ ->
         :ok
       end)

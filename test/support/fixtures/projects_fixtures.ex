@@ -26,6 +26,8 @@ defmodule Tuist.ProjectsFixtures do
       },
       created_at: created_at,
       visibility: Keyword.get(opts, :visibility, :private),
+      vcs_provider: Keyword.get(opts, :vcs_provider),
+      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
       preloads: preloads
     )
     |> Repo.preload(Keyword.get(opts, :preloads, []))

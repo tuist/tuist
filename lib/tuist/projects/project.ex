@@ -12,6 +12,8 @@ defmodule Tuist.Projects.Project do
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
+    field :vcs_repository_full_handle, :string
+    field :vcs_provider, Ecto.Enum, values: [github: 0]
     belongs_to :account, Account
 
     has_many :users_with_last_visited_projects, User,
@@ -26,9 +28,18 @@ defmodule Tuist.Projects.Project do
 
   def create_changeset(project, attrs) do
     project
-    |> cast(attrs, [:token, :account_id, :name, :created_at, :visibility])
+    |> cast(attrs, [
+      :token,
+      :account_id,
+      :name,
+      :created_at,
+      :visibility,
+      :vcs_repository_full_handle,
+      :vcs_provider
+    ])
     |> validate_allowed_handle()
     |> validate_inclusion(:visibility, [:private, :public])
+    |> validate_inclusion(:vcs_provider, [:github])
     |> validate_required([:token, :account_id, :name])
     |> validate_change(:name, fn :name, name ->
       if String.contains?(name, ".") do
@@ -49,6 +60,7 @@ defmodule Tuist.Projects.Project do
 
   def update_changeset(project, attrs) do
     project
-    |> cast(attrs, [:default_branch])
+    |> cast(attrs, [:default_branch, :vcs_repository_full_handle, :vcs_provider])
+    |> validate_inclusion(:vcs_provider, [:github])
   end
 end

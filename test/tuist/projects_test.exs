@@ -410,4 +410,32 @@ defmodule Tuist.ProjectsTest do
       assert got == false
     end
   end
+
+  describe "get_repository_url/1" do
+    test "returns the repository URL" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_provider: :github,
+          vcs_repository_full_handle: "tuist/tuist"
+        )
+
+      # When
+      got = Projects.get_repository_url(project)
+
+      # Then
+      assert got == "https://github.com/tuist/tuist"
+    end
+
+    test "returns nil if the project does not have a vcs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.get_repository_url(project)
+
+      # Then
+      assert got == nil
+    end
+  end
 end

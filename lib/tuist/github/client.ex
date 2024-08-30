@@ -3,14 +3,56 @@ defmodule Tuist.GitHub.Client do
   A module to interact with the GitHub API authenticated as the Tuist GitHub app.
   """
 
+  alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.GitHub.TokenStorage
 
-  def get_comments(%{repository: repository, issue_id: issue_id} = attrs) do
+  def get_user_by_id(github_id) do
+    url = "https://api.github.com/user/#{github_id}"
+
+    case github_request(&Req.get/1, url: url) do
+      {:ok, user} ->
+        {:ok, %VCS.User{username: user["login"]}}
+
+      response ->
+        response
+    end
+  end
+
+  def get_repository(full_handle) do
+    url = "https://api.github.com/repos/#{full_handle}"
+
+    case github_request(&Req.get/1, url: url) do
+      {:ok, repository} ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           full_handle: repository["full_name"],
+           default_branch: repository["default_branch"],
+           provider: :github
+         }}
+
+      response ->
+        response
+    end
+  end
+
+  def get_user_permission(%{username: username, full_handle: full_handle}) do
+    url =
+      "https://api.github.com/repos/#{full_handle}/collaborators/#{username}/permission"
+
+    case github_request(&Req.get/1, url: url) do
+      {:ok, permission} ->
+        {:ok, %VCS.Repositories.Permission{permission: permission["permission"]}}
+
+      response ->
+        response
+    end
+  end
+
+  def get_comments(%{repository: repository, issue_id: issue_id}) do
     url = "https://api.github.com/repos/#{repository}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url)
-         |> handle_github_response(&get_comments/1, attrs) do
+    case github_request(&Req.get/1, url: url) do
       {:ok, comments} ->
         {:ok,
          comments
@@ -30,31 +72,30 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository: repository, issue_id: issue_id, body: body} = attrs) do
+  def create_comment(%{repository: repository, issue_id: issue_id, body: body}) do
     url = "https://api.github.com/repos/#{repository}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1, url: url, json: %{body: body})
-    |> handle_github_response(&create_comment/1, attrs)
   end
 
-  def update_comment(%{repository: repository, comment_id: comment_id, body: body} = attrs) do
+  def update_comment(%{repository: repository, comment_id: comment_id, body: body}) do
     url = "https://api.github.com/repos/#{repository}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1, url: url, json: %{body: body})
-    |> handle_github_response(&create_comment/1, attrs)
   end
 
   defp github_request(method, attrs) do
     case TokenStorage.get_token() do
       {:ok, %{token: token}} ->
-        attrs =
+        attrs_with_headers =
           attrs
           |> Keyword.put(:headers, [
             {"Accept", "application/vnd.github.v3+json"},
             {"Authorization", "token #{token}"}
           ])
 
-        method.(attrs)
+        method.(attrs_with_headers)
+        |> handle_github_response(method, attrs)
 
       {:error, response} ->
         {:error, response}
@@ -71,8 +112,11 @@ defmodule Tuist.GitHub.Client do
 
   defp handle_github_response({:ok, %{status: 401}}, action, attrs) do
     case TokenStorage.refresh_token() do
-      {:ok, _} -> action.(attrs)
-      result -> result
+      {:ok, _} ->
+        github_request(action, attrs)
+
+      result ->
+        result
     end
   end
 

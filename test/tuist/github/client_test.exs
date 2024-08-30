@@ -1,31 +1,41 @@
 defmodule Tuist.GitHub.ClientTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   use Mimic
+  alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.GitHub.TokenStorage
   alias Tuist.GitHub.Client
 
-  setup do
-    JOSE.JWK |> stub(:from_pem, fn _ -> "pem" end)
-    JOSE.JWT |> stub(:sign, fn _, _, _ -> "signed_pem" end)
-    JOSE.JWS |> stub(:compact, fn _ -> {%{}, "jwt"} end)
+  # setup do
+  #   JOSE.JWK |> stub(:from_pem, fn _ -> "pem" end)
+  #   JOSE.JWT |> stub(:sign, fn _, _, _ -> "signed_pem" end)
+  #   JOSE.JWS |> stub(:compact, fn _ -> {%{}, "jwt"} end)
 
-    Tuist.Time
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+  #   Tuist.Time
+  #   |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
-    JOSE.JWT
-    |> stub(:peek_payload, fn _ ->
-      %JOSE.JWT{fields: %{"exp" => ~U[2024-04-30 10:20:31Z] |> DateTime.to_unix()}}
-    end)
+  #   JOSE.JWT
+  #   |> stub(:peek_payload, fn _ ->
+  #     %JOSE.JWT{fields: %{"exp" => ~U[2024-04-30 10:20:31Z] |> DateTime.to_unix()}}
+  #   end)
 
-    :ok
-  end
+  #   :ok
+  # end
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
     {"Authorization", "token github_token"}
   ]
+
+  setup do
+    TokenStorage
+    |> stub(:get_token, fn ->
+      {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+    end)
+
+    :ok
+  end
 
   describe "get_comments/1" do
     test "returns comments" do
@@ -35,37 +45,40 @@ defmodule Tuist.GitHub.ClientTest do
                            headers: @default_headers,
                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
                          ] ->
-        {:ok, %Req.Response{status: 200, body: [%{"id" => "comment-id"}]}}
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"id" => "comment-id-one"},
+             %{
+               "id" => "comment-id-two",
+               "performed_via_github_app" => %{"client_id" => "client-id-two"}
+             }
+           ]
+         }}
       end)
-
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
 
       # When
       comments = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
 
       # Then
-      assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
+      assert comments ==
+               {:ok,
+                [
+                  %Comment{id: "comment-id-one", client_id: nil},
+                  %Comment{id: "comment-id-two", client_id: "client-id-two"}
+                ]}
     end
 
     test "refreshes token when the response initially returns unauthenticated error" do
       # Given
-      Req
-      |> stub(
-        :get,
-        fn
-          "https://api.github.com/app/installations", _ ->
-            {:ok,
-             %Req.Response{status: 200, body: [%{"access_tokens_url" => "access_tokens_url"}]}}
-        end
-      )
-
       Req
       |> stub(:get, fn options ->
         headers = Keyword.get(options, :headers)
         [_json_header, auth_header] = headers
         {_, token} = auth_header
 
+        # {:ok, %Req.Response{status: 200, body: [%{"id" => "comment-id"}]}}
         if token == "token new_token" do
           {:ok, %Req.Response{status: 200, body: [%{"id" => "comment-id"}]}}
         else
@@ -73,58 +86,20 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      Req
-      |> expect(:post, fn "access_tokens_url", _ ->
-        {:ok,
-         %Req.Response{
-           status: 201,
-           body: %{"token" => "new_token", "expires_at" => "2024-04-30T10:30:31Z"}
-         }}
+      TokenStorage
+      |> stub(:get_token, fn ->
+        TokenStorage
+        |> stub(:get_token, fn ->
+          {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+        end)
+
+        {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]})
-
-      # When
-      comments = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
-
-      # Then
-      assert comments == {:ok, [%Comment{id: "comment-id", client_id: nil}]}
-    end
-
-    test "refreshes token when the token is initially nil" do
-      # Given
-      Req
-      |> stub(
-        :get,
-        fn
-          "https://api.github.com/app/installations", _options ->
-            {:ok,
-             %Req.Response{status: 200, body: [%{"access_tokens_url" => "access_tokens_url"}]}}
-        end
-      )
-
-      Req
-      |> stub(:get, fn [
-                         headers: [
-                           {"Accept", "application/vnd.github.v3+json"},
-                           {"Authorization", "token new_token"}
-                         ],
-                         url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                       ] ->
-        {:ok, %Req.Response{status: 200, body: [%{"id" => "comment-id"}]}}
+      TokenStorage
+      |> stub(:refresh_token, fn ->
+        {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
-
-      Req
-      |> expect(:post, fn "access_tokens_url", _ ->
-        {:ok,
-         %Req.Response{
-           status: 201,
-           body: %{"token" => "new_token", "expires_at" => "2024-04-30T10:30:31Z"}
-         }}
-      end)
-
-      {:ok, _pid} = TokenStorage.start_link(nil)
 
       # When
       comments = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
@@ -140,9 +115,6 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, %Req.Response{status: 500}}
       end)
 
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
-
       # When
       comments = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
 
@@ -157,9 +129,6 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, %Req.Response{status: 403}}
       end)
 
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
-
       # When
       comments = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
 
@@ -167,23 +136,17 @@ defmodule Tuist.GitHub.ClientTest do
       assert comments == {:error, "Unexpected status code: 403. Body: \"\""}
     end
 
-    test "returns 503 error when refreshing token fails" do
+    test "returns error when getting token fails" do
       # Given
-      Req
-      |> stub(:get, fn _, _ ->
-        {:ok, %Req.Response{status: 503}}
-      end)
-
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
+      TokenStorage
+      |> stub(:get_token, fn -> {:error, "Failed to get token."} end)
 
       # When
       got = Client.get_comments(%{repository: "tuist/tuist", issue_id: 1})
 
       # Then
       assert got ==
-               {:error,
-                "Unexpected status code when getting the access token url: 503. Body: \"\""}
+               {:error, "Failed to get token."}
     end
   end
 
@@ -198,9 +161,6 @@ defmodule Tuist.GitHub.ClientTest do
                           ] ->
         {:ok, %Req.Response{status: 201}}
       end)
-
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
 
       # When
       response = Client.create_comment(%{repository: "tuist/tuist", issue_id: 1, body: "comment"})
@@ -222,15 +182,107 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, %Req.Response{status: 201}}
       end)
 
-      {:ok, _pid} =
-        TokenStorage.start_link(%{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]})
-
       # When
       response =
         Client.update_comment(%{repository: "tuist/tuist", comment_id: 1, body: "comment"})
 
       # Then
       assert response == :ok
+    end
+  end
+
+  describe "get_user_by_id/1" do
+    test "returns user" do
+      # Given
+      Req
+      |> expect(:get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/user/123"
+                         ] ->
+        {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
+      end)
+
+      # When
+      user = Client.get_user_by_id("123")
+
+      # Then
+      assert user == {:ok, %VCS.User{username: "tuist"}}
+    end
+
+    test "returns ok with 404 error" do
+      # Given
+      Req
+      |> expect(:get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/user/123"
+                         ] ->
+        {:ok, %Req.Response{status: 404}}
+      end)
+
+      # When
+      user = Client.get_user_by_id("123")
+
+      # Then
+      assert user == {:error, "Unexpected status code: 404. Body: \"\""}
+    end
+  end
+
+  describe "get_user_permission/1" do
+    test "returns user permission" do
+      # Given
+      Req
+      |> stub(:get, fn [
+                         headers: @default_headers,
+                         url: "https://api.github.com/user/123"
+                       ] ->
+        {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
+      end)
+
+      Req
+      |> stub(
+        :get,
+        fn [
+             headers: @default_headers,
+             url: "https://api.github.com/repos/tuist/tuist/collaborators/tuist/permission"
+           ] ->
+          {:ok, %Req.Response{status: 200, body: %{"permission" => "admin"}}}
+        end
+      )
+
+      # When
+      permission = Client.get_user_permission(%{username: "tuist", full_handle: "tuist/tuist"})
+
+      # Then
+      assert permission == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+    end
+  end
+
+  describe "get_repository/1" do
+    test "returns repository" do
+      # Given
+      Req
+      |> expect(:get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/repos/tuist/tuist"
+                         ] ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"full_name" => "tuist/tuist", "default_branch" => "main"}
+         }}
+      end)
+
+      # When
+      repository = Client.get_repository("tuist/tuist")
+
+      # Then
+      assert repository ==
+               {:ok,
+                %VCS.Repositories.Repository{
+                  default_branch: "main",
+                  full_handle: "tuist/tuist",
+                  provider: :github
+                }}
     end
   end
 end

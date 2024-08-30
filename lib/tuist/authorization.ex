@@ -2,6 +2,7 @@ defmodule Tuist.Authorization do
   @moduledoc ~S"""
   A module to deal with authorization in the system.
   """
+  alias Tuist.VCS
   alias Tuist.Projects.Project
   alias Tuist.Accounts
   alias Tuist.Accounts.{User, Account}
@@ -20,6 +21,26 @@ defmodule Tuist.Authorization do
 
   def can(%User{} = user, :read, %Account{} = account, :project) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
+  end
+
+  def can(%User{} = user, :update, %Project{} = project, %{
+        repository: %VCS.Repositories.Repository{} = repository
+      }) do
+    account = Accounts.get_account_by_id(project.account_id)
+
+    if can(user, :update, account, :project) do
+      case VCS.get_user_permission(%{user: user, repository: repository}) do
+        {:ok, %VCS.Repositories.Permission{permission: permission}} ->
+          Enum.member?(["admin", "write"], permission)
+
+        _ ->
+          false
+      end
+    else
+      false
+    end
+
+    # Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
   def can(_, :read, %Project{visibility: :public}, :dashboard) do

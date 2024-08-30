@@ -1,6 +1,8 @@
 defmodule TuistWeb.API.ProjectsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+  alias Tuist.VCS
+  alias Tuist.Repo
   alias TuistWeb.Authentication
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.{Project, Error}
@@ -130,7 +132,8 @@ defmodule TuistWeb.API.ProjectsController do
             id: project.id,
             full_name: Projects.get_project_slug_from_id(project.id),
             token: project.token,
-            default_branch: project.default_branch
+            default_branch: project.default_branch,
+            repository_url: Projects.get_repository_url(project)
           })
         rescue
           e in Ecto.InvalidChangesetError ->
@@ -256,7 +259,8 @@ defmodule TuistWeb.API.ProjectsController do
           id: project.id,
           full_name: "#{account.name}/#{project.name}",
           token: project.token,
-          default_branch: project.default_branch
+          default_branch: project.default_branch,
+          repository_url: Projects.get_repository_url(project)
         })
     end
   end
@@ -287,6 +291,10 @@ defmodule TuistWeb.API.ProjectsController do
            default_branch: %Schema{
              type: :string,
              description: "The default branch for the project."
+           },
+           repository_url: %Schema{
+             type: :string,
+             description: "The repository URL for the project."
            }
          }
        }},
@@ -299,7 +307,10 @@ defmodule TuistWeb.API.ProjectsController do
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+         Error},
+      bad_request:
+        {"The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.",
+         "application/json", Error}
     }
   )
 
@@ -315,8 +326,65 @@ defmodule TuistWeb.API.ProjectsController do
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
-    user = Authentication.current_user(conn)
+    user =
+      Authentication.current_user(conn)
+      |> Repo.preload(:oauth2_identities)
 
+    new_repository_url = body_params |> Map.get(:repository_url)
+
+    repository =
+      if is_nil(new_repository_url) do
+        nil
+      else
+        new_repository_url |> VCS.get_repository_from_repository_url()
+      end
+
+    case repository do
+      {:error, :unsupported_vcs} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message:
+            "The given Git host is not supported. The supported Git hosts are: #{VCS.supported_vcs_hosts() |> Enum.join(", ")}."
+        })
+
+      {:error, message} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Failed to update the repository due to: #{message}"})
+
+      {:ok, repository} ->
+        conn
+        |> update_project(%{
+          project: project,
+          user: user,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          repository: repository,
+          body_params: body_params
+        })
+
+      nil ->
+        conn
+        |> update_project(%{
+          project: project,
+          user: user,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          repository: nil,
+          body_params: body_params
+        })
+    end
+  end
+
+  defp update_project(conn, %{
+         project: project,
+         user: user,
+         account_handle: account_handle,
+         project_handle: project_handle,
+         repository: repository,
+         body_params: body_params
+       }) do
     cond do
       is_nil(project) ->
         conn
@@ -326,14 +394,40 @@ defmodule TuistWeb.API.ProjectsController do
       not Authorization.can(user, :update, project, :settings) ->
         conn
         |> put_status(:forbidden)
-        |> json(%{message: "The authenticated subject is not authorized to perform this action."})
+        |> json(%{
+          message: "The authenticated subject is not authorized to perform this action."
+        })
+
+      not is_nil(repository) and
+          not Authorization.can(user, :update, project, %{repository: repository}) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "You are not authorized to update the Git repository URL."
+        })
 
       not is_nil(project) ->
         default_branch = body_params |> Map.get(:default_branch, project.default_branch)
 
+        default_branch =
+          if is_nil(repository) do
+            default_branch
+          else
+            repository.default_branch
+          end
+
+        vcs_provider = if is_nil(repository), do: project.vcs_provider, else: repository.provider
+
+        vcs_repository_full_handle =
+          if is_nil(repository),
+            do: project.vcs_repository_full_handle,
+            else: repository.full_handle
+
         {:ok, project} =
           Projects.update_project(project, %{
-            default_branch: default_branch
+            default_branch: default_branch,
+            vcs_provider: vcs_provider,
+            vcs_repository_full_handle: vcs_repository_full_handle
           })
 
         conn
@@ -342,7 +436,8 @@ defmodule TuistWeb.API.ProjectsController do
           id: project.id,
           full_name: "#{account_handle}/#{project_handle}",
           token: project.token,
-          default_branch: project.default_branch
+          default_branch: project.default_branch,
+          repository_url: Projects.get_repository_url(project)
         })
     end
   end

@@ -1,11 +1,80 @@
-defmodule Tuist.VCS.Reporter do
+defmodule Tuist.VCS do
   @moduledoc """
-  A module that implements that sends Tuist reports to the appropriate VCS, such as GitHub.
+  A module that provides functions to interact with VCS repositories.
   """
+
+  alias Tuist.VCS
+  alias Tuist.GitHub
+  alias Tuist.Repo
+  alias Tuist.Projects
   alias Tuist.Environment
   alias Tuist.CommandEvents
 
   @reportable_commands ["test", "share"]
+
+  def supported_vcs_hosts() do
+    ["GitHub"]
+  end
+
+  def get_repository_from_repository_url(repository_url) do
+    vcs_uri = repository_url |> URI.parse()
+    host = vcs_uri |> Map.get(:host)
+
+    if host == "github.com" do
+      client = get_client_for_provider(:github)
+
+      get_repository_full_handle_from_url(repository_url)
+      |> client.get_repository()
+    else
+      {:error, :unsupported_vcs}
+    end
+  end
+
+  def get_user_permission(%{
+        user: user,
+        repository: %VCS.Repositories.Repository{provider: provider, full_handle: full_handle}
+      }) do
+    user = Repo.preload(user, :oauth2_identities)
+
+    github_identity =
+      user.oauth2_identities
+      |> Enum.find(&(&1.provider == provider))
+
+    client = get_client_for_provider(provider)
+
+    if is_nil(github_identity) do
+      nil
+    else
+      with {:user, {:ok, %VCS.User{username: username}}} <-
+             {:user, client.get_user_by_id(github_identity.id_in_provider)},
+           {:permission, {:ok, %VCS.Repositories.Permission{} = permission}} <-
+             {:permission,
+              client.get_user_permission(%{
+                username: username,
+                full_handle: full_handle
+              })} do
+        {:ok, permission}
+      else
+        {:user, {:error, error_message}} ->
+          {:error, "Could not fetch user: #{error_message}"}
+
+        {:permission, {:error, error_message}} ->
+          {:error, "Could not fetch user permission: #{error_message}"}
+      end
+    end
+  end
+
+  defp get_client_for_provider(:github) do
+    GitHub.Client
+  end
+
+  defp get_repository_full_handle_from_url(repository_url) do
+    repository_url
+    |> URI.parse()
+    |> Map.get(:path)
+    |> String.replace_leading("/", "")
+    |> String.replace_trailing(".git", "")
+  end
 
   def post_vcs_pull_request_comment(%{
         git_ref: git_ref,
@@ -22,10 +91,11 @@ defmodule Tuist.VCS.Reporter do
         not is_nil(git_commit_sha) and
         not is_nil(git_ref) and
         not is_nil(git_remote_url_origin) and
+        Projects.get_repository_url(project) == git_remote_url_origin and
         String.starts_with?(git_ref, "refs/pull/")
 
     if should_post_report do
-      client = Tuist.GitHub.Client
+      client = get_client_for_provider(:github)
 
       repository = get_repository_from_remote_url_origin(git_remote_url_origin)
 

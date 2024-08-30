@@ -157,7 +157,9 @@ defmodule Tuist.Projects do
       name: name,
       account_id: account_id,
       created_at: created_at,
-      visibility: visibility
+      visibility: visibility,
+      vcs_repository_full_handle: opts |> Keyword.get(:vcs_repository_full_handle),
+      vcs_provider: opts |> Keyword.get(:vcs_provider)
     })
     |> Repo.insert!()
     |> Repo.preload(preloads)
@@ -242,5 +244,18 @@ defmodule Tuist.Projects do
     project
     |> Project.update_changeset(attrs)
     |> Repo.update()
+  end
+
+  def get_repository_url(%Project{
+        vcs_provider: vcs_provider,
+        vcs_repository_full_handle: vcs_repository_full_handle
+      }) do
+    case vcs_provider do
+      :github ->
+        "https://github.com/#{vcs_repository_full_handle}"
+
+      nil ->
+        nil
+    end
   end
 end
