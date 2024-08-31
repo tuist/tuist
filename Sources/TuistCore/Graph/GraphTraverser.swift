@@ -592,6 +592,18 @@ public class GraphTraverser: GraphTraversing {
         }
         return references
     }
+    
+    public func allProjectTargetDependencies(path: Path.AbsolutePath) -> Set<GraphTarget> {
+        let rootTargets = targets(at: path)
+        let rootTargetDependencies = Set(rootTargets
+            .map { target -> GraphDependency in
+                GraphDependency.target(name: target.target.name, path: target.project.path)
+            }
+        )
+        
+        return Set(filterDependencies(from: rootTargetDependencies).compactMap { target(from: $0) })
+            .union(rootTargets)
+    }
 
     public func needsEnableTestingSearchPaths(path: Path.AbsolutePath, name: String) -> Bool {
         var cache: [GraphTarget: Bool] = [:]
@@ -785,7 +797,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependency: GraphDependency,
         test: (GraphDependency) -> Bool = { _ in true },
@@ -799,7 +811,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependencies from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependencies: Set<GraphDependency>,
         test: (GraphDependency) -> Bool = { _ in true },

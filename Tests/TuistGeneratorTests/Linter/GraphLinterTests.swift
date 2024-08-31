@@ -1094,8 +1094,10 @@ final class GraphLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_doesNotFlagDependenciesWithLessConfigurations() throws {
-        // Lower level dependencies could be shared by projects in the same workspace as such
-        // it is ok if a project only has some configurations as long as it is a subset of what the dependency has
+        // If a dependency is used by multiple projects, project are allowed to have less configurations
+        // as long as the dependency has them.
+        // For example: a dependency has configurations Debug, Testing, Beta, Release.
+        // It can therefore be used in all projects that have any subset of these configurations.
 
         // Given
         let path: AbsolutePath = "/project"

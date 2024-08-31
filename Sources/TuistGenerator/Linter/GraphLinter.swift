@@ -228,16 +228,14 @@ public class GraphLinter: GraphLinting {
             let rootProjectConfigurations = Set(project.settings.configurations.keys)
             let sortedRootProjectConfigurations = rootProjectConfigurations.sorted()
 
-            for target in project.targets.values {
-                for dependency in graphTraverser.allTargetDependencies(path: project.path, name: target.name) {
-                    let configurations = Set(dependency.project.settings.configurations.keys)
+            for dependency in graphTraverser.allProjectTargetDependencies(path: project.path) {
+                let configurations = Set(dependency.project.settings.configurations.keys)
 
-                    if !rootProjectConfigurations.isSubset(of: configurations) {
-                        let sortedConfigurations = configurations.sorted()
-                        let reason =
-                            "The project '\(dependency.project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
-                        reasons.insert(reason)
-                    }
+                if !rootProjectConfigurations.isSubset(of: configurations) {
+                    let sortedConfigurations = configurations.sorted()
+                    let reason =
+                        "The project '\(dependency.project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
+                    reasons.insert(reason)
                 }
             }
         }
