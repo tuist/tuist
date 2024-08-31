@@ -14,7 +14,7 @@ import XCTest
 
 final class CachePrintHashesServiceTests: TuistUnitTestCase {
     var subject: CachePrintHashesService!
-    var generator: MockGenerator!
+    var generator: MockGenerating!
     var generatorFactory: MockGeneratorFactorying!
     var cacheGraphContentHasher: MockCacheGraphContentHashing!
     var clock: Clock!
@@ -25,9 +25,9 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         super.setUp()
         path = "/Test"
         generatorFactory = MockGeneratorFactorying()
-        generator = MockGenerator()
+        generator = .init()
         given(generatorFactory)
-            .defaultGenerator(config: .any)
+            .defaultGenerator(config: .any, sources: .any)
             .willReturn(generator)
 
         cacheGraphContentHasher = MockCacheGraphContentHashing()
@@ -66,12 +66,17 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
             .willReturn([:])
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         // When
         _ = try await subject.run(path: fullPath, configuration: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, try AbsolutePath(validating: fullPath))
+        verify(generator)
+            .load(path: .value(try AbsolutePath(validating: fullPath)))
+            .called(1)
     }
 
     func test_run_withoutPath_loads_the_graph() async throws {
@@ -85,12 +90,17 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
             .willReturn([:])
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         // When
         _ = try await subject.run(path: nil, configuration: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, FileHandler.shared.currentPath)
+        verify(generator)
+            .load(path: .value(FileHandler.shared.currentPath))
+            .called(1)
     }
 
     func test_run_withRelativePath__loads_the_graph() async throws {
@@ -104,15 +114,17 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
             .willReturn([:])
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         // When
         _ = try await subject.run(path: "RelativePath", configuration: nil)
 
         // Then
-        XCTAssertEqual(
-            generator.invokedLoadParameterPath,
-            try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)
-        )
+        verify(generator)
+            .load(path: .value(try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)))
+            .called(1)
     }
 
     func test_run_loads_the_graph() async throws {
@@ -126,12 +138,17 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
             .willReturn([:])
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         // When
         _ = try await subject.run(path: path, configuration: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, "/Test")
+        verify(generator)
+            .load(path: .value(try AbsolutePath(validating: "/Test")))
+            .called(1)
     }
 
     func test_run_content_hasher_gets_correct_graph() async throws {
@@ -143,7 +160,9 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         let graph = Graph.test()
-        generator.loadStub = { _ in graph }
+        given(generator)
+            .load(path: .any)
+            .willReturn(graph)
 
         given(cacheGraphContentHasher)
             .contentHashes(for: .value(graph), configuration: .any, config: .any, excludedTargets: .any)
@@ -160,6 +179,10 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
             .willReturn([target1: "hash1", target2: "hash2"])
+
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -181,6 +204,10 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(for: .any, configuration: .value("Debug"), config: .any, excludedTargets: .any)
             .willReturn([:])
+
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
 
         // When / Then
         _ = try await subject.run(path: path, configuration: "Debug")

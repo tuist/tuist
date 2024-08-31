@@ -4,6 +4,7 @@ import Path
 import TuistAutomation
 import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -19,12 +20,12 @@ final class TestServiceTests: TuistUnitTestCase {
     private var generatorFactory: MockGeneratorFactorying!
     private var xcodebuildController: MockXcodeBuildControlling!
     private var buildGraphInspector: MockBuildGraphInspecting!
-    private var simulatorController: MockSimulatorController!
+    private var simulatorController: MockSimulatorControlling!
     private var contentHasher: MockContentHashing!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var configLoader: MockConfigLoading!
-    private var automationStorage: MockAutomationStoring!
+    private var cacheStorage: MockCacheStoring!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -35,6 +36,18 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
+
+        cacheStorage = .init()
+
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(cacheStorage)
+
+        given(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn()
+
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
@@ -48,7 +61,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(runsCacheDirectory)
 
         configLoader = .init()
-        automationStorage = .init()
 
         given(contentHasher)
             .hash(Parameter<String>.any)
@@ -60,14 +72,23 @@ final class TestServiceTests: TuistUnitTestCase {
 
         subject = TestService(
             generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            configLoader: configLoader,
-            automationStorage: automationStorage
+            configLoader: configLoader
         )
+
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
     }
 
     override func tearDown() {
@@ -78,7 +99,6 @@ final class TestServiceTests: TuistUnitTestCase {
         testsCacheTemporaryDirectory = nil
         generatorFactory = nil
         contentHasher = nil
-        automationStorage = nil
         subject = nil
         super.tearDown()
     }
@@ -192,7 +212,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         given(generator)
             .generateWithGraph(path: .value(path))
-            .willReturn((path, .test()))
+            .willReturn((path, .test(), MapperEnvironment()))
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
             .willReturn([])
@@ -239,7 +259,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
         given(xcodebuildController)
             .test(
@@ -296,7 +316,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -356,7 +376,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test())
+                (path, .test(), MapperEnvironment())
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -427,7 +447,11 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne"), .test(name: "ProjectSchemeTwo")])))
+                (
+                    path,
+                    .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne"), .test(name: "ProjectSchemeTwo")])),
+                    MapperEnvironment()
+                )
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -484,7 +508,11 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])))
+                (
+                    path,
+                    .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])),
+                    MapperEnvironment()
+                )
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -536,9 +564,6 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
-        given(automationStorage)
-            .initialGraph
-            .willReturn(nil)
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
@@ -548,7 +573,8 @@ final class TestServiceTests: TuistUnitTestCase {
                         projects: [
                             try self.temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
                         ]
-                    )
+                    ),
+                    MapperEnvironment()
                 )
             }
 
@@ -577,24 +603,22 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
-        given(automationStorage)
-            .initialGraph
-            .willReturn(
-                .test(
-                    workspace: .test(
-                        schemes: [.test(name: "ProjectSchemeTwo", testAction: .test(targets: []))]
-                    ),
-                    projects: [
-                        try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
-                    ]
-                )
-            )
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            workspace: .test(
+                schemes: [.test(name: "ProjectSchemeTwo", testAction: .test(targets: []))]
+            ),
+            projects: [
+                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
+            ]
+        )
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
                 (
                     path,
-                    .test()
+                    .test(),
+                    environment
                 )
             }
 
@@ -643,21 +667,19 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
                 testedSchemes.append(scheme)
             }
-        given(automationStorage)
-            .initialGraph
-            .willReturn(
-                .test(
-                    projects: [
-                        try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-                    ]
-                )
-            )
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+            ]
+        )
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
                 (
                     path,
-                    .test()
+                    .test(),
+                    environment
                 )
             }
 
@@ -669,6 +691,287 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEmpty(testedSchemes)
+        XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
+    }
+
+    func test_run_tests_when_part_is_cached() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+        let schemeOne = Scheme.test(
+            name: "ProjectSchemeOne",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                ]
+            )
+        )
+        let schemeTwo = Scheme.test(
+            name: "ProjectSchemeTwo",
+            testAction: .test(
+                targets: []
+            )
+        )
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([schemeOne, schemeTwo])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any
+            )
+            .willReturn(.test())
+        var testedSchemes: [String] = []
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+                testedSchemes.append(scheme)
+            }
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                projectPathOne: .test(
+                    path: projectPathOne,
+                    targets: [
+                        .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                        .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                        .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                    ],
+                    schemes: [
+                        .test(
+                            name: "ProjectSchemeOne",
+                            testAction: .test(
+                                targets: [
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
+                                ]
+                            )
+                        ),
+                        .test(
+                            name: "ProjectSchemeTwo",
+                            testAction: .test(
+                                targets: [
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
+                                ]
+                            )
+                        ),
+                    ]
+                ),
+            ]
+        )
+        environment.testsCacheUntestedHashes = [
+            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
+        ]
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPathOne: .test(
+                                path: projectPathOne,
+                                targets: [
+                                    .test(name: "TargetA"),
+                                    .test(name: "TargetB"),
+                                ],
+                                schemes: [schemeOne, schemeTwo]
+                            ),
+                        ]
+                    ),
+                    environment
+                )
+            }
+
+        // When
+        try await subject.testRun(
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+        XCTAssertStandardOutput(
+            pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
+        )
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.default)
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+        let schemeOne = Scheme.test(
+            name: "ProjectSchemeOne",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                ]
+            )
+        )
+        let schemeTwo = Scheme.test(
+            name: "ProjectSchemeTwo",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
+                ]
+            )
+        )
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([schemeOne, schemeTwo])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any
+            )
+            .willReturn(.test())
+        var testedSchemes: [String] = []
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+                testedSchemes.append(scheme)
+            }
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                projectPathOne: .test(
+                    path: projectPathOne,
+                    targets: [
+                        .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                        .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                        .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        .test(name: "TargetD", bundleId: "io.tuist.TargetD"),
+                    ],
+                    schemes: [
+                        .test(
+                            name: "ProjectSchemeOne",
+                            testAction: .test(
+                                targets: [
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
+                                ]
+                            )
+                        ),
+                        .test(
+                            name: "ProjectSchemeTwo",
+                            testAction: .test(
+                                targets: [
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
+                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
+                                ]
+                            )
+                        ),
+                    ]
+                ),
+            ]
+        )
+        environment.testsCacheUntestedHashes = [
+            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
+            .test(name: "TargetD", bundleId: "io.tuist.TargetD"): "hash-d",
+        ]
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPathOne: .test(
+                                path: projectPathOne,
+                                targets: [
+                                    .test(name: "TargetA"),
+                                    .test(name: "TargetB"),
+                                    .test(name: "TargetC"),
+                                    .test(name: "TargetD"),
+                                ],
+                                schemes: [schemeOne, schemeTwo]
+                            ),
+                        ]
+                    ),
+                    environment
+                )
+            }
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeTwo",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeTwo"])
+        XCTAssertStandardOutput(
+            pattern: "The following targets have not changed since the last successful run and will be skipped: TargetC"
+        )
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "TargetD", hash: "hash-d"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
     }
 
     func test_run_tests_with_skipped_targets() async throws {
@@ -676,7 +979,6 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generatorFactory)
             .testing(
                 config: .any,
-                testsCacheDirectory: .any,
                 testPlan: .any,
                 includedTargets: .any,
                 excludedTargets: .value([]),
@@ -684,8 +986,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any,
-                automationStorage: .any
+                cacheStorage: .any
             )
             .willReturn(generator)
         given(configLoader)
@@ -704,7 +1005,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])), MapperEnvironment())
             }
         given(buildGraphInspector)
             .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
@@ -734,7 +1035,7 @@ final class TestServiceTests: TuistUnitTestCase {
         try await subject.testRun(
             schemeName: "ProjectSchemeOneTests",
             path: try temporaryPath(),
-            skipTestTargets: [.init(target: "ProjectSchemeOnTests", class: "TestClass")]
+            skipTestTargets: [.init(target: "ProjectSchemeOneTests", class: "TestClass")]
         )
 
         // Then
@@ -757,7 +1058,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test())
+                (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
@@ -826,7 +1127,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test())
+                (path, .test(), MapperEnvironment())
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -890,7 +1191,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test())
+                (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
@@ -949,7 +1250,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test())
+                (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
@@ -1021,7 +1322,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme2")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme2")])), MapperEnvironment())
             }
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
@@ -1075,7 +1376,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])), MapperEnvironment())
             }
         given(buildGraphInspector)
             .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
@@ -1136,13 +1437,12 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])), MapperEnvironment())
             }
         given(buildGraphInspector)
             .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
             .willReturn(.test())
 
-        var passedRetryCount = -1
         given(xcodebuildController)
             .test(
                 .any,
@@ -1159,9 +1459,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, retryCount, _, _, _, _ in
-                passedRetryCount = retryCount
-            }
+            .willReturn()
 
         // When
         try await subject.testRun(
@@ -1170,7 +1468,23 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(passedRetryCount, 0)
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .value(0),
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_run_test_plan_success() async throws {
@@ -1226,7 +1540,8 @@ final class TestServiceTests: TuistUnitTestCase {
                                 ),
                             ]
                         )
-                    )
+                    ),
+                    MapperEnvironment()
                 )
             }
         var testedSchemes: [String] = []
@@ -1295,7 +1610,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])))
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
         given(xcodebuildController)
             .test(
@@ -1336,7 +1651,6 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generatorFactory)
             .testing(
                 config: .any,
-                testsCacheDirectory: .any,
                 testPlan: .any,
                 includedTargets: .any,
                 excludedTargets: .any,
@@ -1344,8 +1658,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any,
-                automationStorage: .any
+                cacheStorage: .any
             )
             .willReturn(generator)
     }

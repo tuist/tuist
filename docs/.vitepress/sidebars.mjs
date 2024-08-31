@@ -3,7 +3,7 @@ import {
   cubeOutlineIcon,
   cube02Icon,
   cube01Icon,
-  barChartSquare02Icon,
+  microscopeIcon,
   code02Icon,
   dataIcon,
   checkCircleIcon,
@@ -178,7 +178,7 @@ export const guidesSidebar = [
         link: "/guides/start/new-project",
       },
       {
-        text: "Try with a Swift Pacakge",
+        text: "Try with a Swift Package",
         link: "/guides/start/swift-package",
       },
       {
@@ -290,14 +290,39 @@ export const guidesSidebar = [
         ],
       },
       {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${cloudBlank02Icon()} ${comingSoonBadge()}</span>`,
-        link: "guides/develop/workflows",
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Inspect ${microscopeIcon()}</span>`,
+        collapsed: true,
+        items: [
+          {
+            text: "Implicit dependencies",
+            link: "guides/develop/inspect/implicit-dependencies",
+          },
+        ],
+      },
+      {
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Automate ${cloudBlank02Icon()}</span>`,
+        collapsed: true,
+        items: [
+          {
+            text: `Continuous Integration`,
+            link: "guides/develop/automate/continuous-integration",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${comingSoonBadge()}</span>`,
+            link: "guides/develop/automate/workflows",
+          },
+        ],
       },
     ],
   },
   {
-    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()} ${comingSoonBadge()}</span>`,
-    link: "guides/share",
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</span>`,
+    items: [
+      {
+        text: "Previews",
+        link: "guides/share/previews",
+      },
+    ],
   },
   // {
   //   text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,

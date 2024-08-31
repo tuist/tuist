@@ -1,10 +1,12 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol TemplateLoading {
     /// Load `TuistCore.Template` at given `path`
     /// - Parameters:

@@ -91,6 +91,9 @@ public protocol ManifestLoading {
     /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
     func validateHasRootManifest(at path: AbsolutePath) throws
 
+    /// - Returns: `true` if there is a project or workspace manifest at the given path
+    func hasRootManifest(at path: AbsolutePath) -> Bool
+
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
     func register(plugins: Plugins) throws
@@ -114,6 +117,7 @@ public class ManifestLoader: ManifestLoading {
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let packageInfoLoader: PackageInfoLoading
 
     // MARK: - Init
 
@@ -125,7 +129,8 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
+            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared),
+            packageInfoLoader: PackageInfoLoader()
         )
     }
 
@@ -136,7 +141,8 @@ public class ManifestLoader: ManifestLoading {
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
         xcodeController: XcodeControlling,
-        swiftPackageManagerController: SwiftPackageManagerControlling
+        swiftPackageManagerController: SwiftPackageManagerControlling,
+        packageInfoLoader: PackageInfoLoading
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -145,6 +151,7 @@ public class ManifestLoader: ManifestLoading {
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.packageInfoLoader = packageInfoLoader
         decoder = JSONDecoder()
     }
 
@@ -153,11 +160,15 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func validateHasRootManifest(at path: AbsolutePath) throws {
-        let manifests = manifests(at: path)
-        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
-        guard !manifests.isDisjoint(with: rootManifests) else {
+        guard hasRootManifest(at: path) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
+    }
+
+    public func hasRootManifest(at path: AbsolutePath) -> Bool {
+        let manifests = manifests(at: path)
+        let rootManifests: Set<Manifest> = [.workspace, .project, .package]
+        return !manifests.isDisjoint(with: rootManifests)
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
@@ -177,7 +188,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try swiftPackageManagerController.loadPackageInfo(
+        try packageInfoLoader.loadPackageInfo(
             at: path
         )
     }

@@ -7,7 +7,6 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistScaffold
-import TuistScaffoldTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
@@ -16,8 +15,8 @@ import XCTest
 
 final class PluginServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
-    private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    private var gitHandler: MockGitHandler!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
+    private var gitController: MockGitControlling!
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactoring!
@@ -27,8 +26,8 @@ final class PluginServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         manifestLoader = .init()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        gitHandler = MockGitHandler()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
+        gitController = MockGitControlling()
         let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         given(cacheDirectoriesProvider)
@@ -48,7 +47,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
-            gitHandler: gitHandler,
+            gitController: gitController,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             fileArchivingFactory: fileArchivingFactory,
             fileClient: fileClient
@@ -58,7 +57,7 @@ final class PluginServiceTests: TuistUnitTestCase {
     override func tearDown() {
         manifestLoader = nil
         templatesDirectoryLocator = nil
-        gitHandler = nil
+        gitController = nil
         cacheDirectoriesProvider = nil
         cacheDirectoryProviderFactory = nil
         fileUnarchiver = nil
@@ -132,18 +131,12 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil, releaseUrl: nil),
             ]
         )
-        var invokedCloneURL: String?
-        var invokedClonePath: Path.AbsolutePath?
-        gitHandler.cloneToStub = { url, path in
-            invokedCloneURL = url
-            invokedClonePath = path
-        }
-        var invokedCheckoutID: String?
-        var invokedCheckoutPath: Path.AbsolutePath?
-        gitHandler.checkoutStub = { id, path in
-            invokedCheckoutID = id
-            invokedCheckoutPath = path
-        }
+        given(gitController)
+            .clone(url: .any, to: .any)
+            .willReturn()
+        given(gitController)
+            .checkout(id: .any, in: .any)
+            .willReturn()
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)
             .willReturn(try temporaryPath())
@@ -152,18 +145,24 @@ final class PluginServiceTests: TuistUnitTestCase {
         _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
-        XCTAssertEqual(invokedCloneURL, pluginGitURL)
-        XCTAssertEqual(
-            invokedClonePath,
-            try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
-                .appending(components: pluginFingerprint, PluginServiceConstants.repository)
-        )
-        XCTAssertEqual(invokedCheckoutID, pluginGitSha)
-        XCTAssertEqual(
-            invokedCheckoutPath,
-            try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
-                .appending(components: pluginFingerprint, PluginServiceConstants.repository)
-        )
+        verify(gitController)
+            .clone(
+                url: .value(pluginGitURL),
+                to: .value(
+                    try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+                        .appending(components: pluginFingerprint, PluginServiceConstants.repository)
+                )
+            )
+            .called(1)
+        verify(gitController)
+            .checkout(
+                id: .value(pluginGitSha),
+                in: .value(
+                    try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+                        .appending(components: pluginFingerprint, PluginServiceConstants.repository)
+                )
+            )
+            .called(1)
     }
 
     func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() async throws {
@@ -176,18 +175,12 @@ final class PluginServiceTests: TuistUnitTestCase {
                 .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
         )
-        var invokedCloneURL: String?
-        var invokedClonePath: Path.AbsolutePath?
-        gitHandler.cloneToStub = { url, path in
-            invokedCloneURL = url
-            invokedClonePath = path
-        }
-        var invokedCheckoutID: String?
-        var invokedCheckoutPath: Path.AbsolutePath?
-        gitHandler.checkoutStub = { id, path in
-            invokedCheckoutID = id
-            invokedCheckoutPath = path
-        }
+        given(gitController)
+            .clone(url: .any, to: .any)
+            .willReturn()
+        given(gitController)
+            .checkout(id: .any, in: .any)
+            .willReturn()
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)
             .willReturn(try temporaryPath())
@@ -196,18 +189,24 @@ final class PluginServiceTests: TuistUnitTestCase {
         _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
-        XCTAssertEqual(invokedCloneURL, pluginGitURL)
-        XCTAssertEqual(
-            invokedClonePath,
-            try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
-                .appending(components: pluginFingerprint, PluginServiceConstants.repository)
-        )
-        XCTAssertEqual(invokedCheckoutID, pluginGitTag)
-        XCTAssertEqual(
-            invokedCheckoutPath,
-            try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
-                .appending(components: pluginFingerprint, PluginServiceConstants.repository)
-        )
+        verify(gitController)
+            .clone(
+                url: .value(pluginGitURL),
+                to: .value(
+                    try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+                        .appending(components: pluginFingerprint, PluginServiceConstants.repository)
+                )
+            )
+            .called(1)
+        verify(gitController)
+            .checkout(
+                id: .value(pluginGitTag),
+                in: .value(
+                    try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+                        .appending(components: pluginFingerprint, PluginServiceConstants.repository)
+                )
+            )
+            .called(1)
     }
 
     func test_fetchRemotePlugins_when_git_tag_and_repository_cached() async throws {
@@ -405,11 +404,13 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
         let templatePath = pluginPath.appending(components: "Templates", "custom")
-        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
-            [
-                templatePath,
-            ]
-        }
+        given(templatesDirectoryLocator)
+            .templatePluginDirectories(at: .any)
+            .willReturn(
+                [
+                    templatePath,
+                ]
+            )
 
         try makeDirectories(.init(validating: templatePath.pathString))
 
@@ -445,11 +446,13 @@ final class PluginServiceTests: TuistUnitTestCase {
             .appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
-        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
-            [
-                templatePath,
-            ]
-        }
+        given(templatesDirectoryLocator)
+            .templatePluginDirectories(at: .any)
+            .willReturn(
+                [
+                    templatePath,
+                ]
+            )
 
         try makeDirectories(.init(validating: templatePath.pathString))
 

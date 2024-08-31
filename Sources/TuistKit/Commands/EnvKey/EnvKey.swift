@@ -86,6 +86,9 @@ public enum EnvKey: String, CaseIterable {
     case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
     case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
 
+    // LINT
+    case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
@@ -178,6 +181,11 @@ public enum EnvKey: String, CaseIterable {
     case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case projectCreatePath = "TUIST_PROJECT_CREATE_PATH"
 
+    // PROJECT SHOW
+    case projectShowFullHandle = "TUIST_PROJECT_SHOW_FULL_HANDLE"
+    case projectShowPath = "TUIST_PROJECT_SHOW_PATH"
+    case projectShowWeb = "TUIST_PROJECT_SHOW_WEB"
+
     // ORGANIZATION INVITE
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
@@ -211,6 +219,12 @@ public enum EnvKey: String, CaseIterable {
 
     // ANALYTICS
     case analyticsPath = "TUIST_ANALYTICS_PATH"
+
+    // SHARE
+    case shareApp = "TUIST_SHARE_APP"
+    case shareConfiguration = "TUIST_SHARE_CONFIGURATION"
+    case sharePlatform = "TUIST_SHARE_PLATFORM"
+    case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
 }
 
 extension EnvKey {

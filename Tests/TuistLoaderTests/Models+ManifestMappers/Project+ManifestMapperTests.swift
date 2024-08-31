@@ -16,6 +16,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         let project = ProjectDescription.Project(
             name: "Name",
             organizationName: "Organization",
+            classPrefix: "ClassPrefix",
             options: .options(
                 automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
@@ -61,6 +62,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 xcodeProjPath: "/XcodeName.xcodeproj",
                 name: "Name",
                 organizationName: "Organization",
+                classPrefix: "ClassPrefix",
                 defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
                 options: .init(

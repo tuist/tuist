@@ -144,14 +144,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
-                if let path = target.path {
-                    // local binary
+                if let path = target.path, !path.hasSuffix(".zip") {
+                    // local non .zip binary
                     result[target.name] = .path(
                         packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
                             .pathString
                     )
                 }
-                // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
+                // remote or .zip binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                 // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
                 else if let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] {
                     result[target.name] = .path(artifactPath.pathString)
@@ -708,13 +708,13 @@ extension ProjectDescription.Product {
             return ProjectDescription.Product.from(product: productType)
         }
 
-        var hasLibraryProducts = false
+        var hasAutomaticProduct = false
         let product: ProjectDescription.Product? = products.reduce(nil) { result, product in
             switch product.type {
             case let .library(type):
-                hasLibraryProducts = true
                 switch type {
                 case .automatic:
+                    hasAutomaticProduct = true
                     return result
                 case .static:
                     return .staticFramework
@@ -731,11 +731,12 @@ extension ProjectDescription.Product {
             }
         }
 
-        if product != nil {
-            return product
-        } else if hasLibraryProducts {
-            // only automatic products, default to static framework
+        if hasAutomaticProduct {
+            // contains automatic product, default to static framework
             return .staticFramework
+        } else if product != nil {
+            // return found product if there is no automatic products
+            return product
         } else {
             // only executable, plugin, or test products, ignore it
             return nil
@@ -843,14 +844,29 @@ extension ProjectDescription.ResourceFileElements {
         // Add default resources path if necessary
         // They are handled like a `.process` rule
         if sources == nil {
-            resourceFileElements += try defaultResourcePaths(from: path)
-                .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
+            // Already included resources should not be added as default resource
+            let excludedPaths: Set<AbsolutePath> = Set(
+                resourceFileElements.map {
+                    switch $0 {
+                    case let .folderReference(path: path, _, _):
+                        AbsolutePath(stringLiteral: path.pathString)
+                    case let .glob(pattern: path, _, _, _):
+                        AbsolutePath(stringLiteral: path.pathString).upToLastNonGlob
+                    }
+                }
+            )
+            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
+                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
+                let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
+                return candidateNotInExcludedDirectory
+            }
+            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
         guard !resourceFileElements.isEmpty else { return nil }
 
-        return .resources(resourceFileElements)
+        return .resources(resourceFileElements.uniqued())
     }
 
     // These files are automatically added as resource if they are inside targets directory.
@@ -864,8 +880,16 @@ extension ProjectDescription.ResourceFileElements {
         "strings",
     ])
 
-    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        Array(FileHandler.shared.files(in: path, nameFilter: nil, extensionFilter: defaultSpmResourceFileExtensions))
+    private static func defaultResourcePaths(
+        from path: AbsolutePath,
+        filter: @escaping (Foundation.URL) -> Bool
+    ) -> [AbsolutePath] {
+        Array(FileHandler.shared.files(
+            in: path,
+            filter: filter,
+            nameFilter: nil,
+            extensionFilter: defaultSpmResourceFileExtensions
+        ))
     }
 }
 

@@ -68,6 +68,9 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                         command_arguments: commandEvent.commandArguments,
                         duration: Double(commandEvent.durationInMs),
                         error_message: errorMessage,
+                        git_commit_sha: commandEvent.gitCommitSHA,
+                        git_ref: commandEvent.gitRef,
+                        git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
                         is_ci: commandEvent.isCI,
                         macos_version: commandEvent.macOSVersion,
                         name: commandEvent.name,
@@ -79,6 +82,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                             remote_test_target_hits: commandEvent.params["remote_test_target_hits"]?.value as? [String],
                             test_targets: commandEvent.params["test_targets"]?.value as? [String]
                         ),
+                        preview_id: commandEvent.params["preview_id"]?.value as? String,
                         status: status,
                         subcommand: commandEvent.subcommand,
                         swift_version: commandEvent.swiftVersion,

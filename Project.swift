@@ -17,7 +17,7 @@ func acceptanceTestsEnvironmentVariables() -> [String: EnvironmentVariable] {
     [
         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-        "TUIST_AUTH_EMAIL": "tuist@tuist.io",
+        "TUIST_AUTH_EMAIL": "tuistrocks@tuist.io",
         "TUIST_AUTH_PASSWORD": "tuistrocks",
     ]
 }

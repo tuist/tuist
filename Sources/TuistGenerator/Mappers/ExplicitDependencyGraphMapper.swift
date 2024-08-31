@@ -8,11 +8,15 @@ import XcodeGraph
 public struct ExplicitDependencyGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         if !graph.packages.isEmpty {
             return (
                 graph,
-                []
+                [],
+                environment
             )
         }
         logger.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
@@ -41,7 +45,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 
             return (projectPath, project)
         })
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     // swiftlint:disable:next function_body_length

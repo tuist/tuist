@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import PathKit
 import StencilSwiftKit
@@ -7,6 +8,7 @@ import TuistCore
 import TuistSupport
 
 /// Interface for generating content defined in template manifest
+@Mockable
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
     /// - Parameters:

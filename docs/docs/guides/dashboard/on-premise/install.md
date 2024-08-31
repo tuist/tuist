@@ -72,6 +72,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |        
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
 
 ### Authentication environment configuration
 
@@ -81,8 +82,8 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
         
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 - In the GitHub app's general settings:
-    - Copy the `Client ID` and set it as `TUIST_GITHUB_OAUTH_ID`
-    - Create and copy a new `client secret` and set it as `TUIST_GITHUB_OAUTH_SECRET`
+    - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
+    - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
     - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
 - In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
 
@@ -90,8 +91,8 @@ You'll then need to expose the following environment variables in the environmen
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_OAUTH_ID` | The client ID of the application | Yes | | `Iv1.a629723000043722` |
-| `TUIST_GITHUB_OAUTH_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google
 
@@ -130,6 +131,20 @@ The environment variables required to authenticate against S3-compliant storages
 
 ### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+
+### Version control system configuration
+
+We integrate with providers of your version control system to provide extra features such as posting automatically posting comments in your pull requests.
+
+#### GitHub
+
+You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+
+On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
 
 ## Deployment
 
@@ -276,7 +291,7 @@ services:
       # Auth - one method
       # GitHub Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#github
       TUIST_GITHUB_OAUTH_ID: 
-      TUIST_GITHUB_OAUTH_SECRET: 
+      TUIST_GITHUB_APP_CLIENT_SECRET: 
 
       # Okta Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:

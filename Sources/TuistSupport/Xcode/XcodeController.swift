@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import Path
 import TSCUtility
 
+@Mockable
 public protocol XcodeControlling: Sendable {
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
@@ -17,7 +19,7 @@ public protocol XcodeControlling: Sendable {
     func selectedVersion() throws -> Version
 }
 
-public class XcodeController: XcodeControlling, @unchecked Sendable {
+public final class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.

@@ -91,6 +91,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
+            cache.cache(
+                results: results,
+                for: dependency
+            )
             return results
         }
 
@@ -113,6 +117,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         config: Config
     ) -> [StaticDependencyWarning] {
         if shouldSkipDependency(staticProduct, config: config) {
+            return []
+        }
+
+        // Statically linking a macro does not present a problem so it should not be flagged
+        if case let .target(name, path) = staticProduct,
+           !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
+        {
             return []
         }
 

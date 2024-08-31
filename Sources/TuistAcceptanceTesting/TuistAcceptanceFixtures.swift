@@ -4,10 +4,12 @@ public enum TuistAcceptanceFixtures {
     case appWithBuildRules
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
+    case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
     case appWithSpmDependencies
     case appWithTestPlan
+    case appWithTests
     case commandLineToolBasic
     case commandLineToolWithDynamicFramework
     case commandLineToolWithDynamicLibrary
@@ -63,6 +65,7 @@ public enum TuistAcceptanceFixtures {
     case multiplatformAppWithSdk
     case multiplatformµFeatureUnitTestsWithExplicitDependencies
     case plugin
+    case projectWithClassPrefix
     case projectWithFileHeaderTemplate
     case projectWithInlineFileHeaderTemplate
     case spmPackage
@@ -70,6 +73,7 @@ public enum TuistAcceptanceFixtures {
     case visionosApp
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
+    case xcodeApp
     case custom(String)
 
     public var path: String {
@@ -80,6 +84,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGoogleMaps:
+            return "app_with_google_maps"
         case .appWithPlugins:
             return "app_with_plugins"
         case .appWithPreviews:
@@ -88,6 +94,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
+        case .appWithTests:
+            return "app_with_tests"
         case .commandLineToolBasic:
             return "command_line_tool_basic"
         case .commandLineToolWithDynamicFramework:
@@ -198,6 +206,8 @@ public enum TuistAcceptanceFixtures {
             return "multiplatform_µFeature_unit_tests_with_explicit_dependencies"
         case .plugin:
             return "plugin"
+        case .projectWithClassPrefix:
+            return "project_with_class_prefix"
         case .projectWithFileHeaderTemplate:
             return "project_with_file_header_template"
         case .projectWithInlineFileHeaderTemplate:
@@ -212,6 +222,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_file_header_template"
         case .workspaceWithInlineFileHeaderTemplate:
             return "workspace_with_inline_file_header_template"
+        case .xcodeApp:
+            return "xcode_app"
         case let .custom(path):
             return path
         }

@@ -49,7 +49,7 @@ public protocol SwiftPackageManagerGraphLoading {
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) async throws -> TuistCore.DependenciesGraph
+    ) async throws -> TuistLoader.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
@@ -77,7 +77,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) async throws -> TuistCore.DependenciesGraph {
+    ) async throws -> TuistLoader.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
