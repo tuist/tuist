@@ -51,6 +51,7 @@ final class InstallServiceTests: TuistUnitTestCase {
     func test_run_when_updating_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
+        let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
 
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -73,15 +74,23 @@ final class InstallServiceTests: TuistUnitTestCase {
             )
         )
 
+        // Package.resolved
+        try fileHandler.touch(expectedPackageResolvedPath)
+        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+
         // When
         try await subject.run(
             path: stubbedPath.pathString,
             update: true
         )
 
+        let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
+        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+
         // Then
         XCTAssertTrue(swiftPackageManagerController.invokedUpdate)
         XCTAssertFalse(swiftPackageManagerController.invokedResolve)
+        XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 
     func test_run_when_installing_plugins() async throws {
@@ -116,6 +125,7 @@ final class InstallServiceTests: TuistUnitTestCase {
     func test_run_when_installing_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
+        let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
 
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -136,15 +146,23 @@ final class InstallServiceTests: TuistUnitTestCase {
             )
         )
 
+        // Package.resolved
+        try fileHandler.touch(expectedPackageResolvedPath)
+        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+
         // When
         try await subject.run(
             path: stubbedPath.pathString,
             update: false
         )
 
+        let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
+        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+
         // Then
         XCTAssertTrue(swiftPackageManagerController.invokedResolve)
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
+        XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 
     func test_install_when_from_a_tuist_project_directory() async throws {
@@ -153,6 +171,8 @@ final class InstallServiceTests: TuistUnitTestCase {
         let expectedFoundPackageLocation = temporaryDirectory.appending(
             components: Constants.tuistDirectoryName, Manifest.package.fileName(temporaryDirectory)
         )
+        let expectedPackageResolvedPath = temporaryDirectory.appending(components: ["Tuist", "Package.resolved"])
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
@@ -163,10 +183,25 @@ final class InstallServiceTests: TuistUnitTestCase {
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundPackageLocation)
 
+        // Package.resolved
+        try fileHandler.touch(expectedPackageResolvedPath)
+        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+
         // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
         try await subject.run(
             path: temporaryDirectory.pathString,
             update: false
         )
+
+        let savedPackageResolvedPath = temporaryDirectory.appending(components: [
+            "Tuist",
+            ".build",
+            "Derived",
+            "Package.resolved",
+        ])
+        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+
+        // Then
+        XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 }

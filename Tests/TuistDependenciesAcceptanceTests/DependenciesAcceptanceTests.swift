@@ -41,3 +41,19 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptance
         try await run(TestCommand.self, "App")
     }
 }
+
+final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
+    func test() async throws {
+        try await setUpFixture(.iosAppWithSpmDependencies)
+        try await run(InstallCommand.self)
+        let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
+        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
+        try await run(GenerateCommand.self)
+        XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        TestingLogHandler.reset()
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+    }
+}

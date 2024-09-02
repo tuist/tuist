@@ -91,6 +91,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
 
+        try validatePackageResolved(at: packagePath.parentDirectory)
+
         let packageInfos: [
             // swiftlint:disable:next large_tuple
             (
@@ -164,6 +166,32 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             externalDependencies: externalDependencies,
             externalProjects: externalProjects
         )
+    }
+
+    private func validatePackageResolved(at path: AbsolutePath) throws {
+        let savedPackageResolvedPath = path.appending(components: [
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        let savedData: Data?
+        if fileHandler.exists(savedPackageResolvedPath) {
+            savedData = try fileHandler.readFile(savedPackageResolvedPath)
+        } else {
+            savedData = nil
+        }
+
+        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        let currentData: Data?
+        if fileHandler.exists(currentPackageResolvedPath) {
+            currentData = try fileHandler.readFile(currentPackageResolvedPath)
+        } else {
+            currentData = nil
+        }
+
+        if currentData != savedData {
+            logger.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        }
     }
 }
 
