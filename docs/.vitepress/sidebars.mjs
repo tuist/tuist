@@ -1,4 +1,4 @@
-import { comingSoonBadge } from "./badges.mjs";
+import { comingSoonBadge, serverRequiredBadge } from "./badges.mjs";
 import {
   cubeOutlineIcon,
   cube02Icon,
@@ -8,6 +8,7 @@ import {
   dataIcon,
   checkCircleIcon,
   tuistIcon,
+  building07Icon,
   cloudBlank02Icon,
   server04Icon,
 } from "./icons.mjs";
@@ -143,6 +144,44 @@ export const contributorsSidebar = [
   },
 ];
 
+export const serverSidebar = [
+  {
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Introduction ${server04Icon()}</span>`,
+    items: [
+      {
+        text: "Why a server?",
+        link: "server/introduction/why-a-server",
+      },
+      {
+        text: "Accounts and projects",
+        link: "server/introduction/accounts-and-projects",
+      },
+      {
+        text: "Authentication",
+        link: "server/introduction/authentication",
+      },
+    ],
+  },
+  {
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">On-premise ${building07Icon()}</span>`,
+    collapsed: true,
+    items: [
+      {
+        text: "Install",
+        link: "server/on-premise/install",
+      },
+      {
+        text: "Metrics",
+        link: "server/on-premise/metrics",
+      },
+    ],
+  },
+  {
+    text: "API Documentation",
+    link: "https://cloud.tuist.io/api/docs",
+  },
+];
+
 export const guidesSidebar = [
   {
     text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</span>`,
@@ -273,7 +312,7 @@ export const guidesSidebar = [
         collapsed: true,
         items: [
           {
-            text: "Cache",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache ${serverRequiredBadge()}</span>`,
             link: "guides/develop/build/cache",
           },
         ],
@@ -284,11 +323,11 @@ export const guidesSidebar = [
         collapsed: true,
         items: [
           {
-            text: "Smart runner",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Smart runner ${serverRequiredBadge()}</span>`,
             link: "guides/develop/test/smart-runner",
           },
           {
-            text: "Flakiness",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Flakiness ${serverRequiredBadge()}</span>`,
             link: "guides/develop/test/flakiness",
           },
         ],
@@ -325,30 +364,6 @@ export const guidesSidebar = [
       {
         text: "Previews",
         link: "guides/share/previews",
-      },
-    ],
-  },
-  // {
-  //   text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,
-  //   items: [],
-  // },
-  {
-    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</span>`,
-    collapsed: true,
-    items: [
-      {
-        text: "On-premise",
-        collapsed: true,
-        items: [
-          {
-            text: "Install",
-            link: "guides/dashboard/on-premise/install",
-          },
-          {
-            text: "Metrics",
-            link: "guides/dashboard/on-premise/metrics",
-          },
-        ],
       },
     ],
   },

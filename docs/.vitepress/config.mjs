@@ -5,7 +5,9 @@ import {
   guidesSidebar,
   contributorsSidebar,
   referencesSidebar,
+  serverSidebar,
 } from "./sidebars.mjs";
+import { server04Icon, bookOpen01Icon } from "./icons.mjs";
 
 export default defineConfig({
   title: "Tuist",
@@ -42,7 +44,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `    
+    const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -73,7 +75,6 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
-
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
 /guide/introduction/installation /guides/quick-start/install-tuist 301
 /guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
@@ -109,7 +110,8 @@ export default defineConfig({
 /reference/project-description/* /references/project-description/:splat 301
 /reference/examples/* /references/examples/:splat 301
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
-
+/guides/dashboard/on-premise/install /server/on-premise/install 301
+/guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /documentation/tuist/* / 301
     `;
     fs.writeFile(redirectsPath, redirects);
@@ -120,23 +122,25 @@ export default defineConfig({
       provider: "local",
     },
     nav: [
-      { text: "Guides", link: "/" },
+      {
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+        link: "/",
+      },
+      {
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+        link: "/server/introduction/why-a-server",
+      },
       {
         text: "References",
         link: "/references/project-description/structs/project",
       },
-      { text: "Contributors", link: "/contributors/get-started" },
-      { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
       {
-        text: "Server",
+        text: "Resources",
         items: [
+          { text: "Contributors", link: "/contributors/get-started" },
           {
-            text: "Dashboard",
-            link: "https://cloud.tuist.io",
-          },
-          {
-            text: "API Documentation",
-            link: "https://cloud.tuist.io/api/docs",
+            text: "Changelog",
+            link: "https://github.com/tuist/tuist/releases",
           },
         ],
       },
@@ -147,6 +151,7 @@ export default defineConfig({
     sidebar: {
       "/contributors": contributorsSidebar,
       "/guides/": guidesSidebar,
+      "/server": serverSidebar,
       "/": guidesSidebar,
       "/references/": referencesSidebar,
     },
