@@ -42,6 +42,16 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptance
     }
 }
 
+final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions: TuistAcceptanceTestCase {
+    func test_ios_app_spm_dependencies_force_resolved_versions() async throws {
+        try await setUpFixture(.iosAppWithSpmDependenciesForceResolvedVersions)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+        try await run(TestCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try await setUpFixture(.iosAppWithSpmDependencies)
