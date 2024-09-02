@@ -9,7 +9,7 @@ export default {
   watch: [path.join(rootDirectory, "Sources/**/*.swift")],
 
   async load() {
-    await $`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
+    await $`swift build --product tuist --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
     const { stdout } =
       await $`${path.join(rootDirectory, ".build/debug/tuist")} --experimental-dump-help`;
 
