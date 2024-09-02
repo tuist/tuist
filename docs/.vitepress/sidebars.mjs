@@ -14,7 +14,7 @@ import {
 } from "./icons.mjs";
 import examplesDataLoader from "../docs/references/examples/examples.data";
 import projectDescriptionTypesDataLoader from "../docs/references/project-description/types.data";
-import cliDataLoader from "../docs/references/cli/commands.data";
+import cliDataLoader from "../docs/cli/commands.data";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
@@ -83,18 +83,12 @@ function generateNestedSidebarItems(items) {
   return convertToArray(nestedItems);
 }
 
-const cliData = cliDataLoader.load();
-
-const cliSidebar = {
-  text: "CLI",
-  items: generateNestedSidebarItems(cliData),
-};
+export const cliSidebar = [await cliDataLoader.load()];
 
 export const referencesSidebar = [
   {
     text: "Reference",
     items: [
-      cliSidebar,
       projectDescriptionSidebar,
       {
         text: "Examples",

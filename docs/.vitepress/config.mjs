@@ -6,8 +6,9 @@ import {
   contributorsSidebar,
   referencesSidebar,
   serverSidebar,
+  cliSidebar,
 } from "./sidebars.mjs";
-import { server04Icon, bookOpen01Icon } from "./icons.mjs";
+import { server04Icon, bookOpen01Icon, codeBrowserIcon } from "./icons.mjs";
 
 export default defineConfig({
   title: "Tuist",
@@ -127,16 +128,20 @@ export default defineConfig({
         link: "/",
       },
       {
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+        link: "/cli/generate",
+      },
+      {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
         link: "/server/introduction/why-a-server",
       },
       {
-        text: "References",
-        link: "/references/project-description/structs/project",
-      },
-      {
         text: "Resources",
         items: [
+          {
+            text: "References",
+            link: "/references/project-description/structs/project",
+          },
           { text: "Contributors", link: "/contributors/get-started" },
           {
             text: "Changelog",
@@ -149,9 +154,10 @@ export default defineConfig({
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
     },
     sidebar: {
+      "/cli/": cliSidebar,
       "/contributors": contributorsSidebar,
       "/guides/": guidesSidebar,
-      "/server": serverSidebar,
+      "/server/": serverSidebar,
       "/": guidesSidebar,
       "/references/": referencesSidebar,
     },
