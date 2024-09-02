@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 
 public protocol CopyFilesContentHashing {
-    func hash(copyFiles: [CopyFilesAction]) throws -> String
+    func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode
 }
 
 /// `CopyFilesContentHasher`
@@ -19,12 +19,15 @@ public final class CopyFilesContentHasher: CopyFilesContentHashing {
 
     // MARK: - CopyFilesContentHashing
 
-    public func hash(copyFiles: [CopyFilesAction]) throws -> String {
-        var stringsToHash: [String] = []
-        for action in copyFiles {
-            let fileHashes = try action.files.map { try contentHasher.hash(path: $0.path) }
-            stringsToHash.append(contentsOf: fileHashes + [action.name, action.destination.rawValue, action.subpath ?? ""])
+    public func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode {
+        let children = copyFiles.map { _ in
+            return MerkleNode(hash: "xxx", identifier: "uuu", children: [])
         }
-        return try contentHasher.hash(stringsToHash)
+        return MerkleNode(
+            hash: try contentHasher.hash(children),
+
+            identifier: identifier,
+            children: children
+        )
     }
 }
