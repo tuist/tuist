@@ -46,6 +46,10 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
     func test_ios_app_spm_dependencies_force_resolved_versions() async throws {
         try await setUpFixture(.iosAppWithSpmDependenciesForceResolvedVersions)
         try await run(InstallCommand.self)
+        let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
+        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        // NB: Should not modify SnapKit version in Package.resolved
+        XCTAssertTrue(packageResolvedContents.contains(#""version" : "5.0.0""#))
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
         try await run(TestCommand.self, "App")
