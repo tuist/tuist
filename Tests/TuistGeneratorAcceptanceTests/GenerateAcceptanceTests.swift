@@ -930,6 +930,15 @@ final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcce
     }
 }
 
+final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCase {
+    func test_app_with_spm_module_aliases() async throws {
+        try await setUpFixture(.appWithSpmModuleAliases)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {

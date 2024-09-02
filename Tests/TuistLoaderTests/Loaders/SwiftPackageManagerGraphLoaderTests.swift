@@ -57,7 +57,12 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
         try fileHandler.touch(temporaryPath.appending(component: "Package.resolved"))
 
         given(packageInfoMapper)
-            .resolveExternalDependencies(packageInfos: .any, packageToFolder: .any, packageToTargetsToArtifactPaths: .any)
+            .resolveExternalDependencies(
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any
+            )
             .willReturn([:])
 
         // When
@@ -97,7 +102,12 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
         try fileHandler.touch(currentPackageResolvedPath)
 
         given(packageInfoMapper)
-            .resolveExternalDependencies(packageInfos: .any, packageToFolder: .any, packageToTargetsToArtifactPaths: .any)
+            .resolveExternalDependencies(
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any
+            )
             .willReturn([:])
 
         // When
