@@ -2268,7 +2268,7 @@ public struct Client: APIProtocol {
     }
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -2320,6 +2320,19 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .ok(.init(headers: headers, body: body))
+                case 400:
+                    let headers: Operations.updateProject.Output.BadRequest.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateProject.Output.BadRequest.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .badRequest(.init(headers: headers, body: body))
                 case 401:
                     let headers: Operations.updateProject.Output.Unauthorized.Headers = .init()
                     try converter.validateContentTypeIfPresent(
@@ -2671,6 +2684,19 @@ public struct Client: APIProtocol {
                     in: &request.headerFields,
                     name: "accept",
                     value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
                 )
                 return request
             },
@@ -3249,6 +3275,22 @@ public struct Client: APIProtocol {
                                 transforming: { value in .json(value) }
                             )
                     return .notFound(.init(headers: headers, body: body))
+                case 500:
+                    let headers:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output
+                            .InternalServerError.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body:
+                        Operations.completeAnalyticsArtifactMultipartUpload.Output
+                            .InternalServerError.Body = try converter.getResponseBodyAsJSON(
+                                Components.Schemas._Error.self,
+                                from: response.body,
+                                transforming: { value in .json(value) }
+                            )
+                    return .internalServerError(.init(headers: headers, body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }

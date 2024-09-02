@@ -22,6 +22,10 @@ public final class CachedContentHasher: ContentHashing {
         try contentHasher.hash(string)
     }
 
+    public func hash(_ boolean: Bool) throws -> String {
+        try contentHasher.hash(boolean)
+    }
+
     public func hash(_ strings: [String]) throws -> String {
         try contentHasher.hash(strings)
     }

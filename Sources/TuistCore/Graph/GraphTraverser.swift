@@ -408,9 +408,9 @@ public class GraphTraverser: GraphTraversing {
             skip: { $0.xcframeworkDependency == nil }
         )
 
-        let libraryDependenciesLinkedByStaticXCFrameworks = try staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
+        let libraryDependenciesLinkedByStaticXCFrameworks = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
             guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
-            return try dependencies.filter {
+            return dependencies.filter {
                 switch $0 {
                 case .sdk:
                     return true

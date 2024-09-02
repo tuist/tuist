@@ -8,7 +8,8 @@ public protocol UpdateProjectServicing {
     func updateProject(
         fullHandle: String,
         serverURL: URL,
-        defaultBranch: String?
+        defaultBranch: String?,
+        repositoryURL: String?
     ) async throws -> ServerProject
 }
 
@@ -17,12 +18,13 @@ enum UpdateProjectServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case badRequest(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound, .unauthorized:
+        case .forbidden, .notFound, .unauthorized, .badRequest:
             return .abort
         }
     }
@@ -31,7 +33,7 @@ enum UpdateProjectServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not update the project due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
             return message
         }
     }
@@ -55,7 +57,8 @@ public final class UpdateProjectService: UpdateProjectServicing {
     public func updateProject(
         fullHandle: String,
         serverURL: URL,
-        defaultBranch: String?
+        defaultBranch: String?,
+        repositoryURL: String?
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
 
@@ -69,7 +72,8 @@ public final class UpdateProjectService: UpdateProjectServicing {
                 ),
                 body: .json(
                     .init(
-                        default_branch: defaultBranch
+                        default_branch: defaultBranch,
+                        repository_url: repositoryURL
                     )
                 )
             )
@@ -97,6 +101,11 @@ public final class UpdateProjectService: UpdateProjectServicing {
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateProjectServiceError.unknownError(statusCode)
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw UpdateProjectServiceError.badRequest(error.message)
+            }
         }
     }
 }
