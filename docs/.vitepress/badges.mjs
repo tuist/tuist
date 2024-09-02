@@ -5,3 +5,7 @@ export function comingSoonBadge() {
 export function serverRequiredBadge() {
   return `<span style="background: var(--vp-c-success-soft); color: var(--vp-c-success-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Server required</span>`;
 }
+
+export function xcodeProjCompatibleBadge() {
+  return `<span style="background: var(--vp-badge-warning-bg); color: var(--vp-badge-warning-text); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">XcodeProj Compatible</span>`;
+}

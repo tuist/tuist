@@ -1,4 +1,8 @@
-import { comingSoonBadge, serverRequiredBadge } from "./badges.mjs";
+import {
+  comingSoonBadge,
+  serverRequiredBadge,
+  xcodeProjCompatibleBadge,
+} from "./badges.mjs";
 import {
   cubeOutlineIcon,
   cube02Icon,
@@ -356,7 +360,7 @@ export const guidesSidebar = [
     text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</span>`,
     items: [
       {
-        text: "Previews",
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Previews ${xcodeProjCompatibleBadge()}</span>`,
         link: "guides/share/previews",
       },
     ],

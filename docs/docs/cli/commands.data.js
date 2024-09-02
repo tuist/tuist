@@ -18,9 +18,14 @@ export default {
     } = JSON.parse(stdout);
     return {
       text: "CLI",
-      items: subcommands.map((command) => {
-        return this.parseCommand(command);
-      }),
+      items: subcommands
+        .map((command) => {
+          return {
+            ...this.parseCommand(command),
+            collapsed: true,
+          };
+        })
+        .sort((a, b) => a.text.localeCompare(b.text)),
     };
   },
 

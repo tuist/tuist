@@ -129,7 +129,7 @@ export default defineConfig({
       },
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
-        link: "/cli/generate",
+        link: "/cli/auth",
       },
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,

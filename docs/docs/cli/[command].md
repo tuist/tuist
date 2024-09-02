@@ -1,5 +1,6 @@
 ---
-title: xxx
+title: {params.command.fullCommand}
+titleTemplate: :title | CLI | Tuist
 ---
 
 <!-- @content -->
