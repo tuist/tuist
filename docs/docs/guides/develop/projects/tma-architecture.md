@@ -1,5 +1,10 @@
-# The Modular Architecture (TMA)
+---
+title: The Modular Architecture (TMA)
+titleTemplate: ":title | Projects | Tuist"
+description: Learn about The Modular Architecture (TMA) and how to structure your projects using it.
+---
 
+# The Modular Architecture (TMA)
 
 TMA is an architectural approach to structure Apple OS applications to enable scalability, optimize build and test cycles, and ensure good practices in your team. Its core idea is to build your apps by building independent features that are interconnected using clear and concise APIs.
 

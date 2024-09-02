@@ -1,5 +1,6 @@
 ---
 title: Hashing
+titleTemplate: ":title | Projects | Tuist"
 description: Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built.
 ---
 
