@@ -13,7 +13,7 @@ enum InspectImplicitImportsServiceError: FatalError, Equatable {
         case let .implicitImportsFound(issues):
             """
             The following implicit dependencies were found:
-            \(issues)
+            \(issues.joined(separator: "\n"))
             """
         }
     }
@@ -56,7 +56,7 @@ final class InspectImplicitImportsService {
             } else {
                 let targetNames = implicitDependencies.map(\.module)
                 return [
-                    "Target \(target.name) implicitly imports \(targetNames.joined(separator: ", ")).",
+                    " - \(target.name) implicitly depends on: \(targetNames.joined(separator: ", "))",
                 ]
             }
         }

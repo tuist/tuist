@@ -17,7 +17,7 @@ final class InspectAcceptanceTests: TuistAcceptanceTestCase {
             pattern:
             """
             The following implicit dependencies were found:
-            Target FrameworkA implicitly imports FrameworkB.
+             - FrameworkA implicitly depends on: FrameworkB
             """
         )
     }
@@ -25,13 +25,13 @@ final class InspectAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies_strict() async throws {
         try await setUpFixture(.iosAppWithImplicitDependencies)
         do {
-            try await run(InspectImplicitImportsCommand.self)
+            try await run(InspectImplicitImportsCommand.self, ["--strict"])
         } catch let error as InspectImplicitImportsServiceError {
             XCTAssertEqual(
                 error.description,
                 """
                 The following implicit dependencies were found:
-                Target FrameworkA implicitly imports FrameworkB.
+                 - FrameworkA implicitly depends on: FrameworkB
                 """
             )
         }

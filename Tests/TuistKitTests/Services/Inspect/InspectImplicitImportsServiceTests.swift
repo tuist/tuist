@@ -57,7 +57,7 @@ final class InspectImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn([])
 
         let expectedError = InspectImplicitImportsServiceError.implicitImportsFound(
-            ["Target App implicitly imports Framework."]
+            [" - App implicitly depends on: Framework"]
         )
 
         // When
