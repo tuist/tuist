@@ -10,7 +10,7 @@ To interact with the server, the CLI needs to authenticate the requests using [b
 
 ## As a user
 
-When using the CLI locally in your machine, we recommend authenticating as a user. To authenticate as a user, you need to run the following command:
+When using the CLI locally on your machine, we recommend authenticating as a user. To authenticate as a user, you need to run the following command:
 
 ```bash
 tuist auth
@@ -22,7 +22,7 @@ The CLI will automatically look up the credentials when making requests to the s
 
 ## As a project
 
-In non-interactive environments like continuous integrations', you can authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
+In non-interactive environments like continuous integrations', you can't authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
 
 ```bash
 tuist project tokens create

@@ -5,6 +5,12 @@ description: Learn how to generate and share previews of your apps with anyone.
 
 # Previews
 
+> [!IMPORTANT] XCODEPROJ-COMPATIBLE
+> This feature is compatible with raw Xcode projects.
+
+> [!IMPORTANT] REMOTE PROJECT REQUIRED
+> This feature requires a [remote project](/server/introduction/accounts-and-projects#projects).
+
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).

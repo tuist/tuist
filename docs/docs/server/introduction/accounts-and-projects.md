@@ -18,21 +18,21 @@ If you are familiar with [GitHub](https://github.com), the concept is similar to
 > [!NOTE] CLI-FIRST
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
-You can manage the organization through the sub commands under `tuist organization`.
+You can manage the organization through the subcommands under [`tuist organization`](/cli/organization).
 
 ## Projects
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a server-side project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the `tuist project` to create and manage projects.
+Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the [`tuist project`](/cli/project) to create and manage projects.
 
-Projects are identified by a full-handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full-handle would be `tuist/tuist`.
+Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
 The binding between the local and the remote project is done through the configuration file. If you don't have any, create it under `Tuist/Config.swift` and add the following content:
 
 ```swift
-let config = Config(fullHandle: "{account-handle}/{project-handle") // e.g. tuist/tuist
+let config = Config(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
 > [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
 > Note that there are some features like [binary caching](/guides/develop/build/cache) that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
 
-Your project's URL is constructed by using the full-handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full-handle.
+Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full handle.

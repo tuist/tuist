@@ -34,12 +34,12 @@ export default {
       text: command.commandName,
       fullCommand: parentCommand + " " + command.commandName,
       link: path.join(parentPath, command.commandName),
-      command: command,
+      spec: command,
     };
-    if (command.subcommands && command.subcommands.length != 0) {
-      output.items = command.subcommands.map((subCommand) => {
+    if (command.subcommands && command.subcommands.length !== 0) {
+      output.items = command.subcommands.map((subcommand) => {
         return this.parseCommand(
-          subCommand,
+          subcommand,
           parentCommand + " " + command.commandName,
           path.join(parentPath, command.commandName),
         );
