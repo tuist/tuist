@@ -306,7 +306,7 @@ export const guidesSidebar = [
         collapsed: true,
         items: [
           {
-            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache}</span>`,
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache</span>`,
             link: "/guides/develop/build/cache",
           },
         ],
