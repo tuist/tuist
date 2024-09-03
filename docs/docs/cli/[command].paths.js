@@ -18,7 +18,7 @@ const template = ejs.compile(
 <% if (command.spec.arguments && command.spec.arguments.length > 0) { %>
 ## Arguments
 <% command.spec.arguments.forEach(function(arg) { %>
-### <%- arg.valueName %> <%- (arg.isOptional) ? "<Badge type='info' text='Optional' />" : "" %>
+### <%- arg.valueName %> <%- (arg.isOptional) ? "<Badge type='info' text='Optional' />" : "" %> <%- (arg.isDeprecated) ? "<Badge type='warning' text='Deprecated' />" : "" %>
 <% if (arg.envVar) { %>
 **Environment variable** \`<%- arg.envVar %>\`
 <% } %>
@@ -66,7 +66,15 @@ function content(command) {
           return {
             ...arg,
             envVar: envVarMatch ? envVarMatch[1] : undefined,
-            abstract: arg.abstract.replace(envVarRegex, "").trim(),
+            isDeprecated:
+              arg.abstract.includes("[Deprecated]") ||
+              arg.abstract.includes("[deprecated]"),
+            abstract: arg.abstract
+              .replace(envVarRegex, "")
+              .replace("[Deprecated]", "")
+              .replace("[deprecated]", "")
+              .trim()
+              .replace(/<([^>]+)>/g, "\\<$1\\>"),
           };
         }),
       },
