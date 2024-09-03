@@ -781,7 +781,7 @@ public enum Module: String, CaseIterable {
             destinations: [.mac],
             product: product,
             bundleId: "io.tuist.\(name)",
-            deploymentTargets: .macOS("12.0"),
+            deploymentTargets: .macOS("13.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies,

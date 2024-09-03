@@ -27,6 +27,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     subcommands: [
                         BuildCommand.self,
                         CacheCommand.self,
+                        CICommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
                         EditCommand.self,
