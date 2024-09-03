@@ -31,16 +31,20 @@ public final class TargetContentHasher: TargetContentHashing {
     // MARK: - Init
 
     public convenience init(contentHasher: ContentHashing) {
+        let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(
                 contentHasher: contentHasher,
-                platformConditionContentHasher: PlatformConditionContentHasher(contentHasher: contentHasher)
+                platformConditionContentHasher: platformConditionContentHasher
             ),
             targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
-            copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
+            copyFilesContentHasher: CopyFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: platformConditionContentHasher
+            ),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
