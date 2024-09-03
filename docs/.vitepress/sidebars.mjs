@@ -154,6 +154,10 @@ export const serverSidebar = [
         text: "Authentication",
         link: "/server/introduction/authentication",
       },
+      {
+        text: "Integrations",
+        link: "/server/introduction/integrations",
+      },
     ],
   },
   {
@@ -340,10 +344,6 @@ export const guidesSidebar = [
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Automate ${cloudBlank02Icon()}</span>`,
         collapsed: true,
         items: [
-          {
-            text: `Connect tools`,
-            link: "guides/develop/automate/connect-tools",
-          },
           {
             text: `Continuous Integration`,
             link: "/guides/develop/automate/continuous-integration",
