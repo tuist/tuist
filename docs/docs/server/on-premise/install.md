@@ -133,9 +133,9 @@ The environment variables required to authenticate against S3-compliant storages
 ### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
-### Git host configuration
+### Git platform configuration
 
-We integrate with your Git hosts to provide extra features such as automatically posting comments in your pull requests. We recommend first going through the [configuration](../../develop/automate/connect-tools#git-repositories) in non-on-premise environments.
+Tuist can [integrate with Git platforms](server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub
 
