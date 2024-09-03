@@ -1,5 +1,6 @@
 ---
-title: On-premise installation
+title: Installation
+titleTemplate: :title | On-premise | Server | Tuist
 description: Learn how to install Tuist on your infrastructure.
 ---
 
@@ -25,7 +26,7 @@ This section outlines the requirements for hosting the Tuist server on your infr
 
 ### Running Docker-virtualized images
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry). 
+We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
 
@@ -69,7 +70,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |        
+| `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
@@ -79,7 +80,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
 
 #### GitHub
-        
+
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 - In the GitHub app's general settings:
     - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
@@ -104,7 +105,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 #### Okta
 
 You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
-        
+
 - **App integration name:** `Tuist`
 - **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
 - **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
@@ -127,7 +128,7 @@ Once the app is created you'll need to set the following environment variables:
 The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
 
 > [!NOTE] RUST SDK
-> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used. 
+> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used.
 
 ### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
@@ -149,10 +150,10 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 ## Deployment
 
 On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
-        
+
 > [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
 > Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
-        
+
 ### Pulling the Docker image
 
 After generating the token, you can retrieve the image by executing the following command:
@@ -165,14 +166,14 @@ docker pull ghcr.io/tuist/tuist:latest
 ### Deploying the Docker image
 
 The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
-        
+
 We recommend establishing a deployment pipeline that that runs **every Tuesday**, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements.
 
 > [!IMPORTANT]
-> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response. 
+> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
 
 #### Fly
-        
+
 To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml` configuration file. Consider generating it dynamically within your Continuous Deployment (CD) pipeline. Below is a reference example for your use:
 
 ```toml
@@ -245,7 +246,7 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     ports:
       - '5432:5432'
-    volumes: 
+    volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -254,17 +255,17 @@ services:
       retries: 5
 
   pgweb:
-    container_name: pgweb  
-    restart: always  
+    container_name: pgweb
+    restart: always
     image: sosedoff/pgweb
     ports:
       - "8081:8081"
     links:
-      - db:db  
+      - db:db
     environment:
       PGWEB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
     depends_on:
-      - db 
+      - db
 
   tuist:
     image: ghcr.io/tuist/tuist:latest
@@ -287,11 +288,11 @@ services:
       TUIST_APP_URL: https://localhost:8080
       TUIST_SECRET_KEY_BASE: # ...
       WEB_CONCURRENCY: 80
-      
+
       # Auth - one method
       # GitHub Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#github
-      TUIST_GITHUB_OAUTH_ID: 
-      TUIST_GITHUB_APP_CLIENT_SECRET: 
+      TUIST_GITHUB_OAUTH_ID:
+      TUIST_GITHUB_APP_CLIENT_SECRET:
 
       # Okta Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:
@@ -308,7 +309,7 @@ services:
       AWS_S3_REGION: # ...
       AWS_ENDPOINT: # https://amazonaws.com
       TUIST_S3_BUCKET_NAME: # ...
-    
+
       # Other
 
 volumes:

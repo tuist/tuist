@@ -5,8 +5,8 @@ description: Prevent, detect, and fix flaky tests with Tuist.
 
 # Test flakiness
 
-> [!IMPORTANT] REQUIRES AN ACCOUNT
-> You need to be authenticated and have and [a project set up](/guides/quick-start/gather-insights) to persist and analyze test results across runs.
+> [!IMPORTANT] REMOTE PROJECT REQUIRED
+> This feature requires a [remote project](/server/introduction/accounts-and-projects#projects).
 
 It's common in test suite to have flaky tests. Those are tests that sometimes pass and sometimes fail, even though the code under test hasn't changed. Flaky tests are a problem because **they reduce the trust in the test suite and make it harder to detect real regressions.** Moreover, they might slow down the development process because developers might need to rerun the tests multiple times until they pass.
 

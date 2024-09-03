@@ -1,4 +1,4 @@
-import { comingSoonBadge } from "./badges.mjs";
+import { comingSoonBadge, xcodeProjCompatibleBadge } from "./badges.mjs";
 import {
   cubeOutlineIcon,
   cube02Icon,
@@ -8,12 +8,13 @@ import {
   dataIcon,
   checkCircleIcon,
   tuistIcon,
+  building07Icon,
   cloudBlank02Icon,
   server04Icon,
 } from "./icons.mjs";
 import examplesDataLoader from "../docs/references/examples/examples.data";
 import projectDescriptionTypesDataLoader from "../docs/references/project-description/types.data";
-import cliDataLoader from "../docs/references/cli/commands.data";
+import cliDataLoader from "../docs/cli/commands.data";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
@@ -82,18 +83,12 @@ function generateNestedSidebarItems(items) {
   return convertToArray(nestedItems);
 }
 
-const cliData = cliDataLoader.load();
-
-const cliSidebar = {
-  text: "CLI",
-  items: generateNestedSidebarItems(cliData),
-};
+export const cliSidebar = [await cliDataLoader.load()];
 
 export const referencesSidebar = [
   {
     text: "Reference",
     items: [
-      cliSidebar,
       projectDescriptionSidebar,
       {
         text: "Examples",
@@ -140,6 +135,44 @@ export const contributorsSidebar = [
         link: "/contributors/principles",
       },
     ],
+  },
+];
+
+export const serverSidebar = [
+  {
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Introduction ${server04Icon()}</span>`,
+    items: [
+      {
+        text: "Why a server?",
+        link: "/server/introduction/why-a-server",
+      },
+      {
+        text: "Accounts and projects",
+        link: "/server/introduction/accounts-and-projects",
+      },
+      {
+        text: "Authentication",
+        link: "/server/introduction/authentication",
+      },
+    ],
+  },
+  {
+    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">On-premise ${building07Icon()}</span>`,
+    collapsed: true,
+    items: [
+      {
+        text: "Install",
+        link: "/server/on-premise/install",
+      },
+      {
+        text: "Metrics",
+        link: "/server/on-premise/metrics",
+      },
+    ],
+  },
+  {
+    text: "API Documentation",
+    link: "https://cloud.tuist.io/api/docs",
   },
 ];
 
@@ -211,85 +244,85 @@ export const guidesSidebar = [
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${code02Icon()}</span>`,
         collapsed: true,
-        link: "guides/develop/projects",
+        link: "/guides/develop/projects",
         items: [
           {
             text: "Manifests",
-            link: "guides/develop/projects/manifests",
+            link: "/guides/develop/projects/manifests",
           },
           {
             text: "Directory structure",
-            link: "guides/develop/projects/directory-structure",
+            link: "/guides/develop/projects/directory-structure",
           },
           {
             text: "Editing",
-            link: "guides/develop/projects/editing",
+            link: "/guides/develop/projects/editing",
           },
           {
             text: "Dependencies",
-            link: "guides/develop/projects/dependencies",
+            link: "/guides/develop/projects/dependencies",
           },
           {
             text: "Code sharing",
-            link: "guides/develop/projects/code-sharing",
+            link: "/guides/develop/projects/code-sharing",
           },
           {
             text: "Synthesized files",
-            link: "guides/develop/projects/synthesized-files",
+            link: "/guides/develop/projects/synthesized-files",
           },
           {
             text: "Dynamic configuration",
-            link: "guides/develop/projects/dynamic-configuration",
+            link: "/guides/develop/projects/dynamic-configuration",
           },
           {
             text: "Templates",
-            link: "guides/develop/projects/templates",
+            link: "/guides/develop/projects/templates",
           },
           {
             text: "Plugins",
-            link: "guides/develop/projects/plugins",
+            link: "/guides/develop/projects/plugins",
           },
           {
             text: "Hashing",
-            link: "guides/develop/projects/hashing",
+            link: "/guides/develop/projects/hashing",
           },
           {
             text: "The cost of convenience",
-            link: "guides/develop/projects/cost-of-convenience",
+            link: "/guides/develop/projects/cost-of-convenience",
           },
           {
             text: "Modular architecture",
-            link: "guides/develop/projects/tma-architecture",
+            link: "/guides/develop/projects/tma-architecture",
           },
           {
             text: "Best practices",
-            link: "guides/develop/projects/best-practices",
+            link: "/guides/develop/projects/best-practices",
           },
         ],
       },
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</span>`,
-        link: "guides/develop/build",
+        link: "/guides/develop/build",
         collapsed: true,
         items: [
           {
-            text: "Cache",
-            link: "guides/develop/build/cache",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache}</span>`,
+            link: "/guides/develop/build/cache",
           },
         ],
       },
       {
         text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</span>`,
-        link: "guides/develop/test",
+        link: "/guides/develop/test",
         collapsed: true,
         items: [
           {
-            text: "Smart runner",
-            link: "guides/develop/test/smart-runner",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Smart runner</span>`,
+            link: "/guides/develop/test/smart-runner",
           },
           {
-            text: "Flakiness",
-            link: "guides/develop/test/flakiness",
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Flakiness</span>`,
+            link: "/guides/develop/test/flakiness",
           },
         ],
       },
@@ -299,7 +332,7 @@ export const guidesSidebar = [
         items: [
           {
             text: "Implicit dependencies",
-            link: "guides/develop/inspect/implicit-dependencies",
+            link: "/guides/develop/inspect/implicit-dependencies",
           },
         ],
       },
@@ -309,11 +342,11 @@ export const guidesSidebar = [
         items: [
           {
             text: `Continuous Integration`,
-            link: "guides/develop/automate/continuous-integration",
+            link: "/guides/develop/automate/continuous-integration",
           },
           {
             text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${comingSoonBadge()}</span>`,
-            link: "guides/develop/automate/workflows",
+            link: "/guides/develop/automate/workflows",
           },
         ],
       },
@@ -323,32 +356,8 @@ export const guidesSidebar = [
     text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</span>`,
     items: [
       {
-        text: "Previews",
-        link: "guides/share/previews",
-      },
-    ],
-  },
-  // {
-  //   text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Measure ${barChartSquare02Icon()} ${comingSoonBadge()}</span>`,
-  //   items: [],
-  // },
-  {
-    text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Dashboard ${server04Icon()}</span>`,
-    collapsed: true,
-    items: [
-      {
-        text: "On-premise",
-        collapsed: true,
-        items: [
-          {
-            text: "Install",
-            link: "guides/dashboard/on-premise/install",
-          },
-          {
-            text: "Metrics",
-            link: "guides/dashboard/on-premise/metrics",
-          },
-        ],
+        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Previews ${xcodeProjCompatibleBadge()}</span>`,
+        link: "/guides/share/previews",
       },
     ],
   },

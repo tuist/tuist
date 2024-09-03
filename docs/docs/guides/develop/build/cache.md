@@ -5,8 +5,8 @@ description: Optimize your build times by caching compiled binaries and sharing 
 
 # Cache
 
-> [!IMPORTANT] REQUIRES AN ACCOUNT
-> You need to be authenticated and have and [a project set up](/guides/quick-start/gather-insights) to persist and share the cache across environments.
+> [!IMPORTANT] REMOTE PROJECT REQUIRED
+> This feature requires a [remote project](/server/introduction/accounts-and-projects#projects).
 
 Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
 

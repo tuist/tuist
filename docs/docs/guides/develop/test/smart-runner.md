@@ -5,8 +5,9 @@ description: Use smart test selection to run only the tests that need to be run.
 
 # Smart test runner
 
-> [!IMPORTANT] REQUIRES AN ACCOUNT
-> You need to be authenticated and have and [a project set up](/guides/quick-start/gather-insights) to use the smart test runner across environments.
+> [!IMPORTANT] REMOTE PROJECT REQUIRED
+> This feature requires a [remote project](/server/introduction/accounts-and-projects#projects).
+
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
 
