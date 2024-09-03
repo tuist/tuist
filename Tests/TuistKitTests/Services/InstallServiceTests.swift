@@ -204,4 +204,98 @@ final class InstallServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
+
+    func test_resolve_with_spm_arguments_from_config() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+
+        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(
+                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
+                    installOptions: .test(
+                        passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
+                    )
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in
+            _ = Plugins.test()
+        }
+
+        try fileHandler.touch(
+            stubbedPath.appending(
+                component: Manifest.package.fileName(stubbedPath)
+            )
+        )
+
+        var swiftPackageManagerControllerResolveArguments: [String]?
+        swiftPackageManagerController.resolveStub = { _, arguments, _ in
+            swiftPackageManagerControllerResolveArguments = arguments
+        }
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false
+        )
+
+        // Then
+        XCTAssertTrue(swiftPackageManagerController.invokedResolve)
+        XCTAssertEqual(swiftPackageManagerControllerResolveArguments, ["--replace-scm-with-registry"])
+        XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
+    }
+
+    func test_update_with_spm_arguments_from_config() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+
+        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Config.test(
+                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
+                    installOptions: .test(
+                        passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
+                    )
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in
+            _ = Plugins.test()
+        }
+
+        try fileHandler.touch(
+            stubbedPath.appending(
+                component: Manifest.package.fileName(stubbedPath)
+            )
+        )
+
+        var swiftPackageManagerControllerUpdateArguments: [String]?
+        swiftPackageManagerController.updateStub = { _, arguments, _ in
+            swiftPackageManagerControllerUpdateArguments = arguments
+        }
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: true
+        )
+
+        // Then
+        XCTAssertTrue(swiftPackageManagerController.invokedUpdate)
+        XCTAssertEqual(swiftPackageManagerControllerUpdateArguments, ["--replace-scm-with-registry"])
+        XCTAssertFalse(swiftPackageManagerController.invokedResolve)
+    }
 }

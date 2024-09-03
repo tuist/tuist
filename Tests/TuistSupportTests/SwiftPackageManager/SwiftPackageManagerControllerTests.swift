@@ -29,11 +29,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "resolve",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.resolve(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.resolve(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_update() throws {
@@ -44,11 +51,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "update",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.update(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_setToolsVersion_specificVersion() throws {
