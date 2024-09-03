@@ -56,7 +56,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
-            ]]
+            ]],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -92,7 +93,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageToFolder: ["Package": basePath],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -131,7 +133,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
-            ]]
+            ]],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -167,7 +170,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageToFolder: ["Package": basePath],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -229,7 +233,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "Package2": basePath.appending(component: "Package2"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertBetterEqual(
@@ -245,6 +250,83 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Product2": [
                     .project(
                         target: "Target_2",
+                        path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                        condition: nil
+                    ),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenHasModuleAliases() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Product",
+                            dependencies: [
+                                .product(
+                                    name: "Product",
+                                    package: "Package2",
+                                    moduleAliases: ["Product": "Package2Product"],
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "Package2": .init(
+                    name: "Package2",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Product",
+                            dependencies: [
+                                .target(name: "Product", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: [
+                "Package": basePath.appending(component: "Package"),
+                "Package2": basePath.appending(component: "Package2"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: ["Package2": ["Product": "Package2Product"]]
+        )
+
+        XCTAssertBetterEqual(
+            resolvedDependencies,
+            [
+                "Product": [
+                    .project(
+                        target: "Product",
+                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                        condition: nil
+                    ),
+                ],
+                "Package2Product": [
+                    .project(
+                        target: "Package2Product",
                         path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
                         condition: nil
                     ),
@@ -301,7 +383,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -357,7 +440,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -430,7 +514,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package_1": basePath.appending(component: "Package_1"),
                 "Package_2": basePath.appending(component: "Package_2"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertBetterEqual(
@@ -3846,6 +3931,103 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenHasModuleAliases() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product",
+                        dependencies: [
+                            .product(
+                                name: "Product",
+                                package: "Package2",
+                                moduleAliases: ["Product": "Package2Product"],
+                                condition: nil
+                            ),
+                        ]
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+            "Package2": .init(
+                name: "Package2",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        let packageModuleAliases = [
+            "Package2": [
+                "Product": "Package2Product",
+            ],
+        ]
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageModuleAliases: packageModuleAliases
+        )
+        let projectTwo = try subject.map(
+            package: "Package2",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageModuleAliases: packageModuleAliases
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Product",
+                        basePath: basePath,
+                        dependencies: [
+                            .target(name: "Package2Product", condition: nil),
+                        ],
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-module-alias", "Product=Package2Product"]]
+                    ),
+                ]
+            )
+        )
+        XCTAssertBetterEqual(
+            projectTwo,
+            .testWithDefaultConfigs(
+                name: "Package2",
+                targets: [
+                    .test(
+                        "Package2Product",
+                        packageName: "Package2",
+                        basePath: basePath,
+                        customSources: .custom(
+                            .sourceFilesList(
+                                globs: [basePath.appending(components: "Package2", "Sources", "Product").pathString + "/**"]
+                            )
+                        )
+                    ),
+                ]
+            )
+        )
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -3873,7 +4055,8 @@ extension PackageInfoMapping {
         packageInfos: [String: PackageInfo] = [:],
         packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
-        )
+        ),
+        packageModuleAliases: [String: [String: String]] = [:]
     ) throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
             .reduce(into: [:]) { packagesResult, element in
@@ -3900,9 +4083,7 @@ extension PackageInfoMapping {
             path: basePath.appending(component: package),
             packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
-            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
-                ($0, basePath.appending(component: $0))
-            })
+            packageModuleAliases: packageModuleAliases
         )
     }
 }

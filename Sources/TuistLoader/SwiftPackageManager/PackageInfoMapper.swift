@@ -102,7 +102,8 @@ public protocol PackageInfoMapping {
     func resolveExternalDependencies(
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
-        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]]
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
+        packageModuleAliases: [String: [String: String]]
     ) throws -> [String: [ProjectDescription.TargetDependency]]
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -112,7 +113,7 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject: [String: AbsolutePath]
+        packageModuleAliases: [String: [String: String]]
     ) throws -> ProjectDescription.Project?
 }
 
@@ -139,7 +140,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
     public func resolveExternalDependencies(
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
-        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]]
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
+        packageModuleAliases: [String: [String: String]]
     ) throws -> [String: [ProjectDescription.TargetDependency]] {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -173,10 +175,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         return try packageInfos
             .reduce(into: [:]) { result, packageInfo in
+                let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
-                    result[product.name] = try product.targets.flatMap { target in
+                    result[moduleAliases?[product.name] ?? product.name] = try product.targets.flatMap { target in
                         try ResolvedDependency.fromTarget(
-                            name: target,
+                            name: moduleAliases?[target] ?? target,
                             targetDependencyToFramework: targetDependencyToFramework,
                             condition: nil
                         )
@@ -185,6 +188,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             case let .xcframework(path, condition):
                                 return .xcframework(path: path, condition: condition)
                             case let .target(name, condition):
+                                let name = moduleAliases?[name] ?? name
                                 return .project(
                                     target: name,
                                     path: .path(packageToFolder[packageInfo.key]!.pathString),
@@ -258,7 +262,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageToProject _: [String: AbsolutePath]
+        packageModuleAliases: [String: [String: String]]
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -347,7 +351,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     baseSettings: baseSettings,
-                    targetSettings: targetSettings
+                    targetSettings: targetSettings,
+                    packageModuleAliases: packageModuleAliases
                 )
             }
 
@@ -400,7 +405,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
         baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary]
+        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        packageModuleAliases: [String: [String: String]]
     ) throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -518,6 +524,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var dependencies: [ProjectDescription.TargetDependency] = []
 
+        /// Module aliases of used dependencies.
+        /// These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
+        var dependencyModuleAliases: [String: String] = [:]
+
         if target.type.supportsDependencies {
             let linkerDependencies: [ProjectDescription.TargetDependency] = target.settings.compactMap { setting in
                 do {
@@ -542,33 +552,28 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
-                case let .byName(name: name, condition: condition), let .product(
-                    name: name,
-                    package: _,
-                    moduleAliases: _,
-                    condition: condition
-                ),
-                let .target(
-                    name: name,
-                    condition: condition
-                ):
-                    let platformCondition: ProjectDescription.PlatformCondition?
-                    do {
-                        platformCondition = try ProjectDescription.PlatformCondition.from(condition)
-                    } catch {
-                        return nil
-                    }
-                    if let target = packageInfo.targets.first(where: { $0.name == name }) {
-                        if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
-                            guard let artifactPath = artifactPaths[target.name] else {
-                                throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
-                            }
-                            return .xcframework(path: .path(artifactPath.pathString), status: .required, condition: nil)
-                        }
-                        return .target(name: name, condition: platformCondition)
-                    } else {
-                        return .external(name: name, condition: platformCondition)
-                    }
+                case let .product(name: name, package: _, moduleAliases: moduleAliases, condition: condition):
+                    try mapDependency(
+                        name: name,
+                        packageInfo: packageInfo,
+                        packageType: packageType,
+                        condition: condition,
+                        moduleAliases: moduleAliases,
+                        dependencyModuleAliases: &dependencyModuleAliases
+                    )
+                case let .byName(name: name, condition: condition),
+                     let .target(
+                         name: name,
+                         condition: condition
+                     ):
+                    try mapDependency(
+                        name: name,
+                        packageInfo: packageInfo,
+                        packageType: packageType,
+                        condition: condition,
+                        moduleAliases: packageModuleAliases[packageInfo.name],
+                        dependencyModuleAliases: &dependencyModuleAliases
+                    )
                 }
             }
         }
@@ -576,21 +581,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
-            packageName: packageInfo.name,
             settings: target.settings,
             moduleMap: moduleMap,
             baseSettings: baseSettings,
-            targetSettings: targetSettings
+            targetSettings: targetSettings,
+            dependencyModuleAliases: dependencyModuleAliases
         )
 
+        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
+
         return .target(
-            name: PackageInfoMapper.sanitize(targetName: target.name),
+            name: PackageInfoMapper.sanitize(targetName: targetName),
             destinations: destinations,
             product: product,
             productName: PackageInfoMapper
-                .sanitize(targetName: target.name)
+                .sanitize(targetName: targetName)
                 .replacingOccurrences(of: "-", with: "_"),
-            bundleId: target.name
+            bundleId: targetName
                 .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
@@ -600,6 +607,43 @@ public final class PackageInfoMapper: PackageInfoMapping {
             dependencies: dependencies,
             settings: settings
         )
+    }
+
+    private func mapDependency(
+        name: String,
+        packageInfo: PackageInfo,
+        packageType: PackageType,
+        condition: PackageInfo.PackageConditionDescription?,
+        moduleAliases: [String: String]?,
+        dependencyModuleAliases: inout [String: String]
+    ) throws -> ProjectDescription.TargetDependency? {
+        let platformCondition: ProjectDescription.PlatformCondition?
+        do {
+            platformCondition = try ProjectDescription.PlatformCondition.from(condition)
+        } catch {
+            return nil
+        }
+        if let target = packageInfo.targets.first(where: { $0.name == name }) {
+            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
+                guard let artifactPath = artifactPaths[target.name] else {
+                    throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
+                }
+                return .xcframework(path: .path(artifactPath.pathString), status: .required, condition: nil)
+            }
+            if let aliasedName = moduleAliases?[name] {
+                dependencyModuleAliases[name] = aliasedName
+                return .target(name: aliasedName, condition: platformCondition)
+            } else {
+                return .target(name: name, condition: platformCondition)
+            }
+        } else {
+            if let aliasedName = moduleAliases?[name] {
+                dependencyModuleAliases[name] = aliasedName
+                return .external(name: aliasedName, condition: platformCondition)
+            } else {
+                return .external(name: name, condition: platformCondition)
+            }
+        }
     }
 
     /// Returns a union of products' destinations.
@@ -964,11 +1008,11 @@ extension ProjectDescription.Settings {
     fileprivate static func from(
         target: PackageInfo.Target,
         packageFolder: AbsolutePath,
-        packageName _: String,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
         baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary]
+        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        dependencyModuleAliases: [String: String]
     ) throws -> Self? {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1025,6 +1069,16 @@ extension ProjectDescription.Settings {
             case .none:
                 break
             }
+        }
+
+        let moduleAliases = dependencyModuleAliases.flatMap { ["-module-alias", "\($0.key)=\($0.value)"] }
+        settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] ?? .array([]) {
+        case let .array(values):
+            .array(values + moduleAliases)
+        case let .string(value):
+            .array(
+                value.split(separator: " ").map(String.init) + moduleAliases
+            )
         }
 
         var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
