@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.26.0 - 2024-09-03
+
+### Tuist
+
+#### Changed
+
+- Report extra metadata in command events for the new GitHub app [#6659](https://github.com/tuist/tuist/pull/6659) by [@fortmarek](https://github.com/fortmarek)
+- Add support for updating the connected git repository [#6671](https://github.com/tuist/tuist/pull/6671) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add `tuist inspect implicit-dependencies` to detect implicit dependencies [#6516](https://github.com/tuist/tuist/pull/6516) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Detect and warn about outdated dependencies [#6663](https://github.com/tuist/tuist/pull/6663) by [@hiltonc](https://github.com/hiltonc)
+- Add support for SPM moduleAliases [#6685](https://github.com/tuist/tuist/pull/6685) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix false positive when linting duplicate symbols of a macro [#6675](https://github.com/tuist/tuist/pull/6675) by [@hiltonc](https://github.com/hiltonc)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.25.0 - 2024-08-27
 
 ### Tuist
