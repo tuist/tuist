@@ -50,16 +50,14 @@ final class ImportSourceCodeScanner {
     }
 
     func extractAllImportsObjc(from text: String) throws -> [FoundImport] {
-        let pattern = #"@import\s+([A-Za-z_0-9]+)|#(?:import|include)\s+<([A-Za-z_0-9-]+)"#
+        let pattern = "@import\\s+([A-Za-z_0-9]+)|#(?:import|include)\\s+<([A-Za-z_0-9-]+)/"
 
         var result: [FoundImport] = []
 
         let regex = try NSRegularExpression(pattern: pattern, options: [])
 
-        // Split the text into lines
         let lines = text.components(separatedBy: .newlines)
 
-        // Iterate over each line to find matches
         for (lineNumber, line) in lines.enumerated() {
             let range = NSRange(location: 0, length: line.utf16.count)
             let matches = regex.matches(in: line, options: [], range: range)
