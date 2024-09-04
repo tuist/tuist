@@ -47,7 +47,7 @@ defmodule Tuist.Storage do
       %{object_key: object_key, upload_id: upload_id, part_number: part_number}
     )
 
-    Logger.debug("Multi-part pre-signed URL generated in #{time} ms.")
+    Logger.info("Multi-part pre-signed URL generated in #{time} ms.")
 
     url
   end
@@ -91,7 +91,7 @@ defmodule Tuist.Storage do
         url
       end)
 
-    Logger.debug("Pre-signed URL generated in #{time} ms.")
+    Logger.info("Pre-signed URL generated in #{time} ms.")
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_download_presigned_url(),
