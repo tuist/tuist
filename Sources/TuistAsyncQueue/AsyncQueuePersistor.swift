@@ -27,15 +27,21 @@ public protocol AsyncQueuePersisting {
 final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Attributes
 
-    let directory: AbsolutePath
-    let jsonEncoder = JSONEncoder()
-    let fileSystem: FileSystem
+    private let directory: AbsolutePath
+    private let jsonEncoder = JSONEncoder()
+    private let fileSystem: FileSystem
+    private let dateService: DateServicing
 
     // MARK: - Init
 
-    init(directory: AbsolutePath = Environment.shared.queueDirectory, fileSystem: FileSystem = FileSystem()) {
+    init(
+        directory: AbsolutePath = Environment.shared.queueDirectory,
+        fileSystem: FileSystem = FileSystem(),
+        dateService: DateServicing = DateService()
+    ) {
         self.directory = directory
         self.fileSystem = fileSystem
+        self.dateService = dateService
     }
 
     func write(event: some AsyncQueueEvent) throws {
@@ -70,12 +76,21 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 try? await fileSystem.remove(eventPath)
                 continue
             }
+
+            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuosly
+            // fail to be uploaded.
+            let date = Date(timeIntervalSince1970: timestamp)
+            if dateService.now().timeIntervalSince(date) > 24 * 60 * 60 {
+                try? await fileSystem.remove(eventPath)
+                continue
+            }
+
             do {
                 let data = try Data(contentsOf: eventPath.url)
                 let event = (
                     dispatcherId: String(components[1]),
                     id: id,
-                    date: Date(timeIntervalSince1970: timestamp),
+                    date: date,
                     data: data,
                     filename: eventPath.basename
                 )

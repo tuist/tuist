@@ -43,7 +43,9 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
-            status: .failure("Failed!")
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: path
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -61,7 +63,9 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             status: .failure("Failed!"),
             gitCommitSHA: "commit-sha",
             gitRef: "github-ref",
-            gitRemoteURLOrigin: "https://github.com/tuist/tuist"
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            targetHashes: nil,
+            graphPath: path
         )
         given(gitController)
             .currentCommitSHA(workingDirectory: .value(path))
@@ -99,6 +103,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.gitCommitSHA, expectedEvent.gitCommitSHA)
         XCTAssertEqual(event.gitRemoteURLOrigin, expectedEvent.gitRemoteURLOrigin)
         XCTAssertEqual(event.gitRef, expectedEvent.gitRef)
+        XCTAssertEqual(event.targetHashes, expectedEvent.targetHashes)
+        XCTAssertEqual(event.graphPath, expectedEvent.graphPath)
     }
 
     func test_make_when_is_not_in_git_repository() throws {
@@ -111,7 +117,9 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
-            status: .failure("Failed!")
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: nil
         )
 
         given(gitController)

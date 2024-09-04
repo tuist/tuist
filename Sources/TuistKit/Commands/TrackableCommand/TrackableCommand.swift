@@ -16,10 +16,15 @@ public struct TrackableCommandInfo {
     let commandArguments: [String]
     let durationInMs: Int
     let status: CommandEvent.Status
+    let targetHashes: [CommandEventGraphTarget: String]?
+    let graphPath: AbsolutePath?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
 public class TrackableCommand: TrackableParametersDelegate {
+    public var targetHashes: [CommandEventGraphTarget: String]?
+    public var graphPath: AbsolutePath?
+
     private var command: ParsableCommand
     private let clock: Clock
     private var trackedParameters: [String: AnyCodable] = [:]
@@ -91,7 +96,9 @@ public class TrackableCommand: TrackableParametersDelegate {
             parameters: trackedParameters,
             commandArguments: commandArguments,
             durationInMs: durationInMs,
-            status: status
+            status: status,
+            targetHashes: targetHashes,
+            graphPath: graphPath
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
