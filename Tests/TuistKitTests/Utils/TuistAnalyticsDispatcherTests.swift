@@ -35,7 +35,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testDispatch_whenAnalyticsIsEnabled_sendsToServer() throws {
+    func testDispatch_sendsToServer() throws {
         // Given
         let fullHandle = "project"
         let url = URL.test()
@@ -111,7 +111,9 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             status: .success,
             gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
             gitRef: nil,
-            gitRemoteURLOrigin: "https://github.com/tuist/tuist"
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            targetHashes: nil,
+            graphPath: nil
         )
     }
 

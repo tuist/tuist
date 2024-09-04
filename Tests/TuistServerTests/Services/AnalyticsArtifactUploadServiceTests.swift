@@ -1,5 +1,6 @@
 import Foundation
 import MockableTest
+import TuistCore
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
@@ -151,8 +152,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         try await subject.uploadResultBundle(
             resultBundle,
             targetHashes: [
-                GraphTarget(
-                    path: try temporaryPath(),
+                CommandEventGraphTarget(
                     target: .test(),
                     project: .test()
                 ): "target-hash",

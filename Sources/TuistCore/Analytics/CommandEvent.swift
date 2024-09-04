@@ -20,6 +20,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitCommitSHA: String?
     public let gitRef: String?
     public let gitRemoteURLOrigin: String?
+    public let targetHashes: [CommandEventGraphTarget: String]?
+    public let graphPath: AbsolutePath?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -46,6 +48,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case gitCommitSHA
         case gitRef
         case gitRemoteURLOrigin
+        case targetHashes
+        case graphPath
     }
 
     public init(
@@ -64,7 +68,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         status: Status,
         gitCommitSHA: String?,
         gitRef: String?,
-        gitRemoteURLOrigin: String?
+        gitRemoteURLOrigin: String?,
+        targetHashes: [CommandEventGraphTarget: String]?,
+        graphPath: AbsolutePath?
     ) {
         self.runId = runId
         self.name = name
@@ -82,6 +88,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.gitCommitSHA = gitCommitSHA
         self.gitRef = gitRef
         self.gitRemoteURLOrigin = gitRemoteURLOrigin
+        self.targetHashes = targetHashes
+        self.graphPath = graphPath
     }
 }
 
@@ -102,7 +110,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             status: Status = .success,
             gitCommitSHA: String? = "0f783ea776192241154f5c192cd143efde7443aa",
             gitRef: String? = "refs/heads/main",
-            gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist"
+            gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
+            targetHashes: [CommandEventGraphTarget: String]? = nil,
+            graphPath: AbsolutePath? = nil
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -120,7 +130,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 status: status,
                 gitCommitSHA: gitCommitSHA,
                 gitRef: gitRef,
-                gitRemoteURLOrigin: gitRemoteURLOrigin
+                gitRemoteURLOrigin: gitRemoteURLOrigin,
+                targetHashes: targetHashes,
+                graphPath: graphPath
             )
         }
     }

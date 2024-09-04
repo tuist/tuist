@@ -5,7 +5,7 @@ import XCTest
 @testable import TuistServer
 @testable import TuistSupportTesting
 
-private class MockWarningController: WarningControlling {
+private final class MockWarningController: WarningControlling {
     var warnings: [String] = []
     func append(warning: String) {
         warnings.append(warning)

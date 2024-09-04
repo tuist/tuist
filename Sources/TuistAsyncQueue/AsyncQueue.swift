@@ -64,7 +64,7 @@ public class AsyncQueue: AsyncQueuing {
 
     public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
-            logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
+            logger.debug("Couldn't find dispatcher with id: \(event.dispatcherId), skipping dispatching \(event.id)")
             return
         }
 

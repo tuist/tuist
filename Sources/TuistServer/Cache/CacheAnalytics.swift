@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -12,8 +13,7 @@ public protocol CacheAnalyticsStoring: AnyObject {
     var testTargets: [String] { get set }
     var localTestTargetHits: [String] { get set }
     var remoteTestTargetHits: [String] { get set }
-    /// Map of a relative path of a project that has a map of a target name to its hash
-    var targetHashes: [GraphTarget: String] { get set }
+    var targetHashes: [CommandEventGraphTarget: String] { get set }
     var graphPath: AbsolutePath? { get set }
 }
 
@@ -24,7 +24,7 @@ public final class CacheAnalyticsStore: CacheAnalyticsStoring {
     public var testTargets: [String] = []
     public var localTestTargetHits: [String] = []
     public var remoteTestTargetHits: [String] = []
-    public var targetHashes: [GraphTarget: String] = [:]
+    public var targetHashes: [CommandEventGraphTarget: String] = [:]
     public var graphPath: AbsolutePath?
 
     public static let shared = CacheAnalyticsStore()
