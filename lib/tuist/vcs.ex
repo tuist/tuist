@@ -91,7 +91,8 @@ defmodule Tuist.VCS do
         not is_nil(git_commit_sha) and
         not is_nil(git_ref) and
         not is_nil(git_remote_url_origin) and
-        Projects.get_repository_url(project) == git_remote_url_origin and
+        project.vcs_repository_full_handle ==
+          get_repository_full_handle_from_url(git_remote_url_origin) and
         String.starts_with?(git_ref, "refs/pull/")
 
     if should_post_report do
@@ -107,7 +108,7 @@ defmodule Tuist.VCS do
       vcs_comment_body =
         get_vcs_comment_body(%{
           git_ref: git_ref,
-          git_remote_url_origin: git_remote_url_origin,
+          git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
           command_run_url: command_run_url,
           project: project
@@ -174,7 +175,7 @@ defmodule Tuist.VCS do
           name: "share",
           get_identifier: & &1.preview.display_name,
           git_ref: git_ref,
-          git_remote_url_origin: git_remote_url_origin
+          project: project
         },
         filter: &(not is_nil(&1.preview))
       )
@@ -184,7 +185,7 @@ defmodule Tuist.VCS do
         name: "test",
         get_identifier: & &1.command_arguments,
         git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin
+        project: project
       })
 
     previews_body =
@@ -228,17 +229,17 @@ defmodule Tuist.VCS do
            get_identifier: get_identifier,
            name: name,
            git_ref: git_ref,
-           git_remote_url_origin: git_remote_url_origin
+           project: project
          },
          opts \\ []
        ) do
     filter = Keyword.get(opts, :filter, fn _ -> true end)
 
-    CommandEvents.get_command_events_by_name_git_ref_and_remote(
+    CommandEvents.get_command_events_by_name_git_ref_and_project(
       %{
         name: name,
         git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin
+        project: project
       },
       preload: [:preview]
     )
@@ -248,7 +249,11 @@ defmodule Tuist.VCS do
       current_event = Map.get(acc, identifier)
 
       if current_event == nil or
-           Date.compare(command_event.created_at, current_event.created_at) == :gt do
+           NaiveDateTime.compare(
+             command_event.created_at,
+             current_event.created_at
+           ) ==
+             :gt do
         Map.put(acc, identifier, command_event)
       else
         acc

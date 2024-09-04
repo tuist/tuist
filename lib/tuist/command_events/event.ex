@@ -28,7 +28,6 @@ defmodule Tuist.CommandEvents.Event do
     field :error_message, :string
     field :git_commit_sha, :string
     field :git_ref, :string
-    field :git_remote_url_origin, :string
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -85,8 +84,7 @@ defmodule Tuist.CommandEvents.Event do
         :error_message,
         :preview_id,
         :git_commit_sha,
-        :git_ref,
-        :git_remote_url_origin
+        :git_ref
       ])
 
     is_ci = get_field(changeset, :is_ci)

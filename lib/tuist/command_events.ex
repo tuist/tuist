@@ -110,11 +110,11 @@ defmodule Tuist.CommandEvents do
     |> Flop.validate_and_run!(attrs)
   end
 
-  def get_command_events_by_name_git_ref_and_remote(
+  def get_command_events_by_name_git_ref_and_project(
         %{
           name: name,
           git_ref: git_ref,
-          git_remote_url_origin: git_remote_url_origin
+          project: %Project{id: project_id}
         },
         opts \\ []
       ) do
@@ -123,7 +123,7 @@ defmodule Tuist.CommandEvents do
     from(e in Event,
       where:
         e.name == ^name and e.git_ref == ^git_ref and
-          e.git_remote_url_origin == ^git_remote_url_origin,
+          e.project_id == ^project_id,
       select: e
     )
     |> Repo.all()
@@ -618,8 +618,7 @@ defmodule Tuist.CommandEvents do
           error_message: error_message,
           preview_id: preview_id,
           git_commit_sha: git_commit_sha,
-          git_ref: git_ref,
-          git_remote_url_origin: git_remote_url_origin
+          git_ref: git_ref
         } = event
       ) do
     command_event =
@@ -649,7 +648,6 @@ defmodule Tuist.CommandEvents do
         preview_id: preview_id,
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
         created_at: Map.get(event, :created_at, Time.utc_now())
       })
       |> Repo.insert!()

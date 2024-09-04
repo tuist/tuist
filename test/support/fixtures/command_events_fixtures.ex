@@ -35,7 +35,6 @@ defmodule Tuist.CommandEventsFixtures do
       preview_id: Keyword.get(attrs, :preview_id),
       git_commit_sha: Keyword.get(attrs, :git_commit_sha),
       git_ref: Keyword.get(attrs, :git_ref),
-      git_remote_url_origin: Keyword.get(attrs, :git_remote_url_origin),
       created_at: Keyword.get(attrs, :created_at, Time.utc_now())
     })
   end

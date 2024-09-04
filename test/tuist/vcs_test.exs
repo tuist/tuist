@@ -82,6 +82,34 @@ defmodule Tuist.VCSTest do
                 }}
     end
 
+    test "returns repository with username" do
+      # Given
+      repository_url = "https://tuist@github.com/tuist/tuist.git"
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           provider: :github,
+           full_handle: "tuist/tuist",
+           default_branch: "main"
+         }}
+      end)
+
+      # When
+      got =
+        VCS.get_repository_from_repository_url(repository_url)
+
+      # Then
+      assert got ==
+               {:ok,
+                %VCS.Repositories.Repository{
+                  provider: :github,
+                  full_handle: "tuist/tuist",
+                  default_branch: "main"
+                }}
+    end
+
     test "returns repository with .git suffix" do
       # Given
       repository_url = "https://github.com/tuist/tuist.git"
@@ -140,7 +168,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           preview_id: preview_one.id,
           git_commit_sha: @git_commit_sha,
           created_at: ~N[2024-04-30 03:00:00]
@@ -152,7 +180,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           preview_id: preview_two.id,
           git_commit_sha: @git_commit_sha,
           created_at: ~N[2024-04-30 02:00:00]
@@ -164,7 +192,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           preview_id: preview_three.id,
           git_commit_sha: @git_commit_sha,
           created_at: ~N[2024-04-30 01:00:00]
@@ -174,7 +202,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           command_arguments: ["test"],
           git_commit_sha: @git_commit_sha,
           created_at: ~N[2024-04-30 03:00:00]
@@ -184,7 +212,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           command_arguments: ["test App"],
           git_commit_sha: @git_commit_sha,
           created_at: ~N[2024-04-30 04:00:00],
@@ -246,6 +274,52 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "creates a comment when full handle and provider is the same but url is different" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      preview = Previews.create_preview(%{project: project, display_name: "App"})
+
+      _preview_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          project_id: project.id,
+          preview_id: preview.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      GitHub.Client
+      |> expect(:get_comments, fn _ -> {:ok, []} end)
+
+      GitHub.Client
+      |> expect(:create_comment, fn %{
+                                      repository: "tuist/tuist",
+                                      issue_id: "1",
+                                      body: _
+                                    } ->
+        {:ok, %{}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        command_name: "share",
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: "https://tuist@github.com/tuist/tuist",
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
     test "updates a comment if one already exists" do
       # Given
       project =
@@ -260,7 +334,7 @@ defmodule Tuist.VCSTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           git_ref: @git_ref,
-          git_remote_url_origin: @git_remote_url_origin,
+          project_id: project.id,
           preview_id: preview.id,
           git_commit_sha: "1234567890"
         )

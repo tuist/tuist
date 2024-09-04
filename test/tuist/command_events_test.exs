@@ -74,7 +74,6 @@ defmodule Tuist.CommandEventsTest do
           status: :success,
           preview_id: nil,
           git_ref: nil,
-          git_remote_url_origin: nil,
           git_commit_sha: nil,
           error_message: nil
         })
@@ -1293,8 +1292,7 @@ defmodule Tuist.CommandEventsTest do
           project_id: project.id,
           name: "test",
           git_commit_sha: "commit-sha-one",
-          git_ref: "refs/pull/2/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          git_ref: "refs/pull/2/merge"
         )
 
       command_event_two =
@@ -1302,8 +1300,7 @@ defmodule Tuist.CommandEventsTest do
           project_id: project.id,
           name: "test",
           git_commit_sha: "commit-sha-two",
-          git_ref: "refs/pull/2/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          git_ref: "refs/pull/2/merge"
         )
 
       _command_event_three =
@@ -1311,38 +1308,39 @@ defmodule Tuist.CommandEventsTest do
           project_id: project.id,
           name: "test",
           git_commit_sha: "commit-sha-three",
-          git_ref: "main",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          git_ref: "main"
         )
 
       # When
       got =
-        CommandEvents.get_command_events_by_name_git_ref_and_remote(%{
+        CommandEvents.get_command_events_by_name_git_ref_and_project(%{
           name: "test",
           git_ref: "refs/pull/2/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          project: project
         })
 
       # Then
       assert got == [command_event_one, command_event_two]
     end
 
-    test "gets command events by name, git ref and remote when there are none" do
+    test "gets command events by name, git ref and project when there are none" do
       # Given
+      project = ProjectsFixtures.project_fixture()
+
       _command_event =
         CommandEventsFixtures.command_event_fixture(
           name: "test",
           git_commit_sha: "commit-sha-three",
           git_ref: "main",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          project_id: project.id
         )
 
       # When
       got =
-        CommandEvents.get_command_events_by_name_git_ref_and_remote(%{
+        CommandEvents.get_command_events_by_name_git_ref_and_project(%{
           name: "test",
           git_ref: "refs/pull/2/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist"
+          project: project
         })
 
       # Then
