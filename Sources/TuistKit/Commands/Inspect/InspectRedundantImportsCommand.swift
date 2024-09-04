@@ -1,11 +1,11 @@
 import ArgumentParser
 import TuistSupport
 
-struct InspectImplicitImportsCommand: AsyncParsableCommand {
+struct InspectRedundantImportsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "implicit-imports",
-            abstract: "Find implicit imports in Tuist projects failing when cases are found."
+            commandName: "redundant-imports",
+            abstract: "Find redundant imports in Tuist projects failing when cases are found."
         )
     }
 
@@ -19,6 +19,6 @@ struct InspectImplicitImportsCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await InspectImportsService()
-            .run(path: path, inspectType: .implicit)
+            .run(path: path, inspectType: .redundant)
     }
 }
