@@ -94,14 +94,17 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
 
     func test_delete_old_events() async throws {
         // Given
-        let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
+        let event = AnyAsyncQueueEvent(
+            dispatcherId: "dispatcher",
+            date: date
+        )
         try subject.write(event: event)
         var persistedEvents = try await subject.readAll()
         XCTAssertEqual(persistedEvents.count, 1)
 
         // Moving the clock by over 24 hours
         // Events older than that should get automatically deleted
-        date = Date(timeIntervalSince1970: date.timeIntervalSince1970 + 100_000)
+        date = Date(timeIntervalSince1970: date.timeIntervalSince1970 + 100_005)
 
         // When
         persistedEvents = try await subject.readAll()
