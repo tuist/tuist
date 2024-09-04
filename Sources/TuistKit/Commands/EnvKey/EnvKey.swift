@@ -88,7 +88,7 @@ public enum EnvKey: String, CaseIterable {
 
     // LINT
     case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
-    
+
     // Redundant
     case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
 
