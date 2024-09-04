@@ -11,7 +11,7 @@
 
 #### Added
 
-- Add `tuist inspect implicit-dependencies` to detect implicit dependencies [#6516](https://github.com/tuist/tuist/pull/6516) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Add `tuist inspect implicit-imports` to detect implicit dependencies [#6516](https://github.com/tuist/tuist/pull/6516) by [@rofle100lvl](https://github.com/rofle100lvl)
 - Detect and warn about outdated dependencies [#6663](https://github.com/tuist/tuist/pull/6663) by [@hiltonc](https://github.com/hiltonc)
 - Add support for SPM moduleAliases [#6685](https://github.com/tuist/tuist/pull/6685) by [@fortmarek](https://github.com/fortmarek)
 
@@ -1342,7 +1342,7 @@
   - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
   - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
   - `SUPPORTS_MACCATALYST`
-  
+
 
 ## 3.22.0 - 2023-07-31
 

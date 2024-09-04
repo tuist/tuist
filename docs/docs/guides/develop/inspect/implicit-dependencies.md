@@ -1,6 +1,6 @@
 ---
 title: Implicit dependencies
-description: Learn how to use Tuist to find Implicit dependencies.
+description: Learn how to use Tuist to find implicit dependencies.
 ---
 
 # Implicit dependencies
@@ -10,10 +10,10 @@ To alleviate the complexity of maintaining an Xcode project graph with raw Xcode
 The problem is that you can't prevent implicit dependencies from happening. Any developer can add an `import` statement to their Swift code, and the implicit dependency will be created. This is where Tuist comes in. Tuist provides a command to inspect the implicit dependencies by statically analyzing the code in your project. The following command will output the implicit dependencies of your project:
 
 ```bash
-tuist inspect implicit-dependencies
+tuist inspect implicit-imports
 ```
 
-If the command detects any implicit dependencies, it exits with an exit code other than zero.
+If the command detects any implicit imports, it exits with an exit code other than zero.
 
 > [!TIP] VALIDATE IN CI
 > We strongly recommend to run this command as part of your [continuous integration](/guides/develop/automate/continuous-integration) command every time new code is pushed upstream.
