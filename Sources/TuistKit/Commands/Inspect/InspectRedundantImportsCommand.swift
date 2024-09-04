@@ -13,7 +13,7 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path to the directory that contains the project.",
         completion: .directory,
-        envKey: .lintImplicitDependenciesPath
+        envKey: .lintRedundantDependenciesPath
     )
     var path: String?
 
