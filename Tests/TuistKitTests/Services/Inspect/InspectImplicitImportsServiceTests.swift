@@ -15,7 +15,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var generatorFactory: MockGeneratorFactorying!
     private var targetScanner: MockTargetImportsScanning!
-    private var subject: InspectImplicitImportsService!
+    private var subject: InspectImportsService!
     private var generator: MockGenerating!
 
     override func setUp() async throws {
@@ -24,7 +24,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
-        subject = InspectImplicitImportsService(
+        subject = InspectImportsService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
             targetScanner: targetScanner
@@ -56,11 +56,11 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
+            InspectImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
         ])
 
         // When
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
+        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString, inspectType: .redundant) }, expectedError)
     }
 
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
@@ -174,6 +174,6 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString)
+        try await subject.run(path: path.pathString, inspectType: .redundant)
     }
 }

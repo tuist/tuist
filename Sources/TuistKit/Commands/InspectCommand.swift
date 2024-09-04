@@ -4,7 +4,10 @@ struct InspectCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "inspect",
-            subcommands: [InspectImplicitImportsCommand.self]
+            subcommands: [
+                InspectImplicitImportsCommand.self,
+                InspectRedundantImportsCommand.self,
+            ]
         )
     }
 }
