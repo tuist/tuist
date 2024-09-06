@@ -60,7 +60,6 @@ defmodule Tuist.PromEx do
       [
         # Plugins.Application,
         # Plugins.Beam,
-        # {Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
         # Plugins.Oban,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
@@ -74,7 +73,11 @@ defmodule Tuist.PromEx do
       if Tuist.Environment.on_premise?() do
         plugins
       else
-        plugins ++ [PromEx.Plugins.Ecto]
+        plugins ++
+          [
+            {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
+            PromEx.Plugins.Ecto
+          ]
       end
 
     plugins
