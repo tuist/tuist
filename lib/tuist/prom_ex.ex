@@ -56,19 +56,28 @@ defmodule Tuist.PromEx do
 
   @impl true
   def plugins do
-    [
-      # Plugins.Application,
-      # Plugins.Beam,
-      # {Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
-      # Plugins.Ecto,
-      # Plugins.Oban,
-      # Plugins.PhoenixLiveView,
-      # Plugins.Absinthe,
-      # Plugins.Broadway,
+    plugins =
+      [
+        # Plugins.Application,
+        # Plugins.Beam,
+        # {Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
+        # Plugins.Oban,
+        # Plugins.PhoenixLiveView,
+        # Plugins.Absinthe,
+        # Plugins.Broadway,
 
-      Tuist.Storage.PromExPlugin,
-      Tuist.CommandEvents.PromExPlugin
-    ]
+        Tuist.Storage.PromExPlugin,
+        Tuist.CommandEvents.PromExPlugin
+      ]
+
+    plugins =
+      if Tuist.Environment.on_premise?() do
+        plugins
+      else
+        plugins ++ [PromEx.Plugins.Ecto]
+      end
+
+    plugins
   end
 
   @impl true
