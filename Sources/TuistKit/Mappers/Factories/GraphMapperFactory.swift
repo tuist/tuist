@@ -13,8 +13,8 @@ protocol GraphMapperFactorying {
     func automation(
         config: Config,
         testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        includedTargets: Set<TargetPattern>,
+        excludedTargets: Set<TargetPattern>
     ) -> [GraphMapping]
 
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
@@ -30,8 +30,8 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     public func automation(
         config: Config,
         testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        includedTargets: Set<TargetPattern>,
+        excludedTargets: Set<TargetPattern>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(

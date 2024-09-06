@@ -103,6 +103,8 @@ extension XcodeGraph.Target {
             XcodeGraph.OnDemandResourcesTags(initialInstall: $0.initialInstall, prefetchOrder: $0.prefetchOrder)
         }
 
+        let metadata = XcodeGraph.TargetMetadata(tags: manifest.metadata.tags)
+
         return XcodeGraph.Target(
             name: name,
             destinations: destinations,
@@ -128,7 +130,8 @@ extension XcodeGraph.Target {
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
             mergeable: manifest.mergeable,
-            onDemandResourcesTags: onDemandResourcesTags
+            onDemandResourcesTags: onDemandResourcesTags,
+            metadata: metadata
         )
     }
 

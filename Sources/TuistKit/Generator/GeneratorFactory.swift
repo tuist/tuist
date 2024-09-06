@@ -95,8 +95,8 @@ public class GeneratorFactory: GeneratorFactorying {
         let graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: testPlan,
-            includedTargets: includedTargets,
-            excludedTargets: excludedTargets
+            includedTargets: Set(includedTargets.map(TargetPattern.pattern)),
+            excludedTargets: Set(excludedTargets.map(TargetPattern.pattern))
         )
         let workspaceMappers = workspaceMapperFactory.automation()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
@@ -141,7 +141,7 @@ public class GeneratorFactory: GeneratorFactorying {
         let graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: nil,
-            includedTargets: sources,
+            includedTargets: Set(sources.map(TargetPattern.pattern)),
             excludedTargets: []
         )
         let workspaceMappers = workspaceMapperFactory.default()

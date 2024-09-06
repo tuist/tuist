@@ -84,7 +84,8 @@ import TuistSupport
             dependencies: [TargetDependency] = [],
             settings: Settings? = nil,
             coreDataModels: [CoreDataModel] = [],
-            environment: [String: String] = [:]
+            environment: [String: String] = [:],
+            metadata: TargetMetadata = .default
         ) -> Target {
             .target(
                 name: name,
@@ -101,7 +102,8 @@ import TuistSupport
                 dependencies: dependencies,
                 settings: settings,
                 coreDataModels: coreDataModels,
-                environmentVariables: environment.mapValues { .init(stringLiteral: $0) }
+                environmentVariables: environment.mapValues { .init(stringLiteral: $0) },
+                metadata: metadata
             )
         }
     }

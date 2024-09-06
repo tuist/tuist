@@ -19,7 +19,8 @@ let project = Project(
             dependencies: [
                 .target(name: "Framework1"),
                 .target(name: "Framework2-iOS"),
-            ]
+            ],
+            metadata: .metadata(tags: ["App"])
         ),
         .target(
             name: "AppTests",
@@ -30,7 +31,8 @@ let project = Project(
             sources: "App/Tests/**",
             dependencies: [
                 .target(name: "App"),
-            ]
+            ],
+            metadata: .metadata(tags: ["App"])
         ),
         .target(
             name: "Framework1",
@@ -56,7 +58,8 @@ let project = Project(
             sources: "Framework1/Sources/**",
             dependencies: [
                 .target(name: "Framework2-iOS"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework1", "Frameworks"])
         ),
         .target(
             name: "Framework1Tests",
@@ -68,7 +71,8 @@ let project = Project(
             sources: "Framework1/Tests/**",
             dependencies: [
                 .target(name: "Framework1"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework1", "Frameworks"])
         ),
         .target(
             name: "Framework2-iOS",
@@ -85,7 +89,8 @@ let project = Project(
             ),
             dependencies: [
                 .target(name: "Framework3"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework2", "Frameworks"])
         ),
         .target(
             name: "Framework2-macOS",
@@ -100,7 +105,8 @@ let project = Project(
                 private: "Framework2/Sources/Private/**",
                 project: "Framework2/Sources/Project/**"
             ),
-            dependencies: []
+            dependencies: [],
+            metadata: .metadata(tags: ["Framework2", "Frameworks"])
         ),
         .target(
             name: "Framework2Tests",
@@ -111,7 +117,8 @@ let project = Project(
             sources: "Framework2/Tests/**",
             dependencies: [
                 .target(name: "Framework2-iOS"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework2", "Frameworks"])
         ),
         .target(
             name: "Framework3",
@@ -122,7 +129,8 @@ let project = Project(
             sources: "Framework3/Sources/**",
             dependencies: [
                 .target(name: "Framework4"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework3", "Frameworks"])
         ),
         .target(
             name: "Framework4",
@@ -133,7 +141,8 @@ let project = Project(
             sources: "Framework4/Sources/**",
             dependencies: [
                 .target(name: "Framework5"),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework4", "Frameworks"])
         ),
         .target(
             name: "Framework5",
@@ -144,7 +153,8 @@ let project = Project(
             sources: "Framework5/Sources/**",
             dependencies: [
                 .sdk(name: "ARKit", type: .framework),
-            ]
+            ],
+            metadata: .metadata(tags: ["Framework5", "Frameworks"])
         ),
     ]
 )
