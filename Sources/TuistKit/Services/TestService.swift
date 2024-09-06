@@ -277,6 +277,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
             checkSkippedTargets(
                 for: testSchemes,
+                testPlanConfiguration: testPlanConfiguration,
                 mapperEnvironment: mapperEnvironment,
                 graph: graph
             )
@@ -314,6 +315,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
             checkSkippedTargets(
                 for: allSchemes,
+                testPlanConfiguration: testPlanConfiguration,
                 mapperEnvironment: mapperEnvironment,
                 graph: graph
             )
@@ -341,6 +343,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         try await storeSuccessfulTestHashes(
             for: testSchemes,
+            testPlanConfiguration: testPlanConfiguration,
             graph: graph,
             mapperEnvironment: mapperEnvironment,
             cacheStorage: cacheStorage
@@ -353,11 +356,16 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func checkSkippedTargets(
         for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
         mapperEnvironment: MapperEnvironment,
         graph: Graph
     ) {
-        let testActionTargets = testActionTargets(for: schemes, graph: graph)
-            .map(\.target)
+        let testActionTargets = testActionTargets(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            graph: graph
+        )
+        .map(\.target)
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
         let initialSchemes = GraphTraverser(graph: initialGraph).schemes()
         let initialTestTargets = self.testActionTargets(
@@ -365,6 +373,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 .filter { initialScheme in
                     schemes.contains(where: { $0.name == initialScheme.name })
                 },
+            testPlanConfiguration: testPlanConfiguration,
             graph: initialGraph
         )
         let skippedTestTargets = initialTestTargets
@@ -385,9 +394,20 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func testActionTargets(
         for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph
     ) -> [GraphTarget] {
-        return schemes.flatMap { $0.testAction?.targets.map(\.target) ?? [] }
+        return schemes
+            .flatMap {
+                if let testPlanConfiguration {
+                    return $0.testAction?.testPlans?
+                        .first(
+                            where: { $0.name == testPlanConfiguration.testPlan }
+                        )?.testTargets.map(\.target) ?? []
+                } else {
+                    return $0.testAction?.targets.map(\.target) ?? []
+                }
+            }
             .compactMap {
                 guard let project = graph.projects[$0.projectPath],
                       let target = project.targets[$0.name]
@@ -400,12 +420,14 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func storeSuccessfulTestHashes(
         for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph,
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {
         let targets: [GraphTarget] = testActionTargets(
             for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
             graph: graph
         )
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
@@ -416,6 +438,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                   let target = project.targets[$0.target.name] else { return nil }
             return GraphTarget(path: $0.path, target: target, project: project)
         }
+        print(testedGraphTargets)
         try await fileHandler.inTemporaryDirectory { _ in
             let allTestedTargets: Set<Target> = Set(
                 graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
