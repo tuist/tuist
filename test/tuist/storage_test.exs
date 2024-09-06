@@ -1,8 +1,16 @@
 defmodule Tuist.StorageTest do
   use ExUnit.Case, async: false
   use Mimic
+  alias Tuist.Environment
   alias Tuist.Native
   alias Tuist.Storage
+
+  setup do
+    Environment
+    |> stub(:on_premise?, fn -> true end)
+
+    :ok
+  end
 
   describe "multipart_generate_url/4" do
     test "executes a telemetry event" do

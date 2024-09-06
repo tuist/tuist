@@ -159,6 +159,40 @@ if Tuist.Environment.error_tracking_enabled?() do
     )
 end
 
+if Tuist.Environment.s3_configured?(secrets) and not Tuist.Environment.on_premise?() do
+  %{host: s3_endpoint_host} = Tuist.Environment.s3_endpoint(secrets) |> URI.parse()
+
+  aws_opts = [
+    access_key_id: [
+      Tuist.Environment.s3_access_key_id(secrets),
+      {:awscli, Tuist.Environment.aws_profile(secrets), 30}
+    ],
+    secret_access_key: [
+      Tuist.Environment.s3_secret_access_key(secrets),
+      {:awscli, Tuist.Environment.aws_profile(secrets), 30}
+    ],
+    s3: [
+      # Cloudflare R2 requires HTTPS
+      scheme: "https://",
+      host: s3_endpoint_host
+    ],
+    # Cloudflare R2 does not require a region, but ExAws needs a value here
+    region: Tuist.Environment.aws_region(secrets)
+  ]
+
+  aws_opts =
+    if Tuist.Environment.aws_use_session_token?(secrets) do
+      Keyword.put(aws_opts, :security_token, [
+        Tuist.Environment.aws_session_token(secrets),
+        {:awscli, Tuist.Environment.aws_profile(secrets), 30}
+      ])
+    else
+      aws_opts
+    end
+
+  config :ex_aws, aws_opts
+end
+
 # Stripe config
 if Tuist.Environment.stripe_configured?(secrets) do
   config :stripity_stripe,
