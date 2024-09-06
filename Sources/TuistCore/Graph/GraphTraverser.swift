@@ -192,7 +192,8 @@ public class GraphTraverser: GraphTraversing {
         let bundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
-                isDependencyResourceBundle(dependency: dependency) && !isDependencyExternal(dependency)
+                isDependencyResourceBundle(dependency: dependency) &&
+                    !(isDependencyExternal(dependency) || dependency.isPrecompiled)
             },
             skip: canHostResources
         )
@@ -202,7 +203,8 @@ public class GraphTraverser: GraphTraversing {
         let externalBundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
-                isDependencyResourceBundle(dependency: dependency) && isDependencyExternal(dependency) &&
+                isDependencyResourceBundle(dependency: dependency) &&
+                    (isDependencyExternal(dependency) || dependency.isPrecompiled) &&
                     canEmbedBundles(target: target)
             },
             skip: canDependencyEmbedBundles
