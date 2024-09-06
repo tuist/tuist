@@ -635,7 +635,7 @@ extension PBXTarget {
             buildFile.applyCondition(condition, applicableTo: target)
             pbxproj.add(object: buildFile)
 
-            packageProductDependencies.append(productDependency)
+            packageProductDependencies?.append(productDependency)
 
             // Link the product
             guard let frameworksBuildPhase = try frameworksBuildPhase() else {
