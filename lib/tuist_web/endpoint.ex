@@ -38,7 +38,6 @@ defmodule TuistWeb.Endpoint do
     param_key: "request_logger",
     cookie_key: "request_logger"
 
-  plug PromEx.Plug, prom_ex_module: Tuist.PromEx
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

@@ -58,3 +58,7 @@ console_command = "/app/bin/rails console"
 [[statics]]
   guest_path = "/app/public"
   url_prefix = "/"
+
+[[metrics]]
+  port = 9091
+  path = "/metrics"

@@ -21,7 +21,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_get_object_as_string_size(),
             measurement: :size,
-            tags: [:object_key],
             unit: :bytes,
             description: "The size in bytes of an object.",
             reporter_options: [
@@ -38,7 +37,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_get_object_as_string_size(),
             measurement: :duration,
-            tags: [:object_key],
             unit: :millisecond,
             description: "The time in miliseconds that takes to get the size of an object.",
             reporter_options: [
@@ -52,7 +50,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :get_object_size,
               :count
             ],
-            tags: [:object_key],
             event_name: Telemetry.event_name_storage_get_object_as_string_size(),
             description: "The number of times the size of an object has been retrieved."
           )
@@ -71,7 +68,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_delete_all_objects(),
             measurement: :duration,
-            tags: [:project_slug],
             unit: :millisecond,
             description: "The time in miliseconds that takes to delete all objects.",
             reporter_options: [
@@ -85,7 +81,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :delete_all_objects,
               :count
             ],
-            tags: [:project_slug],
             event_name: Telemetry.event_name_storage_delete_all_objects(),
             description: "The count of times that all objects have been deleted."
           )
@@ -105,7 +100,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_multipart_start_upload(),
             measurement: :duration,
-            tags: [:object_key],
             unit: :millisecond,
             description: "The time in miliseconds that takes to start a multi-part upload.",
             reporter_options: [
@@ -120,7 +114,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :start_upload,
               :count
             ],
-            tags: [:object_key],
             event_name: Telemetry.event_name_storage_multipart_start_upload(),
             description: "The count of multi-part uploads that have been started."
           )
@@ -139,7 +132,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_get_object_as_string(),
             measurement: :duration,
-            tags: [:object_key],
             unit: :millisecond,
             description:
               "The time in miliseconds that takes to download an object as string from the storage.",
@@ -154,7 +146,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :get_object_as_string,
               :count
             ],
-            tags: [:object_key],
             event_name: Telemetry.event_name_storage_get_object_as_string(),
             description:
               "The count of objects that have been downloaded as string from the storage."
@@ -174,7 +165,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_check_object_existence(),
             measurement: :duration,
-            tags: [:object_key],
             unit: :millisecond,
             description:
               "The time in miliseconds that takes to check the existence of an object.",
@@ -189,7 +179,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :check_object_existence,
               :count
             ],
-            tags: [:object_key],
             event_name: Telemetry.event_name_storage_check_object_existence(),
             description:
               "The count of checks that have been performed to verify the existence of an object."
@@ -209,7 +198,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_generate_download_presigned_url(),
             measurement: :duration,
-            tags: [:object_key],
             unit: :millisecond,
             description:
               "The time in miliseconds that takes to generate a pre-signed URL to download an object.",
@@ -224,7 +212,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :generate_download_presigned_url,
               :count
             ],
-            tags: [:object_key],
             event_name: Telemetry.event_name_storage_generate_download_presigned_url(),
             description:
               "The count of pre-signed URLs that have been generated to download an object."
@@ -246,7 +233,6 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name:
               Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
             measurement: :duration,
-            tags: [:object_key, :upload_id, :part_number],
             unit: :millisecond,
             description:
               "The time in miliseconds that takes the storage to generate a pre-signed URL to upload a part.",
@@ -262,7 +248,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :generate_upload_part_presigned_url,
               :count
             ],
-            tags: [:object_key, :upload_id, :part_number],
             event_name:
               Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
             description: "The count of pre-signed URLs that have been generated to upload a part."
@@ -295,7 +280,6 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_multipart_complete_upload(),
             measurement: :duration,
-            tags: [:object_key, :upload_id],
             unit: :millisecond,
             description:
               "The time in miliseconds that takes the storage to complete a multi-part upload.",
@@ -312,7 +296,6 @@ defmodule Tuist.Storage.PromExPlugin do
               :duration,
               :parts_count
             ],
-            tags: [:object_key, :upload_id],
             event_name: Telemetry.event_name_storage_multipart_complete_upload(),
             measurement: :parts_count,
             description: "The number of parts a multi-part upload has been completed with."

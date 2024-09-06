@@ -216,11 +216,14 @@ config :tuist, Oban,
 
 # Prometheus
 config :tuist, Tuist.PromEx,
-  disabled: not Tuist.Environment.on_premise?(),
+  disabled: false,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  metrics_server: :disabled
+  metrics_server: [
+    port: 9091,
+    auth_strategy: :none
+  ]
 
 # Guardian
 config :tuist, Tuist.Guardian,
