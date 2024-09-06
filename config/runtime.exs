@@ -250,7 +250,7 @@ config :tuist, Oban,
 
 # Prometheus
 config :tuist, Tuist.PromEx,
-  disabled: false,
+  disabled: Tuist.Environment.env() == :test,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
