@@ -577,7 +577,6 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeGraph"),
                 .external(name: "FileSystem"),
-
             ]
         case .cache:
             [
