@@ -103,6 +103,34 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         XCTAssertEqual(imports, ["PackageDescription"])
     }
 
+    func test_whenSwiftWithDefaultImportWithComment() throws {
+        let code = """
+        ////        import PackageDescription
+
+        func a() { }
+        """
+        let imports = try subject.extractImports(
+            from: code,
+            language: .swift
+        )
+        XCTAssertEqual(imports, [])
+    }
+
+    func test_whenSwiftWithDefaultImportWithMultilineComment() throws {
+        let code = """
+        /*
+        import PackageDescription
+        */
+
+        func a() { }
+        """
+        let imports = try subject.extractImports(
+            from: code,
+            language: .swift
+        )
+        XCTAssertEqual(imports, [])
+    }
+
     func test_whenSwiftWithOneLineImports() throws {
         let code = """
         import ModuleA; import ModuleB
@@ -114,6 +142,32 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             language: .swift
         )
         XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
+    }
+
+    func test_whenSwiftWithOneLineImportsWithComment() throws {
+        let code = """
+        //// import ModuleA; import ModuleB
+
+        func a() { }
+        """
+        let imports = try subject.extractImports(
+            from: code,
+            language: .swift
+        )
+        XCTAssertEqual(imports, [])
+    }
+
+    func test_whenSwiftWithOneLineImportsWithOneParticularComment() throws {
+        let code = """
+        import ModuleA; /* import ModuleB */
+
+        func a() { }
+        """
+        let imports = try subject.extractImports(
+            from: code,
+            language: .swift
+        )
+        XCTAssertEqual(imports, ["ModuleA"])
     }
 
     func test_whenSwiftWithSubmoduleImport() throws {
