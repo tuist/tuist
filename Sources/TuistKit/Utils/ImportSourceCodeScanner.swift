@@ -146,8 +146,8 @@ final class ImportSourceCodeScanner {
 
         var comments = [Comment]()
 
-        while let closeComment = openMultilineCommentIndices.first,
-              let openComment = closeMultilineCommentIndices.first
+        while let closeComment = closeMultilineCommentIndices.first,
+              let openComment = openMultilineCommentIndices.first
         {
             comments.append(Comment.partialOneLineComment(from: openComment, to: closeComment))
             openMultilineCommentIndices.removeFirst()
