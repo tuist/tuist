@@ -60,23 +60,23 @@ final class InspectImplicitImportsService {
 
     private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
         let allTargets = graphTraverser
+            .allTargets()
+        let allInternalTargets = graphTraverser
             .allInternalTargets()
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
         var implicitTargetImports: [Target: Set<String>] = [:]
-        for project in graphTraverser.projects.values {
-            let allTargets = project.targets.values
-
-            for target in allTargets {
-                let sourceDependencies = Set(try await targetScanner.imports(for: target))
-                let explicitTargetDependencies = graphTraverser
-                    .directTargetDependencies(path: project.path, name: target.name)
+        for target in allInternalTargets {
+            let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
+            let explicitTargetDependencies = Set(
+                graphTraverser
+                    .directTargetDependencies(path: target.project.path, name: target.target.name)
                     .map(\.graphTarget.target.productName)
-                let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
-                if !implicitImports.isEmpty {
-                    implicitTargetImports[target] = implicitImports
-                }
+            )
+            let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
+            if !implicitImports.isEmpty {
+                implicitTargetImports[target.target] = implicitImports
             }
         }
         return implicitTargetImports.map { target, implicitDependencies in
