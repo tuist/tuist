@@ -1,9 +1,10 @@
 import Foundation
+import Path
 import TuistCore
 import XcodeGraph
 
 public protocol ResourcesContentHashing {
-    func hash(identifier: String, resources: ResourceFileElements) throws -> MerkleNode
+    func hash(identifier: String, resources: ResourceFileElements, sourceRootPath: AbsolutePath) throws -> MerkleNode
 }
 
 /// `ResourcesContentHasher`
@@ -35,10 +36,11 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
 
     // MARK: - ResourcesContentHashing
 
-    public func hash(identifier: String, resources: ResourceFileElements) throws -> MerkleNode {
+    public func hash(identifier: String, resources: ResourceFileElements, sourceRootPath: AbsolutePath) throws -> MerkleNode {
         var children: [MerkleNode] = try resources.resources
             .sorted(by: { $0.path < $1.path })
-            .map { try hashResourceFileElement(element: $0) }
+            .enumerated()
+            .map { try hashResourceFileElement(element: $0.1, sourceRootPath: sourceRootPath) }
 
         if let privacyManifest = resources.privacyManifest {
             children.append(try privacyManifestContentHasher.hash(
@@ -54,11 +56,12 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
         )
     }
 
-    private func hashResourceFileElement(element: ResourceFileElement) throws -> MerkleNode {
+    private func hashResourceFileElement(element: ResourceFileElement, sourceRootPath: AbsolutePath) throws -> MerkleNode {
+        let sortedTags = element.tags.sorted()
         var children: [MerkleNode] = [
             MerkleNode(hash: try contentHasher.hash(path: element.path), identifier: "content"),
             MerkleNode(hash: try contentHasher.hash(element.isReference), identifier: "isReference"),
-            MerkleNode(hash: try contentHasher.hash(element.tags), identifier: "tags"),
+            MerkleNode(hash: try contentHasher.hash(sortedTags), identifier: "tags"),
         ]
 
         if let inclusionCondition = element.inclusionCondition {
@@ -70,7 +73,7 @@ public final class ResourcesContentHasher: ResourcesContentHashing {
 
         return MerkleNode(
             hash: try contentHasher.hash(children.map(\.hash)),
-            identifier: element.path.pathString,
+            identifier: element.path.relative(to: sourceRootPath).pathString,
             children: children
         )
     }

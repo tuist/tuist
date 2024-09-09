@@ -26,7 +26,8 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     func test_hash_isDeterministic() async throws {
         // Given
         let fileSystem = FileSystem()
-        let coreDataModelPath = (try temporaryPath()).appending(component: "Test.xcdatamodeld")
+        let temporaryDirectory = try temporaryPath()
+        let coreDataModelPath = temporaryDirectory.appending(component: "Test.xcdatamodeld")
         let v1 = coreDataModelPath.appending(component: "v1.xcdatamodel")
         let v2 = coreDataModelPath.appending(component: "v2.xcdatamodel")
         let xccurrentVersionPath = coreDataModelPath.appending(component: ".xccurrentversion")
@@ -44,7 +45,11 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
 
         // When
         for _ in 1 ... 100 {
-            hashes.insert(try subject.hash(identifier: "coreDataModels", coreDataModels: coreDataModels).hash)
+            hashes.insert(try subject.hash(
+                identifier: "coreDataModels",
+                coreDataModels: coreDataModels,
+                sourceRootPath: temporaryDirectory
+            ).hash)
         }
 
         // Then
@@ -54,7 +59,8 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     func test_hash_returnsAValidTree() async throws {
         // Given
         let fileSystem = FileSystem()
-        let coreDataModelPath = (try temporaryPath()).appending(component: "Test.xcdatamodeld")
+        let temporaryDirectory = try temporaryPath()
+        let coreDataModelPath = temporaryDirectory.appending(component: "Test.xcdatamodeld")
         let v1 = coreDataModelPath.appending(component: "v1.xcdatamodel")
         let v2 = coreDataModelPath.appending(component: "v2.xcdatamodel")
         let xccurrentVersionPath = coreDataModelPath.appending(component: ".xccurrentversion")
@@ -70,17 +76,29 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         )]
 
         // When
-        let got = try subject.hash(identifier: "coreDataModels", coreDataModels: coreDataModels)
+        let got = try subject.hash(
+            identifier: "coreDataModels",
+            coreDataModels: coreDataModels,
+            sourceRootPath: temporaryDirectory
+        )
+
+        print(got)
 
         // Then
         XCTAssertEqual(got, MerkleNode(
-            hash: "687ce1ef085fe7374f5f5a57a8583643",
+            hash: "aca4c8d17d460a3213495d3e704827ed",
             identifier: "coreDataModels",
             children: [
                 MerkleNode(
-                    hash: "9d54ac3c04cee9afeb00227788035726-98bf7d8c15784f0a3d63204441e1e2aa-98bf7d8c15784f0a3d63204441e1e2aa",
-                    identifier: coreDataModelPath.pathString,
-                    children: []
+                    hash: "687ce1ef085fe7374f5f5a57a8583643",
+                    identifier: coreDataModelPath.relative(to: temporaryDirectory).pathString,
+                    children: [
+                        MerkleNode(
+                            hash: "9d54ac3c04cee9afeb00227788035726-98bf7d8c15784f0a3d63204441e1e2aa-98bf7d8c15784f0a3d63204441e1e2aa",
+                            identifier: "content",
+                            children: []
+                        ),
+                    ]
                 ),
             ]
         ))

@@ -1,9 +1,10 @@
 import Foundation
+import Path
 import TuistCore
 import XcodeGraph
 
 public protocol SourceFilesContentHashing {
-    func hash(identifier: String, sources: [SourceFile]) throws -> MerkleNode
+    func hash(identifier: String, sources: [SourceFile], sourceRootPath: AbsolutePath) throws -> MerkleNode
 }
 
 /// `SourceFilesContentHasher`
@@ -29,14 +30,14 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
     /// are always sorted the same way.
     /// Then it hashes again all partial hashes to get a unique identifier that represents a group of source files together with
     /// their compiler flags
-    public func hash(identifier: String, sources: [SourceFile]) throws -> MerkleNode {
+    public func hash(identifier: String, sources: [SourceFile], sourceRootPath: AbsolutePath) throws -> MerkleNode {
         var children: [MerkleNode] = []
 
         for source in sources.sorted(by: { $0.path < $1.path }) {
             if let hash = source.contentHash {
                 children.append(MerkleNode(
                     hash: hash,
-                    identifier: source.path.pathString,
+                    identifier: source.path.relative(to: sourceRootPath).pathString,
                     children: []
                 ))
             } else {
@@ -72,7 +73,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
 
                 children.append(MerkleNode(
                     hash: try contentHasher.hash(sourceChildren.map(\.hash)),
-                    identifier: source.path.pathString,
+                    identifier: source.path.relative(to: sourceRootPath).pathString,
                     children: sourceChildren
                 ))
             }

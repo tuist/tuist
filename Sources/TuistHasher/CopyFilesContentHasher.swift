@@ -1,9 +1,10 @@
 import Foundation
+import Path
 import TuistCore
 import XcodeGraph
 
 public protocol CopyFilesContentHashing {
-    func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode
+    func hash(identifier: String, copyFiles: [CopyFilesAction], sourceRootPath: AbsolutePath) throws -> MerkleNode
 }
 
 /// `CopyFilesContentHasher`
@@ -21,7 +22,7 @@ public final class CopyFilesContentHasher: CopyFilesContentHashing {
 
     // MARK: - CopyFilesContentHashing
 
-    public func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode {
+    public func hash(identifier: String, copyFiles: [CopyFilesAction], sourceRootPath: AbsolutePath) throws -> MerkleNode {
         let children = try copyFiles.map { action in
             var actionChildren: [MerkleNode] = [
                 MerkleNode(hash: try contentHasher.hash(action.name), identifier: "name"),
@@ -41,7 +42,7 @@ public final class CopyFilesContentHasher: CopyFilesContentHashing {
                 }
                 return MerkleNode(
                     hash: try contentHasher.hash(fileChildren),
-                    identifier: file.path.pathString,
+                    identifier: file.path.relative(to: sourceRootPath).pathString,
                     children: fileChildren
                 )
             }

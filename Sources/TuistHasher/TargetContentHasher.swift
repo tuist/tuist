@@ -87,20 +87,82 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String] = []
     ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
-        let resourcesHash = try resourcesContentHasher.hash(identifier: "resources", resources: graphTarget.target.resources).hash
-        let copyFilesHash = try copyFilesContentHasher.hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
+//        public var name: String
+//
+//        public var destinations: XcodeGraph.Destinations
+//
+//        public var product: XcodeGraph.Product
+//
+//        public var bundleId: String
+//
+//        public var productName: String
+//
+//        public var deploymentTargets: XcodeGraph.DeploymentTargets
+//
+//        public var infoPlist: XcodeGraph.InfoPlist?
+//
+//        public var entitlements: XcodeGraph.Entitlements?
+//
+//        public var settings: XcodeGraph.Settings?
+//
+//        public var dependencies: [XcodeGraph.TargetDependency]
+//
+//        public var headers: XcodeGraph.Headers?
+//
+//        public var scripts: [XcodeGraph.TargetScript]
+//
+//        public var environmentVariables: [String : XcodeGraph.EnvironmentVariable]
+//
+//        public var launchArguments: [XcodeGraph.LaunchArgument]
+//
+//        public var filesGroup: XcodeGraph.ProjectGroup
+//
+//        public var rawScriptBuildPhases: [XcodeGraph.RawScriptBuildPhase]
+//
+//        public var playgrounds: [Path.AbsolutePath]
+//
+//        public let additionalFiles: [XcodeGraph.FileElement]
+//
+//        public var buildRules: [XcodeGraph.BuildRule]
+//
+//        public var prune: Bool
+//
+//        public let mergedBinaryType: XcodeGraph.MergedBinaryType
+//
+//        public let mergeable: Bool
+//
+//        public let onDemandResourcesTags: XcodeGraph.OnDemandResourcesTags?
+
+        let sourceRootPath = graphTarget.project.sourceRootPath
+        let sourcesHash = try sourceFilesContentHasher.hash(
+            identifier: "sources",
+            sources: graphTarget.target.sources,
+            sourceRootPath: sourceRootPath
+        ).hash
+
+        let resourcesHash = try resourcesContentHasher.hash(
+            identifier: "resources",
+            resources: graphTarget.target.resources,
+            sourceRootPath: sourceRootPath
+        ).hash
+        let copyFilesHash = try copyFilesContentHasher.hash(
+            identifier: "copyFiles",
+            copyFiles: graphTarget.target.copyFiles,
+            sourceRootPath: sourceRootPath
+        ).hash
         let coreDataModelHash = try coreDataModelsContentHasher.hash(
             identifier: "coreDataModels",
-            coreDataModels: graphTarget.target.coreDataModels
+            coreDataModels: graphTarget.target.coreDataModels,
+            sourceRootPath: sourceRootPath
+        ).hash
+        let scriptsHash = try targetScriptsContentHasher.hash(
+            identifier: "scripts",
+            targetScripts: graphTarget.target.scripts,
+            sourceRootPath: sourceRootPath
         ).hash
 
         // NEXT
 
-        let targetScriptsHash = try targetScriptsContentHasher.hash(
-            targetScripts: graphTarget.target.scripts,
-            sourceRootPath: graphTarget.project.sourceRootPath
-        )
         let dependenciesHash = try dependenciesContentHasher.hash(
             graphTarget: graphTarget,
             hashedTargets: &hashedTargets,
@@ -117,7 +179,7 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesHash,
             copyFilesHash,
             coreDataModelHash,
-            targetScriptsHash,
+            scriptsHash,
             environmentHash,
         ]
 

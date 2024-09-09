@@ -42,11 +42,12 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_when_sourcesHaveAHashSet() throws {
         // Given
+        let temporaryDir = try temporaryPath()
         let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
         let sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2], sourceRootPath: temporaryDir)
 
         // Then
         XCTAssertEqual(node, MerkleNode(
@@ -55,12 +56,12 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
             children: [
                 MerkleNode(
                     hash: "first",
-                    identifier: sourceFile1.path.pathString,
+                    identifier: sourceFile1.path.relative(to: temporaryDir).pathString,
                     children: []
                 ),
                 MerkleNode(
                     hash: "second",
-                    identifier: sourceFile2.path.pathString,
+                    identifier: sourceFile2.path.relative(to: temporaryDir).pathString,
                     children: []
                 ),
             ]
@@ -69,6 +70,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_when_sourcesHaveNoHashSet() async throws {
         // Given
+        let temporaryDir = try temporaryPath()
         let sourceFile1 = SourceFile(
             path: sourceFile1Path,
             compilerFlags: "-fno-objc-arc;",
@@ -83,16 +85,17 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         try await fileSystem.writeText("sourceFile2", at: sourceFile2Path)
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2], sourceRootPath: temporaryDir)
 
         // Then
+        print(node)
         XCTAssertEqual(node, MerkleNode(
             hash: "a399dc1a1cf69cb55d7b7dda76b62e0a",
             identifier: "sources",
             children: [
                 MerkleNode(
                     hash: "0921d026fd1854efd0b5735265bec941",
-                    identifier: sourceFile1Path.pathString,
+                    identifier: sourceFile1Path.relative(to: temporaryDir).pathString,
                     children: [
                         MerkleNode(
                             hash: "082b4a6d39b5f89e0c48bac6bc6c157b",
@@ -124,7 +127,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
                 ),
                 MerkleNode(
                     hash: "8b0b259086f1d24e1a0340e1abbae3b5",
-                    identifier: sourceFile2Path.pathString,
+                    identifier: sourceFile2Path.relative(to: temporaryDir).pathString,
                     children: [
                         MerkleNode(
                             hash: "ea109ebc1d271b006a1e76824e55df15",
