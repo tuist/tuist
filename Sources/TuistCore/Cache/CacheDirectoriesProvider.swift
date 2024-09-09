@@ -31,14 +31,10 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
-        cacheDirectory().appending(components: ["tuist", category.directoryName])
+        cacheDirectory().appending(component: category.directoryName)
     }
 
     public func cacheDirectory() -> Path.AbsolutePath {
-        if let cacheDirectory = environment.cacheDirectory {
-            return cacheDirectory
-        } else {
-            return FileHandler.shared.homeDirectory.appending(components: ".cache")
-        }
+        environment.cacheDirectory
     }
 }

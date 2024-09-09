@@ -69,8 +69,8 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
         if fileHandler.exists(resultBundle),
-           let targetHashes = commandEvent.params["target_hashes"]?.value as? [GraphTarget: String],
-           let graphPath = commandEvent.params["graph_path"]?.value as? AbsolutePath
+           let targetHashes = commandEvent.targetHashes,
+           let graphPath = commandEvent.graphPath
         {
             try await analyticsArtifactUploadService.uploadResultBundle(
                 resultBundle,

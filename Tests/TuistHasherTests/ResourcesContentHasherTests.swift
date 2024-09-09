@@ -48,7 +48,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         var hashes: Set<String> = Set()
 
         // When
-        for i in 0 ..< 100 {
+        for _ in 0 ..< 100 {
             hashes.insert(try subject.hash(identifier: "resources", resources: resourceFileElements).hash)
         }
 

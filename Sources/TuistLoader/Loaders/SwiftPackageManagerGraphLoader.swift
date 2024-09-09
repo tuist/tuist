@@ -91,6 +91,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
 
+        try validatePackageResolved(at: packagePath.parentDirectory)
+
         let packageInfos: [
             // swiftlint:disable:next large_tuple
             (
@@ -136,17 +138,41 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             )
         }
 
-        let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
             ($0.name, $0.targetToArtifactPaths)
         })
 
+        var packageModuleAliases: [String: [String: String]] = [:]
+
+        for packageInfo in packageInfoDictionary.values {
+            for target in packageInfo.targets {
+                for dependency in target.dependencies {
+                    switch dependency {
+                    case let .product(
+                        name: _,
+                        package: packageName,
+                        moduleAliases: moduleAliases,
+                        condition: _
+                    ):
+                        guard let moduleAliases else { continue }
+                        packageModuleAliases[
+                            packageInfos.first(where: { $0.folder.basename == packageName })?
+                                .name ?? packageName
+                        ] = moduleAliases
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+
         let externalDependencies = try packageInfoMapper.resolveExternalDependencies(
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
-            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
+            packageModuleAliases: packageModuleAliases
         )
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -155,7 +181,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 path: packageInfo.folder,
                 packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
                 packageSettings: packageSettings,
-                packageToProject: packageToProject
+                packageModuleAliases: packageModuleAliases
             )
             result[.path(packageInfo.folder.pathString)] = manifest
         }
@@ -164,6 +190,32 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             externalDependencies: externalDependencies,
             externalProjects: externalProjects
         )
+    }
+
+    private func validatePackageResolved(at path: AbsolutePath) throws {
+        let savedPackageResolvedPath = path.appending(components: [
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        let savedData: Data?
+        if fileHandler.exists(savedPackageResolvedPath) {
+            savedData = try fileHandler.readFile(savedPackageResolvedPath)
+        } else {
+            savedData = nil
+        }
+
+        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        let currentData: Data?
+        if fileHandler.exists(currentPackageResolvedPath) {
+            currentData = try fileHandler.readFile(currentPackageResolvedPath)
+        } else {
+            currentData = nil
+        }
+
+        if currentData != savedData {
+            logger.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        }
     }
 }
 

@@ -654,6 +654,7 @@ public class GraphTraverser: GraphTraversing {
     public func needsEnableTestingSearchPaths(path: Path.AbsolutePath, name: String) -> Bool {
         var cache: [GraphTarget: Bool] = [:]
 
+        // swiftlint:disable:next identifier_name
         func _needsEnableTestingSearchPaths(
             path: Path.AbsolutePath,
             name: String

@@ -51,7 +51,9 @@ public final class CommandEventFactory {
             status: info.status,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitController.ref(environment: environment),
-            gitRemoteURLOrigin: gitRemoteURLOrigin
+            gitRemoteURLOrigin: gitRemoteURLOrigin,
+            targetHashes: info.targetHashes,
+            graphPath: info.graphPath
         )
         return commandEvent
     }

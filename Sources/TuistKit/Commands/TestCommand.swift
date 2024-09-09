@@ -229,9 +229,9 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
             parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
             parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
-            parameters["target_hashes"] = AnyCodable(CacheAnalyticsStore.shared.targetHashes)
-            parameters["graph_path"] = AnyCodable(CacheAnalyticsStore.shared.graphPath)
 
+            TestCommand.analyticsDelegate?.targetHashes = CacheAnalyticsStore.shared.targetHashes
+            TestCommand.analyticsDelegate?.graphPath = CacheAnalyticsStore.shared.graphPath
             TestCommand.analyticsDelegate?.addParameters(
                 parameters
             )

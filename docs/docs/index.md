@@ -1,6 +1,6 @@
 ---
 title: What is Tuist?
-description: Learn about Tuist, a toolchain to empower teams to build better apps faster.
+description: Extend your Apple native tooling to better apps at scale.
 ---
 
 # Tuist

@@ -1688,6 +1688,64 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
+    func test_lint_ios_uitests_allows_macos_bundle_dependency() {
+        let path: AbsolutePath = "/project"
+
+        let uitests = Target.test(name: "UITests", platform: .iOS, product: .uiTests)
+        let bundle = Target.test(name: "Bundle", platform: .macOS, product: .bundle)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: uitests.name, path: path): Set([
+                .target(name: bundle.name, path: path),
+            ]),
+        ]
+
+        let project = Project.test(path: path, targets: [uitests, bundle])
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+
+        // When
+        let got = subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lint_macos_bundle_allows_ios_dependencies() {
+        let path: AbsolutePath = "/project"
+
+        let bundle = Target.test(name: "Bundle", platform: .macOS, product: .bundle)
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: bundle.name, path: path): Set([
+                .target(name: app.name, path: path),
+                .target(name: framework.name, path: path),
+            ]),
+        ]
+
+        let project = Project.test(path: path, targets: [bundle, app, framework])
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+
+        // When
+        let got = subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
     func test_lintDifferentBundleIdentifiers() {
         // Given
         let path: AbsolutePath = "/project"
