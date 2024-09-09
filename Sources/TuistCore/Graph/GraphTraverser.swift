@@ -638,15 +638,16 @@ public class GraphTraverser: GraphTraversing {
         }
         return references
     }
-    
+
     public func allProjectTargetDependencies(path: Path.AbsolutePath) -> Set<GraphTarget> {
         let rootTargets = targets(at: path)
-        let rootTargetDependencies = Set(rootTargets
-            .map { target -> GraphDependency in
-                GraphDependency.target(name: target.target.name, path: target.project.path)
-            }
+        let rootTargetDependencies = Set(
+            rootTargets
+                .map { target -> GraphDependency in
+                    GraphDependency.target(name: target.target.name, path: target.project.path)
+                }
         )
-        
+
         return Set(filterDependencies(from: rootTargetDependencies).compactMap { target(from: $0) })
             .union(rootTargets)
     }

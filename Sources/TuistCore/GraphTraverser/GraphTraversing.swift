@@ -192,7 +192,7 @@ public protocol GraphTraversing {
     /// the groups.
     /// - Parameter path: Path to the directory where the project is defined.
     func allProjectDependencies(path: AbsolutePath) throws -> Set<GraphDependencyReference>
-    
+
     /// For the project at the given path, it returns all target dependencies referenced
     /// from the project. It does not include non-target dependencies like externals, xcframeworks, etc.
     /// - Parameter path: Path to the directory where the project is defined.

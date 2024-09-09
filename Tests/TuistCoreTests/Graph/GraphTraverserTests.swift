@@ -865,7 +865,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ),
         ]))
     }
-    
+
     func test_allProjectTargetDependencies() {
         // Given
         // Project1: App1 -> StaticLibraryA, StaticLibraryB
@@ -876,16 +876,22 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let staticLibraryA = Target.test(name: "StaticLibraryA", product: .staticLibrary, productName: "StaticLibraryA")
         let staticLibraryB = Target.test(name: "StaticLibraryB", product: .staticLibrary, productName: "StaticLibraryB")
         let staticLibraryC = Target.test(name: "StaticLibraryC", product: .staticLibrary, productName: "StaticLibraryC")
-        let project1 = Project.test(path: try! AbsolutePath(validating: "/Project/App1"), targets: [app1, staticLibraryA, staticLibraryB, staticLibraryC])
+        let project1 = Project.test(
+            path: try! AbsolutePath(validating: "/Project/App1"),
+            targets: [app1, staticLibraryA, staticLibraryB, staticLibraryC]
+        )
         let project2 = Project.test(path: try! AbsolutePath(validating: "/Project/App2"), targets: [app2])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app1.name, path: project1.path): Set([
                 .target(name: staticLibraryA.name, path: project1.path),
-                .target(name: staticLibraryB.name, path: project1.path)
+                .target(name: staticLibraryB.name, path: project1.path),
             ]),
             .target(name: app2.name, path: project2.path): Set([.target(name: staticLibraryB.name, path: project1.path)]),
-            .target(name: staticLibraryB.name, path: project1.path): Set([.target(name: staticLibraryC.name, path: project1.path)]),
+            .target(name: staticLibraryB.name, path: project1.path): Set([.target(
+                name: staticLibraryC.name,
+                path: project1.path
+            )]),
             .target(name: staticLibraryA.name, path: project1.path): Set([]),
             .target(name: staticLibraryC.name, path: project1.path): Set([]),
         ]
