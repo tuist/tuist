@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import MockableTest
 import Path
@@ -11,116 +12,77 @@ import XCTest
 
 final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var subject: CoreDataModelsContentHasher!
-    private var coreDataModel: CoreDataModel!
-    private var contentHasher: MockContentHashing!
-    private let defaultValuesHash =
-        "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function
-    // using default values
 
-    override func setUp() {
-        super.setUp()
-        contentHasher = .init()
-        subject = CoreDataModelsContentHasher(contentHasher: contentHasher)
-        do {
-            _ = try TemporaryDirectory(removeTreeOnDeinit: true)
-        } catch {
-            XCTFail("Error while creating temporary directory")
-        }
-        given(contentHasher)
-            .hash(Parameter<[String]>.any)
-            .willProduce { $0.joined(separator: ";") }
+    override func setUp() async throws {
+        try await super.setUp()
+        subject = CoreDataModelsContentHasher(contentHasher: ContentHasher())
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         subject = nil
-        coreDataModel = nil
-        contentHasher = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
-    // MARK: - Tests
-
-    func test_hash_returnsSameValue() throws {
+    func test_hash_isDeterministic() async throws {
         // Given
-        coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
-        given(contentHasher)
-            .hash(path: .any)
-            .willProduce { $0.basename }
+        let fileSystem = FileSystem()
+        let coreDataModelPath = (try temporaryPath()).appending(component: "Test.xcdatamodeld")
+        let v1 = coreDataModelPath.appending(component: "v1.xcdatamodel")
+        let v2 = coreDataModelPath.appending(component: "v2.xcdatamodel")
+        let xccurrentVersionPath = coreDataModelPath.appending(component: ".xccurrentversion")
+        try await fileSystem.makeDirectory(at: v1)
+        try await fileSystem.makeDirectory(at: v2)
+        try await fileSystem.writeText(xccurrentVersionPath.basename, at: xccurrentVersionPath)
+        try await fileSystem.writeText("contents", at: v1.appending(component: "contents"))
+        try await fileSystem.writeText("contents", at: v2.appending(component: "contents"))
+        let coreDataModels = [CoreDataModel(
+            path: coreDataModelPath,
+            versions: [v1, v2],
+            currentVersion: "v1"
+        )]
+        var hashes: Set<String> = Set()
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        for _ in 1 ... 100 {
+            hashes.insert(try subject.hash(identifier: "coreDataModels", coreDataModels: coreDataModels).hash)
+        }
 
         // Then
-        XCTAssertEqual(hash, "fixed-hash;currentV1;v1;v2")
+        XCTAssertEqual(hashes.count, 1)
     }
 
-    func test_hash_fileContentChangesHash() throws {
+    func test_hash_returnsAValidTree() async throws {
         // Given
-        let name = "CoreDataModel"
-        coreDataModel = try buildCoreDataModel()
-        let fakePath = buildFakePath(from: name)
-        given(contentHasher)
-            .hash(path: .any)
-            .willProduce { $0.basename }
-        given(contentHasher)
-            .hash(path: .value(fakePath))
-            .willReturn("different-hash")
+        let fileSystem = FileSystem()
+        let coreDataModelPath = (try temporaryPath()).appending(component: "Test.xcdatamodeld")
+        let v1 = coreDataModelPath.appending(component: "v1.xcdatamodel")
+        let v2 = coreDataModelPath.appending(component: "v2.xcdatamodel")
+        let xccurrentVersionPath = coreDataModelPath.appending(component: ".xccurrentversion")
+        try await fileSystem.makeDirectory(at: v1)
+        try await fileSystem.makeDirectory(at: v2)
+        try await fileSystem.writeText(xccurrentVersionPath.basename, at: xccurrentVersionPath)
+        try await fileSystem.writeText("contents", at: v1.appending(component: "contents"))
+        try await fileSystem.writeText("contents", at: v2.appending(component: "contents"))
+        let coreDataModels = [CoreDataModel(
+            path: coreDataModelPath,
+            versions: [v1, v2],
+            currentVersion: "v1"
+        )]
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let got = try subject.hash(identifier: "coreDataModels", coreDataModels: coreDataModels)
 
         // Then
-        XCTAssertNotEqual(hash, defaultValuesHash)
-    }
-
-    func test_hash_currentVersionChangesHash() throws {
-        // Given
-        coreDataModel = try buildCoreDataModel(currentVersion: "2")
-        given(contentHasher)
-            .hash(path: .any)
-            .willProduce { $0.basename }
-
-        // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
-
-        XCTAssertNotEqual(hash, defaultValuesHash)
-    }
-
-    func test_hash_versionsChangeHash() throws {
-        // Given
-        coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
-        given(contentHasher)
-            .hash(path: .any)
-            .willProduce { $0.basename }
-
-        // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
-
-        // Then
-        XCTAssertNotEqual(hash, defaultValuesHash)
-    }
-
-    // MARK: - Private
-
-    private func buildFakePath(from name: String) -> AbsolutePath {
-        try! AbsolutePath(validating: "/\(name)+path")
-    }
-
-    private func buildCoreDataModel(
-        name: String = "CoreDataModel",
-        versions: [String] = ["1", "2"],
-        currentVersion: String = "1"
-    ) throws -> CoreDataModel {
-        let fakePath = buildFakePath(from: name)
-
-        given(contentHasher)
-            .hash(path: .value(fakePath))
-            .willReturn("fixed-hash")
-        let versionsAbsolutePaths = try versions.map { try AbsolutePath(validating: "/\($0)") }
-        return CoreDataModel(
-            path: fakePath,
-            versions: versionsAbsolutePaths,
-            currentVersion: currentVersion
-        )
+        XCTAssertEqual(got, MerkleNode(
+            hash: "687ce1ef085fe7374f5f5a57a8583643",
+            identifier: "coreDataModels",
+            children: [
+                MerkleNode(
+                    hash: "9d54ac3c04cee9afeb00227788035726-98bf7d8c15784f0a3d63204441e1e2aa-98bf7d8c15784f0a3d63204441e1e2aa",
+                    identifier: coreDataModelPath.pathString,
+                    children: []
+                ),
+            ]
+        ))
     }
 }

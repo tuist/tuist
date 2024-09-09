@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 
 public protocol CoreDataModelsContentHashing {
-    func hash(coreDataModels: [CoreDataModel]) throws -> String
+    func hash(identifier: String, coreDataModels: [CoreDataModel]) throws -> MerkleNode
 }
 
 /// `CoreDataModelsContentHasher`
@@ -19,16 +19,22 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
 
     // MARK: - CoreDataModelsContentHashing
 
-    public func hash(coreDataModels: [CoreDataModel]) throws -> String {
-        var stringsToHash: [String] = []
-        for cdModel in coreDataModels {
-            let contentHash = try contentHasher.hash(path: cdModel.path)
-            let currentVersionHash = try contentHasher.hash([cdModel.currentVersion])
-            let cdModelHash = try contentHasher.hash([contentHash, currentVersionHash])
-            let versionsHash = try contentHasher.hash(try cdModel.versions.sorted().map { try contentHasher.hash(path: $0) })
-            stringsToHash.append(cdModelHash)
-            stringsToHash.append(versionsHash)
+    public func hash(identifier: String, coreDataModels: [CoreDataModel]) throws -> MerkleNode {
+        let children = try coreDataModels.map { coreDataModel in
+            /**
+             Since the directory being hashed through the attribute "path" contains the rest of the attributes, we are implicitly hashing them
+             and therefore it's not necessary to hash them.
+             */
+            return MerkleNode(
+                hash: try contentHasher.hash(path: coreDataModel.path),
+                identifier: coreDataModel.path.pathString
+            )
         }
-        return try contentHasher.hash(stringsToHash)
+
+        return MerkleNode(
+            hash: try contentHasher.hash(children),
+            identifier: identifier,
+            children: children
+        )
     }
 }
