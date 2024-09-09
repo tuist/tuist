@@ -95,10 +95,24 @@ final class InspectImportsService {
         )
     }
 
+<<<<<<< HEAD
     private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
         let allInternalTargets = graphTraverser
+=======
+    private func lint(
+        graphTraverser: GraphTraverser,
+        inspectType: InspectType
+    ) async throws -> [InspectImportsServiceErrorIssue] {
+        var allTargets = graphTraverser
+>>>>>>> 86e8cbb62 (Remove bundle targets)
             .allInternalTargets()
         let allTargets = allInternalTargets.union(graphTraverser.allExternalTargets())
+
+        if inspectType == .redundant {
+            allTargets = allTargets.filter {
+                $0.target.product != .bundle
+            }
+        }
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
