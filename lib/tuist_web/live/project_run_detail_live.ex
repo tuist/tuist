@@ -10,6 +10,11 @@ defmodule TuistWeb.ProjectRunDetailLive do
         preloads: [user: :account, project: :account]
       )
 
+    if is_nil(command_event) do
+      raise TuistWeb.Errors.NotFoundError,
+            gettext("The page you are looking for doesn't exist or has been moved.")
+    end
+
     local_cache_target_hits = command_event.local_cache_target_hits || []
     remote_cache_target_hits = command_event.remote_cache_target_hits || []
 

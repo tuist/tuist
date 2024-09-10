@@ -54,6 +54,18 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     %{conn: conn, user: user, project: selected_project, organization: organization}
   end
 
+  test "errors with not found if the command event does not exist", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given/When/Then
+    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/runs/1133332525")
+    end
+  end
+
   test "sets the right title", %{conn: conn, organization: organization, project: project} do
     # Given
     command_event =
