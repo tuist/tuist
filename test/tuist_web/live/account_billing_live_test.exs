@@ -2,6 +2,7 @@ defmodule TuistWeb.AccountBillingLiveTest do
   use TuistWeb.ConnCase, async: true
   use Mimic
 
+  import TuistWeb.Gettext
   import Phoenix.LiveViewTest
   alias Tuist.Billing
   alias Tuist.Accounts
@@ -93,6 +94,26 @@ defmodule TuistWeb.AccountBillingLiveTest do
     assert has_element?(lv, "button", "Upgrade")
     assert has_element?(lv, "button", "Current plan")
     assert has_element?(lv, "p", "167 of 200 remote cache hits")
+  end
+
+  test "renders when that a payment method needs to be added when it's absent", %{conn: conn} do
+    # Given
+    Billing
+    |> stub(:get_current_active_subscription, fn _ ->
+      nil
+    end)
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/tuist-org/billing")
+
+    # Then
+    assert has_element?(
+             lv,
+             ".billing__overview__payment-card__billing-details__labels",
+             gettext("Add a payment method to continue using Tuist")
+           )
   end
 
   test "renders billing when a user has the air plan with trial", %{conn: conn} do

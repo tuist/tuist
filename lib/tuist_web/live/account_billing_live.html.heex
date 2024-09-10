@@ -140,18 +140,19 @@
                   <% end %>
                 </p>
                 <p class="text--small font--regular color--text-tertiary">
-                  <%= if is_nil(@payment_method) do %>
-                    <%= gettext("Add a payment method to continue using Tuist") %>
-                  <% else %>
-                    <%= gettext("Expiry %{expiration_date}",
-                      expiration_date:
-                        (@payment_method.card.exp_month
-                         |> Integer.to_string()
-                         |> String.pad_leading(2, "0")) <>
-                          "/" <>
-                          (@payment_method.card.exp_year
-                           |> Integer.to_string())
-                    ) %>
+                  <%= cond do %>
+                    <% not is_nil(@payment_method) and not is_nil(@payment_method.card) -> %>
+                      <%= gettext("Expiry %{expiration_date}",
+                        expiration_date:
+                          (@payment_method.card.exp_month
+                           |> Integer.to_string()
+                           |> String.pad_leading(2, "0")) <>
+                            "/" <>
+                            (@payment_method.card.exp_year
+                             |> Integer.to_string())
+                      ) %>
+                    <% true -> %>
+                      <%= gettext("Add a payment method to continue using Tuist") %>
                   <% end %>
                 </p>
               </.stack>
