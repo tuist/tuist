@@ -51,7 +51,7 @@ defmodule Tuist.MixProject do
        compile: false,
        depth: 1},
       {:bamboo, "~> 2.3.0"},
-      {:finch, "~> 0.18"},
+      {:finch, "~> 0.19"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.25"},
