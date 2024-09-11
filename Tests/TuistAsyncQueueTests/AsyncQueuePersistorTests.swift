@@ -59,7 +59,7 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         // Given
         let event = AnyAsyncQueueEvent(
             dispatcherId: "dispatcher",
-            date: date
+            date: Date()
         )
 
         // When
