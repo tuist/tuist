@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -15,7 +16,8 @@ extension XcodeGraph.ResourceFileElement {
         manifest: ProjectDescription.ResourceFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [XcodeGraph.ResourceFileElement] {
+    ) async throws -> [XcodeGraph.ResourceFileElement] {
+        let fileSystem = FileSystem()
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
@@ -42,8 +44,8 @@ extension XcodeGraph.ResourceFileElement {
             return files
         }
 
-        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
-            guard FileHandler.shared.exists(path) else {
+        func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
                 logger.warning("\(path.pathString) does not exist")
                 return []
@@ -69,7 +71,7 @@ extension XcodeGraph.ResourceFileElement {
             ) }
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
+            return try await folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
                 path: $0,
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition

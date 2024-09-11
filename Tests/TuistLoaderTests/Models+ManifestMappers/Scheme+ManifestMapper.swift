@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class SchemeManifestMapperTests: TuistUnitTestCase {
-    func test_from_when_the_scheme_has_no_actions() throws {
+    func test_from_when_the_scheme_has_no_actions() async throws {
         // Given
         let manifest = ProjectDescription.Scheme.test(
             name: "Scheme",
@@ -20,13 +20,13 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         // When
-        let model = try XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
-    func test_from_when_the_scheme_has_actions() throws {
+    func test_from_when_the_scheme_has_actions() async throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(
             environment: ["FOO": "BAR", "FIZ": "BUZZ"],
@@ -60,7 +60,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)

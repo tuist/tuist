@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -15,9 +16,10 @@ extension XcodeGraph.CopyFileElement {
         manifest: ProjectDescription.CopyFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [XcodeGraph.CopyFileElement] {
-        func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
-            if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+    ) async throws -> [XcodeGraph.CopyFileElement] {
+        let fileSystem = FileSystem()
+        func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
@@ -34,8 +36,8 @@ extension XcodeGraph.CopyFileElement {
             return files
         }
 
-        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
-            guard FileHandler.shared.exists(path) else {
+        func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
                 logger.warning("\(path.pathString) does not exist")
                 return []
@@ -53,7 +55,7 @@ extension XcodeGraph.CopyFileElement {
         switch manifest {
         case let .glob(pattern: pattern, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map { .file(
+            return try await globFiles(resolvedPath).map { .file(
                 path: $0,
                 condition: condition?.asGraphCondition,
                 codeSignOnCopy: codeSign
@@ -61,7 +63,7 @@ extension XcodeGraph.CopyFileElement {
             }
         case let .folderReference(path: folderReferencePath, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { .folderReference(
+            return try await folderReferences(resolvedPath).map { .folderReference(
                 path: $0,
                 condition: condition?.asGraphCondition,
                 codeSignOnCopy: codeSign

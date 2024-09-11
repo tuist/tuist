@@ -81,7 +81,7 @@ extension TuistAcceptanceTestCase {
         )
 
         guard let frameworkPath = FileHandler.shared.glob(productPath, glob: "**/Frameworks/\(framework).framework").first,
-              FileHandler.shared.exists(frameworkPath)
+              try await fileSystem.exists(frameworkPath)
         else {
             XCTFail(
                 "Framework \(framework) not found for product \(product) and destination \(destination)",

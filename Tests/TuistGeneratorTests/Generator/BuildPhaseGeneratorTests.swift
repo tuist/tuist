@@ -1202,7 +1202,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func test_generateTarget_actions() throws {
+    func test_generateTarget_actions() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1251,7 +1251,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1280,7 +1280,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(postBuildPhase.runOnlyForDeploymentPostprocessing)
     }
 
-    func test_generateTarget_action_custom_shell() throws {
+    func test_generateTarget_action_custom_shell() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1330,7 +1330,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1349,7 +1349,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
     }
 
-    func test_generateTarget_action_dependency_file() throws {
+    func test_generateTarget_action_dependency_file() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1398,7 +1398,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,

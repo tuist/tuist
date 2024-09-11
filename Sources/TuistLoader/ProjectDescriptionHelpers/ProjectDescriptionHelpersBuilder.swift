@@ -120,7 +120,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
     ) async throws -> ProjectDescriptionHelpersModule? {
-        guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
+        guard let tuistHelpersDirectory = try await helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
             if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
@@ -172,7 +172,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
         builtHelpers.mutate { $0[path] = projectDescriptionHelpersModule }
 
-        if FileHandler.shared.exists(helpersModuleCachePath) {
+        if try await fileSystem.exists(helpersModuleCachePath) {
             return projectDescriptionHelpersModule
         }
 

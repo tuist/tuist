@@ -9,16 +9,16 @@ final class ListTargetsAcceptanceTestiOSWorkspaceWithMicrofeatureArchitecture: T
     func test_ios_workspace_with_microfeature_architecture() async throws {
         try await setUpFixture(.iosWorkspaceWithMicrofeatureArchitecture)
         try await run(GenerateCommand.self)
-        try listTargets(for: "UIComponents")
-        try listTargets(for: "Core")
-        try listTargets(for: "Data")
+        try await listTargets(for: "UIComponents")
+        try await listTargets(for: "Core")
+        try await listTargets(for: "Data")
     }
 }
 
 extension TuistAcceptanceTestCase {
     fileprivate func listTargets(
         for framework: String
-    ) throws {
+    ) async throws {
         let frameworkXcodeprojPath = fixturePath.appending(
             components: [
                 "Frameworks",
@@ -27,7 +27,7 @@ extension TuistAcceptanceTestCase {
             ]
         )
 
-        try run(MigrationTargetsByDependenciesCommand.self, "-p", frameworkXcodeprojPath.pathString)
+        try await run(MigrationTargetsByDependenciesCommand.self, "-p", frameworkXcodeprojPath.pathString)
         XCTAssertStandardOutput(
             pattern:
             """

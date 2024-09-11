@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import PathKit
@@ -10,7 +11,7 @@ public protocol EmptyBuildSettingsChecking {
     /// - Parameters:
     ///   - xcodeprojPath: Path to the Xcode project.
     ///   - targetName: Name of the target. When nil, the build settings of the project are checked instead.
-    func check(xcodeprojPath: AbsolutePath, targetName: String?) throws
+    func check(xcodeprojPath: AbsolutePath, targetName: String?) async throws
 }
 
 enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
@@ -43,14 +44,20 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
 }
 
 public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
+    private let fileSystem: FileSysteming
+
     // MARK: - Init
 
-    public init() {}
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
 
     // MARK: - EmptyBuildSettingsChecking
 
-    public func check(xcodeprojPath: AbsolutePath, targetName: String?) throws {
-        guard FileHandler.shared.exists(xcodeprojPath)
+    public func check(xcodeprojPath: AbsolutePath, targetName: String?) async throws {
+        guard try await fileSystem.exists(xcodeprojPath)
         else { throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
