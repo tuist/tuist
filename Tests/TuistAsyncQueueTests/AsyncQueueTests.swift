@@ -283,7 +283,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         await subject.start()
 
         // Then
-        wait(for: [expectation], timeout: timeout)
+        await fulfillment(of: [expectation], timeout: timeout)
         guard let dispatchedEventData = mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter else {
             XCTFail("Data from persisted event was not dispatched")
             return
@@ -312,7 +312,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         await subject.start()
 
         // Then
-        wait(for: [expectation], timeout: timeout)
+        await fulfillment(of: [expectation], timeout: timeout)
         guard let filename = mockPersistor.invokedDeleteFilenameParameter else {
             XCTFail("Sent persisted event was then not deleted")
             return
