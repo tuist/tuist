@@ -87,52 +87,6 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String] = []
     ) throws -> String {
-//        public var name: String
-//
-//        public var destinations: XcodeGraph.Destinations
-//
-//        public var product: XcodeGraph.Product
-//
-//        public var bundleId: String
-//
-//        public var productName: String
-//
-//        public var deploymentTargets: XcodeGraph.DeploymentTargets
-//
-//        public var infoPlist: XcodeGraph.InfoPlist?
-//
-//        public var entitlements: XcodeGraph.Entitlements?
-//
-//        public var settings: XcodeGraph.Settings?
-//
-//        public var dependencies: [XcodeGraph.TargetDependency]
-//
-//        public var headers: XcodeGraph.Headers?
-//
-//        public var scripts: [XcodeGraph.TargetScript]
-//
-//        public var environmentVariables: [String : XcodeGraph.EnvironmentVariable]
-//
-//        public var launchArguments: [XcodeGraph.LaunchArgument]
-//
-//        public var filesGroup: XcodeGraph.ProjectGroup
-//
-//        public var rawScriptBuildPhases: [XcodeGraph.RawScriptBuildPhase]
-//
-//        public var playgrounds: [Path.AbsolutePath]
-//
-//        public let additionalFiles: [XcodeGraph.FileElement]
-//
-//        public var buildRules: [XcodeGraph.BuildRule]
-//
-//        public var prune: Bool
-//
-//        public let mergedBinaryType: XcodeGraph.MergedBinaryType
-//
-//        public let mergeable: Bool
-//
-//        public let onDemandResourcesTags: XcodeGraph.OnDemandResourcesTags?
-
         let sourceRootPath = graphTarget.project.sourceRootPath
         let sourcesHash = try sourceFilesContentHasher.hash(
             identifier: "sources",
