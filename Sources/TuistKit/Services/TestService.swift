@@ -438,7 +438,6 @@ final class TestService { // swiftlint:disable:this type_body_length
                   let target = project.targets[$0.target.name] else { return nil }
             return GraphTarget(path: $0.path, target: target, project: project)
         }
-        print(testedGraphTargets)
         try await fileHandler.inTemporaryDirectory { _ in
             let allTestedTargets: Set<Target> = Set(
                 graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
