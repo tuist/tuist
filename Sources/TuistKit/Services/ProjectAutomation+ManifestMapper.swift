@@ -84,7 +84,7 @@ extension ProjectAutomation.Target {
         case let .project(target, path, _):
             return .project(target: target, path: path.pathString)
         case let .framework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
@@ -93,7 +93,7 @@ extension ProjectAutomation.Target {
             }
             return .framework(path: path.pathString, status: frameworkStatus)
         case let .xcframework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
@@ -117,7 +117,7 @@ extension ProjectAutomation.Target {
                 return .package(product: product)
             }
         case let .sdk(name, status, _):
-            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            let projectAutomationStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 projectAutomationStatus = .optional
