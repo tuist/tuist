@@ -396,7 +396,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         func addBuildFile(
             _ path: AbsolutePath,
             condition: PlatformCondition?,
-            status: FrameworkStatus = .required
+            status: LinkingStatus = .required
         ) throws {
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
@@ -591,7 +591,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxTarget.buildPhases.append(buildPhase)
     }
 
-    func createSDKBuildFile(for fileReference: PBXFileReference, status: SDKStatus) -> PBXBuildFile {
+    func createSDKBuildFile(for fileReference: PBXFileReference, status: LinkingStatus) -> PBXBuildFile {
         var settings: [String: Any]?
         if status == .optional {
             settings = ["ATTRIBUTES": ["Weak"]]
