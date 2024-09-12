@@ -27,7 +27,8 @@ public enum SystemFrameworkMetadataProviderError: FatalError, Equatable {
 // MARK: - Provider
 
 public protocol SystemFrameworkMetadataProviding {
-    func loadMetadata(sdkName: String, status: SDKStatus, platform: Platform, source: SDKSource) throws -> SystemFrameworkMetadata
+    func loadMetadata(sdkName: String, status: LinkingStatus, platform: Platform, source: SDKSource) throws
+        -> SystemFrameworkMetadata
 }
 
 extension SystemFrameworkMetadataProviding {
@@ -43,7 +44,7 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
 
     public func loadMetadata(
         sdkName: String,
-        status: SDKStatus,
+        status: LinkingStatus,
         platform: Platform,
         source: SDKSource
     ) throws -> SystemFrameworkMetadata {

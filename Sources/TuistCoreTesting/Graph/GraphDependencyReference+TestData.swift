@@ -13,7 +13,7 @@ extension GraphDependencyReference {
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.arm64],
         product: Product = .framework,
-        status: FrameworkStatus = .required,
+        status: LinkingStatus = .required,
         condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.framework(
@@ -41,7 +41,7 @@ extension GraphDependencyReference {
         primaryBinaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic,
-        status: FrameworkStatus = .required,
+        status: LinkingStatus = .required,
         condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
@@ -72,7 +72,7 @@ extension GraphDependencyReference {
 
     public static func testSDK(
         path: AbsolutePath = "/path/CoreData.framework",
-        status: SDKStatus = .required,
+        status: LinkingStatus = .required,
         source: SDKSource = .system,
         condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
