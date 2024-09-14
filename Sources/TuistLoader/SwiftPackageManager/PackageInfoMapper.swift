@@ -542,7 +542,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftVersion):
                         return nil
                     }
                 } catch {
@@ -971,7 +971,7 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftVersion):
                     return nil
                 }
             } catch {

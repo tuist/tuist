@@ -86,6 +86,8 @@ struct SettingsMapper {
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
                 swiftFlags.append("-enable-experimental-feature \"\(setting.value[0])\"")
+            case (.swift, .swiftVersion):
+                swiftFlags.append("-swift-version \(setting.value[0])")
             case (.linker, .unsafeFlags):
                 linkerFlags.append(contentsOf: setting.value)
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
@@ -94,7 +96,7 @@ struct SettingsMapper {
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                 (_, .enableExperimentalFeature):
+                (_, .enableExperimentalFeature), (_, .swiftVersion):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
