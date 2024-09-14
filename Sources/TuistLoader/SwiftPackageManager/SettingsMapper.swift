@@ -96,7 +96,7 @@ struct SettingsMapper {
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                (_, .enableExperimentalFeature), (_, .swiftVersion):
+                 (_, .enableExperimentalFeature), (_, .swiftVersion):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }

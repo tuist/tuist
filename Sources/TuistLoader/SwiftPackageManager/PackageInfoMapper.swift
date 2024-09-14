@@ -971,7 +971,7 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftVersion):
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftVersion):
                     return nil
                 }
             } catch {
