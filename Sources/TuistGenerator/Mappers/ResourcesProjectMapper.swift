@@ -65,7 +65,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             )
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
-            modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
+            modifiedTarget.dependencies.append(.target(
+                name: bundleName,
+                status: .required,
+                condition: .when(target.dependencyPlatformFilters)
+            ))
             additionalTargets.append(resourcesTarget)
         }
 

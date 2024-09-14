@@ -87,7 +87,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         // Linking node case
-        guard case let GraphDependency.target(targetName, targetPath) = dependency,
+        guard case let GraphDependency.target(targetName, targetPath, _) = dependency,
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
@@ -121,7 +121,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         // Statically linking a macro does not present a problem so it should not be flagged
-        if case let .target(name, path) = staticProduct,
+        if case let .target(name, path, _) = staticProduct,
            !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
         {
             return []
@@ -132,12 +132,12 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         //
         // reference: https://github.com/tuist/tuist/pull/664
         let hosts: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
             return target.target.product.canHostTests()
         }
         let hostedTestBundles = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
             let isTestsBundle = target.target.product.testsBundle
@@ -184,7 +184,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             case .macro: return false
             case .plugin: return false
             }
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = graphTraverser.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk, .macro:
@@ -198,8 +198,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     }
 
     private func canVisit(dependency: GraphDependency, from: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
-        guard case let GraphDependency.target(fromTargetName, fromTargetPath) = from else { return true }
-        guard case let GraphDependency.target(toTargetName, toTargetPath) = dependency else { return true }
+        guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = from else { return true }
+        guard case let GraphDependency.target(toTargetName, toTargetPath, _) = dependency else { return true }
 
         guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return false }
         guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return false }

@@ -464,7 +464,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.11.4"),
+        .package(url: "https://github.com/rgnns/XcodeGraph", branch: "linking-status"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets

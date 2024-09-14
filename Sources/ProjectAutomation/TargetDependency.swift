@@ -12,8 +12,8 @@ typealias FrameworkStatus = LinkingStatus
 typealias SDKStatus = LinkingStatus
 
 public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
-    case target(name: String)
-    case project(target: String, path: String)
+    case target(name: String, status: LinkingStatus)
+    case project(target: String, path: String, status: LinkingStatus)
     case framework(path: String, status: LinkingStatus)
     case xcframework(path: String, status: LinkingStatus)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
