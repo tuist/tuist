@@ -86,7 +86,7 @@ struct SettingsMapper {
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
                 swiftFlags.append("-enable-experimental-feature \"\(setting.value[0])\"")
-            case (.swift, .swiftVersion):
+            case (.swift, .swiftLanguageMode):
                 // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
                 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
                 swiftFlags.append("-swift-version \(setting.value[0])")
@@ -98,7 +98,7 @@ struct SettingsMapper {
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                 (_, .enableExperimentalFeature), (_, .swiftVersion):
+                 (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
