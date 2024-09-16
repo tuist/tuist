@@ -4,6 +4,7 @@ defmodule Tuist.Storage do
   """
   alias Tuist.Environment
   alias Tuist.Native
+  import SweetXml
 
   alias Tuist.Native.{
     S3DownloadPresignedURLOptions,
@@ -228,11 +229,31 @@ defmodule Tuist.Storage do
   end
 
   defp tuist_hosted_multipart_start(object_key) do
-    case Environment.s3_bucket_name()
-         |> ExAws.S3.initiate_multipart_upload(object_key)
-         |> ExAws.request() do
-      {:ok, response} -> {:ok, response.body.upload_id}
-      {:error, error} -> {:error, error}
+    # Docs: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+    req =
+      Req.new(
+        base_url: Environment.s3_endpoint(),
+        url: "/#{Environment.s3_bucket_name()}/#{object_key}?uploads",
+        aws_sigv4: [
+          service: :s3,
+          access_key_id: Environment.s3_access_key_id(),
+          secret_access_key: Environment.s3_secret_access_key()
+        ]
+      )
+      |> ReqTelemetry.attach()
+
+    # Response
+    # <InitiateMultipartUploadResult>
+    #   <Bucket>string</Bucket>
+    #   <Key>string</Key>
+    #   <UploadId>string</UploadId>
+    # </InitiateMultipartUploadResult>
+    case Req.post!(req) do
+      %{status: 200, body: body} ->
+        {:ok, body |> xpath(~x"//UploadId/text()"s)}
+
+      %{body: body} ->
+        {:error, body |> xpath(~x"//Message/text()"s)}
     end
   end
 
