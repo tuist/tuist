@@ -5063,5 +5063,5 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
 private struct SDKPathAndStatus: Equatable {
     var name: String
-    var status: SDKStatus
+    var status: LinkingStatus
 }

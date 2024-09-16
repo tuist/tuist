@@ -27,7 +27,7 @@ public protocol FrameworkLoading {
     /// Reads an existing framework and returns its in-memory representation, `GraphDependency.framework`.
     /// - Parameter path: Path to the .framework.
     /// - Parameter status: `.optional` to weakly link the .framework.
-    func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency
+    func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency
 }
 
 public final class FrameworkLoader: FrameworkLoading {
@@ -40,7 +40,7 @@ public final class FrameworkLoader: FrameworkLoading {
         self.frameworkMetadataProvider = frameworkMetadataProvider
     }
 
-    public func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency {
+    public func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw FrameworkLoaderError.frameworkNotFound(path)
         }

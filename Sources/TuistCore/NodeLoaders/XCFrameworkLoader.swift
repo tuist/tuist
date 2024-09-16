@@ -27,7 +27,7 @@ public protocol XCFrameworkLoading {
     /// Reads an existing xcframework and returns its in-memory representation, `GraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency
+    func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -44,7 +44,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
     }
 
-    public func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency {
+    public func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }

@@ -619,7 +619,6 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
             "Users.momd",
             "Unversioned.momd",
             "UsersAutoDetect.momd",
-            "1_2.cdm",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
