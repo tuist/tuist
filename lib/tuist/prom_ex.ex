@@ -76,8 +76,7 @@ defmodule Tuist.PromEx do
         plugins ++
           [
             {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
-            PromEx.Plugins.Ecto,
-            Tuist.Req.PromExPlugin
+            PromEx.Plugins.Ecto
           ]
       end
 
