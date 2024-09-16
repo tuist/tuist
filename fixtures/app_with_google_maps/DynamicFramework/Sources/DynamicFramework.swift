@@ -7,12 +7,15 @@ public class Mapper: UIView {
         GMSServices.provideAPIKey(key)
     }
 
+    public let mapView: GMSMapView!
+
     override public init(frame: CGRect) {
+        mapView = GMSMapView()
+
         super.init(frame: frame)
 
-        let mapView = GMSMapView()
-        mapView.delegate = self
         addSubview(mapView)
+        mapView.delegate = self
     }
 
     @available(*, unavailable)
