@@ -1,6 +1,6 @@
 // swift-tools-version:5.10
 
-import PackageDescription
+@preconcurrency import PackageDescription
 
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
@@ -8,7 +8,7 @@ let loggingDependency: Target.Dependency = .product(name: "Logging", package: "s
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
-var targets: [Target] = [
+let targets: [Target] = [
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
@@ -334,7 +334,7 @@ var targets: [Target] = [
 ]
 
 #if TUIST
-    import struct ProjectDescription.PackageSettings
+@preconcurrency import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
         productTypes: [
