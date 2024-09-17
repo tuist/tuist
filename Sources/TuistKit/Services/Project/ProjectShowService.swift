@@ -55,7 +55,7 @@ struct ProjectShowService {
         if web {
             var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
             components.path = "/\(fullHandle)"
-            try opener.open(url: components.url!)
+            try opener.open(url: components.url!, fresh: false)
         } else {
             let project = try await getProjectService.getProject(
                 fullHandle: fullHandle,

@@ -65,7 +65,7 @@ final class EditServiceTests: XCTestCase {
             .willReturn(projectDirectory)
 
         given(opener)
-            .open(path: .any, application: .any, wait: .any)
+            .open(path: .any, application: .any, wait: .any, fresh: .any)
             .willReturn()
 
         // When
@@ -80,7 +80,8 @@ final class EditServiceTests: XCTestCase {
             .open(
                 path: .value(projectDirectory),
                 application: .any,
-                wait: .value(false)
+                wait: .value(false),
+                fresh: .any
             )
             .called(1)
 
@@ -111,7 +112,8 @@ final class EditServiceTests: XCTestCase {
             .open(
                 path: .any,
                 application: .any,
-                wait: .any
+                wait: .any,
+                fresh: .any
             )
             .called(0)
 

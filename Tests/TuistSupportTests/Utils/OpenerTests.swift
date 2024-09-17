@@ -44,4 +44,12 @@ final class OpenerTests: TuistUnitTestCase {
         system.succeedCommand(["/usr/bin/open", path.pathString])
         try subject.open(path: path)
     }
+
+    func test_open_when_fresh_is_true() throws {
+        let temporaryPath = try temporaryPath()
+        let path = temporaryPath.appending(component: "tool")
+        try FileHandler.shared.touch(path)
+        system.succeedCommand(["/usr/bin/open", "-F", path.pathString])
+        try subject.open(path: path, fresh: true)
+    }
 }

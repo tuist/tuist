@@ -44,6 +44,13 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var open: Bool = !CIChecker().isCI()
 
     @Flag(
+        name: .shortAndLong,
+        help: "Opens the application \"fresh,\" that is, without restoring windows. Saved persistent state is lost, except for Untitled documents. **THIS WILL HAVE NO EFFECT UNLESS YOU QUIT XCODE FIRST.**",
+        envKey: .generateFresh
+    )
+    var fresh: Bool = false
+
+    @Flag(
         help: "Ignore binary cache and use sources only.",
         envKey: .generateBinaryCache
     )
@@ -56,10 +63,12 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var configuration: String?
 
     public func run() async throws {
+        print("NK: opening fresh \(fresh)")
         defer {
             GenerateCommand.analyticsDelegate?.addParameters(
                 [
                     "no_open": AnyCodable(!open),
+                    "fresh": AnyCodable(!fresh),
                     "no_binary_cache": AnyCodable(!binaryCache),
                     "n_targets": AnyCodable(sources.count),
                     "cacheable_targets": AnyCodable(CacheAnalyticsStore.shared.cacheableTargets),
@@ -78,6 +87,7 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             path: path,
             sources: Set(sources),
             noOpen: !open,
+            fresh: fresh,
             configuration: configuration,
             ignoreBinaryCache: !binaryCache
         )

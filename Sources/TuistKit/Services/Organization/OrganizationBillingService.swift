@@ -41,7 +41,8 @@ final class OrganizationBillingService: OrganizationBillingServicing {
         try opener.open(
             url: serverURL
                 .appendingPathComponent(organizationName)
-                .appendingPathComponent("billing")
+                .appendingPathComponent("billing"),
+            fresh: false
         )
     }
 }

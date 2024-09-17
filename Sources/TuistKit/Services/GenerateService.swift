@@ -42,6 +42,7 @@ final class GenerateService {
         path: String?,
         sources: Set<String>,
         noOpen: Bool,
+        fresh: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool
     ) async throws {
@@ -58,7 +59,7 @@ final class GenerateService {
         )
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
-            try opener.open(path: workspacePath)
+            try opener.open(path: workspacePath, fresh: fresh)
         }
         logger.notice("Project generated.", metadata: .success)
         logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))

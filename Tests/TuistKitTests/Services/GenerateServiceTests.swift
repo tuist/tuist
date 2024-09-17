@@ -70,6 +70,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
                     path: nil,
                     sources: [],
                     noOpen: true,
+                    fresh: false,
                     configuration: nil,
                     ignoreBinaryCache: false
                 )
@@ -88,7 +89,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             .willReturn(workspacePath)
 
         given(opener)
-            .open(path: .any)
+            .open(path: .any, fresh: .any)
             .willReturn()
 
         // When
@@ -96,13 +97,14 @@ final class GenerateServiceTests: TuistUnitTestCase {
             path: nil,
             sources: [],
             noOpen: false,
+            fresh: false,
             configuration: nil,
             ignoreBinaryCache: false
         )
 
         // Then
         verify(opener)
-            .open(path: .value(workspacePath))
+            .open(path: .value(workspacePath), fresh: .any)
             .called(1)
     }
 
@@ -111,7 +113,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
         given(opener)
-            .open(path: .any)
+            .open(path: .any, fresh: .any)
             .willReturn()
 
         given(generator)
@@ -127,6 +129,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             path: nil,
             sources: [],
             noOpen: false,
+            fresh: false,
             configuration: nil,
             ignoreBinaryCache: false
         )

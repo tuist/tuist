@@ -47,7 +47,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         // Given
         var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
         expectedURLComponents.path = "/tuist/tuist"
-        given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
+        given(opener).open(url: .value(expectedURLComponents.url!), fresh: .any).willReturn()
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test())
@@ -56,7 +56,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         try await subject.run(fullHandle: "tuist/tuist", web: true, path: nil)
 
         // Then
-        verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
+        verify(opener).open(url: .value(expectedURLComponents.url!), fresh: .any).called(1)
     }
 
     func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithFullHandleCanBeLoaded() async throws {
@@ -66,13 +66,13 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         expectedURLComponents.path = "/tuist/tuist"
         let config = Config.test(fullHandle: "tuist/tuist")
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(opener).open(url: .any).willReturn()
+        given(opener).open(url: .any, fresh: .any).willReturn()
 
         // When
         try await subject.run(fullHandle: nil, web: true, path: path.pathString)
 
         // Then
-        verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
+        verify(opener).open(url: .value(expectedURLComponents.url!), fresh: .any).called(1)
     }
 
     func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithoutFullHandleCanBeLoaded() async throws {
@@ -80,7 +80,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
         expectedURLComponents.path = "/tuist/tuist"
-        given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
+        given(opener).open(url: .value(expectedURLComponents.url!), fresh: .any).willReturn()
         let config = Config.test(fullHandle: nil)
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
 

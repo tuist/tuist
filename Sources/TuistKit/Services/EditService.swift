@@ -70,7 +70,7 @@ final class EditService {
                 plugins: plugins
             )
             logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
-            try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
+            try opener.open(path: workspacePath, application: selectedXcode.path, wait: false, fresh: false)
 
         } else {
             let workspacePath = try await projectEditor.edit(
