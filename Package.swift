@@ -334,7 +334,7 @@ let targets: [Target] = [
 ]
 
 #if TUIST
-@preconcurrency import struct ProjectDescription.PackageSettings
+    @preconcurrency import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
         productTypes: [
