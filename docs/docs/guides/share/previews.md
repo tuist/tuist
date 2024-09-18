@@ -28,7 +28,7 @@ tuist share App
 ```
 ```bash [Xcode Project]
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug
-tuist share App --configuration Debug --platform iOS
+tuist share App --configuration Debug --platforms iOS
 ```
 :::
 
