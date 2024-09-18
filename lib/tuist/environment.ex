@@ -286,10 +286,6 @@ defmodule Tuist.Environment do
     %{URI.parse(url) | path: path} |> URI.to_string()
   end
 
-  def app_signal_push_api_key(secrets \\ secrets()) do
-    get([:app_signal, :push_api_key], secrets)
-  end
-
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end
