@@ -167,7 +167,7 @@ defmodule Tuist.Environment do
   def s3_protocol(secrets \\ secrets()) do
     case get([:s3, :protocol], secrets) do
       protocol when is_binary(protocol) -> protocol |> String.to_atom()
-      _ -> :http1
+      _ -> :http2
     end
   end
 

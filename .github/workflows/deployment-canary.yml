@@ -8,12 +8,11 @@ on:
         required: false
 
 concurrency:
-  group: deployment-${{ github.head_ref }}
+  group: deployment-canary-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
   MISE_EXPERIMENTAL: 1
 
 jobs:
