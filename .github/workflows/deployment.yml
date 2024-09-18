@@ -1,4 +1,4 @@
-name: Canary Deployment
+name: Production Deployment
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: jdx/mise-action@v2
-      - name: 'Get version'
+      - name: "Get version"
         id: version
         run: |
           version=$(.mise/tasks/generate-version)
@@ -59,7 +59,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
-        name: 'Cache installed dependencies folder'
+        name: "Cache installed dependencies folder"
         with:
           path: .build
           key: spm-v1-${{ hashFiles('Package.resolved') }}
@@ -93,7 +93,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: jdx/mise-action@v2
-      - name: 'Get version'
+      - name: "Get version"
         id: version
         run: |
           version=$(.mise/tasks/generate-version)
@@ -120,7 +120,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: jdx/mise-action@v2
-      - name: 'Get version'
+      - name: "Get version"
         id: version
         run: |
           version=$(.mise/tasks/generate-version)
@@ -128,5 +128,3 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
         run: flyctl deploy --remote-only -c fly.toml --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
-
-
