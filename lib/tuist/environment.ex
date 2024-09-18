@@ -153,7 +153,7 @@ defmodule Tuist.Environment do
     case get([:s3, :pool_size], secrets) do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
       # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
-      _ -> 1000
+      _ -> 500
     end
   end
 
