@@ -191,6 +191,13 @@ if Tuist.Environment.s3_configured?(secrets) and not Tuist.Environment.on_premis
     end
 
   config :ex_aws, aws_opts
+  config :ex_aws, http_client: ExAws.Request.Req
+
+  config :ex_aws, :req_opts,
+    # 30 seconds
+    receive_timeout: 30_000,
+    # 5 seconds
+    pool_timeout: 5_000
 end
 
 # Stripe config

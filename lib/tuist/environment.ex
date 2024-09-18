@@ -149,6 +149,28 @@ defmodule Tuist.Environment do
     get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
   end
 
+  def s3_pool_size(secrets \\ secrets()) do
+    case get([:s3, :pool_size], secrets) do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      # Since we use http2, which allows multi-plexing, the size of the pool can be smaller
+      _ -> 500
+    end
+  end
+
+  def s3_pool_count(secrets \\ secrets()) do
+    case get([:s3, :pool_count], secrets) do
+      pool_count when is_binary(pool_count) -> String.to_integer(pool_count)
+      _ -> 1
+    end
+  end
+
+  def s3_protocol(secrets \\ secrets()) do
+    case get([:s3, :protocol], secrets) do
+      protocol when is_binary(protocol) -> protocol |> String.to_atom()
+      _ -> :http1
+    end
+  end
+
   def s3_configured?(secrets \\ secrets()) do
     s3_access_key_id(secrets) != nil and s3_secret_access_key(secrets) != nil and
       s3_region(secrets) != nil and

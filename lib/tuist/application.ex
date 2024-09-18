@@ -44,6 +44,23 @@ defmodule Tuist.Application do
   end
 
   defp get_children() do
+    finch_pools =
+      if Environment.test?() do
+        %{:default => [size: 10]}
+      else
+        %{
+          :default => [size: 10],
+          Environment.s3_endpoint() => [
+            conn_opts: [
+              log: true
+            ],
+            size: Environment.s3_pool_size(),
+            count: Environment.s3_pool_count(),
+            protocols: [Environment.s3_protocol()]
+          ]
+        }
+      end
+
     children =
       [
         TuistWeb.Telemetry,
@@ -52,7 +69,7 @@ defmodule Tuist.Application do
         {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},
         # Start the Finch HTTP client for sending emails
-        {Finch, name: Tuist.Finch},
+        {Finch, name: Tuist.Finch, pools: finch_pools},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
         # Distributed supervisor & process registry
         {
