@@ -34,7 +34,6 @@ defmodule Tuist.Application do
   defp start_error_tracking() do
     run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
-      Appsignal.Logger.Handler.add("phoenix")
     end
   end
 
