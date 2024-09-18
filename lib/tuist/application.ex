@@ -3,7 +3,6 @@ defmodule Tuist.Application do
 
   use Application
   alias Tuist.Environment
-  import Environment, only: [run_if_error_tracking_enabled: 1]
 
   @impl true
   def start(_type, _args) do
