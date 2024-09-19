@@ -144,6 +144,7 @@ final class SettingsMapperTests: XCTestCase {
             .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
             .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["NewFeature"]),
             .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
         ]
 
         let mapper = SettingsMapper(
@@ -161,6 +162,7 @@ final class SettingsMapperTests: XCTestCase {
                 "ArbitraryFlag",
                 "-enable-upcoming-feature \"NewFeature\"",
                 "-enable-experimental-feature \"Experimental\"",
+                "-swift-version 5",
             ])
         )
     }
