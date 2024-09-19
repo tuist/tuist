@@ -7,6 +7,7 @@ defmodule Tuist.Application do
   @impl true
   def start(_type, _args) do
     load_secrets_in_application()
+    start_error_tracking()
     start_telemetry()
 
     application =
@@ -27,6 +28,12 @@ defmodule Tuist.Application do
 
   defp load_secrets_in_application() do
     Environment.decrypt_secrets() |> Environment.put_application_secrets()
+  end
+
+  defp start_error_tracking() do
+    run_if_error_tracking_enabled do
+      Appsignal.Phoenix.LiveView.attach()
+    end
   end
 
   defp start_telemetry() do

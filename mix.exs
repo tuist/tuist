@@ -59,6 +59,8 @@ defmodule Tuist.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.2"},
       {:credo, "~> 1.7.7", only: [:dev, :test], runtime: false},
+      {:appsignal, "~> 2.0", only: [:prod, :can, :staging]},
+      {:appsignal_phoenix, "~> 2.0", only: [:prod, :can, :staging]},
       {:castore, "~> 1.0"},
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
