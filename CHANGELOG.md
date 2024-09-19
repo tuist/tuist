@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.27.0 - 2024-09-19
+
+### Tuist
+
+#### Changed
+
+- Allow adding macOS bundles to iOS targets [#6643](https://github.com/tuist/tuist/pull/6643) by [@rgnns](https://github.com/rgnns)
+- Merge FrameworkStatus and SDKStatus into LinkingStatus [#6644](https://github.com/tuist/tuist/pull/6644) by [@rgnns](https://github.com/rgnns)
+
+#### Added
+
+- Add install options with SPM arguments to Config [#6612](https://github.com/tuist/tuist/pull/6612) by [@darrarski](https://github.com/darrarski)
+
+#### Fixed
+
+- Fix warning about using static frameworks inside XPC [#6681](https://github.com/tuist/tuist/pull/6681) by [@serejahh](https://github.com/serejahh)
+- Fix stored run event being too large [#6695](https://github.com/tuist/tuist/pull/6695) by [@fortmarek](https://github.com/fortmarek)
+- Fix selective testing of a test plan [#6722](https://github.com/tuist/tuist/pull/6722) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.26.0 - 2024-09-03
 
 ### Tuist
@@ -1342,7 +1365,7 @@
   - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
   - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
   - `SUPPORTS_MACCATALYST`
-
+  
 
 ## 3.22.0 - 2023-07-31
 
