@@ -1,7 +1,7 @@
 import Foundation
 
 enum CommentsRemover {
-    static func removeComments(from code: String) -> String {
+    static func removeComments(from code: String) throws -> String {
         let regexPattern = #"//.*?$|/\*[\s\S]*?\*/"#
         do {
             let regex = try NSRegularExpression(pattern: regexPattern, options: [.anchorsMatchLines])
@@ -11,9 +11,6 @@ enum CommentsRemover {
             cleanCode = cleanCode.replacingOccurrences(of: #"(?m)^\s*\n"#, with: "", options: .regularExpression)
 
             return cleanCode
-        } catch {
-            print("Invalid regex pattern: \(error)")
-            return code
         }
     }
 }

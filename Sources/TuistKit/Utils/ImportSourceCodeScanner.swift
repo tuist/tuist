@@ -28,7 +28,7 @@ final class ImportSourceCodeScanner {
             "@import\\s+([A-Za-z_0-9]+)|#(?:import|include)\\s+<([A-Za-z_0-9-]+)/"
         }
 
-        var codeWithoutComments = CommentsRemover.removeComments(from: code)
+        let codeWithoutComments = try CommentsRemover.removeComments(from: code)
 
         var result: [String] = []
 
