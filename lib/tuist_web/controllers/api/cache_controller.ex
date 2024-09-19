@@ -9,14 +9,14 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
-    json_render_error_v2: true,
-    render_error: TuistWeb.RenderAPIErrorPlug
-  )
+  plug(TuistWeb.AppsignalTracePlug, [
+    OpenApiSpex.Plug.CastAndValidate,
+    [json_render_error_v2: true, render_error: TuistWeb.RenderAPIErrorPlug]
+  ])
 
-  plug(TuistWeb.API.EnsureProjectPresencePlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
-  plug(TuistWeb.API.Authorization.BillingPlug)
+  plug(TuistWeb.AppsignalTracePlug, [TuistWeb.API.EnsureProjectPresencePlug])
+  plug(TuistWeb.AppsignalTracePlug, [TuistWeb.API.Authorization.AuthorizationPlug, :cache])
+  plug(TuistWeb.AppsignalTracePlug, [TuistWeb.API.Authorization.BillingPlug])
 
   tags ["Cache"]
 

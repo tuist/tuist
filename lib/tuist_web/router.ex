@@ -9,7 +9,7 @@ defmodule TuistWeb.Router do
   @include_marketing_routes Mix.env() == :dev
 
   pipeline :open_api do
-    plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
+    plug TuistWeb.AppsignalTracePlug, [OpenApiSpex.Plug.PutApiSpec, [module: TuistWeb.API.Spec]]
   end
 
   pipeline :browser_app do
@@ -19,7 +19,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug Ueberauth
+    plug TuistWeb.AppsignalTracePlug, [Ueberauth]
     plug :fetch_current_user
   end
 
@@ -30,7 +30,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :marketing}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug Ueberauth
+    plug TuistWeb.AppsignalTracePlug, [Ueberauth]
     plug :fetch_current_user
   end
 
@@ -41,22 +41,26 @@ defmodule TuistWeb.Router do
   pipeline :authenticated_api do
     plug :accepts, ["json"]
 
-    plug TuistWeb.WarningsHeaderPlug
-    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.WarningsHeaderPlug]
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.AuthenticationPlug, :load_authenticated_subject]
+
+    plug TuistWeb.AppsignalTracePlug, [
+      TuistWeb.AuthenticationPlug,
+      {:require_authentication, response_type: :open_api}
+    ]
   end
 
   pipeline :authenticated do
-    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.AuthenticationPlug, :load_authenticated_subject]
   end
 
   pipeline :on_premise_api do
-    plug TuistWeb.OnPremiseLicensePlug, :api
-    plug TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.OnPremiseLicensePlug, :api]
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug]
   end
 
   pipeline :analytics do
-    plug TuistWeb.AnalyticsPlug, :track_page_view
+    plug TuistWeb.AppsignalTracePlug, [TuistWeb.AnalyticsPlug, :track_page_view]
   end
 
   # Marketing
