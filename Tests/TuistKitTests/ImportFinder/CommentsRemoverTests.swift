@@ -20,7 +20,7 @@ final class CommentsRemoverTests: TuistUnitTestCase {
         import a
         """
 
-        let imports = subject.removeComments(from: code)
+        let imports = try subject.removeComments(from: code)
         XCTAssertEqual(imports, """
         import a
         """)
@@ -31,7 +31,7 @@ final class CommentsRemoverTests: TuistUnitTestCase {
         //import a
         """
 
-        let imports = subject.removeComments(from: code)
+        let imports = try subject.removeComments(from: code)
         XCTAssertEqual(imports, "")
     }
 
@@ -40,7 +40,7 @@ final class CommentsRemoverTests: TuistUnitTestCase {
         /*import*/ a
         """
 
-        let imports = subject.removeComments(from: code)
+        let imports = try subject.removeComments(from: code)
         XCTAssertEqual(imports, " a")
     }
 
@@ -49,7 +49,7 @@ final class CommentsRemoverTests: TuistUnitTestCase {
         // /**import*/ a
         """
 
-        let imports = subject.removeComments(from: code)
+        let imports = try subject.removeComments(from: code)
         XCTAssertEqual(imports, "")
     }
 
@@ -61,7 +61,7 @@ final class CommentsRemoverTests: TuistUnitTestCase {
             import c
         """
 
-        let imports = subject.removeComments(from: code)
+        let imports = try subject.removeComments(from: code)
         XCTAssertEqual(imports, """
             import
             import c
