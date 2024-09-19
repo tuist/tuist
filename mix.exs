@@ -19,7 +19,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
 
@@ -95,6 +95,7 @@ defmodule Tuist.MixProject do
       {:uuidv7, "~> 1.0"},
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
+      {:ecto_psql_extras, "~> 0.8.1"},
       # Cache
       {:nebulex, "~> 2.6"},
       {:horde, "~> 0.8.0"},

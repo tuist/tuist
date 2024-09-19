@@ -164,7 +164,11 @@ defmodule TuistWeb.Router do
   scope "/dev" do
     pipe_through [:browser_app, TuistWeb.SuperAdminOnlyPlug]
 
-    live_dashboard "/dashboard", metrics: TuistWeb.Telemetry
+    live_dashboard "/dashboard",
+      metrics: TuistWeb.Telemetry,
+      ecto_repos: [Tuist.Repo],
+      ecto_psql_extras_options: [long_running_queries: [threshold: "200 milliseconds"]]
+
     forward "/sent_emails", Bamboo.SentEmailViewerPlug
   end
 
