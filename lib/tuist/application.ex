@@ -65,6 +65,7 @@ defmodule Tuist.Application do
       [
         TuistWeb.Telemetry,
         Tuist.Repo,
+        {Cachex, name: :tuist},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},

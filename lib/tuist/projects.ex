@@ -12,7 +12,6 @@ defmodule Tuist.Projects do
   alias Tuist.Projects.ProjectToken
 
   import Ecto.Query
-  require Logger
 
   def legacy_token?(token) do
     not String.starts_with?(token, "tuist_")
@@ -237,20 +236,29 @@ defmodule Tuist.Projects do
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
-  @decorate cacheable(cache: {Tuist.Cache, :tuist, []}, opts: [ttl: :timer.minutes(1)])
   def verify_pass(token, token_hash) do
-    if Tuist.Environment.error_tracking_enabled?() do
-      Appsignal.instrument("Tuist.Projects.verify_pass", fn ->
-        Bcrypt.verify_pass(
-          token_hash <> Tuist.Environment.secret_key_password(),
-          token.encrypted_token_hash
-        )
-      end)
-    else
+    validate = fn ->
       Bcrypt.verify_pass(
         token_hash <> Tuist.Environment.secret_key_password(),
         token.encrypted_token_hash
       )
+    end
+
+    if Tuist.Environment.env() == :test do
+      validate.()
+    else
+      Cachex.transaction!(:tuist, [token, token_hash], fn cache ->
+        {:ok, cached_valid?} = Cachex.get(cache, [token, token_hash])
+
+        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
+        if is_nil(cached_valid?) do
+          valid? = validate.()
+          Cachex.put(cache, [token, token_hash], valid?, ttl: :timer.minutes(1))
+          valid?
+        else
+          cached_valid?
+        end
+      end)
     end
   end
 
