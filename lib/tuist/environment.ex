@@ -22,6 +22,18 @@ defmodule Tuist.Environment do
     env() == :test
   end
 
+  defmacro run_if_error_tracking_enabled(block) do
+    enabled = error_tracking_enabled?()
+
+    if enabled do
+      block
+    else
+      quote do
+        :ok
+      end
+    end
+  end
+
   def truthy?(value) do
     ["1", "true", "TRUE", "yes", "YES"] |> Enum.member?(value)
   end
