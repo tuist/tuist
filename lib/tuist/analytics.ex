@@ -24,7 +24,7 @@ defmodule Tuist.Analytics do
   defmacro run_if_enabled(do: block) do
     quote do
       if Tuist.Environment.analytics_enabled?() do
-        :ok
+        unquote(block)
       else
         :ok
       end
