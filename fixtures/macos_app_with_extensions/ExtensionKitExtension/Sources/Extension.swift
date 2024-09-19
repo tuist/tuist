@@ -8,7 +8,7 @@ final class VendorExtension: NSObject, AppExtension {
 }
 
 struct Config: AppExtensionConfiguration {
-    func accept(connection: NSXPCConnection) -> Bool {
+    func accept(connection _: NSXPCConnection) -> Bool {
         true
     }
 }

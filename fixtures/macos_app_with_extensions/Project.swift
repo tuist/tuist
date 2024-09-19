@@ -27,16 +27,16 @@ let project = Project(
                     name: "Embed Extension Points",
                     subpath: "App.app/Contents/Extensions",
                     files: [
-                        "App/Resources/App.appextensionpoint"
+                        "App/Resources/App.appextensionpoint",
                     ]
-                )
+                ),
             ],
             dependencies: [
                 .target(name: "Workflow"),
-                .target(name: "ExtensionKitExtension")
+                .target(name: "ExtensionKitExtension"),
             ],
             additionalFiles: [
-                "App/Resources/App.appextensionpoint"
+                "App/Resources/App.appextensionpoint",
             ]
         ),
         .target(
