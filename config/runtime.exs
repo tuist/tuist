@@ -261,6 +261,10 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
+  # Larger numbers might lead to internal tasks timing out.
+  # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
+  # Every second
+  ets_flush_interval: 1_000,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
