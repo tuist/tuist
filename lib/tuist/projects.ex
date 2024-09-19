@@ -2,6 +2,7 @@ defmodule Tuist.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
+  use Nebulex.Caching.Decorators
   alias Tuist.Base64
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo
@@ -234,7 +235,10 @@ defmodule Tuist.Projects do
     end
   end
 
-  defp verify_pass(token, token_hash) do
+  # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
+  # there are bursts of requests coming through the API.
+  @decorate cacheable(cache: {Tuist.Cache, :tuist, []}, opts: [ttl: :timer.minutes(1)])
+  def verify_pass(token, token_hash) do
     if Tuist.Environment.error_tracking_enabled?() do
       Appsignal.instrument("Tuist.Projects.verify_pass", fn ->
         Bcrypt.verify_pass(
