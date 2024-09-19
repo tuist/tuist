@@ -11,6 +11,7 @@ defmodule Tuist.Projects do
   alias Tuist.Projects.ProjectToken
 
   import Ecto.Query
+  require Logger
 
   def legacy_token?(token) do
     not String.starts_with?(token, "tuist_")
@@ -224,15 +225,28 @@ defmodule Tuist.Projects do
         is_nil(token) ->
           {:error, :not_found}
 
-        Bcrypt.verify_pass(
-          token_hash <> Tuist.Environment.secret_key_password(),
-          token.encrypted_token_hash
-        ) ->
+        verify_pass(token, token_hash) ->
           {:ok, token}
 
         true ->
           {:error, :invalid_token}
       end
+    end
+  end
+
+  defp verify_pass(token, token_hash) do
+    if Tuist.Environment.error_tracking_enabled?() do
+      Appsignal.instrument("Tuist.Projects.verify_pass", fn ->
+        Bcrypt.verify_pass(
+          token_hash <> Tuist.Environment.secret_key_password(),
+          token.encrypted_token_hash
+        )
+      end)
+    else
+      Bcrypt.verify_pass(
+        token_hash <> Tuist.Environment.secret_key_password(),
+        token.encrypted_token_hash
+      )
     end
   end
 
