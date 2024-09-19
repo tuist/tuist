@@ -35,7 +35,7 @@ defmodule Tuist.MixProject do
     [
       {:phoenix, "~> 1.7.12"},
       {:phoenix_ecto, "~> 4.4"},
-      {:ecto_sql, "~> 3.10"},
+      {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
@@ -92,7 +92,7 @@ defmodule Tuist.MixProject do
       {:hammer, "~> 6.0"},
       {:guardian, "~> 2.3"},
       {:guardian_db, "~> 3.0"},
-      {:uuidv7, "~> 0.2"},
+      {:uuidv7, "~> 1.0"},
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       # Cache
