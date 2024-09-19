@@ -4,6 +4,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
+  import Phoenix.LiveDashboard.Router
 
   @include_marketing_routes Mix.env() == :dev
 
@@ -158,21 +159,13 @@ defmodule TuistWeb.Router do
     post "/auth", AuthController, :authenticate
   end
 
-  # Enable LiveDashboard and Bamboo mailbox preview in development
-  if Application.compile_env(:tuist, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
-    import Phoenix.LiveDashboard.Router
+  # LiveDashboard
 
-    scope "/dev" do
-      pipe_through :browser_app
+  scope "/dev" do
+    pipe_through [:browser_app, TuistWeb.SuperAdminOnlyPlug]
 
-      live_dashboard "/dashboard", metrics: TuistWeb.Telemetry
-      forward "/sent_emails", Bamboo.SentEmailViewerPlug
-    end
+    live_dashboard "/dashboard", metrics: TuistWeb.Telemetry
+    forward "/sent_emails", Bamboo.SentEmailViewerPlug
   end
 
   ## Authentication routes

@@ -18,6 +18,11 @@ defmodule Tuist.Environment do
 
   def env, do: @env
 
+  @doc ~S"""
+  Returns an list with all the supported environments.
+  """
+  def all_envs, do: [:dev, :test, :can, :stag, :prod]
+
   def test?() do
     env() == :test
   end
@@ -96,6 +101,16 @@ defmodule Tuist.Environment do
           end
 
         %Version{major: major, date: date}
+    end
+  end
+
+  def super_admin_user_ids(secrets \\ secrets()) do
+    case get([:super_admin_user_ids], secrets) do
+      user_ids_string when is_binary(user_ids_string) ->
+        user_ids_string |> String.split(",") |> Enum.map(&String.to_integer(&1))
+
+      _ ->
+        []
     end
   end
 
