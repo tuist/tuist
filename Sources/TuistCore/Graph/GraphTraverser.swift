@@ -1074,12 +1074,6 @@ public class GraphTraverser: GraphTraversing {
         return !target.target.mergeable
     }
 
-    func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
-        return target.target.product.isStatic
-    }
-
     func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro:
