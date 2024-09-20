@@ -115,15 +115,27 @@ defmodule TuistWeb.Router do
           delete "/:id", ProjectTokensController, :delete
         end
 
-        put "/cache/clean", CacheController, :clean
+        scope "/cache" do
+          put "/clean", CacheController, :clean
+
+          scope "/ac" do
+            post "/", CacheController, :upload_cache_action_item
+            get "/:hash", CacheController, :get_cache_action_item
+          end
+        end
       end
     end
 
-    get "/cache", CacheController, :download
-    get "/cache/exists", CacheController, :exists
-    post "/cache/multipart/start", CacheController, :multipart_start
-    post "/cache/multipart/generate-url", CacheController, :multipart_generate_url
-    post "/cache/multipart/complete", CacheController, :multipart_complete
+    scope "/cache" do
+      get "/", CacheController, :download
+      get "/exists", CacheController, :exists
+
+      scope "/multipart" do
+        post "/start", CacheController, :multipart_start
+        post "/generate-url", CacheController, :multipart_generate_url
+        post "/complete", CacheController, :multipart_complete
+      end
+    end
 
     resources "/organizations", OrganizationsController,
       param: "organization_name",

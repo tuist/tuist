@@ -1,6 +1,8 @@
 defmodule TuistWeb.API.CacheController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+  alias TuistWeb.API.Schemas
+  alias Tuist.CacheActionItems
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.EnsureProjectPresencePlug
@@ -20,6 +22,64 @@ defmodule TuistWeb.API.CacheController do
   plug(TuistWeb.API.Authorization.BillingPlug)
 
   tags ["Cache"]
+
+  operation(:get_cache_action_item,
+    summary: "Get a cache action item.",
+    description: "This endpoint gets an item from the action cache.",
+    operation_id: "getCacheActionItem",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the account that the project belongs to."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the project the cache action item belongs to."
+      ],
+      hash: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The hash that uniquely identifies an item in the action cache."
+      ]
+    ],
+    responses: %{
+      ok: {"The item exists in the action cache", "application/json", Schemas.CacheActionItem},
+      not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
+    }
+  )
+
+  def get_cache_action_item(conn, %{hash: hash} = _params) do
+    project = EnsureProjectPresencePlug.get_project(conn)
+
+    cache_action_item =
+      CacheActionItems.get_cache_action_item(%{
+        project: project,
+        hash: hash
+      })
+
+    if is_nil(cache_action_item) do
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "The item doesn't exist in the cache."})
+    else
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        hash: cache_action_item.hash
+      })
+    end
+  end
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
@@ -214,6 +274,81 @@ defmodule TuistWeb.API.CacheController do
 
   def exists(conn, _params) do
     conn |> put_status(400) |> json(%{message: "The request has missing or invalid parameters"})
+  end
+
+  operation(:upload_cache_action_item,
+    summary: "It uploads a given cache action item.",
+    description:
+      "The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.",
+    operation_id: "uploadCacheActionItem",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the account that the project belongs to."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The name of the project to clean cache for"
+      ]
+    ],
+    request_body:
+      {"Cache action item upload params", "application/json",
+       %Schema{
+         title: "CacheActionItemUploadParams",
+         type: :object,
+         properties: %{
+           hash: %Schema{type: :string, description: "The hash of the cache action item."}
+         }
+       }},
+    responses: %{
+      created: {"The action item was cached", "application/json", Schemas.CacheActionItem},
+      bad_request: {"The request has missing or invalid parameters", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
+      not_found: {"The project doesn't exist", "application/json", Error},
+      payment_required: {"The account has an invalid plan", "application/json", Error}
+    }
+  )
+
+  def upload_cache_action_item(
+        %{
+          body_params: %{
+            hash: hash
+          }
+        } = conn,
+        _params
+      ) do
+    project = EnsureProjectPresencePlug.get_project(conn)
+
+    if is_nil(
+         CacheActionItems.get_cache_action_item(%{
+           project: project,
+           hash: hash
+         })
+       ) do
+      cache_action_item =
+        CacheActionItems.create_cache_action_item(%{
+          project: project,
+          hash: hash
+        })
+
+      conn
+      |> put_status(:created)
+      |> json(%{
+        hash: cache_action_item.hash
+      })
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%Error{message: "Cache action item already exists."})
+    end
   end
 
   operation(:multipart_start,
@@ -557,6 +692,8 @@ defmodule TuistWeb.API.CacheController do
 
     Storage.delete_all_objects("#{project_slug}/builds")
     Storage.delete_all_objects("#{project_slug}/tests")
+    project = EnsureProjectPresencePlug.get_project(conn)
+    CacheActionItems.delete_all_action_items(%{project: project})
 
     conn
     |> send_resp(:no_content, "")

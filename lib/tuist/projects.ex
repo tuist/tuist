@@ -61,18 +61,18 @@ defmodule Tuist.Projects do
     end
   end
 
-  def get_project_by_account_and_project_handles(account_name, project_name, opts \\ []) do
+  def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
     with {:account, %{id: account_id}} <-
            {:account,
             Repo.one(
               from a in Account,
-                where: a.name == ^account_name
+                where: a.name == ^account_handle
             )},
          {:project, project} <-
            {:project,
             Repo.one(
               from(p in Project,
-                where: p.name == ^project_name,
+                where: p.name == ^project_handle,
                 where: p.account_id == ^account_id
               )
             )} do
