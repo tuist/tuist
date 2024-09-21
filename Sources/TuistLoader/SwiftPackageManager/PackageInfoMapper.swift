@@ -922,6 +922,7 @@ extension ProjectDescription.ResourceFileElements {
         "xcmappingmodel",
         "xcassets",
         "strings",
+        "metal",
     ])
 
     private static func defaultResourcePaths(
