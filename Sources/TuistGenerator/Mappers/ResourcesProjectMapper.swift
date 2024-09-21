@@ -55,6 +55,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 settings: Settings(
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
+                        "SKIP_INSTALL": "YES",
                     ],
                     configurations: [:]
                 ),
