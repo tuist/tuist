@@ -1,6 +1,6 @@
 defmodule TuistWeb.HomeLiveTest do
-  use TuistWeb.ConnCase, async: true
-  use Mimic
+  use TuistWeb.ConnCase, async: false
+  use Tuist.LiveCase
 
   import Phoenix.LiveViewTest
   alias Tuist.Repo

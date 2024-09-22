@@ -1,5 +1,7 @@
 defmodule TuistWeb.UserForgotPasswordLiveTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistWeb.ConnCase
+  use Tuist.LiveCase
+  use Mimic
 
   import Phoenix.LiveViewTest
   import Tuist.AccountsFixtures

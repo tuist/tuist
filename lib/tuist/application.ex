@@ -92,17 +92,6 @@ defmodule Tuist.Application do
         children
       end
 
-    children =
-      if Environment.test?() or Environment.on_premise?() do
-        children
-      else
-        children ++
-          [
-            {Tuist.GitHub.Releases, name: Tuist.GitHub.Releases},
-            {Tuist.GitHub.TokenStorage, nil}
-          ]
-      end
-
     children
   end
 

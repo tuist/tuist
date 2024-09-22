@@ -1,5 +1,6 @@
 defmodule TuistWeb.ProjectTestsLiveTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistWeb.ConnCase
+  use Tuist.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest

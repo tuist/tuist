@@ -1,6 +1,6 @@
 defmodule Tuist.GitHub.ReleasesTest do
   use ExUnit.Case, async: false
-  setup :set_mimic_global
+  setup :set_mimic_from_context
 
   use Mimic
   alias Tuist.GitHub.Releases
@@ -9,6 +9,8 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns a release if the response is successful" do
       # Given
       published_at = Timex.now()
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
@@ -28,10 +30,9 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      {:ok, pid} = Releases.start_link([])
+      release = Releases.get_latest_cli_release(cache: cache)
 
       # Then
-      release = Releases.get_latest_cli_release(pid)
       assert release.name == "v2.0.0"
       assert release.html_url == "https://github.com/release"
     end
@@ -39,6 +40,8 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns the latest CLI release if the latest release is an App release" do
       # Given
       published_at = Timex.now()
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
@@ -76,10 +79,9 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      {:ok, pid} = Releases.start_link([])
+      release = Releases.get_latest_cli_release(cache: cache)
 
       # Then
-      release = Releases.get_latest_cli_release(pid)
       assert release.name == "v2.0.0"
       assert release.html_url == "https://github.com/release"
     end
@@ -88,6 +90,8 @@ defmodule Tuist.GitHub.ReleasesTest do
   test "returns nil when the status is in the range 500..599" do
     # Given
     releases_url = Releases.releases_url()
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
 
     Req
     |> stub(
@@ -98,10 +102,9 @@ defmodule Tuist.GitHub.ReleasesTest do
     )
 
     # When
-    {:ok, pid} = Releases.start_link([])
+    release = Releases.get_latest_cli_release(cache: cache)
 
     # Then
-    release = Releases.get_latest_cli_release(pid)
     assert release == nil
   end
 end

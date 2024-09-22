@@ -1,0 +1,62 @@
+defmodule Tuist.GitHub.AppTest do
+  alias Tuist.GitHub.App
+  use ExUnit.Case, async: false
+  use Mimic
+
+  # This is needed in combination with "async: false" to ensure
+  # that mocks are used within the cache process.
+  setup :set_mimic_from_context
+
+  setup do
+    JOSE.JWK |> stub(:from_pem, fn _ -> "pem" end)
+    JOSE.JWT |> stub(:sign, fn _, _, _ -> "signed_pem" end)
+    JOSE.JWS |> stub(:compact, fn _ -> {%{}, "jwt"} end)
+    Tuist.Time |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+    :ok
+  end
+
+  test "caches the result" do
+    # Given
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+
+    Req
+    |> expect(
+      :get,
+      fn
+        "https://api.github.com/app/installations", _ ->
+          {:ok, %Req.Response{status: 200, body: [%{"access_tokens_url" => "access_tokens_url"}]}}
+      end
+    )
+
+    Req
+    |> expect(:post, fn "access_tokens_url", _ ->
+      {:ok,
+       %Req.Response{
+         status: 201,
+         body: %{"token" => "new_token", "expires_at" => "2024-04-30T10:30:31Z"}
+       }}
+    end)
+
+    # When/Then
+    assert {:ok, first_token} = App.get_token(cache: cache, ttl: :timer.minutes(10))
+    assert {:ok, second_token} = App.get_token(cache: cache, ttl: :timer.minutes(10))
+    assert first_token == second_token
+  end
+
+  test "returns an error when the token refreshing fails" do
+    # Given
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+
+    Req
+    |> stub(:get, fn _, _ ->
+      {:ok, %Req.Response{status: 503}}
+    end)
+
+    # When/Then
+    assert {:error, error_message} = App.get_token(cache: cache, ttl: :timer.minutes(10))
+    assert error_message =~ "Unexpected status code when getting the access token url: 503"
+  end
+end

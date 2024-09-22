@@ -1,48 +1,58 @@
-defmodule Tuist.GitHub.TokenStorage do
+defmodule Tuist.GitHub.App do
   @moduledoc """
   A module that manages the GitHub token storage.
   """
 
   alias Tuist.Environment
 
-  use Agent
+  @cache_key "github_app_token"
 
-  def start_link(initial_value) do
-    Agent.start_link(fn -> initial_value end, name: __MODULE__)
-  end
+  def get_token(opts \\ []) do
+    cache = opts |> get_cache()
+    ttl = opts |> Keyword.get(:ttl, :timer.minutes(10))
 
-  def get_token do
-    token =
-      if Process.whereis(__MODULE__) do
-        Agent.get(__MODULE__, & &1)
-      else
-        raise "GitHub API interactions through #{__MODULE__} need to be mocked in tests."
-      end
+    result =
+      Cachex.fetch(cache, @cache_key, fn ->
+        case refresh_token(expires_in: ttl) do
+          {:ok, token} -> {:commit, token, ttl: ttl}
+          {:error, message} -> {:error, message}
+        end
+      end)
 
-    cond do
-      is_nil(token) ->
-        refresh_token()
-
-      token_expired?(token) ->
-        refresh_token()
-
-      true ->
+    case result do
+      {:commit, token, _} ->
         {:ok, token}
+
+      {:ok, token} ->
+        {:ok, token}
+
+      {:error, error} ->
+        {:error, error}
     end
   end
 
-  def refresh_token() do
+  def clear_token(opts \\ []) do
+    opts |> get_cache() |> Cachex.clear()
+  end
+
+  def get_cache(opts) do
+    Keyword.get(opts, :cache, :tuist)
+  end
+
+  def refresh_token(opts \\ []) do
     private_key =
       Environment.github_app_private_key()
       |> JOSE.JWK.from_pem()
 
     now = DateTime.utc_now() |> DateTime.to_unix()
 
+    # Converted to seconds
+    expires_in = trunc(Keyword.get(opts, :expires_in, :timer.minutes(10)) / 1000)
+
     # JSON Web Token (JWT)
     claims = %{
       "iat" => now,
-      # The token expires after 10 minutes
-      "exp" => now + 600,
+      "exp" => now + expires_in,
       "iss" => Environment.github_app_client_id()
     }
 
@@ -76,7 +86,6 @@ defmodule Tuist.GitHub.TokenStorage do
           {:error, _} -> DateTime.utc_now()
         end
 
-      update_token(%{token: token, expires_at: expires_at})
       {:ok, %{token: token, expires_at: expires_at}}
     else
       {:access_tokens_url, {:ok, %Req.Response{status: status, body: body}}} ->
@@ -93,15 +102,5 @@ defmodule Tuist.GitHub.TokenStorage do
       {:token, {:error, reason}} ->
         {:error, "Request failed when getting the token: #{inspect(reason)}"}
     end
-  end
-
-  defp token_expired?(token) do
-    Time.compare(Tuist.Time.utc_now(), token.expires_at) == :gt
-  end
-
-  defp update_token(new_token) do
-    Agent.update(__MODULE__, fn _ ->
-      new_token
-    end)
   end
 end

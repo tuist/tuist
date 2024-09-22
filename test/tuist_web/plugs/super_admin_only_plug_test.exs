@@ -44,7 +44,7 @@ defmodule TuistWeb.SuperAdminOnlyPlugTest do
        %{conn: conn} do
     # Given
     opts = SuperAdminOnlyPlug.init(%{})
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    _user = AccountsFixtures.user_fixture(preloads: [:account])
     Environment |> stub(:env, fn -> :prod end)
 
     # When

@@ -1,5 +1,7 @@
 defmodule TuistWeb.ProjectRunDetailLiveTest do
   use TuistWeb.ConnCase, async: false
+  use Tuist.LiveCase
+  use Mimic
 
   setup :set_mimic_from_context
 

@@ -1,5 +1,7 @@
 defmodule TuistWeb.LayoutLiveTest do
   use TuistWeb.ConnCase, async: true
+  use Tuist.LiveCase
+  use Mimic
 
   alias Tuist.ProjectsFixtures
   alias TuistWeb.LayoutLive

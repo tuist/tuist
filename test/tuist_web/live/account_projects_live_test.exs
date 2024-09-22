@@ -1,5 +1,6 @@
 defmodule TuistWeb.AccountProjectsLiveTest do
   use TuistWeb.ConnCase, async: true
+  use Tuist.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest

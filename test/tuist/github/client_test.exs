@@ -4,7 +4,7 @@ defmodule Tuist.GitHub.ClientTest do
   use Mimic
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.GitHub.TokenStorage
+  alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
 
   # setup do
@@ -29,7 +29,7 @@ defmodule Tuist.GitHub.ClientTest do
   ]
 
   setup do
-    TokenStorage
+    App
     |> stub(:get_token, fn ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
@@ -86,9 +86,9 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      TokenStorage
+      App
       |> stub(:get_token, fn ->
-        TokenStorage
+        App
         |> stub(:get_token, fn ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
         end)
@@ -96,7 +96,7 @@ defmodule Tuist.GitHub.ClientTest do
         {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
-      TokenStorage
+      App
       |> stub(:refresh_token, fn ->
         {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
@@ -138,7 +138,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting token fails" do
       # Given
-      TokenStorage
+      App
       |> stub(:get_token, fn -> {:error, "Failed to get token."} end)
 
       # When

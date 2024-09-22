@@ -5,7 +5,7 @@ defmodule Tuist.GitHub.Client do
 
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.GitHub.TokenStorage
+  alias Tuist.GitHub.App
 
   def get_user_by_id(github_id) do
     url = "https://api.github.com/user/#{github_id}"
@@ -85,7 +85,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    case TokenStorage.get_token() do
+    case App.get_token() do
       {:ok, %{token: token}} ->
         attrs_with_headers =
           attrs
@@ -111,13 +111,8 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp handle_github_response({:ok, %{status: 401}}, action, attrs) do
-    case TokenStorage.refresh_token() do
-      {:ok, _} ->
-        github_request(action, attrs)
-
-      result ->
-        result
-    end
+    App.clear_token()
+    github_request(action, attrs)
   end
 
   defp handle_github_response({:ok, %Req.Response{status: status, body: body}}, _action, _attrs) do

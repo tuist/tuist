@@ -1,5 +1,6 @@
 defmodule TuistWeb.AccountBillingLiveTest do
   use TuistWeb.ConnCase, async: true
+  use Tuist.LiveCase
   use Mimic
 
   import TuistWeb.Gettext
