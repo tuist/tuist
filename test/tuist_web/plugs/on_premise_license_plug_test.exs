@@ -24,7 +24,7 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     |> stub(:on_premise?, fn -> true end)
 
     Tuist.License
-    |> stub(:valid?, fn -> false end)
+    |> stub(:get_license, fn -> {:ok, %{valid: false}} end)
 
     opts = OnPremiseLicensePlug.init(:api)
 
@@ -47,11 +47,10 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Tuist.License
-    |> stub(:valid?, fn -> true end)
+    expiration_date = Tuist.Time.utc_now() |> DateTime.shift(day: 15)
 
     Tuist.License
-    |> stub(:expiration_days_span, fn -> 29 end)
+    |> stub(:get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
 
     opts = OnPremiseLicensePlug.init(:api)
 
@@ -61,7 +60,7 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     # Then
     assert TuistWeb.WarningsHeaderPlug.get_warnings(got) ==
              [
-               "The license will expire in 29 days. Please, contact contact@tuist.io to renovate it."
+               "The license will expire in 15 days. Please, contact contact@tuist.io to renovate it."
              ]
   end
 
@@ -71,11 +70,10 @@ defmodule TuistWeb.OnPremiseLicensePlugTest do
     Tuist.Environment
     |> stub(:on_premise?, fn -> true end)
 
-    Tuist.License
-    |> stub(:valid?, fn -> true end)
+    expiration_date = Tuist.Time.utc_now() |> DateTime.shift(day: 35)
 
     Tuist.License
-    |> stub(:expiration_days_span, fn -> 120 end)
+    |> stub(:get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
 
     opts = OnPremiseLicensePlug.init(:api)
 

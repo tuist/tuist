@@ -6,8 +6,6 @@ defmodule Tuist.Native do
     use Rustler, otp_app: :tuist, crate: "tuist_native"
   end
 
-  def local_license(), do: :erlang.nif_error(:nif_not_loaded)
-  def keygen_license(), do: :erlang.nif_error(:nif_not_loaded)
   def s3_download_presigned_url(_options), do: :erlang.nif_error(:nif_not_loaded)
   def s3_exists(_options), do: :erlang.nif_error(:nif_not_loaded)
   def s3_multipart_start(_options), do: :erlang.nif_error(:nif_not_loaded)

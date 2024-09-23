@@ -6,6 +6,7 @@ defmodule TuistWeb.OnPremiseLicensePlug do
   use TuistWeb, :controller
   alias Tuist.Environment
   alias Tuist.License
+  alias Tuist.Time
 
   def init(:api), do: :api
 
@@ -18,23 +19,27 @@ defmodule TuistWeb.OnPremiseLicensePlug do
   end
 
   def call_on_premise(conn, _opts) do
-    cond do
-      License.valid?() and License.expiration_days_span() < 30 ->
-        TuistWeb.WarningsHeaderPlug.put_warning(
-          conn,
-          "The license will expire in #{License.expiration_days_span()} days. Please, contact contact@tuist.io to renovate it."
-        )
+    case License.get_license() do
+      {:ok, %{valid: true, expiration_date: expiration_date}} ->
+        if Date.diff(expiration_date, Time.utc_now()) < 30 do
+          TuistWeb.WarningsHeaderPlug.put_warning(
+            conn,
+            "The license will expire in #{DateTime.diff(expiration_date, Time.utc_now(), :day)} days. Please, contact contact@tuist.io to renovate it."
+          )
+        else
+          conn
+        end
 
-      not License.valid?() ->
+      {:ok, %{valid: true}} ->
+        conn
+
+      _ ->
         conn
         |> put_status(422)
         |> json(%{
           message: "The license has expired. Please, contact contact@tuist.io to renovate it."
         })
         |> halt()
-
-      true ->
-        conn
     end
   end
 end

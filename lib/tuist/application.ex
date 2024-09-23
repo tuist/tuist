@@ -14,17 +14,9 @@ defmodule Tuist.Application do
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
 
-    validate_license()
-    application
-  end
+    Tuist.License.assert_valid!()
 
-  defp validate_license() do
-    if Tuist.Environment.on_premise?() and
-         not Tuist.License.valid?() do
-      raise """
-      We couldn't boot up the server because we couldn't find a valid license or the license has expired.
-      """
-    end
+    application
   end
 
   defp load_secrets_in_application() do

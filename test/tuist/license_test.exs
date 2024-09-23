@@ -1,123 +1,96 @@
 defmodule Tuist.LicenseTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   use Mimic
-  alias Tuist.Native
+
+  setup :set_mimic_from_context
+
+  alias Tuist.Environment
   alias Tuist.License
 
-  describe "valid?/0" do
-    test "returns false when the local license is invalid" do
-      # Given
-      Native
-      |> stub(:local_license, fn ->
-        {:ok,
-         %Tuist.Native.License{
-           id: "id",
-           features: [],
-           expiration_date: "2022-01-01",
-           valid: false
-         }}
-      end)
-
-      # When
-      got = License.valid?()
-
-      # Then
-      assert got == false
+  describe "assert_valid!/0" do
+    setup do
+      Environment |> stub(:on_premise?, fn -> true end)
+      :ok
     end
 
-    test "returns true when the local license is valid" do
+    test "returns :ok when the license is valid" do
       # Given
-      Native
-      |> stub(:local_license, fn ->
-        {:ok,
-         %Tuist.Native.License{
-           id: "id",
-           features: [],
-           expiration_date: "2022-01-01",
-           valid: true
-         }}
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
+      validation_url = License.get_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate() |> String.to_atom()
+      Environment |> stub(:get_license_key, fn -> license_key end)
+
+      Req
+      |> stub(:post!, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        %{
+          body: %{
+            "data" => %{
+              "id" => "1234",
+              "attributes" => %{
+                "expiry" => expiry
+              }
+            },
+            "meta" => %{
+              "valid" => true
+            }
+          }
+        }
       end)
 
       # When
-      got = License.valid?()
+      got = License.assert_valid!(cache: cache)
 
       # Then
-      assert got == true
+      assert got == :ok
     end
 
-    test "returns true if the local license can't be obtained and the keygen license is valid" do
+    test "raises an error when the license is absent" do
       # Given
-      Native
-      |> stub(:local_license, fn ->
-        {:error, "Invalid local license"}
-      end)
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
 
-      Native
-      |> stub(:keygen_license, fn ->
-        {:ok,
-         %Tuist.Native.License{
-           id: "id",
-           features: [],
-           expiration_date: "2022-01-01",
-           valid: true
-         }}
-      end)
-
-      # When
-      got = License.valid?()
-
-      # Then
-      assert got == true
+      # When/Then
+      assert_raise RuntimeError,
+                   "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing.",
+                   fn ->
+                     License.assert_valid!(cache: cache)
+                   end
     end
 
-    test "returns false if the local license can't be obtained and the keygen license is invalid" do
+    test "raises an error when the license is invalid" do
       # Given
-      Native
-      |> stub(:local_license, fn ->
-        {:error, "Invalid local license"}
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
+      validation_url = License.get_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: -1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate() |> String.to_atom()
+      Environment |> stub(:get_license_key, fn -> license_key end)
+
+      Req
+      |> stub(:post!, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        %{
+          body: %{
+            "data" => %{
+              "id" => "1234",
+              "attributes" => %{
+                "expiry" => expiry
+              }
+            },
+            "meta" => %{
+              "valid" => false
+            }
+          }
+        }
       end)
 
-      Native
-      |> stub(:keygen_license, fn ->
-        {:ok,
-         %Tuist.Native.License{
-           id: "id",
-           features: [],
-           expiration_date: "2022-01-01",
-           valid: false
-         }}
-      end)
-
-      # When
-      got = License.valid?()
-
-      # Then
-      assert got == false
-    end
-  end
-
-  describe "expiration_days_span/0" do
-    test "returns the difference between the expiration date and today" do
-      # Given
-      Tuist.Time
-      |> stub(:utc_now, fn -> DateTime.from_naive!(~N[2021-01-01 00:00:00], "Etc/UTC") end)
-
-      Native
-      |> stub(:local_license, fn ->
-        {:ok,
-         %Tuist.Native.License{
-           id: "id",
-           features: [],
-           expiration_date: "2022-01-01",
-           valid: true
-         }}
-      end)
-
-      # When
-      got = License.expiration_days_span()
-
-      # Then
-      assert got == 365
+      # When/Then
+      assert_raise RuntimeError,
+                   "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one.",
+                   fn ->
+                     License.assert_valid!(cache: cache)
+                   end
     end
   end
 end

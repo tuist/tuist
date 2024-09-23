@@ -23,19 +23,19 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   end
 
   defp call_on_premise(conn, _) do
-    license_valid? = Tuist.License.valid?()
+    case Tuist.License.get_license() do
+      {:ok, %{valid: true}} ->
+        conn
 
-    if license_valid? do
-      conn
-    else
-      conn
-      |> put_status(:payment_required)
-      |> json(%{
-        message: ~s"""
-        The current license is expired. Please update your license to continue using the service. Contact your administrator for more information.
-        """
-      })
-      |> halt()
+      _ ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{
+          message: ~s"""
+          The current license is expired. Please update your license to continue using the service. Contact your administrator for more information.
+          """
+        })
+        |> halt()
     end
   end
 

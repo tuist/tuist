@@ -56,6 +56,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  def get_license_key() do
+    System.get_env("TUIST_LICENSE") || System.get_env("TUIST_LICENSE_KEY")
+  end
+
   def use_ipv6?(secrets \\ secrets()) do
     get([:use_ipv6], secrets)
   end
@@ -65,10 +69,6 @@ defmodule Tuist.Environment do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
       _ -> 10
     end
-  end
-
-  def license_features() do
-    Application.get_env(:tuist, :license).features
   end
 
   def analytics_enabled?() do
