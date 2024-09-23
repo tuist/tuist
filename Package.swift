@@ -2,10 +2,14 @@
 
 import PackageDescription
 
-let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+let swiftToolsSupportDependency: Target.Dependency = .product(
+    name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"
+)
 let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
-let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
+let argumentParserDependency: Target.Dependency = .product(
+    name: "ArgumentParser", package: "swift-argument-parser"
+)
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
 var targets: [Target] = [
@@ -461,10 +465,14 @@ let package = Package(
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.5.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
-        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
-        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
+        .package(
+            url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"
+        ),
+        .package(
+            url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"
+        ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/rgnns/XcodeGraph", branch: "linking-status"),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.0"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets
