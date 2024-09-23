@@ -257,7 +257,7 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName, _):
+            case let .product(target: target, productName: productName, _, _):
                 try generateProduct(
                     targetName: target,
                     productName: productName,

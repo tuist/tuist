@@ -542,7 +542,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                         return nil
                     }
                 } catch {
@@ -922,6 +922,7 @@ extension ProjectDescription.ResourceFileElements {
         "xcmappingmodel",
         "xcassets",
         "strings",
+        "metal",
     ])
 
     private static func defaultResourcePaths(
@@ -971,7 +972,7 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                     return nil
                 }
             } catch {

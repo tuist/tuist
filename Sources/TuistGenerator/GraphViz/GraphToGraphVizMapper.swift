@@ -67,7 +67,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 extension GraphDependency {
     fileprivate var name: String {
         switch self {
-        case let .target(name: name, path: _):
+        case let .target(name: name, path: _, status: _):
             return name
         case let .framework(
             path: path,

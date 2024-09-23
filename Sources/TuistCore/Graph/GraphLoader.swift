@@ -127,16 +127,16 @@ public final class GraphLoader: GraphLoading {
         cache: Cache
     ) throws -> GraphDependency? {
         switch dependency {
-        case let .target(toTarget, _):
+        case let .target(toTarget, status, _):
             // A target within the same project.
             try loadTarget(
                 path: path,
                 name: toTarget,
                 cache: cache
             )
-            return .target(name: toTarget, path: path)
+            return .target(name: toTarget, path: path, status: status)
 
-        case let .project(toTarget, projectPath, _):
+        case let .project(toTarget, projectPath, status, _):
             // A target from another project
             try loadProject(path: projectPath, cache: cache)
             try loadTarget(
@@ -144,7 +144,7 @@ public final class GraphLoader: GraphLoading {
                 name: toTarget,
                 cache: cache
             )
-            return .target(name: toTarget, path: projectPath)
+            return .target(name: toTarget, path: projectPath, status: status)
 
         case let .framework(frameworkPath, status, _):
             return try loadFramework(

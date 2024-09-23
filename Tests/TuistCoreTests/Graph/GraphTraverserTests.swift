@@ -903,7 +903,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             from: .target(name: app.name, path: project.path),
             test: { _ in true },
             skip: {
-                if case let GraphDependency.target(name, _) = $0, name == "FrameworkA" {
+                if case let GraphDependency.target(name, _, _) = $0, name == "FrameworkA" {
                     return true
                 } else {
                     return false

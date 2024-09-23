@@ -1298,10 +1298,18 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenHasDefaultResources() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let defaultResourcePath = sourcesPath.appending(try RelativePath(validating: "Resources/file.xib"))
+        let defaultResourcePaths = try Set([
+            "xib",
+            "storyboard",
+            "xcdatamodeld",
+            "xcmappingmodel",
+            "xcassets",
+            "strings",
+            "metal",
+        ].map { sourcesPath.appending(try RelativePath(validating: "Resouces/file.\($0)")) })
         try fileHandler.createFolder(sourcesPath)
         fileHandler.stubFiles = { _, _, _, _ in
-            return [defaultResourcePath]
+            return defaultResourcePaths
         }
 
         let project = try subject.map(
@@ -1331,13 +1339,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        resources: [
-                            .glob(
-                                pattern: .path(defaultResourcePath.pathString),
-                                excluding: [],
-                                tags: []
-                            ),
-                        ]
+                        resources: defaultResourcePaths.map {
+                            ResourceFileElement.glob(pattern: .path($0.pathString), excluding: [], tags: [])
+                        }
                     ),
                 ]
             )
@@ -2373,6 +2377,49 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-experimental-feature \"Foo\""]]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"]]
                     ),
                 ]
             )

@@ -1537,6 +1537,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ahmdyasser",
+      "name": "ahmdyasser",
+      "avatar_url": "https://avatars.githubusercontent.com/u/42544598?v=4",
+      "profile": "https://github.com/ahmdyasser",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "minhaaan",
+      "name": "minhaaan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/87178301?v=4",
+      "profile": "https://github.com/minhaaan",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
