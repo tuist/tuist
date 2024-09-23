@@ -5,8 +5,8 @@ import TuistLoader
 import TuistSupport
 import XcodeGraph
 
-/// This mapper is to set the right setting for downstream targets that depend on a static xcframework linked by a dynamic
-/// xcframework.
+/// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
+/// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileHandler: FileHandling
@@ -21,7 +21,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     }
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard  let packageManifest = manifestFilesLocator.locatePackageManifest(at: graph.path)
+        guard let packageManifest = manifestFilesLocator.locatePackageManifest(at: graph.path)
         else { return (graph, [], environment) }
         let derivedDirectory = packageManifest
             .parentDirectory
