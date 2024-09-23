@@ -137,7 +137,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project.xcodeproj")
-        let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
+        let scheme = Scheme.test(buildAction: .test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectPath,
+            name: "Core"
+        ))]))
         let target = Target.test(name: "Core")
         let project = Project.test(
             path: projectPath,
@@ -414,17 +417,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
         let coreScheme = Scheme.test(
             name: "Core",
-            buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")])
+            buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: coreProjectPath, name: "Core"))])
         )
-        let kitScheme = Scheme.test(name: "Kit", buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")]))
+        let kitScheme = Scheme.test(
+            name: "Kit",
+            buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "Kit"))])
+        )
         let coreProject = Project.test(path: coreProjectPath, schemes: [coreScheme])
         let kitProject = Project.test(path: projectPath, schemes: [kitScheme])
         let workspaceScheme = Scheme.test(
             name: "Workspace-Scheme",
             buildAction: .test(
                 targets: [
-                    .init(projectPath: coreProjectPath, name: "Core"),
-                    .init(projectPath: projectPath, name: "Kit"),
+                    BuildAction.Target(TargetReference(projectPath: coreProjectPath, name: "Core")),
+                    BuildAction.Target(TargetReference(projectPath: projectPath, name: "Kit")),
                 ]
             )
         )
@@ -602,7 +608,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
 
         let projectAPath = path.appending(component: "ProjectA.xcodeproj")
-        let schemeA = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")]))
+        let schemeA = Scheme.test(buildAction: .test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectAPath,
+            name: "A"
+        ))]))
         let targetA = Target.test(name: "A")
         let projectA = Project.test(
             path: projectAPath,
@@ -611,7 +620,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         let projectBPath = path.appending(component: "ProjectB.xcodeproj")
-        let schemeB = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectBPath, name: "B")]))
+        let schemeB = Scheme.test(buildAction: .test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectBPath,
+            name: "B"
+        ))]))
         let targetB = Target.test(name: "B")
         let projectB = Project.test(
             path: projectBPath,

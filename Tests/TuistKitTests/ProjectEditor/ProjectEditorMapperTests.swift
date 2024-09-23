@@ -54,12 +54,14 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             sourceRootPath.appending(component: "PluginTwo"),
             sourceRootPath.appending(component: "PluginThree"),
         ].map { EditablePluginManifest(name: $0.basename, path: $0) }
+        let selectedXcode: Xcode = .test(path: AbsolutePath("/Applications/Xcode.app"))
+
         swiftPackageManagerController.getToolsVersionStub = { _ in
             .init(stringLiteral: "5.5.0")
         }
         given(xcodeController)
             .selected()
-            .willReturn(.test(path: AbsolutePath("/Applications/Xcode.app")))
+            .willReturn(selectedXcode)
 
         // When
         let graph = try subject.map(
@@ -255,7 +257,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, projectName)
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), project.targets.values.map(\.name).sorted())
+        XCTAssertEqual(buildAction.targets.lazy.map(\.reference.name).sorted(), project.targets.values.map(\.name).sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -334,7 +336,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, projectName)
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map(\.name), targets.map(\.name))
+        XCTAssertEqual(buildAction.targets.map(\.reference.name), targets.map(\.name))
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -446,7 +448,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, projectName)
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
+        XCTAssertEqual(buildAction.targets.map(\.reference.name).sorted(), targets.map(\.name).sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
@@ -524,10 +526,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(schemes.map(\.name).sorted(), [pluginTarget.name, "Plugins"].sorted())
 
         let pluginBuildAction = try XCTUnwrap(schemes.first?.buildAction)
-        XCTAssertEqual(pluginBuildAction.targets.map(\.name), [pluginTarget.name])
+        XCTAssertEqual(pluginBuildAction.targets.map(\.reference.name), [pluginTarget.name])
 
         let allPluginsBuildAction = try XCTUnwrap(schemes.last?.buildAction)
-        XCTAssertEqual(allPluginsBuildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
+        XCTAssertEqual(allPluginsBuildAction.targets.map(\.reference.name).sorted(), targets.map(\.name).sorted())
     }
 
     func test_tuist_edit_with_more_than_one_plugin_no_projects() throws {
@@ -620,16 +622,16 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         let firstBuildAction = try XCTUnwrap(schemes[0].buildAction)
         XCTAssertEqual(
-            firstBuildAction.targets.map(\.name),
+            firstBuildAction.targets.map(\.reference.name),
             [firstPluginTarget].map(\.name)
         )
 
         let secondBuildAction = try XCTUnwrap(schemes[1].buildAction)
-        XCTAssertEqual(secondBuildAction.targets.map(\.name), [secondPluginTarget].map(\.name))
+        XCTAssertEqual(secondBuildAction.targets.map(\.reference.name), [secondPluginTarget].map(\.name))
 
         let pluginsBuildAction = try XCTUnwrap(schemes[2].buildAction)
         XCTAssertEqual(
-            pluginsBuildAction.targets.map(\.name).sorted(),
+            pluginsBuildAction.targets.map(\.reference.name).sorted(),
             [firstPluginTarget, secondPluginTarget].map(\.name).sorted()
         )
     }
@@ -806,7 +808,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsProject.schemes.count, 1)
         XCTAssertEqual(manifestsScheme.name, manifestsProjectName)
         XCTAssertEqual(
-            manifestsBuildAction.targets.map(\.name).sorted(),
+            manifestsBuildAction.targets.map(\.reference.name).sorted(),
             [manifestsTarget.name, "ProjectDescriptionHelpers"].sorted()
         )
         XCTAssertEqual(manifestsRunAction.filePath, tuistPath)
@@ -828,8 +830,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ))
         XCTAssertEqual(pluginsProject.filesGroup, pluginsGroup)
         XCTAssertEqual(pluginsProject.schemes.count, 2)
-        XCTAssertEqual(aLocalPluginScheme.buildAction?.targets.map(\.name).sorted(), [localPlugin.name])
-        XCTAssertEqual(pluginsScheme.buildAction?.targets.map(\.name).sorted(), [localPlugin.name])
+        XCTAssertEqual(aLocalPluginScheme.buildAction?.targets.map(\.reference.name).sorted(), [localPlugin.name])
+        XCTAssertEqual(pluginsScheme.buildAction?.targets.map(\.reference.name).sorted(), [localPlugin.name])
     }
 
     fileprivate func expectedSettings(includePaths: [AbsolutePath]) -> Settings {

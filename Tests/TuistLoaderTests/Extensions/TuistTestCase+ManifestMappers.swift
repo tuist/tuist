@@ -4,8 +4,8 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 import TuistSupportTesting
-import XCTest
 import XcodeGraph
+import XCTest
 
 @testable import TuistLoader
 
@@ -27,8 +27,8 @@ extension TuistTestCase {
             $0.name.rawValue < $1.name.rawValue
         })
         for (configuration, manifestConfiguration) in zip(
-            sortedConfigurations, sortedManifestConfigurations)
-        {
+            sortedConfigurations, sortedManifestConfigurations
+        ) {
             XCTAssertBuildConfigurationMatchesManifest(
                 configuration: configuration,
                 matches: manifestConfiguration,
@@ -156,19 +156,22 @@ extension TuistTestCase {
         try optionalAssert(scheme.buildAction, manifest.buildAction) {
             try assert(
                 buildAction: $0, matches: $1, path: path, generatorPaths: generatorPaths,
-                file: file, line: line)
+                file: file, line: line
+            )
         }
 
         try optionalAssert(scheme.testAction, manifest.testAction) {
             try assert(
                 testAction: $0, matches: $1, path: path, generatorPaths: generatorPaths, file: file,
-                line: line)
+                line: line
+            )
         }
 
         try optionalAssert(scheme.runAction, manifest.runAction) {
             try assert(
                 runAction: $0, matches: $1, path: path, generatorPaths: generatorPaths, file: file,
-                line: line)
+                line: line
+            )
         }
     }
 
@@ -182,11 +185,13 @@ extension TuistTestCase {
     ) throws {
         let convertedTargets: [XcodeGraph.TargetReference] = try manifest.targets.map {
             let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath(
-                $0.reference.projectPath)
+                $0.reference.projectPath
+            )
             return .init(projectPath: resolvedPath, name: $0.reference.targetName)
         }
         XCTAssertEqual(
-            buildAction.targets.map(\.reference), convertedTargets, file: file, line: line)
+            buildAction.targets.map(\.reference), convertedTargets, file: file, line: line
+        )
     }
 
     func assert(
@@ -202,7 +207,8 @@ extension TuistTestCase {
         }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
         XCTAssertTrue(
-            testAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
+            testAction.configurationName == manifest.configuration.rawValue, file: file, line: line
+        )
         XCTAssertEqual(testAction.coverage, manifest.options.coverage, file: file, line: line)
         try optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
@@ -225,7 +231,8 @@ extension TuistTestCase {
             line: line
         )
         XCTAssertTrue(
-            runAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
+            runAction.configurationName == manifest.configuration.rawValue, file: file, line: line
+        )
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)
         }

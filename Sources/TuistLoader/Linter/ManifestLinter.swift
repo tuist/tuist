@@ -89,7 +89,11 @@ public class ManifestLinter: ManifestLinting {
                 actionType: "buildAction",
                 scheme: scheme
             ))
-            issues.append(contentsOf: lintSchemeTargets(buildAction.targets.map(\.reference), actionType: "buildAction", scheme: scheme))
+            issues.append(contentsOf: lintSchemeTargets(
+                buildAction.targets.map(\.reference),
+                actionType: "buildAction",
+                scheme: scheme
+            ))
         }
 
         if let runAction {

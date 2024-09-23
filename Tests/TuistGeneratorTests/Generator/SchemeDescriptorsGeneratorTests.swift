@@ -30,11 +30,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
         let targetBuildAction = BuildAction.Target(
-            targetReference: TargetReference(projectPath: projectPath, name: "App"),
+            TargetReference(projectPath: projectPath, name: "App"),
             buildFor: [.running, .testing, .profiling]
         )
         let scheme = Scheme.test(buildAction: BuildAction(targets: [targetBuildAction]))
-
 
         let app = Target.test(name: "App", product: .app)
         let targets = [app]
@@ -64,7 +63,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildActionEntries.count, 1)
         let entry = try XCTUnwrap(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.running, .testing, .profiling])
+        XCTAssertEqual(entry.buildFor, [
+            XCScheme.BuildAction.Entry.BuildFor.running,
+            XCScheme.BuildAction.Entry.BuildFor.testing,
+            XCScheme.BuildAction.Entry.BuildFor.profiling,
+        ])
 
         XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "App.app")
@@ -80,7 +83,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = try AbsolutePath(validating: "/differentpath/Workspace/project.xcodeproj")
         let targetBuildAction = BuildAction.Target(
-            targetReference: TargetReference(projectPath: projectPath, name: "App"),
+            TargetReference(projectPath: projectPath, name: "App"),
             buildFor: [.analyzing]
         )
         let scheme = Scheme.test(buildAction: BuildAction(targets: [targetBuildAction]))
@@ -113,8 +116,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildActionEntries.count, 1)
         let entry = try XCTUnwrap(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.analyzing])
 
+        XCTAssertEqual(entry.buildFor, [XCScheme.BuildAction.Entry.BuildFor.analyzing])
         XCTAssertEqual(buildableReference.referencedContainer, "container:project.xcodeproj")
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
@@ -133,11 +136,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let buildAction = BuildAction(targets: [
             BuildAction.Target(
-                targetReference: TargetReference(projectPath: projectAPath, name: "FrameworkA"),
+                TargetReference(projectPath: projectAPath, name: "FrameworkA"),
                 buildFor: [.testing, .running, .profiling]
             ),
             BuildAction.Target(
-                targetReference: TargetReference(projectPath: projectBPath, name: "FrameworkB")
+                TargetReference(projectPath: projectBPath, name: "FrameworkB")
             ),
         ])
         let scheme = Scheme.test(buildAction: buildAction)
@@ -220,7 +223,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             shellPath: "/bin/sh"
         )
         let buildAction = BuildAction.test(
-            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))],
             preActions: [preAction],
             postActions: [postAction]
         )
@@ -275,14 +278,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let schemeA = Scheme(
             name: "SchemeA",
             buildAction: BuildAction(
-                targets: [],
+                targets: [BuildAction.Target](),
                 runPostActionsOnFailure: true
             )
         )
         let schemeB = Scheme(
             name: "SchemeB",
             buildAction: BuildAction(
-                targets: [],
+                targets: [BuildAction.Target](),
                 runPostActionsOnFailure: false
             )
         )
@@ -321,7 +324,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             shellPath: nil
         )
         let buildAction = BuildAction.test(
-            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))],
             preActions: [preAction],
             postActions: []
         )
@@ -573,7 +576,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             coverage: true,
             codeCoverageTargets: [TargetReference(projectPath: projectPath, name: "App")]
         )
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
 
         let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
 
@@ -703,7 +706,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             randomExecutionOrdering: true
         )
         let testAction = TestAction.test(targets: [testableTarget])
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: project.path, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: project.path, name: "App"))])
 
         let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
         let graph = Graph.test(
@@ -784,7 +787,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
             preferredScreenCaptureFormat: .screenshots
         )
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
 
         let scheme = Scheme.test(name: "AppUITests", shared: true, buildAction: buildAction, testAction: testAction)
 
@@ -1009,7 +1012,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             LaunchArgument(name: "arg4", isEnabled: true),
         ]
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
         let runAction = RunAction.test(
             configurationName: "Release",
             customLLDBInitFile: workspacePath.appending(try RelativePath(validating: "Projects/etc/path/to/lldbinit")),
@@ -1143,7 +1146,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectPath,
+            name: "Library"
+        ))])
         let launchAction = RunAction.test(
             configurationName: "Debug",
             filePath: "/usr/bin/foo",
@@ -1181,7 +1187,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectPath,
+            name: "Library"
+        ))])
         let testAction = TestAction.test(
             targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))],
             diagnosticsOptions: SchemeDiagnosticsOptions(mainThreadCheckerEnabled: true)
@@ -1281,7 +1290,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     func test_schemeLaunchAction_with_disabled_attachDebugger() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
         let runAction = RunAction.test(
             configurationName: "Release",
             attachDebugger: false,
@@ -1316,7 +1325,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     func test_schemeLaunchAction_without_explicit_runAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
         let scheme = Scheme.test(buildAction: buildAction, runAction: nil)
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(
@@ -1349,8 +1358,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let buildAction = BuildAction.test(targets: [
-            TargetReference(projectPath: path, name: appExtension.name),
-            TargetReference(projectPath: path, name: app.name),
+            BuildAction.Target(TargetReference(projectPath: path, name: appExtension.name)),
+            BuildAction.Target(TargetReference(projectPath: path, name: app.name)),
         ])
         let runAction = RunAction.test(executable: TargetReference(projectPath: path, name: app.name))
         let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
@@ -1394,8 +1403,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let buildAction = BuildAction.test(targets: [
-            TargetReference(projectPath: path, name: appExtension.name),
-            TargetReference(projectPath: path, name: app.name),
+            BuildAction.Target(TargetReference(projectPath: path, name: appExtension.name)),
+            BuildAction.Target(TargetReference(projectPath: path, name: app.name)),
         ])
         let runAction = RunAction.test(
             attachDebugger: false,
@@ -1489,7 +1498,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(
+            projectPath: projectPath,
+            name: "Library"
+        ))])
         let testAction = TestAction
             .test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
         let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: nil)
@@ -1599,7 +1611,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let target = Target.test(name: "App", platform: .iOS, product: .app)
         let appTargetReference = TargetReference(projectPath: projectPath, name: target.name)
 
-        let buildAction = BuildAction.test(targets: [appTargetReference])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(appTargetReference)])
         let runAction = RunAction.test(
             executable: appTargetReference,
             arguments: Arguments(
@@ -1704,7 +1716,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
         let analyzeAction = AnalyzeAction.test(configurationName: "Beta Release")
         let scheme = Scheme.test(buildAction: buildAction, analyzeAction: analyzeAction)
 
@@ -1737,7 +1749,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: "App"))])
         let archiveAction = ArchiveAction.test(
             configurationName: "Beta Release",
             revealArchiveInOrganizer: true,
@@ -1842,12 +1854,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/test")
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
-        let appScheme = Scheme.test(buildAction: BuildAction(targetReferences: [
-            TargetReference(projectPath: path, name: app.name),
+        let appScheme = Scheme.test(buildAction: BuildAction(targets: [
+            BuildAction.Target(TargetReference(projectPath: path, name: app.name)),
         ]))
         let extensionScheme = Scheme.test(buildAction: BuildAction.test(targets: [
-            TargetReference(projectPath: path, name: appExtension.name),
-            TargetReference(projectPath: path, name: app.name),
+            BuildAction.Target(TargetReference(projectPath: path, name: appExtension.name)),
+            BuildAction.Target(TargetReference(projectPath: path, name: app.name)),
         ]))
         let project = Project.test(
             path: path,
@@ -1976,7 +1988,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     ) -> Scheme {
         let projectPath = try! AbsolutePath(validating: "/somepath/Project")
         let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
-        let buildAction = BuildAction.test(targets: [appTargetReference])
+        let buildAction = BuildAction.test(targets: [BuildAction.Target(appTargetReference)])
         let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
         let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
         let profileAction = ProfileAction.test(

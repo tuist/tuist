@@ -75,7 +75,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let prunedTarget = Target.test(name: "first", prune: true)
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)])),
+            .test(buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: prunedTarget.name))])),
         ]
         let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
 
@@ -101,7 +101,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
             .test(
-                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: keptTarget.name))]),
                 runAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
             ),
         ]
@@ -129,7 +129,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
             .test(
-                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: keptTarget.name))]),
                 testAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
             ),
         ]
@@ -156,7 +156,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
             .test(
-                buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
+                buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: prunedTarget.name))]),
                 testAction: .test(testPlans: [.init(path: "/Test.xctestplan", testTargets: [], isDefault: true)])
             ),
         ]
@@ -191,7 +191,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: target.name))])),
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
         let workspace = Workspace.test(
@@ -220,7 +220,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [BuildAction.Target(TargetReference(projectPath: path, name: target.name))])),
         ]
         let project = Project.test(path: path, targets: [target], schemes: [])
         let workspace = Workspace.test(
@@ -253,7 +253,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         ]
         let scheme = Scheme.test(
             name: "Scheme",
-            buildAction: .test(targets: targets.map { TargetReference(projectPath: path, name: $0.name) }),
+            buildAction: .test(targets: targets.map { BuildAction.Target(TargetReference(projectPath: path, name: $0.name)) }),
             testAction: .test(
                 targets: targets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
                 coverage: true,
@@ -269,7 +269,10 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let unprunedTargets = targets.filter { !$0.prune }
         let schemeWithUnprunedTargets = Scheme.test(
             name: "Scheme",
-            buildAction: .test(targets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }),
+            buildAction: .test(
+                targets: unprunedTargets
+                    .map { BuildAction.Target(TargetReference(projectPath: path, name: $0.name)) }
+            ),
             testAction: .test(
                 targets: unprunedTargets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
                 coverage: true,

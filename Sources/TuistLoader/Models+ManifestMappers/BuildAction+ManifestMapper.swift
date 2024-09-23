@@ -26,7 +26,7 @@ extension XcodeGraph.BuildAction {
             XcodeGraph.BuildAction.Target(TargetReference(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.reference.projectPath),
                 name: $0.reference.targetName
-            ), buildFor: $0.buildFor?.map({ XcodeGraph.BuildAction.Target.BuildFor(fromBuildFor: $0) }))
+            ), buildFor: $0.buildFor?.map { XcodeGraph.BuildAction.Target.BuildFor(fromBuildFor: $0) })
         }
         return XcodeGraph.BuildAction(
             targets: targets,
@@ -40,15 +40,15 @@ extension XcodeGraph.BuildAction {
 extension XcodeGraph.BuildAction.Target.BuildFor {
     init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
         switch buildFor {
-        case .running: 
+        case .running:
             self = .running
-        case .testing: 
+        case .testing:
             self = .testing
-        case .profiling: 
+        case .profiling:
             self = .profiling
-        case .archiving: 
+        case .archiving:
             self = .archiving
-        case .analyzing: 
+        case .analyzing:
             self = .analyzing
         }
     }

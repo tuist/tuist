@@ -93,7 +93,8 @@ func schemes() -> [Scheme] {
                     )
                 )
             )
-        })
+        }
+    )
 
     schemes.append(
         contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
@@ -108,7 +109,8 @@ func schemes() -> [Scheme] {
                     )
                 )
             )
-        })
+        }
+    )
 
     return schemes
 }

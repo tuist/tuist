@@ -24,78 +24,6 @@ extension Template {
     }
 }
 
-extension Workspace {
-    public static func test(
-        name: String = "Workspace",
-        projects: [Path] = [],
-        schemes: [Scheme] = [],
-        additionalFiles: [FileElement] = []
-    ) -> Workspace {
-        Workspace(
-            name: name,
-            projects: projects,
-            schemes: schemes,
-            additionalFiles: additionalFiles
-        )
-    }
-}
-
-extension Project {
-    public static func test(
-        name: String = "Project",
-        organizationName: String? = nil,
-        settings: Settings? = nil,
-        targets: [Target] = [],
-        additionalFiles: [FileElement] = []
-    ) -> Project {
-        Project(
-            name: name,
-            organizationName: organizationName,
-            settings: settings,
-            targets: targets,
-            additionalFiles: additionalFiles
-        )
-    }
-}
-
-extension Target {
-    public static func test(
-        name: String = "Target",
-        destinations: Destinations = .iOS,
-        product: Product = .framework,
-        productName: String? = nil,
-        bundleId: String = "com.some.bundle.id",
-        infoPlist: InfoPlist = .file(path: "Info.plist"),
-        sources: SourceFilesList = "Sources/**",
-        resources: ResourceFileElements = "Resources/**",
-        headers: Headers? = nil,
-        entitlements: Entitlements = .file(path: "Entitlements.entitlements"),
-        scripts: [TargetScript] = [],
-        dependencies: [TargetDependency] = [],
-        settings: Settings? = nil,
-        coreDataModels: [CoreDataModel] = [],
-        environment: [String: String] = [:]
-    ) -> Target {
-        .target(
-            name: name,
-            destinations: destinations,
-            product: product,
-            productName: productName,
-            bundleId: bundleId,
-            infoPlist: infoPlist,
-            sources: sources,
-            resources: resources,
-            headers: headers,
-            entitlements: entitlements,
-            scripts: scripts,
-            dependencies: dependencies,
-            settings: settings,
-            coreDataModels: coreDataModels,
-            environmentVariables: environment.mapValues { .init(stringLiteral: $0) }
-        )
-    }
-}
-
 extension TargetScript {
     public static func test(
         name: String = "Action",
@@ -212,11 +140,5 @@ extension Arguments {
 extension Plugin {
     public static func test(name: String = "Plugin") -> Plugin {
         Plugin(name: name)
-    }
-}
-
-extension PackageSettings {
-    public static func test() -> PackageSettings {
-        PackageSettings()
     }
 }

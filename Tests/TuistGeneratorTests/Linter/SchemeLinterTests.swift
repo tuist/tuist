@@ -54,7 +54,10 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesExist",
                 shared: true,
-                buildAction: XcodeGraph.BuildAction(targets: [XcodeGraph.BuildAction.Target(XcodeGraph.TargetReference(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target"))])
+                buildAction: XcodeGraph.BuildAction(targets: [XcodeGraph.BuildAction.Target(XcodeGraph.TargetReference(
+                    projectPath: try! AbsolutePath(validating: "/Project"),
+                    name: "Target"
+                ))])
             ),
         ])
 

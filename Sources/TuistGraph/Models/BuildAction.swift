@@ -29,7 +29,7 @@ public struct BuildAction: Equatable, Codable {
         postActions: [ExecutionAction] = [],
         runPostActionsOnFailure: Bool = false
     ) {
-        self.targets = targetReferences.map({ .init(targetReference: $0) })
+        targets = targetReferences.map { .init(targetReference: $0) }
         self.preActions = preActions
         self.postActions = postActions
         self.runPostActionsOnFailure = runPostActionsOnFailure
