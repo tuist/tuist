@@ -1,88 +1,104 @@
 import Foundation
 import Path
 import TuistCore
+import TuistLoader
 import TuistSupport
 import XcodeGraph
 
+/// This mapper is to set the right setting for downstream targets that depend on a static xcframework linked by a dynamic
+/// xcframework.
+/// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileHandler: FileHandling
+    private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.fileHandler = fileHandler
+        self.manifestFilesLocator = manifestFilesLocator
     }
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        let derivedDirectory = derivedDirectory(graph: graph)
+        guard  let packageManifest = manifestFilesLocator.locatePackageManifest(at: graph.path)
+        else { return (graph, [], environment) }
+        let derivedDirectory = packageManifest
+            .parentDirectory
+            .appending(
+                components: [
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
 
         var sideEffects: [SideEffectDescriptor] = []
-        var settingsToPropagate: [GraphDependency: SettingsDictionary] = [:]
-
         let graphTraverser = GraphTraverser(graph: graph)
 
-        for project in graph.projects.values {
-            for target in project.targets.values {
-                let staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
-                    .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
-                        path: project.path,
-                        name: target.name
-                    )
-                    .compactMap { dependency -> GraphDependency.XCFramework? in
-                        switch dependency {
-                        case let .xcframework(xcframework):
-                            return xcframework
-                        default:
-                            return nil
-                        }
-                    }
-
-                guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty else { continue }
-
-                sideEffects += try self.sideEffects(
-                    for: staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies,
-                    derivedDirectory: derivedDirectory
+        let graph = try mapGraph(
+            graph: graph
+        ) { graphTarget in
+            let target = graphTarget.target
+            let project = graphTarget.project
+            let staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
+                .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+                    path: project.path,
+                    name: target.name
                 )
+                .compactMap { dependency -> GraphDependency.XCFramework? in
+                    switch dependency {
+                    case let .xcframework(xcframework):
+                        return xcframework
+                    default:
+                        return nil
+                    }
+                }
 
-                settingsToPropagate[.target(name: target.name, path: project.path)] = [
-                    "OTHER_SWIFT_FLAGS": .array(
-                        staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                            [
-                                "-Xcc",
-                                moduleMapFlag(
-                                    for: xcframework,
-                                    derivedDirectory: derivedDirectory,
-                                    project: project
-                                ),
-                            ]
-                        }
-                    ),
-                    "OTHER_C_FLAGS": .array(
-                        staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                            [
-                                moduleMapFlag(
-                                    for: xcframework,
-                                    derivedDirectory: derivedDirectory,
-                                    project: project
-                                ),
-                            ]
-                        }
-                    ),
-                    "HEADER_SEARCH_PATHS": .array(
-                        staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                            guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
-                            else { return [] }
-                            return [
-                                "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\"",
-                            ]
-                        }
-                    ),
-                ]
-            }
+            guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty else { return [:] }
+
+            sideEffects += try generateModuleMapAndUmbrellaHeader(
+                for: staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies,
+                derivedDirectory: derivedDirectory
+            )
+
+            return [
+                "OTHER_SWIFT_FLAGS": .array(
+                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+                        [
+                            "-Xcc",
+                            moduleMapFlag(
+                                for: xcframework,
+                                derivedDirectory: derivedDirectory,
+                                project: project
+                            ),
+                        ]
+                    }
+                ),
+                "OTHER_C_FLAGS": .array(
+                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+                        [
+                            moduleMapFlag(
+                                for: xcframework,
+                                derivedDirectory: derivedDirectory,
+                                project: project
+                            ),
+                        ]
+                    }
+                ),
+                "HEADER_SEARCH_PATHS": .array(
+                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+                        guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
+                        else { return [] }
+                        return [
+                            "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\"",
+                        ]
+                    }
+                ),
+            ]
         }
 
         return (
-            try propagateSettings(graph: graph, settings: settingsToPropagate),
+            graph,
             sideEffects,
             environment
         )
@@ -97,24 +113,8 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         return "-fmodule-map-file=\"$(SRCROOT)/\(derivedDirectory.appending(components: name, "Headers", "module.modulemap").relative(to: project.path).pathString)\""
     }
 
-    private func derivedDirectory(graph: Graph) -> AbsolutePath {
-        let packageDirectoryPath: AbsolutePath
-        if fileHandler.exists(graph.path.appending(component: Constants.SwiftPackageManager.packageSwiftName)) {
-            packageDirectoryPath = graph.path
-        } else {
-            packageDirectoryPath = graph.path.appending(component: Constants.tuistDirectoryName)
-        }
-
-        return packageDirectoryPath
-            .appending(
-                components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
-                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                ]
-            )
-    }
-
-    private func sideEffects(
+    /// Generates modulemap and an umbrella header that can be referenced from downstream targets.
+    private func generateModuleMapAndUmbrellaHeader(
         for staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies: [GraphDependency.XCFramework],
         derivedDirectory: AbsolutePath
     ) throws -> [SideEffectDescriptor] {
@@ -126,17 +126,18 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 let umbrellaHeader = moduleMap.parentDirectory.appending(component: "\(name).h")
                 guard fileHandler.exists(umbrellaHeader)
                 else { return [] }
+                let headersDirectory = derivedDirectory.appending(components: name, "Headers")
                 return [
-                    .directory(DirectoryDescriptor(path: derivedDirectory.appending(components: name, "Headers"))),
+                    .directory(DirectoryDescriptor(path: headersDirectory)),
                     .file(
                         FileDescriptor(
-                            path: derivedDirectory.appending(components: name, "Headers", "module.modulemap"),
+                            path: headersDirectory.appending(components: "module.modulemap"),
                             contents: try fileHandler.readFile(moduleMap)
                         )
                     ),
                     .file(
                         FileDescriptor(
-                            path: derivedDirectory.appending(components: name, "Headers", "\(name).h"),
+                            path: headersDirectory.appending(components: "\(name).h"),
                             contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
                                 .replacingOccurrences(of: "<\(name)/", with: "<")
                                 .data(using: .utf8)
@@ -146,17 +147,18 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             }
     }
 
-    private func propagateSettings(
+    private func mapGraph(
         graph: Graph,
-        settings: [GraphDependency: SettingsDictionary]
+        targetSettings: (GraphTarget) throws -> SettingsDictionary
     ) throws -> Graph {
         var graph = graph
-        var settings = settings
+        var settings: [GraphDependency: SettingsDictionary] = [:]
         let targets = try GraphTraverser(graph: graph).allTargetsTopologicalSorted()
         for target in targets {
             guard let dependencies = graph.dependencies[.target(name: target.target.name, path: target.path)] else { continue }
+            let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
+            settings[targetDependency] = try targetSettings(target)
             for dependency in dependencies {
-                let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
                 settings[targetDependency] = (settings[targetDependency] ?? [:]).combine(with: settings[dependency] ?? [:])
             }
         }

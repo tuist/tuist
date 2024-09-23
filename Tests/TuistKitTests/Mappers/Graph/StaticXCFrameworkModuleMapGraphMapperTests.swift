@@ -1,7 +1,9 @@
 import FileSystem
 import Foundation
+import MockableTest
 import Path
 import TuistCore
+import TuistLoader
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
@@ -11,16 +13,21 @@ import XCTest
 final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
     private var fileSystem: FileSystem!
+    private var manifestFilesLocator: MockManifestFilesLocating!
 
     override func setUp() {
         super.setUp()
 
         fileSystem = FileSystem()
-        subject = StaticXCFrameworkModuleMapGraphMapper()
+        manifestFilesLocator = MockManifestFilesLocating()
+        subject = StaticXCFrameworkModuleMapGraphMapper(
+            manifestFilesLocator: manifestFilesLocator
+        )
     }
 
     override func tearDown() {
         fileSystem = nil
+        manifestFilesLocator = nil
         subject = nil
 
         super.tearDown()
@@ -30,6 +37,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
         let googleMapsPath = projectPath
             .parentDirectory
             .appending(component: "GoogleMaps.xcframework")
@@ -148,6 +160,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
         let googleMapsPath = projectPath
             .parentDirectory
             .appending(component: "GoogleMaps.xcframework")
@@ -262,6 +279,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
         let googleMapsPath = projectPath
             .parentDirectory
             .appending(component: "GoogleMaps.xcframework")
