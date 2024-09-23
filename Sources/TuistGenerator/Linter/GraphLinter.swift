@@ -138,7 +138,7 @@ public class GraphLinter: GraphLinting {
         ]
 
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, _ -> [LintingIssue] in
-            guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+            guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = fromDependency,
                   let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
 
             guard fromTarget.target.product != .bundle else { return [] }
@@ -203,8 +203,8 @@ public class GraphLinter: GraphLinting {
     private func lintDependencyRelationships(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in
-                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
+                guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = fromDependency else { return [] }
+                guard case let GraphDependency.target(toTargetName, toTargetPath, _) = toDependency else { return [] }
                 guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
                 guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
                 return lintDependency(from: fromTarget, to: toTarget)

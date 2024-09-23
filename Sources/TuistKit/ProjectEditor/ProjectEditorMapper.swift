@@ -109,7 +109,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 let graphDependencies = project.targets.values.map(\.dependencies).lazy.map { dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
-                        case let .target(name, _):
+                        case let .target(name, _, _):
                             if let pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
                                 return .target(name: name, path: pluginsProject.path)
                             } else {
@@ -463,7 +463,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         targets.reduce(into: [TargetReference: Set<TargetReference>]()) { result, target in
             let dependencyRefs = target.dependencies.lazy.compactMap { dependency -> TargetReference? in
                 switch dependency {
-                case let .target(name, _):
+                case let .target(name, _, _):
                     return TargetReference(projectPath: projectPath, name: name)
                 default:
                     return nil
