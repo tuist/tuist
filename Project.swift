@@ -26,9 +26,13 @@ func schemes() -> [Scheme] {
     var schemes: [Scheme] = [
         .scheme(
             name: "Tuist-Workspace",
-            buildAction: .buildAction(targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) }),
+            buildAction: .buildAction(
+                targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) }
+            ),
             testAction: .targets(
-                Module.allCases.flatMap(\.testTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.testTargets).map {
+                    .testableTarget(target: .target($0.name))
+                }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -40,10 +44,12 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0, buildFor: [.testing]) }
+                    .map { .target($0) }
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.acceptanceTestTargets).map {
+                    .testableTarget(target: .target($0.name))
+                }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -55,10 +61,12 @@ func schemes() -> [Scheme] {
             name: "TuistUnitTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
-                    .map { .target($0, buildFor: [.testing]) }
+                    .map { .target($0) }
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.unitTestTargets).map {
+                    .testableTarget(target: .target($0.name))
+                }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -70,35 +78,37 @@ func schemes() -> [Scheme] {
             )
         ),
     ]
-    schemes.append(contentsOf: Module.allCases.filter(\.isRunnable).map {
-        .scheme(
-            name: $0.targetName,
-            buildAction: .buildAction(targets: [.target($0.targetName)]),
-            runAction: .runAction(
-                executable: .target($0.targetName),
-                arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+    schemes.append(
+        contentsOf: Module.allCases.filter(\.isRunnable).map {
+            .scheme(
+                name: $0.targetName,
+                buildAction: .buildAction(targets: [.target($0.targetName)]),
+                runAction: .runAction(
+                    executable: .target($0.targetName),
+                    arguments: .arguments(
+                        environmentVariables: [
+                            "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                            "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                        ]
+                    )
                 )
             )
-        )
-    })
+        })
 
-    schemes.append(contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
-        .scheme(
-            name: $0,
-            hidden: true,
-            buildAction: .buildAction(targets: [.target($0)]),
-            testAction: .targets([.testableTarget(target: .target($0))]),
-            runAction: .runAction(
-                arguments: .arguments(
-                    environmentVariables: acceptanceTestsEnvironmentVariables()
+    schemes.append(
+        contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
+            .scheme(
+                name: $0,
+                hidden: true,
+                buildAction: .buildAction(targets: [.target($0)]),
+                testAction: .targets([.testableTarget(target: .target($0))]),
+                runAction: .runAction(
+                    arguments: .arguments(
+                        environmentVariables: acceptanceTestsEnvironmentVariables()
+                    )
                 )
             )
-        )
-    })
+        })
 
     return schemes
 }

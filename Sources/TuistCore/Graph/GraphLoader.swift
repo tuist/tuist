@@ -96,7 +96,7 @@ public final class GraphLoader: GraphLoading {
             throw GraphLoadingError.missingProject(path)
         }
         guard let referencedTargetProject = cache.allTargets[path],
-              let target = referencedTargetProject[name]
+            let target = referencedTargetProject[name]
         else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
@@ -104,12 +104,14 @@ public final class GraphLoader: GraphLoading {
         cache.add(target: target, path: path)
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies: [GraphDependency] = try target.dependencies.compactMap { dependency in
-            guard let graphDep = try loadDependency(
-                path: path,
-                forPlatforms: target.supportedPlatforms,
-                dependency: dependency,
-                cache: cache
-            ) else { return nil }
+            guard
+                let graphDep = try loadDependency(
+                    path: path,
+                    forPlatforms: target.supportedPlatforms,
+                    dependency: dependency,
+                    cache: cache
+                )
+            else { return nil }
             cache.dependencyConditions[(targetDependency, graphDep)] = dependency.condition
             return graphDep
         }
@@ -260,15 +262,16 @@ public final class GraphLoader: GraphLoading {
             at: path,
             status: status
         )
-        let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
-            path: metadata.path,
-            infoPlist: metadata.infoPlist,
-            primaryBinaryPath: metadata.primaryBinaryPath,
-            linking: metadata.linking,
-            mergeable: metadata.mergeable,
-            status: metadata.status,
-            macroPath: metadata.macroPath
-        ))
+        let xcframework: GraphDependency = .xcframework(
+            GraphDependency.XCFramework(
+                path: metadata.path,
+                infoPlist: metadata.infoPlist,
+                primaryBinaryPath: metadata.primaryBinaryPath,
+                linking: metadata.linking,
+                mergeable: metadata.mergeable,
+                status: metadata.status,
+                macroPath: metadata.macroPath
+            ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework
     }
@@ -285,12 +288,16 @@ public final class GraphLoader: GraphLoading {
             platform: platform,
             source: source
         )
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+        return .sdk(
+            name: metadata.name, path: metadata.path, status: metadata.status,
+            source: metadata.source)
     }
 
     private func loadXCTestSDK(platform: Platform) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadXCTestMetadata(platform: platform)
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+        return .sdk(
+            name: metadata.name, path: metadata.path, status: metadata.status,
+            source: metadata.source)
     }
 
     private func loadPackage(

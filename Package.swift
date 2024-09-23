@@ -3,6 +3,7 @@
 import PackageDescription
 
 let swiftToolsSupportDependency: Target.Dependency = .product(
+<<<<<<< HEAD
     name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"
 )
 let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
@@ -10,6 +11,13 @@ let loggingDependency: Target.Dependency = .product(name: "Logging", package: "s
 let argumentParserDependency: Target.Dependency = .product(
     name: "ArgumentParser", package: "swift-argument-parser"
 )
+=======
+    name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
+let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
+let argumentParserDependency: Target.Dependency = .product(
+    name: "ArgumentParser", package: "swift-argument-parser")
+>>>>>>> fd1ac3879 (Add models to ProjectDescription.BuildAction)
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
 var targets: [Target] = [
@@ -39,7 +47,7 @@ var targets: [Target] = [
             "Mockable",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -78,7 +86,7 @@ var targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .executableTarget(
@@ -109,7 +117,7 @@ var targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -149,7 +157,7 @@ var targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -173,7 +181,7 @@ var targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -189,7 +197,7 @@ var targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -204,7 +212,7 @@ var targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -218,7 +226,7 @@ var targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -234,7 +242,7 @@ var targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -249,7 +257,7 @@ var targets: [Target] = [
             "ProjectDescription",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -275,7 +283,7 @@ var targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -290,7 +298,7 @@ var targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -305,7 +313,7 @@ var targets: [Target] = [
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -318,7 +326,7 @@ var targets: [Target] = [
             "XcodeGraph",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -332,7 +340,7 @@ var targets: [Target] = [
             "TuistHasher",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
 ]
@@ -466,6 +474,7 @@ let package = Package(
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
         .package(
+<<<<<<< HEAD
             url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"
         ),
         .package(
@@ -473,6 +482,13 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.0"),
+=======
+            url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
+        .package(
+            url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", branch: "build-for"),
+>>>>>>> fd1ac3879 (Add models to ProjectDescription.BuildAction)
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets

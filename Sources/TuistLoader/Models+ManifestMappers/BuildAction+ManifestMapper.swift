@@ -21,21 +21,19 @@ extension XcodeGraph.BuildAction {
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-<<<<<<< HEAD
-        let targets: [XcodeGraph.TargetReference] = try manifest.targets.map {
-=======
-        let targets: [TuistGraph.BuildAction.Target] = try manifest.targets.map {
->>>>>>> d9a6ea38d (Add BuildFor argument in BuildAction in generation scheme)
-            .init(
-                targetReference: TargetReference(
-                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.targetReference.projectPath),
-                    name: $0.targetReference.targetName
-                ),
-                buildFor: $0.buildFor.map({ .init(fromBuildFor: $0) })
-            )
-        }
+
+        // TODO
+//        let targets: [TuistGraph.BuildAction.Target] = try manifest.targets.map {
+//            .init(
+//                targetReference: TargetReference(
+//                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.targetReference.projectPath),
+//                    name: $0.targetReference.targetName
+//                ),
+//                buildFor: $0.buildFor.map({ .init(fromBuildFor: $0) })
+//            )
+//        }
         return XcodeGraph.BuildAction(
-            targets: targets,
+            targets: [],
             preActions: preActions,
             postActions: postActions,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure
@@ -43,19 +41,19 @@ extension XcodeGraph.BuildAction {
     }
 }
 
-extension TuistGraph.BuildAction.Target.BuildFor {
-    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
-        switch buildFor {
-        case .running: 
-            self = .running
-        case .testing: 
-            self = .testing
-        case .profiling: 
-            self = .profiling
-        case .archiving: 
-            self = .archiving
-        case .analyzing: 
-            self = .analyzing
-        }
-    }
-}
+//extension TuistGraph.BuildAction.Target.BuildFor {
+//    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
+//        switch buildFor {
+//        case .running: 
+//            self = .running
+//        case .testing: 
+//            self = .testing
+//        case .profiling: 
+//            self = .profiling
+//        case .archiving: 
+//            self = .archiving
+//        case .analyzing: 
+//            self = .analyzing
+//        }
+//    }
+//}
