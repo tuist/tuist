@@ -54,7 +54,7 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesExist",
                 shared: true,
-                buildAction: .init(targetReferences: [.init(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target")])
+                buildAction: XcodeGraph.BuildAction(targets: [XcodeGraph.BuildAction.Target(XcodeGraph.TargetReference(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target"))])
             ),
         ])
 
@@ -71,10 +71,10 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesNotExist",
                 shared: true,
-                buildAction: .init(targetReferences: [.init(
+                buildAction: BuildAction(targets: [BuildAction.Target(TargetReference(
                     projectPath: try! AbsolutePath(validating: "/Project/../Framework"),
                     name: "Framework"
-                )])
+                ))])
             ),
         ])
 
@@ -133,11 +133,12 @@ class SchemeLinterTests: TuistTestCase {
 
     func test_lint_referenceRemoteTargetExecutionAction() {
         // Given
+        let targets: [BuildAction.Target] = []
         let project = Project.test(schemes: [
-            .init(
+            Scheme(
                 name: "SchemeWithTargetThatDoesNotExist",
                 shared: true,
-                buildAction: .init(preActions: [.init(
+                buildAction: BuildAction(targets: targets, preActions: [ExecutionAction(
                     title: "Something",
                     scriptText: "Script",
                     target: .init(

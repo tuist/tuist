@@ -78,7 +78,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ///   - runPostActionsOnFailure: Whether the post actions should be run in the case of a failure
     /// - Returns: Initialized build action.
     public static func buildAction(
-        targets: [BuildAction.Target],
+        _ targets: [BuildAction.Target],
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         runPostActionsOnFailure: Bool = false

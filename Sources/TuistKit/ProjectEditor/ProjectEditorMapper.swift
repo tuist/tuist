@@ -311,7 +311,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         .compactMap { $0 }
         + manifestsTargets
 
-        let buildAction = BuildAction(targetReferences: targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
+        let buildAction = BuildAction(targets: targets.map { BuildAction.Target(TargetReference(projectPath: projectPath, name: $0.name)) })
         let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
         let runAction = RunAction(
             configurationName: "Debug",
@@ -402,14 +402,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         let schemes = pluginTargets.map { target -> Scheme in
-            let buildAction = BuildAction(targetReferences: [TargetReference(projectPath: projectPath, name: target.name)])
+            let buildAction = BuildAction(targets: [BuildAction.Target(TargetReference(projectPath: projectPath, name: target.name))])
             return Scheme(name: target.name, shared: true, buildAction: buildAction, runAction: nil)
         }
 
         let allPluginsScheme = Scheme(
             name: "Plugins",
             shared: true,
-            buildAction: BuildAction(targetReferences: pluginTargets.map { TargetReference(projectPath: projectPath, name: $0.name) }),
+            buildAction: BuildAction(targets: pluginTargets.map { BuildAction.Target(TargetReference(projectPath: projectPath, name: $0.name)) }),
             runAction: nil
         )
 

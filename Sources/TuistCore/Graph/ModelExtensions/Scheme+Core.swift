@@ -4,7 +4,7 @@ import XcodeGraph
 extension Scheme {
     public func targetDependencies() -> [TargetReference] {
         let targetSources: [[TargetReference]?] = [
-            buildAction?.targets.map(\.targetReference),
+            buildAction?.targets.map(\.reference),
             buildAction?.preActions.compactMap(\.target),
             buildAction?.postActions.compactMap(\.target),
             testAction?.targets.map(\.target),

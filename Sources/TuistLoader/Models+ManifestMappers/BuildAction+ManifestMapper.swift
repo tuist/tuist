@@ -22,18 +22,14 @@ extension XcodeGraph.BuildAction {
             generatorPaths: generatorPaths
         ) }
 
-        // TODO
-//        let targets: [TuistGraph.BuildAction.Target] = try manifest.targets.map {
-//            .init(
-//                targetReference: TargetReference(
-//                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.targetReference.projectPath),
-//                    name: $0.targetReference.targetName
-//                ),
-//                buildFor: $0.buildFor.map({ .init(fromBuildFor: $0) })
-//            )
-//        }
+        let targets: [XcodeGraph.BuildAction.Target] = try manifest.targets.map {
+            XcodeGraph.BuildAction.Target(TargetReference(
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.reference.projectPath),
+                name: $0.reference.targetName
+            ), buildFor: $0.buildFor?.map({ XcodeGraph.BuildAction.Target.BuildFor(fromBuildFor: $0) }))
+        }
         return XcodeGraph.BuildAction(
-            targets: [],
+            targets: targets,
             preActions: preActions,
             postActions: postActions,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure
@@ -41,19 +37,19 @@ extension XcodeGraph.BuildAction {
     }
 }
 
-//extension TuistGraph.BuildAction.Target.BuildFor {
-//    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
-//        switch buildFor {
-//        case .running: 
-//            self = .running
-//        case .testing: 
-//            self = .testing
-//        case .profiling: 
-//            self = .profiling
-//        case .archiving: 
-//            self = .archiving
-//        case .analyzing: 
-//            self = .analyzing
-//        }
-//    }
-//}
+extension XcodeGraph.BuildAction.Target.BuildFor {
+    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
+        switch buildFor {
+        case .running: 
+            self = .running
+        case .testing: 
+            self = .testing
+        case .profiling: 
+            self = .profiling
+        case .archiving: 
+            self = .archiving
+        case .analyzing: 
+            self = .analyzing
+        }
+    }
+}

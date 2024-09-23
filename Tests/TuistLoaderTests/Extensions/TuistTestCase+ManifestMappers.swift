@@ -182,11 +182,11 @@ extension TuistTestCase {
     ) throws {
         let convertedTargets: [XcodeGraph.TargetReference] = try manifest.targets.map {
             let resolvedPath = try generatorPaths.resolveSchemeActionProjectPath(
-                $0.targetReference.projectPath)
-            return .init(projectPath: resolvedPath, name: $0.targetReference.targetName)
+                $0.reference.projectPath)
+            return .init(projectPath: resolvedPath, name: $0.reference.targetName)
         }
         XCTAssertEqual(
-            buildAction.targets.map(\.targetReference), convertedTargets, file: file, line: line)
+            buildAction.targets.map(\.reference), convertedTargets, file: file, line: line)
     }
 
     func assert(

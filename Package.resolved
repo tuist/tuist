@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
-  "originHash" : "8e1703d069c5e0f37fabdedc93006016d67867bc5a0129a7d2e4118026f89730",
-=======
-  "originHash" : "d85d9d4e311b3e860a7172ace83a1ff72bfc7d0a799404424a5d45b74a0763e6",
->>>>>>> fd1ac3879 (Add models to ProjectDescription.BuildAction)
+  "originHash" : "4f0f78b7f62dd25a641096aa25a12d7ad7acfd66faccefb85eca0ee294c5912a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -280,13 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-<<<<<<< HEAD
-        "revision" : "9235c3335f9a3809f8a47b6def05e2f54dce0a10",
-        "version" : "0.12.0"
-=======
         "branch" : "build-for",
-        "revision" : "23f0525fd7363d2b68c5d894f8b4dbaa62f72675"
->>>>>>> fd1ac3879 (Add models to ProjectDescription.BuildAction)
+        "revision" : "e540d5320bf56445831364cc76ec6b753fc53294"
       }
     },
     {
