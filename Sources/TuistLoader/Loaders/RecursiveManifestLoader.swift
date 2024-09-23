@@ -172,7 +172,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {
-                case let .project(target: _, path: projectPath, _):
+                case let .project(target: _, path: projectPath, _, _):
                     return try generatorPaths.resolve(path: projectPath)
                 default:
                     return nil

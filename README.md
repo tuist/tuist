@@ -592,6 +592,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sphanley"><img src="https://avatars.githubusercontent.com/u/1323769?v=4" width="100px;" alt=""/><br /><sub><b>Sam Hanley</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmdyasser"><img src="https://avatars.githubusercontent.com/u/42544598?v=4" width="100px;" alt=""/><br /><sub><b>ahmdyasser</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/minhaaan"><img src="https://avatars.githubusercontent.com/u/87178301?v=4" width="100px;" alt=""/><br /><sub><b>minhaaan</b></sub></a></td>
     </tr>
   </tbody>
 </table>
