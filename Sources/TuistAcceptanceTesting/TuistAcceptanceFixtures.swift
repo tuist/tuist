@@ -56,6 +56,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithTests
     case iosAppWithTransitiveFramework
     case iosAppWithWatchapp2
+    case iosAppWithWeaklyLinkedFramework
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
@@ -190,6 +191,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_transitive_framework"
         case .iosAppWithWatchapp2:
             return "ios_app_with_watchapp2"
+        case .iosAppWithWeaklyLinkedFramework:
+            return "ios_app_with_weakly_linked_framework"
         case .iosAppWithXcframeworks:
             return "ios_app_with_xcframeworks"
         case .iosWorkspaceWithDependencyCycle:

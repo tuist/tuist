@@ -873,6 +873,28 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptanceTestCase {
+    func test_ios_app_with_weakly_linked_framework() async throws {
+        try await setUpFixture(.iosAppWithWeaklyLinkedFramework)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let frameworksBuildPhase = try target.frameworksBuildPhase()
+        guard let frameworkFiles = frameworksBuildPhase?.files,
+              let frameworkFile = frameworkFiles.first,
+              let settings = frameworkFile.settings
+        else {
+            XCTFail("App target should have a linked framework with settings")
+            return
+        }
+        XCTAssertEqualDictionaries(settings, ["ATTRIBUTES": ["Weak"]])
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies() async throws {
         try await setUpFixture(.iosAppWithImplicitDependencies)

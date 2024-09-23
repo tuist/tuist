@@ -363,9 +363,9 @@ extension TargetDependency {
 
     fileprivate var name: String {
         switch self {
-        case let .target(name, _):
+        case let .target(name, _, _):
             return name
-        case let .project(target, _, _):
+        case let .project(target, _, _, _):
             return target
         case let .framework(path, _, _):
             return path.basename
