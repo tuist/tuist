@@ -207,7 +207,7 @@ extension XcodeGraph.Target {
 
         // Sources
         let allSources = try XcodeGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
-            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+            let globPath = try generatorPaths.resolve(path: glob.glob)
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
             let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
             return XcodeGraph.SourceFileGlob(
