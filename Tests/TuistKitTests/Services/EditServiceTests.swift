@@ -18,7 +18,6 @@ final class EditServiceTests: XCTestCase {
     var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
     var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
-    var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     var projectEditor: MockProjectEditing!
 
     override func setUpWithError() throws {
@@ -31,18 +30,11 @@ final class EditServiceTests: XCTestCase {
             .loadConfig(path: .any)
             .willReturn(.default)
 
-        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.editProjects))
             .willReturn("/Users/tuist/cache/EditProjects")
-
-        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
-        cacheDirectoriesProviderFactory = cacheDirectoryProviderFactory
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(mockCacheDirectoriesProvider)
 
         projectEditor = MockProjectEditing()
 
@@ -50,7 +42,7 @@ final class EditServiceTests: XCTestCase {
             projectEditor: projectEditor,
             opener: opener,
             configLoader: configLoader,
-            cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory
+            cacheDirectoriesProvider: cacheDirectoriesProvider
         )
     }
 

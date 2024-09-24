@@ -30,20 +30,20 @@ final class EditService {
     private let opener: Opening
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
         self.configLoader = configLoader
         self.pluginService = pluginService
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
     func run(
@@ -55,11 +55,10 @@ final class EditService {
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
-            let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
-            let cacheDirectory = try cacheDirectoryProvider.cacheDirectory(for: .editProjects)
+            let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
-            guard let selectedXcode = try XcodeController.shared.selected() else {
+            guard let selectedXcode = try await XcodeController.shared.selected() else {
                 throw EditServiceError.xcodeNotSelected
             }
 

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -8,20 +9,23 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
-    var subject: ProjectDescriptionHelpersBuilder!
-    var resourceLocator: ResourceLocator!
-    var helpersDirectoryLocator: HelpersDirectoryLocating!
+    private var subject: ProjectDescriptionHelpersBuilder!
+    private var resourceLocator: ResourceLocator!
+    private var helpersDirectoryLocator: HelpersDirectoryLocating!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
         resourceLocator = ResourceLocator()
         helpersDirectoryLocator = HelpersDirectoryLocator(rootDirectoryLocator: RootDirectoryLocator())
+        fileSystem = FileSystem()
     }
 
     override func tearDown() {
         subject = nil
         resourceLocator = nil
         helpersDirectoryLocator = nil
+        fileSystem = nil
         super.tearDown()
     }
 
@@ -41,7 +45,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
             path: helpersPath.appending(component: "Helper.swift"),
             atomically: true
         )
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
@@ -59,7 +63,8 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
-        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
+        let exists = try await fileSystem.exists(helpersModule.path)
+        XCTAssertTrue(exists)
     }
 
     func test_build_when_the_helpers_is_a_plugin() async throws {
@@ -75,7 +80,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
             path: helpersPluginPath.appending(component: "Helper.swift"),
             atomically: true
         )
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let plugins = [ProjectDescriptionHelpersPlugin(name: "Plugin", path: helpersPluginPath, location: .local)]
 
@@ -95,6 +100,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libPlugin.dylib").first)
         XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
-        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
+        let exists = try await fileSystem.exists(helpersModule.path)
+        XCTAssertTrue(exists)
     }
 }

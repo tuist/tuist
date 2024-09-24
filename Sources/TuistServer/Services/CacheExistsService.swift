@@ -58,7 +58,7 @@ public final class CacheExistsService: CacheExistsServicing {
         switch response {
         case .ok:
             return true
-        case let .notFound(notFoundResponse):
+        case .notFound:
             return false
         case let .paymentRequired(paymentRequiredResponse):
             switch paymentRequiredResponse.body {

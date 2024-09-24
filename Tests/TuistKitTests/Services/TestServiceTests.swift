@@ -48,15 +48,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .store(.any, cacheCategory: .any)
             .willReturn()
 
-        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
-        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(mockCacheDirectoriesProvider)
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
         let runsCacheDirectory = try temporaryPath()
-        given(mockCacheDirectoriesProvider)
+        given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
@@ -77,7 +72,7 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader
         )
 

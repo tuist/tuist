@@ -58,7 +58,7 @@ public class Generator: Generating {
         try await lint(graphTraverser: graphTraverser)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
+        let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
         try await writer.write(workspace: workspaceDescriptor)
@@ -94,11 +94,11 @@ public class Generator: Generating {
     private func lint(graphTraverser: GraphTraversing) async throws {
         let config = try await configLoader.loadConfig(path: graphTraverser.path)
 
-        let environmentIssues = try environmentLinter.lint(config: config)
+        let environmentIssues = try await environmentLinter.lint(config: config)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser, config: config)
+        let graphIssues = try await graphLinter.lint(graphTraverser: graphTraverser, config: config)
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }

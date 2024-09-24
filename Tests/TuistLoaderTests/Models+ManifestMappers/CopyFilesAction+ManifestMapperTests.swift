@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CopyFilesManifestMapperTests: TuistUnitTestCase {
-    func test_from_with_regular_files() throws {
+    func test_from_with_regular_files() async throws {
         // Given
         let files = [
             "Fonts/font1.ttf",
@@ -28,7 +28,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Fonts")
@@ -37,7 +37,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.files, try files.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
     }
 
-    func test_from_with_package_files() throws {
+    func test_from_with_package_files() async throws {
         // Given
         let files = [
             "SharedSupport/simple-tuist.rtf",
@@ -61,7 +61,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "Copy Templates")

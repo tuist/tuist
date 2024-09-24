@@ -22,7 +22,7 @@ protocol ProjectEditorMapping: AnyObject {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph
+    ) async throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
@@ -55,7 +55,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph {
+    ) async throws -> Graph {
         logger.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
@@ -68,7 +68,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath
         )
 
-        let manifestsProject = try mapManifestsProject(
+        let manifestsProject = try await mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -154,7 +154,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
-    ) throws -> Project? {
+    ) async throws -> Project? {
         guard !projectManifests.isEmpty || packageManifestPath != nil else { return nil }
 
         let projectName = "Manifests"
@@ -241,9 +241,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try {
+        let packagesTarget: Target? = try await {
             guard let packageManifestPath,
-                  let xcode = try XcodeController.shared.selected()
+                  let xcode = try await XcodeController.shared.selected()
             else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 

@@ -68,7 +68,7 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the stencil directory
     let stencilDirectoryLocator: StencilPathLocating
 
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
     /// Xcode Project writer
@@ -83,7 +83,7 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
             ProjectDescriptionHelpersBuilderFactory()
@@ -96,7 +96,7 @@ final class ProjectEditor: ProjectEditing {
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.resourceSynthesizersDirectoryLocator = resourceSynthesizersDirectoryLocator
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
     }
@@ -126,39 +126,38 @@ final class ProjectEditor: ProjectEditing {
             "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",
         ] + tuistIgnoreEntries
 
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let projectManifests = manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
-        let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: try cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 
-        let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
+        let helpers = try await helpersDirectoryLocator.locate(at: editingPath).map {
             [
                 FileHandler.shared.glob($0, glob: "**/*.swift"),
                 FileHandler.shared.glob($0, glob: "**/*.docc"),
             ].flatMap { $0 }
         } ?? []
 
-        let templateSources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+        let templateSources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift")
         } ?? []
 
-        let templateResources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+        let templateResources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let resourceSynthesizers = resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
+        let resourceSynthesizers = try await resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let stencils = stencilDirectoryLocator.locate(at: editingPath).map {
+        let stencils = try await stencilDirectoryLocator.locate(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
@@ -186,7 +185,7 @@ final class ProjectEditor: ProjectEditing {
         let tuistPath = try AbsolutePath(validating: TuistCommand.processArguments()!.first!)
         let workspaceName = "Manifests"
 
-        let graph = try projectEditorMapper.map(
+        let graph = try await projectEditorMapper.map(
             name: workspaceName,
             tuistPath: tuistPath,
             sourceRootPath: editingPath,
@@ -205,7 +204,7 @@ final class ProjectEditor: ProjectEditing {
         )
 
         let graphTraverser = GraphTraverser(graph: graph)
-        let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
+        let descriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
         try await writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
     }

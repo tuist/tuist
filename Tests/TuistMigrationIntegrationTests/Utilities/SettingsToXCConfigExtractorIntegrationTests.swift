@@ -19,14 +19,14 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_extract_when_target() throws {
+    func test_extract_when_target() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
 
         // When
-        try subject.extract(
+        try await subject.extract(
             xcodeprojPath: xcodeprojPath,
             targetName: "iOS",
             xcconfigPath: xcconfigPath
@@ -54,14 +54,14 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
         XCTAssertPrinterOutputContains("Build settings successfully extracted into \(xcconfigPath.pathString)")
     }
 
-    func test_extract_when_project() throws {
+    func test_extract_when_project() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")
 
         // When
-        try subject.extract(
+        try await subject.extract(
             xcodeprojPath: xcodeprojPath,
             targetName: nil,
             xcconfigPath: xcconfigPath
@@ -136,28 +136,28 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
         XCTAssertPrinterOutputContains("Build settings successfully extracted into \(xcconfigPath.pathString)")
     }
 
-    func test_extract_when_target_is_not_found() throws {
+    func test_extract_when_target_is_not_found() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
 
         // When
-        XCTAssertThrowsSpecific(try subject.extract(
+        await XCTAssertThrowsSpecific(try await subject.extract(
             xcodeprojPath: xcodeprojPath,
             targetName: "UnexistingTarget",
             xcconfigPath: xcconfigPath
         ), SettingsToXCConfigExtractorError.targetNotFound("UnexistingTarget"))
     }
 
-    func test_extract_when_project_is_not_found() throws {
+    func test_extract_when_project_is_not_found() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "NonExistingProject.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")
 
         // When
-        XCTAssertThrowsSpecific(try subject.extract(
+        await XCTAssertThrowsSpecific(try await subject.extract(
             xcodeprojPath: xcodeprojPath,
             targetName: nil,
             xcconfigPath: xcconfigPath

@@ -58,7 +58,7 @@ final class GenerateService {
         )
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
-            try opener.open(path: workspacePath)
+            try await opener.open(path: workspacePath)
         }
         logger.notice("Project generated.", metadata: .success)
         logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
