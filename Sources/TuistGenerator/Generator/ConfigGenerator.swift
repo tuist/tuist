@@ -339,7 +339,7 @@ final class ConfigGenerator: ConfigGenerating {
         let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
         var settings: SettingsDictionary = [:]
         if pluginExecutables.isEmpty { return settings }
-        let swiftCompilerFlags = pluginExecutables.flatMap { ["-load-plugin-executable", $0] }
+        let swiftCompilerFlags = pluginExecutables.sorted().flatMap { ["-load-plugin-executable", $0] }
         settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
         return settings
     }
