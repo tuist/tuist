@@ -169,7 +169,7 @@ class ManifestLinterTests: XCTestCase {
     func test_lint_workspace_scheme_missingProjectPathInBuildActionPreActions() {
         // Given
         let preActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
-        let buildAction = BuildAction.buildAction(targets: [], preActions: preActions)
+        let buildAction = BuildAction.buildAction([], preActions: preActions)
         let scheme = Scheme.scheme(name: "MyScheme", buildAction: buildAction)
         let workspace = Workspace.test(schemes: [scheme])
 

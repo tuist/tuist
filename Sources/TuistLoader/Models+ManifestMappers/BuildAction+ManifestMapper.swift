@@ -21,11 +21,12 @@ extension XcodeGraph.BuildAction {
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-        let targets: [XcodeGraph.TargetReference] = try manifest.targets.map {
-            .init(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
-                name: $0.targetName
-            )
+
+        let targets: [XcodeGraph.BuildAction.Target] = try manifest.targets.map {
+            XcodeGraph.BuildAction.Target(TargetReference(
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.reference.projectPath),
+                name: $0.reference.targetName
+            ), buildFor: $0.buildFor?.map { XcodeGraph.BuildAction.Target.BuildFor(fromBuildFor: $0) })
         }
         return XcodeGraph.BuildAction(
             targets: targets,
@@ -33,5 +34,22 @@ extension XcodeGraph.BuildAction {
             postActions: postActions,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure
         )
+    }
+}
+
+extension XcodeGraph.BuildAction.Target.BuildFor {
+    init(fromBuildFor buildFor: ProjectDescription.BuildAction.Target.BuildFor) {
+        switch buildFor {
+        case .running:
+            self = .running
+        case .testing:
+            self = .testing
+        case .profiling:
+            self = .profiling
+        case .archiving:
+            self = .archiving
+        case .analyzing:
+            self = .analyzing
+        }
     }
 }

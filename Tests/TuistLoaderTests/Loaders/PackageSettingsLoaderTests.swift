@@ -45,6 +45,8 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
+        let packageSettings = PackageSettings.test()
+
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(temporaryPath)
@@ -55,7 +57,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
 
         given(manifestLoader)
             .loadPackageSettings(at: .any)
-            .willReturn(.test())
+            .willReturn(packageSettings)
 
         swiftPackageManagerController.getToolsVersionStub = { _ in
             TSCUtility.Version("5.4.9")

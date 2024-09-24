@@ -196,18 +196,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
 
-        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
-        ]
-
         var entries: [XCScheme.BuildAction.Entry] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
         for buildActionTarget in buildAction.targets {
             guard let buildActionGraphTarget = graphTraverser.target(
-                path: buildActionTarget.projectPath,
-                name: buildActionTarget.name
+                path: buildActionTarget.reference.projectPath,
+                name: buildActionTarget.reference.name
             ),
                 let buildableReference = try createBuildableReference(
                     graphTarget: buildActionGraphTarget,
@@ -218,6 +214,22 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+            let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = if let buildFor = buildActionTarget.buildFor {
+                buildFor.map {
+                    switch $0 {
+                    case .running: return .running
+                    case .testing: return .testing
+                    case .profiling: return .profiling
+                    case .archiving: return .archiving
+                    case .analyzing: return .analyzing
+                    }
+                }
+            } else {
+                [
+                    .analyzing, .archiving, .profiling, .running, .testing,
+                ]
+            }
+
             entries.append(XCScheme.BuildAction.Entry(buildableReference: buildableReference, buildFor: buildFor))
         }
 
@@ -947,7 +959,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 
     private func defaultTargetReference(scheme: Scheme) -> TargetReference? {
-        scheme.buildAction?.targets.first
+        scheme.buildAction?.targets.first?.reference
     }
 
     private func isSchemeForAppExtension(scheme: Scheme, graphTraverser: GraphTraversing) -> Bool? {

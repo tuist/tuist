@@ -150,9 +150,9 @@ import TuistSupport
     }
 
     extension BuildAction {
-        public static func test(targets: [TargetReference] = []) -> BuildAction {
+        public static func test(targets: [Target] = []) -> BuildAction {
             .buildAction(
-                targets: targets,
+                targets,
                 preActions: [ExecutionAction.test()],
                 postActions: [ExecutionAction.test()]
             )
