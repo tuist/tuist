@@ -124,10 +124,8 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 else { return [] }
                 let name = xcframework.path.basenameWithoutExt
                 let umbrellaHeader = moduleMap.parentDirectory.appending(component: "\(name).h")
-                guard fileHandler.exists(umbrellaHeader)
-                else { return [] }
                 let headersDirectory = derivedDirectory.appending(components: name, "Headers")
-                return [
+                var sideEffects: [SideEffectDescriptor] = [
                     .directory(DirectoryDescriptor(path: headersDirectory)),
                     .file(
                         FileDescriptor(
@@ -135,15 +133,22 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             contents: try fileHandler.readFile(moduleMap)
                         )
                     ),
-                    .file(
-                        FileDescriptor(
-                            path: headersDirectory.appending(components: "\(name).h"),
-                            contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
-                                .replacingOccurrences(of: "<\(name)/", with: "<")
-                                .data(using: .utf8)
-                        )
-                    ),
                 ]
+
+                if fileHandler.exists(umbrellaHeader) {
+                    sideEffects.append(
+                        .file(
+                            FileDescriptor(
+                                path: headersDirectory.appending(components: "\(name).h"),
+                                contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
+                                    .replacingOccurrences(of: "<\(name)/", with: "<")
+                                    .data(using: .utf8)
+                            )
+                        )
+                    )
+                }
+
+                return sideEffects
             }
     }
 
