@@ -30,7 +30,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_when_static_xcframework_linked_via_dynamic_xcframework() async throws {
+    func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -90,6 +90,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 ): [
                     .testXCFramework(
                         path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "GoogleMaps.a")
+                                ),
+                            ]
+                        ),
                         linking: .static
                     ),
                 ],
@@ -153,6 +160,97 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let googleMapsPath = projectPath
+            .parentDirectory
+            .appending(component: "GoogleMaps.xcframework")
+        let googleMapsPrimaryBinaryPath = googleMapsPath
+            .appending(components: "ios-arm64", "GoogleMaps.framework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "GoogleMaps.framework/GoogleMaps")
+                                ),
+                            ]
+                        ),
+                        primaryBinaryPath: googleMapsPrimaryBinaryPath,
+                        linking: .static
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "FRAMEWORK_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../GoogleMaps.xcframework\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertEmpty(gotSideEffects)
+    }
+
     func test_map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -206,6 +304,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 ): [
                     .testXCFramework(
                         path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "GoogleMaps.a")
+                                ),
+                            ]
+                        ),
                         linking: .static
                     ),
                 ],
@@ -324,6 +429,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 ): [
                     .testXCFramework(
                         path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "GoogleMaps.a")
+                                ),
+                            ]
+                        ),
                         linking: .static
                     ),
                 ],
