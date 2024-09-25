@@ -74,7 +74,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 settings["FRAMEWORK_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
                         .map {
-                            "\"$(SRCROOT)/\($0.path.relative(to: project.path).pathString)\""
+                            "\"$(SRCROOT)/\($0.primaryBinaryPath.parentDirectory.parentDirectory.relative(to: project.path).pathString)\""
                         }
                 )
             }
