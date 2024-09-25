@@ -2,7 +2,7 @@
 @preconcurrency import PackageDescription
 
 #if TUIST
-    @preconcurrency import ProjectDescription
+    import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
