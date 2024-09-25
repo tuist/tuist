@@ -57,7 +57,7 @@ defmodule TuistWeb.Authentication do
     assign(conn, @current_project_key, project |> Repo.preload(:account))
   end
 
-  def get_token(conn) do
+  def get_app_installation_token_for_repository(conn) do
     case conn |> get_req_header("authorization") do
       ["Bearer " <> token] -> token
       _ -> nil

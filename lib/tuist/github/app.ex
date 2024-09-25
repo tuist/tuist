@@ -7,13 +7,13 @@ defmodule Tuist.GitHub.App do
 
   @cache_key "github_app_token"
 
-  def get_token(opts \\ []) do
+  def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
     cache = opts |> get_cache()
     ttl = opts |> Keyword.get(:ttl, :timer.minutes(10))
 
     result =
-      Cachex.fetch(cache, @cache_key, fn ->
-        case refresh_token(expires_in: ttl) do
+      Cachex.fetch(cache, @cache_key <> "_#{repository_full_handle}", fn ->
+        case refresh_token(repository_full_handle, expires_in: ttl) do
           {:ok, token} -> {:commit, token, ttl: ttl}
           {:error, message} -> {:error, message}
         end
@@ -39,7 +39,7 @@ defmodule Tuist.GitHub.App do
     Keyword.get(opts, :cache, :tuist)
   end
 
-  def refresh_token(opts \\ []) do
+  def refresh_token(repository_full_handle, opts \\ []) do
     private_key =
       Environment.github_app_private_key()
       |> JOSE.JWK.from_pem()
@@ -67,9 +67,11 @@ defmodule Tuist.GitHub.App do
       ]
 
     with {:access_tokens_url,
-          {:ok, %Req.Response{status: 200, body: [%{"access_tokens_url" => access_tokens_url}]}}} <-
+          {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
            {:access_tokens_url,
-            Req.get("https://api.github.com/app/installations", headers: headers)},
+            Req.get("https://api.github.com/repos/#{repository_full_handle}/installation",
+              headers: headers
+            )},
          {:token,
           {:ok,
            %Req.Response{
@@ -77,17 +79,15 @@ defmodule Tuist.GitHub.App do
              body: %{"token" => token, "expires_at" => expires_at}
            }}} <-
            {:token, Req.post(access_tokens_url, headers: headers)} do
-      expires_at =
+      {:ok, expires_at, _} =
         expires_at
         |> DateTime.from_iso8601()
-        |> case do
-          {:ok, date, _} -> date
-          # Fallback in case of error
-          {:error, _} -> DateTime.utc_now()
-        end
 
       {:ok, %{token: token, expires_at: expires_at}}
     else
+      {:access_tokens_url, {:ok, %Req.Response{status: 404}}} ->
+        {:error, "The Tuist GitHub app is not installed for #{repository_full_handle}."}
+
       {:access_tokens_url, {:ok, %Req.Response{status: status, body: body}}} ->
         {:error,
          "Unexpected status code when getting the access token url: #{status}. Body: #{Jason.encode!(body)}"}

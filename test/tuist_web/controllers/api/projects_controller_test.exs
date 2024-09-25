@@ -571,12 +571,15 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       end)
 
       GitHub.Client
-      |> expect(:get_user_by_id, fn "123" ->
+      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
       GitHub.Client
-      |> expect(:get_user_permission, fn %{username: "tuist", full_handle: "tuist/tuist"} ->
+      |> expect(:get_user_permission, fn %{
+                                           username: "tuist",
+                                           repository_full_handle: "tuist/tuist"
+                                         } ->
         {:ok, %VCS.Repositories.Permission{permission: "admin"}}
       end)
 
@@ -688,7 +691,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       GitHub.Client
-      |> expect(:get_user_by_id, fn "123" ->
+      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
@@ -703,7 +706,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       end)
 
       GitHub.Client
-      |> expect(:get_user_permission, fn %{username: "tuist", full_handle: "tuist/tuist"} ->
+      |> expect(:get_user_permission, fn %{
+                                           username: "tuist",
+                                           repository_full_handle: "tuist/tuist"
+                                         } ->
         {:error, "Not found"}
       end)
 

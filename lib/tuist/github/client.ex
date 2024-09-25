@@ -7,10 +7,14 @@ defmodule Tuist.GitHub.Client do
   alias Tuist.VCS.Comment
   alias Tuist.GitHub.App
 
-  def get_user_by_id(github_id) do
+  @doc """
+  `repository_full_handle` is necessary as to interact with the user endpoint,
+  we need to be authenticated with the GitHub app installation token associated with a specific repository.
+  """
+  def get_user_by_id(%{id: github_id, repository_full_handle: repository_full_handle}) do
     url = "https://api.github.com/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url) do
+    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -19,10 +23,10 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository(full_handle) do
-    url = "https://api.github.com/repos/#{full_handle}"
+  def get_repository(repository_full_handle) do
+    url = "https://api.github.com/repos/#{repository_full_handle}"
 
-    case github_request(&Req.get/1, url: url) do
+    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
       {:ok, repository} ->
         {:ok,
          %VCS.Repositories.Repository{
@@ -36,11 +40,11 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_permission(%{username: username, full_handle: full_handle}) do
+  def get_user_permission(%{username: username, repository_full_handle: repository_full_handle}) do
     url =
-      "https://api.github.com/repos/#{full_handle}/collaborators/#{username}/permission"
+      "https://api.github.com/repos/#{repository_full_handle}/collaborators/#{username}/permission"
 
-    case github_request(&Req.get/1, url: url) do
+    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
       {:ok, permission} ->
         {:ok, %VCS.Repositories.Permission{permission: permission["permission"]}}
 
@@ -49,10 +53,10 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_comments(%{repository: repository, issue_id: issue_id}) do
-    url = "https://api.github.com/repos/#{repository}/issues/#{issue_id}/comments"
+  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id}) do
+    url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url) do
+    case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
       {:ok, comments} ->
         {:ok,
          comments
@@ -72,20 +76,38 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{repository: repository, issue_id: issue_id, body: body}) do
-    url = "https://api.github.com/repos/#{repository}/issues/#{issue_id}/comments"
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body
+      }) do
+    url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    github_request(&Req.post/1, url: url, json: %{body: body})
+    github_request(&Req.post/1,
+      url: url,
+      repository_full_handle: repository_full_handle,
+      json: %{body: body}
+    )
   end
 
-  def update_comment(%{repository: repository, comment_id: comment_id, body: body}) do
-    url = "https://api.github.com/repos/#{repository}/issues/comments/#{comment_id}"
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body
+      }) do
+    url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
-    github_request(&Req.patch/1, url: url, json: %{body: body})
+    github_request(&Req.patch/1,
+      url: url,
+      repository_full_handle: repository_full_handle,
+      json: %{body: body}
+    )
   end
 
   defp github_request(method, attrs) do
-    case App.get_token() do
+    repository_full_handle = Keyword.get(attrs, :repository_full_handle)
+
+    case App.get_app_installation_token_for_repository(repository_full_handle) do
       {:ok, %{token: token}} ->
         attrs_with_headers =
           attrs
@@ -93,6 +115,7 @@ defmodule Tuist.GitHub.Client do
             {"Accept", "application/vnd.github.v3+json"},
             {"Authorization", "token #{token}"}
           ])
+          |> Keyword.delete(:repository_full_handle)
 
         method.(attrs_with_headers)
         |> handle_github_response(method, attrs)

@@ -36,7 +36,11 @@ defmodule Tuist.VCS.Repositories do
       nil
     else
       with {:user, {:ok, %VCS.User{username: username}}} <-
-             {:user, client.get_user_by_id(github_identity.id_in_provider)},
+             {:user,
+              client.get_user_by_id(%{
+                id: github_identity.id_in_provider,
+                repository_full_handle: full_handle
+              })},
            {:permission, {:ok, %VCS.Repositories.Permission{} = permission}} <-
              {:permission,
               Tuist.GitHub.Client.get_user_permission(%{

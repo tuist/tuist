@@ -28,12 +28,15 @@ defmodule Tuist.VCSTest do
         })
 
       GitHub.Client
-      |> expect(:get_user_by_id, fn "123" ->
+      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
       GitHub.Client
-      |> expect(:get_user_permission, fn %{full_handle: "tuist/tuist", username: "tuist"} ->
+      |> expect(:get_user_permission, fn %{
+                                           repository_full_handle: "tuist/tuist",
+                                           username: "tuist"
+                                         } ->
         {:ok, %VCS.Repositories.Permission{permission: "admin"}}
       end)
 
@@ -50,6 +53,77 @@ defmodule Tuist.VCSTest do
 
       # Then
       assert got == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+    end
+  end
+
+  describe "connected/1" do
+    test "returns true when connected" do
+      # Given
+      Environment
+      |> stub(:github_app_configured?, fn -> true end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      # When
+      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false when the GitHub app is not configured" do
+      # Given
+      Environment
+      |> stub(:github_app_configured?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      # When
+      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
+
+      # Then
+      assert got == false
+    end
+
+    test "returns false when the vcs_repository_full_handle is nil" do
+      # Given
+      Environment
+      |> stub(:github_app_configured?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(vcs_repository_full_handle: nil)
+
+      # When
+      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist"})
+
+      # Then
+      assert got == false
+    end
+
+    test "returns false when the connected repositor full handles' do not match" do
+      # Given
+      Environment
+      |> stub(:github_app_configured?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      # When
+      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/tuist-different"})
+
+      # Then
+      assert got == false
     end
   end
 

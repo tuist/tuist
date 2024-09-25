@@ -25,8 +25,8 @@ defmodule Tuist.GitHub.AppTest do
     |> expect(
       :get,
       fn
-        "https://api.github.com/app/installations", _ ->
-          {:ok, %Req.Response{status: 200, body: [%{"access_tokens_url" => "access_tokens_url"}]}}
+        "https://api.github.com/repos/tuist/tuist/installation", _ ->
+          {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => "access_tokens_url"}}}
       end
     )
 
@@ -40,9 +40,39 @@ defmodule Tuist.GitHub.AppTest do
     end)
 
     # When/Then
-    assert {:ok, first_token} = App.get_token(cache: cache, ttl: :timer.minutes(10))
-    assert {:ok, second_token} = App.get_token(cache: cache, ttl: :timer.minutes(10))
+    assert {:ok, first_token} =
+             App.get_app_installation_token_for_repository("tuist/tuist",
+               cache: cache,
+               ttl: :timer.minutes(10)
+             )
+
+    assert {:ok, second_token} =
+             App.get_app_installation_token_for_repository("tuist/tuist",
+               cache: cache,
+               ttl: :timer.minutes(10)
+             )
+
     assert first_token == second_token
+  end
+
+  test "returns a not found error when the GitHub app is not installed" do
+    # Given
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+
+    Req
+    |> stub(:get, fn _, _ ->
+      {:ok, %Req.Response{status: 404}}
+    end)
+
+    # When/Then
+    assert {:error, error_message} =
+             App.get_app_installation_token_for_repository("tuist/tuist",
+               cache: cache,
+               ttl: :timer.minutes(10)
+             )
+
+    assert error_message =~ "The Tuist GitHub app is not installed for tuist/tuist"
   end
 
   test "returns an error when the token refreshing fails" do
@@ -56,7 +86,12 @@ defmodule Tuist.GitHub.AppTest do
     end)
 
     # When/Then
-    assert {:error, error_message} = App.get_token(cache: cache, ttl: :timer.minutes(10))
+    assert {:error, error_message} =
+             App.get_app_installation_token_for_repository("tuist/tuist",
+               cache: cache,
+               ttl: :timer.minutes(10)
+             )
+
     assert error_message =~ "Unexpected status code when getting the access token url: 503"
   end
 end

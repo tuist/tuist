@@ -46,12 +46,16 @@ defmodule Tuist.VCS do
       nil
     else
       with {:user, {:ok, %VCS.User{username: username}}} <-
-             {:user, client.get_user_by_id(github_identity.id_in_provider)},
+             {:user,
+              client.get_user_by_id(%{
+                id: github_identity.id_in_provider,
+                repository_full_handle: full_handle
+              })},
            {:permission, {:ok, %VCS.Repositories.Permission{} = permission}} <-
              {:permission,
               client.get_user_permission(%{
                 username: username,
-                full_handle: full_handle
+                repository_full_handle: full_handle
               })} do
         {:ok, permission}
       else
@@ -76,6 +80,15 @@ defmodule Tuist.VCS do
     |> String.replace_trailing(".git", "")
   end
 
+  @doc """
+  Returns `true` if the repository, identified by the `repository_full_handle`, is connected to the given project.
+  """
+  def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
+    Environment.github_app_configured?() and
+      not is_nil(project.vcs_repository_full_handle) and
+      project.vcs_repository_full_handle == repository_full_handle
+  end
+
   def post_vcs_pull_request_comment(%{
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
@@ -86,13 +99,14 @@ defmodule Tuist.VCS do
         command_run_url: command_run_url
       }) do
     should_post_report =
-      Environment.github_app_configured?() and
-        Enum.member?(@reportable_commands, command_name) and
+      Enum.member?(@reportable_commands, command_name) and
         not is_nil(git_commit_sha) and
         not is_nil(git_ref) and
         not is_nil(git_remote_url_origin) and
-        project.vcs_repository_full_handle ==
-          get_repository_full_handle_from_url(git_remote_url_origin) and
+        connected?(%{
+          repository_full_handle: get_repository_full_handle_from_url(git_remote_url_origin),
+          project: project
+        }) and
         String.starts_with?(git_ref, "refs/pull/")
 
     if should_post_report do
