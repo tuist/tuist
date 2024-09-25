@@ -12,13 +12,11 @@ import XCTest
 
 final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
-    private var fileSystem: FileSystem!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
     override func setUp() {
         super.setUp()
 
-        fileSystem = FileSystem()
         manifestFilesLocator = MockManifestFilesLocating()
         subject = StaticXCFrameworkModuleMapGraphMapper(
             manifestFilesLocator: manifestFilesLocator
@@ -26,7 +24,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        fileSystem = nil
         manifestFilesLocator = nil
         subject = nil
 
