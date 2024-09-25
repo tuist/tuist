@@ -1,4 +1,5 @@
 
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -11,13 +12,16 @@ import XCTest
 
 final class XcodeProjWriterTests: TuistTestCase {
     private var subject: XcodeProjWriter!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
         subject = XcodeProjWriter()
+        fileSystem = FileSystem()
     }
 
     override func tearDown() {
+        fileSystem = nil
         subject = nil
         super.tearDown()
     }
@@ -32,7 +36,8 @@ final class XcodeProjWriterTests: TuistTestCase {
         try await subject.write(project: descriptor)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(xcodeProjPath))
+        let exists = try await fileSystem.exists(xcodeProjPath)
+        XCTAssertTrue(exists)
     }
 
     func test_writeProject_fileSideEffects() async throws {
@@ -102,7 +107,8 @@ final class XcodeProjWriterTests: TuistTestCase {
         }
 
         // Then
-        XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
+        let exists = try await paths.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertTrue(exists.allSatisfy { $0 })
     }
 
     func test_generate_replacesProjectSharedSchemes() async throws {

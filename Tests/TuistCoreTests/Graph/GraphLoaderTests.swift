@@ -24,7 +24,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Load Workspace
 
-    func test_loadWorkspace_unreferencedProjectsAreExcluded() throws {
+    func test_loadWorkspace_unreferencedProjectsAreExcluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -32,7 +32,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -49,7 +49,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
-    func test_loadWorkspace_unlinkedReferencedProjectsAreIncluded() throws {
+    func test_loadWorkspace_unlinkedReferencedProjectsAreIncluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -57,7 +57,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -75,7 +75,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
-    func test_loadWorkspace_linkedReferencedProjectsAreIncluded() throws {
+    func test_loadWorkspace_linkedReferencedProjectsAreIncluded() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [])
@@ -85,7 +85,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -108,7 +108,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Load Project
 
-    func test_loadProject_unlinkedProjectsAreExcluded() throws {
+    func test_loadProject_unlinkedProjectsAreExcluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -116,7 +116,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -132,7 +132,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
 
-    func test_loadProject_linkedProjectsAreIncluded() throws {
+    func test_loadProject_linkedProjectsAreIncluded() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [])
@@ -142,7 +142,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -164,7 +164,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Frameworks
 
-    func test_loadWorkspace_frameworkDependency() throws {
+    func test_loadWorkspace_frameworkDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F1.framework", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F2.framework", status: .required)])
@@ -190,7 +190,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -225,7 +225,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_frameworkDependencyReferencedMultipleTimes() throws {
+    func test_loadWorkspace_frameworkDependencyReferencedMultipleTimes() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F.framework", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F.framework", status: .required)])
@@ -244,7 +244,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -274,7 +274,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Libraries
 
-    func test_loadWorkspace_libraryDependency() throws {
+    func test_loadWorkspace_libraryDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .library(path: "/libs/lib1/libL1.dylib", publicHeaders: "/libs/lib1/include", swiftModuleMap: nil),
@@ -308,7 +308,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -341,7 +341,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - XCFrameworks
 
-    func test_loadWorkspace_xcframeworkDependency() throws {
+    func test_loadWorkspace_xcframeworkDependency() async throws {
         // Given
         let targetA = Target.test(
             name: "A",
@@ -365,7 +365,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -390,7 +390,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_mergeableXCFrameworkDependency() throws {
+    func test_loadWorkspace_mergeableXCFrameworkDependency() async throws {
         // Given
         let targetA = Target.test(
             name: "A",
@@ -414,7 +414,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -441,7 +441,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - SDKs
 
-    func test_loadWorkspace_sdkDependency() throws {
+    func test_loadWorkspace_sdkDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.sdk(name: "libc++.tbd", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.sdk(name: "SwiftUI.framework", status: .optional)])
@@ -451,7 +451,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -489,7 +489,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Packages
 
-    func test_loadWorkspace_packages() throws {
+    func test_loadWorkspace_packages() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .package(product: "PackageLibraryA1", type: .runtime),
@@ -514,7 +514,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -549,7 +549,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_package_plugin() throws {
+    func test_loadWorkspace_package_plugin() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .package(product: "PackagePlugin", type: .plugin),
@@ -564,7 +564,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(
+        let graph = try await subject.loadWorkspace(
             workspace: workspace,
             projects: [
                 projectA,
@@ -584,15 +584,15 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Error Cases
 
-    func test_loadWorkspace_missingProjectReferenceInWorkspace() throws {
+    func test_loadWorkspace_missingProjectReferenceInWorkspace() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/Missing"])
         let subject = makeSubject()
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(
+        await XCTAssertThrowsSpecific(
+            try await subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
                     projectA,
@@ -602,7 +602,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_loadWorkspace_missingProjectReferenceInDependency() throws {
+    func test_loadWorkspace_missingProjectReferenceInDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/Missing")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -610,8 +610,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(
+        await XCTAssertThrowsSpecific(
+            try await subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
                     projectA,
@@ -621,7 +621,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_loadWorkspace_missingTargetReferenceInLocalProject() throws {
+    func test_loadWorkspace_missingTargetReferenceInLocalProject() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.target(name: "Missing")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -629,8 +629,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(
+        await XCTAssertThrowsSpecific(
+            try await subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
                     projectA,
@@ -640,7 +640,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_loadWorkspace_missingTargetReferenceInOtherProject() throws {
+    func test_loadWorkspace_missingTargetReferenceInOtherProject() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/B")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -649,8 +649,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(
+        await XCTAssertThrowsSpecific(
+            try await subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
                     projectA,

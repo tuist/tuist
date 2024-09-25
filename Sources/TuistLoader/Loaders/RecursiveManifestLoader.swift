@@ -130,7 +130,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             paths.subtract(cache.keys)
             let projects = try await Array(paths).concurrentCompactMap {
                 let packageInfo = try await self.manifestLoader.loadPackage(at: $0)
-                return try self.packageInfoMapper.map(
+                return try await self.packageInfoMapper.map(
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,
@@ -172,7 +172,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {
-                case let .project(target: _, path: projectPath, _):
+                case let .project(target: _, path: projectPath, _, _):
                     return try generatorPaths.resolve(path: projectPath)
                 default:
                     return nil

@@ -65,7 +65,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         )
 
         if let workspaceSettingsDescriptor = workspace.workspaceSettingsDescriptor {
-            try writeWorkspaceSettings(
+            try await writeWorkspaceSettings(
                 workspaceSettingsDescriptor: workspaceSettingsDescriptor,
                 xccontainerPath: workspace.xcworkspacePath
             )
@@ -105,7 +105,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         wipeSharedSchemesBeforeWriting: Bool
     ) async throws {
         let sharedSchemesPath = try schemeDirectory(path: xccontainerPath, shared: true)
-        if wipeSharedSchemesBeforeWriting, FileHandler.shared.exists(sharedSchemesPath) {
+        if wipeSharedSchemesBeforeWriting, try await fileSystem.exists(sharedSchemesPath) {
             try await fileSystem.remove(sharedSchemesPath)
         }
         try schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: xccontainerPath) }
@@ -136,12 +136,12 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func writeWorkspaceSettings(
         workspaceSettingsDescriptor: WorkspaceSettingsDescriptor,
         xccontainerPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
 
         let parentFolder = settingsPath.removingLastComponent()
-        if !FileHandler.shared.exists(parentFolder) {
-            try FileHandler.shared.createFolder(parentFolder)
+        if try await !fileSystem.exists(parentFolder) {
+            try await fileSystem.makeDirectory(at: parentFolder)
         }
         try workspaceSettingsDescriptor.settings
             .write(path: settingsPath.path, override: true)
@@ -149,7 +149,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) async throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
-        guard FileHandler.shared.exists(settingsPath) else { return }
+        guard try await fileSystem.exists(settingsPath) else { return }
         try await fileSystem.remove(settingsPath)
     }
 
@@ -170,7 +170,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
                 isShown: !scheme.hidden
             )
         }
-        if FileHandler.shared.exists(xcschememanagementPath) {
+        if try await fileSystem.exists(xcschememanagementPath) {
             try await fileSystem.remove(xcschememanagementPath)
         }
         try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -114,7 +115,7 @@ public protocol PackageInfoMapping {
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]]
-    ) throws -> ProjectDescription.Project?
+    ) async throws -> ProjectDescription.Project?
 }
 
 // swiftlint:disable:next type_body_length
@@ -124,11 +125,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+    private let fileSystem: FileSysteming
 
     public init(
-        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()
+        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.moduleMapGenerator = moduleMapGenerator
+        self.fileSystem = fileSystem
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -263,7 +267,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]]
-    ) throws -> ProjectDescription.Project? {
+    ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
             // Force dynamic frameworks
@@ -315,16 +319,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
             )
         )
 
-        var targetToProducts: [String: Set<PackageInfo.Product>] = [:]
+        var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
             var targetsToProcess = Set(product.targets)
             while !targetsToProcess.isEmpty {
                 let target = targetsToProcess.removeFirst()
-                let alreadyProcessed = targetToProducts[target]?.contains(product) ?? false
+                let alreadyProcessed = mutableTargetToProducts[target]?.contains(product) ?? false
                 guard !alreadyProcessed else {
                     continue
                 }
-                targetToProducts[target, default: []].insert(product)
+                mutableTargetToProducts[target, default: []].insert(product)
                 let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
                 for dependency in dependencies {
                     switch dependency {
@@ -338,10 +342,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
         }
+        let targetToProducts = mutableTargetToProducts
 
-        let targets: [ProjectDescription.Target] = try packageInfo.targets
-            .compactMap { target -> ProjectDescription.Target? in
-                return try map(
+        let targets: [ProjectDescription.Target] = try await packageInfo.targets
+            .concurrentCompactMap { target -> ProjectDescription.Target? in
+                return try await self.map(
                     target: target,
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
@@ -407,7 +412,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.SettingsDictionary],
         packageModuleAliases: [String: [String: String]]
-    ) throws -> ProjectDescription.Target? {
+    ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
@@ -439,17 +444,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
             return nil
         }
 
-        let targetPath = try target.basePath(packageFolder: packageFolder)
+        let targetPath = try await target.basePath(packageFolder: packageFolder)
 
         let moduleMap: ModuleMap?
         switch target.type {
         case .system:
             /// System library targets assume the module map is located at the source directory root
             /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
-            let packagePath = try target.basePath(packageFolder: path)
+            let packagePath = try await target.basePath(packageFolder: path)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
-            guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
+            guard try await fileSystem.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
                 throw PackageInfoMapperError.modulemapMissing(
                     moduleMapPath: moduleMapPath.pathString,
                     package: packageInfo.name,
@@ -459,7 +464,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
-            moduleMap = try moduleMapGenerator.generate(
+            moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: target.name,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path)
@@ -514,11 +519,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         if target.type.supportsResources {
-            resources = try ResourceFileElements.from(
+            resources = try await ResourceFileElements.from(
                 sources: target.sources,
                 resources: target.resources,
                 path: targetPath,
-                excluding: target.exclude
+                excluding: target.exclude,
+                fileSystem: fileSystem
             )
         }
 
@@ -542,7 +548,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                         return nil
                     }
                 } catch {
@@ -578,7 +584,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let settings = try Settings.from(
+        let settings = try await Settings.from(
             target: target,
             packageFolder: packageFolder,
             settings: target.settings,
@@ -823,14 +829,15 @@ extension ProjectDescription.ResourceFileElements {
         sources: [String]?,
         resources: [PackageInfo.Target.Resource],
         path: AbsolutePath,
-        excluding: [String]
-    ) throws -> Self? {
+        excluding: [String],
+        fileSystem: FileSysteming
+    ) async throws -> Self? {
         /// Handles the conversion of a `.copy` resource rule of SPM
         ///
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
-        func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
+        @Sendable func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
             .folderReference(path: .path(resourceAbsolutePath.pathString))
         }
 
@@ -839,7 +846,9 @@ extension ProjectDescription.ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement? {
+        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription
+            .ResourceFileElement?
+        {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
             for exclude in excluding {
@@ -857,7 +866,7 @@ extension ProjectDescription.ResourceFileElements {
             )
         }
 
-        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.compactMap {
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try await resources.concurrentCompactMap {
             let resourceAbsolutePath = path.appending(try RelativePath(validating: $0.path))
 
             switch $0.rule {
@@ -872,11 +881,11 @@ extension ProjectDescription.ResourceFileElements {
                 return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
-        .filter {
+        .concurrentFilter {
             switch $0 {
             case let .glob(pattern: pattern, excluding: _, tags: _, inclusionCondition: _):
                 // We will automatically skip including globs of non-existing directories for packages
-                if !FileHandler.shared.exists(try AbsolutePath(validating: String(pattern.pathString)).parentDirectory) {
+                if try await !fileSystem.exists(try AbsolutePath(validating: String(pattern.pathString)).parentDirectory) {
                     return false
                 }
                 return true
@@ -922,6 +931,7 @@ extension ProjectDescription.ResourceFileElements {
         "xcmappingmodel",
         "xcassets",
         "strings",
+        "metal",
     ])
 
     private static func defaultResourcePaths(
@@ -971,7 +981,7 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                     return nil
                 }
             } catch {
@@ -1013,14 +1023,14 @@ extension ProjectDescription.Settings {
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.SettingsDictionary],
         dependencyModuleAliases: [String: String]
-    ) throws -> Self? {
-        let mainPath = try target.basePath(packageFolder: packageFolder)
+    ) async throws -> Self? {
+        let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         var dependencyHeaderSearchPaths: [String] = []
         if let moduleMap {
             if moduleMap != .none, target.type != .system {
-                let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+                let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
                 dependencyHeaderSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
             }
@@ -1321,7 +1331,8 @@ extension PackageInfo {
 
 extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
-    func basePath(packageFolder: AbsolutePath) throws -> AbsolutePath {
+    func basePath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
+        let fileSystem = FileSystem()
         if let path {
             return packageFolder.appending(try RelativePath(validating: path))
         } else {
@@ -1332,9 +1343,10 @@ extension PackageInfo.Target {
             default:
                 predefinedDirectories = PackageInfoMapper.predefinedSourceDirectories
             }
-            let firstMatchingPath = predefinedDirectories
+            let firstMatchingPath = try await predefinedDirectories
                 .map { packageFolder.appending(components: [$0, name]) }
-                .first(where: { FileHandler.shared.exists($0) })
+                .concurrentFilter { try await fileSystem.exists($0) }
+                .first
             guard let mainPath = firstMatchingPath else {
                 throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name, predefinedDirectories)
             }
@@ -1342,8 +1354,8 @@ extension PackageInfo.Target {
         }
     }
 
-    func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
-        let mainPath = try basePath(packageFolder: packageFolder)
+    func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
+        let mainPath = try await basePath(packageFolder: packageFolder)
         return mainPath.appending(try RelativePath(validating: publicHeadersPath ?? "include"))
     }
 }

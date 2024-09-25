@@ -23,43 +23,46 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_locate_when_a_stencil_and_git_directory_exists() throws {
+    func test_locate_when_a_stencil_and_git_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils", "this/.git"])
 
         // When
-        let got = subject.locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+        let got = try await subject
+            .locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, stencilDirectory.appending(try RelativePath(validating: "this/is/Tuist/Stencils")))
     }
 
-    func test_locate_when_a_stencil_directory_exists() throws {
+    func test_locate_when_a_stencil_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils"])
 
         // When
-        let got = subject.locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+        let got = try await subject
+            .locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, stencilDirectory.appending(try RelativePath(validating: "this/is/Tuist/Stencils")))
     }
 
-    func test_locate_when_a_git_directory_exists() throws {
+    func test_locate_when_a_git_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Stencils"])
 
         // When
-        let got = subject.locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+        let got = try await subject
+            .locate(at: stencilDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
         XCTAssertEqual(got, stencilDirectory.appending(try RelativePath(validating: "this/Tuist/Stencils")))
     }
 
-    func test_locate_when_multiple_tuist_directories_exists() throws {
+    func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/Tuist/Stencils", "this/is/Tuist/Stencils"])
@@ -69,8 +72,8 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
         ]
 
         // When
-        let got = try paths.map {
-            subject.locate(at: stencilDirectory.appending(try RelativePath(validating: $0)))
+        let got = try await paths.concurrentMap {
+            try await self.subject.locate(at: stencilDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then

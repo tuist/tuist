@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+    func test_from() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -21,13 +21,13 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
     }
 
-    func test_from_getsCurrentVersionFrom_file_xccurrentversion() throws {
+    func test_from_getsCurrentVersionFrom_file_xccurrentversion() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -41,7 +41,10 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // When
-        let model = try XcodeGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CoreDataModel.from(
+            manifest: manifestWithoutCurrentVersion,
+            generatorPaths: generatorPaths
+        )
 
         let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel(
             "model.xcdatamodeld",
@@ -57,7 +60,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         ))
     }
 
-    func test_from_getsCurrentVersionFrom_file_xccurrentversion_butCannotFindVersion() throws {
+    func test_from_getsCurrentVersionFrom_file_xccurrentversion_butCannotFindVersion() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -75,24 +78,26 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // Then
-        XCTAssertThrowsError(
-            try XcodeGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        await XCTAssertThrows(
+            try await XcodeGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
         )
     }
 
-    func test_from_getsCurrentVersionFrom_file_xccurrentversion_butFileDoesNotExist() throws {
+    func test_from_getsCurrentVersionFrom_file_xccurrentversion_butFileDoesNotExist() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-
-        // When
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
+        // When
+        let got = try await XcodeGraph.CoreDataModel.from(
+            manifest: manifestWithoutCurrentVersion,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
         XCTAssertEqual(
-            try XcodeGraph.CoreDataModel.from(
-                manifest: manifestWithoutCurrentVersion,
-                generatorPaths: generatorPaths
-            ),
+            got,
             XcodeGraph.CoreDataModel(
                 path: temporaryPath.appending(component: "model.xcdatamodeld"),
                 versions: [],

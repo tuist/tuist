@@ -25,7 +25,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_from_when_using_glob_for_projects() throws {
+    func test_from_when_using_glob_for_projects() async throws {
         // Given
         given(manifestLoader)
             .manifests(at: .any)
@@ -40,7 +40,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(workspacePath.appending(components: ".build", "checkouts"))
 
         // When
-        let got = try XcodeGraph.Workspace.from(
+        let got = try await XcodeGraph.Workspace.from(
             manifest: .test(
                 projects: [
                     "**",

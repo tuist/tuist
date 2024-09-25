@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import struct TSCUtility.Version
@@ -66,9 +67,9 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let simulatorController: SimulatorControlling
     private let contentHasher: ContentHashing
 
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let configLoader: ConfigLoading
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     public convenience init(
         generatorFactory: GeneratorFactorying,
@@ -91,9 +92,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -101,9 +102,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.configLoader = configLoader
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     static func validateParameters(
@@ -229,7 +230,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let passedResultBundlePath = resultBundlePath
 
-        let resultBundlePath = try self.resultBundlePath(
+        let resultBundlePath = try await self.resultBundlePath(
             passedResultBundlePath: passedResultBundlePath,
             runId: runId,
             config: config
@@ -237,10 +238,12 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         defer {
             if let resultBundlePath, let passedResultBundlePath, config.fullHandle != nil {
-                if !FileHandler.shared.exists(resultBundlePath.parentDirectory) {
-                    try? FileHandler.shared.createFolder(resultBundlePath.parentDirectory)
+                Task {
+                    if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
+                        try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
+                    }
+                    try await fileSystem.copy(passedResultBundlePath, to: resultBundlePath)
                 }
-                try? FileHandler.shared.copy(from: passedResultBundlePath, to: resultBundlePath)
             }
         }
 
@@ -438,7 +441,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                   let target = project.targets[$0.target.name] else { return nil }
             return GraphTarget(path: $0.path, target: target, project: project)
         }
-        try await fileHandler.inTemporaryDirectory { _ in
+        try await fileSystem.runInTemporaryDirectory(prefix: "test") { _ in
             let allTestedTargets: Set<Target> = Set(
                 graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
                     .union(testedGraphTargets).map(\.target)
@@ -461,8 +464,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         passedResultBundlePath: AbsolutePath?,
         runId: String,
         config: Config
-    ) throws -> AbsolutePath? {
-        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
+    ) async throws -> AbsolutePath? {
+        let runResultBundlePath = try cacheDirectoriesProvider
             .cacheDirectory(for: .runs)
             .appending(components: runId, Constants.resultBundleName)
 

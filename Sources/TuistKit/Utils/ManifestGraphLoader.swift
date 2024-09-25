@@ -124,7 +124,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings
             )
-            dependenciesGraph = try converter.convert(manifest: manifest, path: path)
+            dependenciesGraph = try await converter.convert(manifest: manifest, path: path)
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
@@ -140,7 +140,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         }
 
         let (workspaceModels, manifestProjects) = (
-            try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
+            try await converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects
         )
 
@@ -151,7 +151,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
-        let projectsModels = try convert(
+        let projectsModels = try await convert(
             projects: manifestProjects,
             plugins: plugins,
             externalDependencies: dependenciesGraph.externalDependencies
@@ -168,7 +168,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Load graph
         let graphLoader = GraphLoader()
-        let graph = try graphLoader.loadWorkspace(
+        let graph = try await graphLoader.loadWorkspace(
             workspace: updatedModels.workspace,
             projects: updatedModels.projects
         )
@@ -190,12 +190,11 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        context: ExecutionContext = .concurrent
-    ) throws -> [XcodeGraph.Project] {
+        externalDependencies: [String: [XcodeGraph.TargetDependency]]
+    ) async throws -> [XcodeGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
-        return try tuples.map(context: context) {
-            try converter.convert(
+        return try await tuples.concurrentMap {
+            try await self.converter.convert(
                 manifest: $0.manifest,
                 path: $0.path,
                 plugins: plugins,

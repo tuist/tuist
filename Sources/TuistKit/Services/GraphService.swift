@@ -56,7 +56,7 @@ final class GraphService {
         let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
-        if FileHandler.shared.exists(filePath) {
+        if try await fileSystem.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")
             try await fileSystem.remove(filePath)
         }

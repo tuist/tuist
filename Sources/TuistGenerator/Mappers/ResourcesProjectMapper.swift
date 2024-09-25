@@ -55,6 +55,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 settings: Settings(
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
+                        "SKIP_INSTALL": "YES",
                     ],
                     configurations: [:]
                 ),
@@ -65,7 +66,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             )
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
-            modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
+            modifiedTarget.dependencies.append(.target(
+                name: bundleName,
+                status: .required,
+                condition: .when(target.dependencyPlatformFilters)
+            ))
             additionalTargets.append(resourcesTarget)
         }
 
