@@ -99,21 +99,10 @@ defmodule TuistWeb.API.PreviewsController do
         display_name: Map.get(body_params, :display_name)
       })
 
-    case Storage.multipart_start(get_object_key(conn, preview_id)) do
-      {:ok, upload_id} ->
-        conn
-        |> json(%{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
+    upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
 
-      {:error, {:http, status, message}} ->
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
-
-      {:error, {:raw, message}} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{message: message})
-    end
+    conn
+    |> json(%{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
   end
 
   operation(:multipart_generate_url,
@@ -254,31 +243,21 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case Storage.multipart_complete_upload(
-           get_object_key(conn, preview_id),
-           upload_id,
-           parts
-           |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-             {part_number, etag}
-           end)
-         ) do
-      :ok ->
-        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+    :ok =
+      Storage.multipart_complete_upload(
+        get_object_key(conn, preview_id),
+        upload_id,
+        parts
+        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end)
+      )
 
-        conn
-        |> put_status(:ok)
-        |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
+    Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
-      {:error, {:http, status, message}} ->
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
-
-      {:error, {:raw, message}} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{message: message})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
   end
 
   operation(:download,

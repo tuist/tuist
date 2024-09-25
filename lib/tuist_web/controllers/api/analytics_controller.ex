@@ -288,7 +288,7 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    {:ok, upload_id} =
+    upload_id =
       Storage.multipart_start(
         get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
       )
@@ -417,25 +417,19 @@ defmodule TuistWeb.API.AnalyticsController do
     object_key =
       get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
 
-    case Storage.multipart_complete_upload(
-           object_key,
-           upload_id,
-           parts
-           |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-             {part_number, etag}
-           end)
-         ) do
-      :ok ->
-        conn
-        |> put_status(:no_content)
-        |> json(%{})
+    :ok =
+      Storage.multipart_complete_upload(
+        object_key,
+        upload_id,
+        parts
+        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end)
+      )
 
-      {:error, {:raw, error_message}} ->
-        conn |> put_status(:internal_server_error) |> json(%{message: error_message})
-
-      {:error, {:http, status, error_message}} ->
-        conn |> put_status(status) |> json(%{message: error_message})
-    end
+    conn
+    |> put_status(:no_content)
+    |> json(%{})
   end
 
   operation(:complete_artifacts_uploads,

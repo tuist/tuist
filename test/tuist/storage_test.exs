@@ -2,18 +2,11 @@ defmodule Tuist.StorageTest do
   use ExUnit.Case, async: false
   use Mimic
   alias Tuist.Environment
-  alias Tuist.Native
   alias Tuist.Storage
-
-  setup do
-    Environment
-    |> stub(:on_premise?, fn -> true end)
-
-    :ok
-  end
+  alias Tuist.Storage.Options
 
   describe "multipart_generate_url/4" do
-    test "executes a telemetry event" do
+    test "generates the URL using the ExAws.S3 module and reports the telemetry event" do
       # Given
       url = "https://tuist.io/upload-url"
 
@@ -23,24 +16,49 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      Native
-      |> stub(:s3_multipart_generate_url, fn _ ->
+      Options |> expect(:get, fn -> %{} end)
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      part_number = 1
+      expires_in = 30
+      bucket_name = UUIDv7.generate()
+      ExAws.Config |> stub(:new, fn :s3, _ -> %{} end)
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+
+      ExAws.S3
+      |> expect(:presigned_url, fn _,
+                                   :put,
+                                   ^bucket_name,
+                                   ^object_key,
+                                   [
+                                     query_params: [
+                                       {"partNumber", ^part_number},
+                                       {"uploadId", ^upload_id}
+                                     ],
+                                     headers: [],
+                                     virtual_host: true,
+                                     expires_in: ^expires_in
+                                   ] ->
         {:ok, url}
       end)
 
-      # When
-      assert Storage.multipart_generate_url("object-key", "upload-id", 1) == url
+      # When/Then
+      assert Storage.multipart_generate_url(object_key, upload_id, part_number,
+               expires_in: expires_in
+             ) == url
 
-      # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration},
-                       %{object_key: "object-key", upload_id: "upload-id", part_number: 1}}
-
-      assert is_number(duration)
+      assert_received {^event_name, ^event_ref, %{},
+                       %{
+                         object_key: ^object_key,
+                         upload_id: ^upload_id,
+                         part_number: ^part_number
+                       }}
     end
   end
 
   describe "multipart_complete_upload/3" do
-    test "executes a telemetry event" do
+    test "completes the upload using the Ex.Aws module and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_multipart_complete_upload()
@@ -48,24 +66,39 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      Native
-      |> stub(:s3_multipart_complete_upload, fn _ ->
-        :ok
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}, {2, "etag-2"}]
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
+
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+
+      operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+
+      ExAws.S3
+      |> expect(:complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
       end)
 
+      ExAws |> expect(:request!, fn ^operation, ^options -> :ok end)
+
       # When
-      assert Storage.multipart_complete_upload("object-key", "upload-id", []) == :ok
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts) == :ok
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration, parts_count: 0},
-                       %{object_key: "object-key", upload_id: "upload-id"}}
+      parts_count = length(parts)
+
+      assert_received {^event_name, ^event_ref, %{duration: duration, parts_count: ^parts_count},
+                       %{object_key: ^object_key, upload_id: ^upload_id}}
 
       assert is_number(duration)
     end
   end
 
   describe "generate_download_url/2" do
-    test "executes a telemetry event" do
+    test "generates the download URL using the ExAws.S3 module and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_generate_download_presigned_url()
@@ -74,25 +107,36 @@ defmodule Tuist.StorageTest do
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
       url = "https://tuist.io/download-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
 
-      Native
-      |> stub(:s3_download_presigned_url, fn _ ->
+      options = %{session_token: UUIDv7.generate()}
+      expires_in = 60
+      Options |> expect(:get, fn -> options end)
+      ExAws.Config |> stub(:new, fn :s3, ^options -> %{} end)
+
+      ExAws.S3
+      |> expect(:presigned_url, fn _,
+                                   :get,
+                                   ^bucket_name,
+                                   ^object_key,
+                                   [query_params: [], expires_in: ^expires_in, virtual_host: true] ->
         {:ok, url}
       end)
 
       # When
-      assert Storage.generate_download_url("object-key") == url
+      assert Storage.generate_download_url(object_key, expires_in: expires_in) == url
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration},
-                       %{object_key: "object-key"}}
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
     end
   end
 
   describe "object_exists?/1" do
-    test "executes a telemetry event" do
+    test "generates the download URL using the ExAws.S3 module and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_check_object_existence()
@@ -100,24 +144,32 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      Native
-      |> stub(:s3_exists, fn _ ->
-        {:ok, true}
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+      operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
+
+      ExAws.S3
+      |> expect(:head_object, fn ^bucket_name, ^object_key ->
+        operation
       end)
 
+      ExAws |> expect(:request, fn ^operation, ^options -> {:ok, %{}} end)
+
       # When
-      assert Storage.object_exists?("object-key") == true
+      assert Storage.object_exists?(object_key) == true
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration},
-                       %{object_key: "object-key"}}
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
     end
   end
 
   describe "get_object_as_string/1" do
-    test "executes a telemetry event" do
+    test "obtains the object using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_get_object_as_string()
@@ -125,26 +177,33 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      object = "object"
+      content = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+      operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
 
-      Native
-      |> stub(:s3_get_object_as_string, fn _ ->
-        {:ok, object}
+      ExAws.S3
+      |> expect(:get_object, fn ^bucket_name, ^object_key ->
+        operation
       end)
 
+      ExAws |> expect(:request!, fn ^operation, ^options -> %{body: content} end)
+
       # When
-      assert Storage.get_object_as_string("object-key") == {:ok, object}
+      assert Storage.get_object_as_string(object_key) == content
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration},
-                       %{object_key: "object-key"}}
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
     end
   end
 
   describe "multipart_start/1" do
-    test "executes a telemetry event" do
+    test "starts the multipart upload using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_multipart_start_upload()
@@ -152,26 +211,33 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      upload_id = "upload-id"
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+      operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
 
-      Native
-      |> stub(:s3_multipart_start, fn _ ->
-        {:ok, upload_id}
+      ExAws.S3
+      |> expect(:initiate_multipart_upload, fn ^bucket_name, ^object_key ->
+        operation
       end)
 
+      ExAws |> expect(:request!, fn ^operation, ^options -> %{body: %{upload_id: upload_id}} end)
+
       # When
-      assert Storage.multipart_start("object-key") == {:ok, upload_id}
+      assert Storage.multipart_start(object_key) == upload_id
 
       # Then
-      assert_received {^event_name, ^event_ref, %{duration: duration},
-                       %{object_key: "object-key"}}
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
     end
   end
 
   describe "delete_all_objects/1" do
-    test "executes a telemetry event" do
+    test "deletes all objects using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_delete_all_objects()
@@ -179,13 +245,36 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      Native
-      |> stub(:s3_delete_all_objects, fn _ ->
-        :ok
+      project_slug = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+
+      Environment |> stub(:s3_bucket_name, fn -> bucket_name end)
+      list_operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
+
+      ExAws.S3
+      |> expect(:list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: 1000] ->
+        list_operation
       end)
 
+      ExAws
+      |> stub(:stream!, fn ^list_operation ->
+        Stream.cycle([%{key: object_key}]) |> Stream.take(1)
+      end)
+
+      delete_operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+
+      ExAws.S3
+      |> expect(:delete_all_objects, fn ^bucket_name, _ ->
+        delete_operation
+      end)
+
+      ExAws |> expect(:request!, fn ^delete_operation, ^options -> :ok end)
+
       # When
-      assert Storage.delete_all_objects("object-key") == :ok
+      assert Storage.delete_all_objects(project_slug) == :ok
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
@@ -195,7 +284,7 @@ defmodule Tuist.StorageTest do
   end
 
   describe "get_object_size/1" do
-    test "executes a telemetry event" do
+    test "gets the size using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
         Tuist.Telemetry.event_name_storage_get_object_as_string_size()
@@ -204,18 +293,26 @@ defmodule Tuist.StorageTest do
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
       size = 25
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> stub(:s3_bucket_name, fn -> bucket_name end)
+      operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
+      options = %{session_token: UUIDv7.generate()}
+      Options |> expect(:get, fn -> options end)
 
-      Native
-      |> stub(:s3_size, fn _ ->
-        {:ok, size}
+      ExAws.S3 |> expect(:head_object, fn ^bucket_name, ^object_key -> operation end)
+
+      ExAws
+      |> expect(:request!, fn ^operation, ^options ->
+        %{headers: %{"content-length" => ["#{size}"]}}
       end)
 
       # When
-      assert Storage.get_object_size("object-key") == {:ok, size}
+      assert Storage.get_object_size(object_key) == size
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration, size: size},
-                       %{object_key: "object-key"}}
+                       %{object_key: ^object_key}}
 
       assert is_number(size)
       assert is_number(duration)

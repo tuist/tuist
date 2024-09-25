@@ -401,23 +401,21 @@ defmodule TuistWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    case Storage.multipart_start(
-           get_object_key(%{
-             hash: hash,
-             name: name,
-             project_slug: project_slug,
-             cache_category: cache_category
-           })
-         ) do
-      {:ok, upload_id} ->
-        conn |> json(%{status: "success", data: %{upload_id: upload_id}})
-
-      {:error, {:raw, error_message}} ->
-        conn |> put_status(:internal_server_error) |> json(%{message: error_message})
-
-      {:error, {:http, status, error_message}} ->
-        conn |> put_status(status) |> json(%{message: error_message})
-    end
+    conn
+    |> json(%{
+      status: "success",
+      data: %{
+        upload_id:
+          Storage.multipart_start(
+            get_object_key(%{
+              hash: hash,
+              name: name,
+              project_slug: project_slug,
+              cache_category: cache_category
+            })
+          )
+      }
+    })
   end
 
   def multipart_start(conn, _params) do
@@ -608,43 +606,32 @@ defmodule TuistWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    with {:multipart_complete, :ok} <-
-           {:multipart_complete,
-            Storage.multipart_complete_upload(
-              get_object_key(item),
-              upload_id,
-              parts
-              |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-                {part_number, etag}
-              end)
-            )},
-         {:object_size, {:ok, size}} <-
-           {:object_size, Storage.get_object_size(get_object_key(item))} do
-      CommandEvents.create_cache_event(%{
-        name: name,
-        event_type: :upload,
-        size: size,
-        project_id: EnsureProjectPresencePlug.get_project(conn).id,
-        hash: hash
-      })
-
-      Tuist.Analytics.cache_artifact_upload(
-        %{size: size, category: cache_category},
-        TuistWeb.Authentication.authenticated_subject(conn)
+    :ok =
+      Storage.multipart_complete_upload(
+        get_object_key(item),
+        upload_id,
+        parts
+        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end)
       )
 
-      conn |> json(%{status: "success", data: %{}})
-    else
-      {_, {:error, {:http, status, message}}} ->
-        conn
-        |> put_status(status)
-        |> json(%{message: message})
+    size = Storage.get_object_size(get_object_key(item))
 
-      {_, {:error, {:raw, message}}} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{message: message})
-    end
+    CommandEvents.create_cache_event(%{
+      name: name,
+      event_type: :upload,
+      size: size,
+      project_id: EnsureProjectPresencePlug.get_project(conn).id,
+      hash: hash
+    })
+
+    Tuist.Analytics.cache_artifact_upload(
+      %{size: size, category: cache_category},
+      TuistWeb.Authentication.authenticated_subject(conn)
+    )
+
+    conn |> json(%{status: "success", data: %{}})
   end
 
   def multipart_complete(conn, _params) do

@@ -17,7 +17,6 @@
     "editor.formatOnSave": true
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "sorbet.enabled": true,
   "files.exclude": {
     "**/node_modules": true
   },
@@ -26,12 +25,6 @@
   },
   "emmet.includeLanguages": {
     "html-eex": "html"
-  },
-  "rust-analyzer.linkedProjects": [
-    "native/tuist_native/Cargo.toml"
-  ],
-  "[rust]": {
-    "editor.defaultFormatter": "rust-lang.rust-analyzer"
   },
   "[phoenix-heex]": {
     "editor.defaultFormatter": "JakeBecker.elixir-ls",

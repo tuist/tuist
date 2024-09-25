@@ -752,7 +752,7 @@ defmodule Tuist.CommandEvents do
       get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
 
     if Storage.object_exists?(test_plan_summaries_object_key) do
-      {:ok, test_plan_summaries_string} =
+      test_plan_summaries_string =
         Storage.get_object_as_string(test_plan_summaries_object_key)
 
       {:ok, test_plan_summaries} = test_plan_summaries_string |> Jason.decode()
@@ -766,7 +766,7 @@ defmodule Tuist.CommandEvents do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
 
     if Storage.object_exists?(invocation_record_key) do
-      {:ok, invocation_record_string} = Storage.get_object_as_string(invocation_record_key)
+      invocation_record_string = Storage.get_object_as_string(invocation_record_key)
       {:ok, invocation_record} = invocation_record_string |> Jason.decode()
 
       invocation_record = get_actions_invocation_record(invocation_record)

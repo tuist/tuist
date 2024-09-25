@@ -23,7 +23,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       Storage
       |> expect(:multipart_start, fn _ ->
-        {:ok, upload_id}
+        upload_id
       end)
 
       conn =
@@ -55,7 +55,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       Storage
       |> expect(:multipart_start, fn _ ->
-        {:ok, upload_id}
+        upload_id
       end)
 
       conn =
@@ -76,60 +76,6 @@ defmodule TuistWeb.PreviewsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
       assert Repo.all(Preview) |> hd() |> Map.get(:display_name) == "preview-name"
-    end
-
-    test "starts multipart upload when it returns a raw error", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      Storage
-      |> expect(:multipart_start, fn _ ->
-        {:error, {:raw, "error"}}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
-
-      # # Then
-      response = json_response(conn, :internal_server_error)
-      assert response["message"] == "error"
-    end
-
-    test "starts multipart upload when it returns an http error", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      Storage
-      |> expect(:multipart_start, fn _ ->
-        {:error, {:http, 502, "error"}}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
-
-      # # Then
-      response = json_response(conn, 502)
-      assert response["message"] == "error"
     end
 
     test "returns error when project doesn't exist", %{
@@ -326,100 +272,6 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response == %{
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}")
              }
-    end
-
-    test "returns an error if the completion of the multipart upload fails with a http error", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "1234"
-      preview_id = "preview-id"
-
-      object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
-
-      parts = [
-        %{part_number: 1, etag: "etag1"},
-        %{part_number: 2, etag: "etag2"},
-        %{part_number: 3, etag: "etag3"}
-      ]
-
-      Storage
-      |> expect(:multipart_complete_upload, fn ^object_key,
-                                               ^upload_id,
-                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
-        {:error, {:http, 500, "error"}}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
-          preview_id: preview_id,
-          multipart_upload_parts: %{
-            parts: parts,
-            upload_id: upload_id
-          }
-        )
-
-      # Then
-      response = json_response(conn, 500)
-      assert response["message"] == "error"
-    end
-
-    test "returns an error if the completion of the multipart upload fails with a raw error", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "1234"
-      preview_id = "preview-id"
-
-      object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
-
-      parts = [
-        %{part_number: 1, etag: "etag1"},
-        %{part_number: 2, etag: "etag2"},
-        %{part_number: 3, etag: "etag3"}
-      ]
-
-      Storage
-      |> expect(:multipart_complete_upload, fn ^object_key,
-                                               ^upload_id,
-                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
-        {:error, {:raw, "error"}}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
-          preview_id: preview_id,
-          multipart_upload_parts: %{
-            parts: parts,
-            upload_id: upload_id
-          }
-        )
-
-      # Then
-      response = json_response(conn, :internal_server_error)
-      assert response["message"] == "error"
     end
 
     test "returns error when project doesn't exist", %{

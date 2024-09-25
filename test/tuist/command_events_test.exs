@@ -919,10 +919,10 @@ defmodule Tuist.CommandEventsTest do
       |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
-            {:ok, CommandEventsFixtures.invocation_record_fixture()}
+            CommandEventsFixtures.invocation_record_fixture()
 
           ^test_plan_object_key ->
-            {:ok, CommandEventsFixtures.test_plan_object_fixture()}
+            CommandEventsFixtures.test_plan_object_fixture()
         end
       end)
 
@@ -1020,10 +1020,10 @@ defmodule Tuist.CommandEventsTest do
       |> stub(:get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
-            {:ok, CommandEventsFixtures.invocation_record_fixture()}
+            CommandEventsFixtures.invocation_record_fixture()
 
           ^test_plan_object_key ->
-            {:ok, CommandEventsFixtures.test_plan_object_fixture()}
+            CommandEventsFixtures.test_plan_object_fixture()
         end
       end)
 

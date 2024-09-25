@@ -14,11 +14,5 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.MailgunAdapter
 # Do not print debug messages in production
 config :logger, level: :info
 
-# Native
-config :tuist, Tuist.Native,
-  crate: :tuist_native,
-  skip_compilation?: true,
-  load_from: {:tuist, "priv/native/libtuist_native"}
-
 # Nebulex
 config :tuist, nebulex_cache: Tuist.Cache

@@ -221,25 +221,6 @@ defmodule Tuist.Storage.PromExPlugin do
       Event.build(
         :tuist_storage_multipart_generate_upload_part_presigned_url,
         [
-          distribution(
-            [
-              :tuist,
-              :storage,
-              :multipart,
-              :generate_upload_part_presigned_url,
-              :duration,
-              :milliseconds
-            ],
-            event_name:
-              Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
-            measurement: :duration,
-            unit: :millisecond,
-            description:
-              "The time in miliseconds that takes the storage to generate a pre-signed URL to upload a part.",
-            reporter_options: [
-              buckets: exponential!(100, 2, 15)
-            ]
-          ),
           counter(
             [
               :tuist,

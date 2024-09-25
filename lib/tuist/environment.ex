@@ -140,6 +140,20 @@ defmodule Tuist.Environment do
     System.get_env("AWS_REGION") || get([:aws, :region], secrets) || "auto"
   end
 
+  def aws_token_file_credentials_ttl() do
+    value = System.get_env("AWS_TOKEN_FILE_CREDENTIALS_TTL")
+
+    if is_nil(value) do
+      :timer.hours(1)
+    else
+      String.to_integer(value)
+    end
+  end
+
+  def aws_web_identity_token_file() do
+    System.get_env("AWS_WEB_IDENTITY_TOKEN_FILE")
+  end
+
   def aws_session_token(secrets \\ secrets()) do
     System.get_env("AWS_SESSION_TOKEN") || get([:aws, :session_token], secrets)
   end
@@ -149,7 +163,15 @@ defmodule Tuist.Environment do
   end
 
   def aws_use_session_token?(secrets \\ secrets()) do
-    get([:aws, :use_session_token], secrets)
+    get([:aws, :use_session_token], secrets) |> truthy?()
+  end
+
+  def aws_role_arn() do
+    System.get_env("AWS_ROLE_ARN")
+  end
+
+  def aws_role_session_name(default \\ nil) do
+    System.get_env("AWS_ROLE_SESSION_NAME", default)
   end
 
   def s3_region(secrets \\ secrets()) do
