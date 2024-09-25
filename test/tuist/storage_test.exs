@@ -252,7 +252,7 @@ defmodule Tuist.StorageTest do
       Environment |> stub(:s3_bucket_name, fn -> bucket_name end)
       list_operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
       options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
+      Options |> stub(:get, fn -> options end)
 
       ExAws.S3
       |> expect(:list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: 1000] ->
@@ -260,7 +260,7 @@ defmodule Tuist.StorageTest do
       end)
 
       ExAws
-      |> stub(:stream!, fn ^list_operation ->
+      |> stub(:stream!, fn ^list_operation, ^options ->
         Stream.cycle([%{key: object_key}]) |> Stream.take(1)
       end)
 

@@ -146,7 +146,7 @@ defmodule Tuist.Storage do
         stream =
           Environment.s3_bucket_name()
           |> ExAws.S3.list_objects_v2(prefix: project_slug, max_keys: 1000)
-          |> ExAws.stream!()
+          |> ExAws.stream!(Options.get())
           |> Stream.map(& &1.key)
 
         ExAws.S3.delete_all_objects(Environment.s3_bucket_name(), stream)
