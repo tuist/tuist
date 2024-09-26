@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.28.1 - 2024-09-26
+
+### Tuist
+
+#### Fixed
+
+- Fix tuist test failing due to a conflict when uploading test results [#6770](https://github.com/tuist/tuist/pull/6770) by [@fortmarek](https://github.com/fortmarek)
+- Fix compiling swift-syntax in Swift 6 language mode [#6771](https://github.com/tuist/tuist/pull/6771) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.28.0 - 2024-09-25
 
 ### Tuist
