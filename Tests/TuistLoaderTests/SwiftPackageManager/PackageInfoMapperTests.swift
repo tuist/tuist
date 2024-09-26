@@ -14,6 +14,7 @@ import XCTest
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
     private var subject: PackageInfoMapper!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
     override func setUp() {
         super.setUp()
@@ -21,7 +22,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.9")
-        subject = PackageInfoMapper()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(6, 0, 0))
+        subject = PackageInfoMapper(
+            swiftPackageManagerController: swiftPackageManagerController
+        )
     }
 
     override func tearDown() {
@@ -4073,6 +4080,86 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ),
                 ]
             )
+        )
+    }
+
+    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        swiftPackageManagerController.reset()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(5, 8, 0))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+            nil
+        )
+    }
+
+    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        swiftPackageManagerController.reset()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(5, 9, 0))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-package-name", "Package"])
         )
     }
 }
