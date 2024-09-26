@@ -143,7 +143,9 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_action_item.hash == response["hash"]
     end
 
-    test "returns bad request if the cache action item already exists", %{conn: conn} do
+    test "returns created with the cache action item when the CLI version is 4.28.0", %{
+      conn: conn
+    } do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -152,11 +154,10 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> Authentication.put_current_user(user)
-
-      hash = "hash"
+        |> put_req_header("x-tuist-cli-version", "4.28.0")
 
       CacheActionItems.create_cache_action_item(%{
-        hash: hash,
+        hash: "hash",
         project: project
       })
 
@@ -172,11 +173,53 @@ defmodule TuistWeb.API.CacheControllerTest do
         )
 
       # Then
-      response = json_response(conn, :bad_request)
+      cache_action_item = Repo.one(CacheActionItem)
+      response = json_response(conn, :created)
 
       assert response == %{
-               "message" => "Cache action item already exists."
+               "hash" => "hash"
              }
+
+      assert cache_action_item.hash == response["hash"]
+    end
+
+    test "returns ok if the cache action item already exists", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      hash = "hash"
+
+      cache_action_item =
+        CacheActionItems.create_cache_action_item(%{
+          hash: hash,
+          project: project
+        })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
+          %{
+            hash: "hash"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "hash" => "hash"
+             }
+
+      assert cache_action_item.hash == response["hash"]
     end
   end
 

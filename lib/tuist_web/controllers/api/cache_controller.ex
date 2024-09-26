@@ -306,6 +306,9 @@ defmodule TuistWeb.API.CacheController do
        }},
     responses: %{
       created: {"The action item was cached", "application/json", Schemas.CacheActionItem},
+      ok:
+        {"The request is valid but the cache action item already exists", "application/json",
+         Schemas.CacheActionItem},
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
@@ -327,27 +330,37 @@ defmodule TuistWeb.API.CacheController do
       ) do
     project = EnsureProjectPresencePlug.get_project(conn)
 
-    if is_nil(
-         CacheActionItems.get_cache_action_item(%{
-           project: project,
-           hash: hash
-         })
-       ) do
-      cache_action_item =
-        CacheActionItems.create_cache_action_item(%{
-          project: project,
-          hash: hash
+    existing_cache_action_item =
+      CacheActionItems.get_cache_action_item(%{
+        project: project,
+        hash: hash
+      })
+
+    cond do
+      is_nil(existing_cache_action_item) ->
+        cache_action_item =
+          CacheActionItems.create_cache_action_item(%{
+            project: project,
+            hash: hash
+          })
+
+        conn
+        |> put_status(:created)
+        |> json(%{
+          hash: cache_action_item.hash
         })
 
-      conn
-      |> put_status(:created)
-      |> json(%{
-        hash: cache_action_item.hash
-      })
-    else
-      conn
-      |> put_status(:bad_request)
-      |> json(%Error{message: "Cache action item already exists."})
+      conn |> get_req_header("x-tuist-cli-version") |> List.first() == "4.28.0" ->
+        conn
+        |> put_status(:created)
+        |> json(%{
+          hash: existing_cache_action_item.hash
+        })
+
+      true ->
+        conn
+        |> put_status(:ok)
+        |> json(%{hash: existing_cache_action_item.hash})
     end
   end
 
