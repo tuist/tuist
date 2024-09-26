@@ -54,19 +54,6 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   ]
 
   database_options =
-    if Tuist.Environment.database_use_ssl?(secrets) do
-      database_options
-      |> Keyword.merge(
-        ssl: true,
-        ssl_opts: [
-          verify: :verify_none
-        ]
-      )
-    else
-      database_options
-    end
-
-  database_options =
     if Tuist.Environment.use_ssl_for_database?() do
       database_options
       |> Keyword.put(:ssl, true)

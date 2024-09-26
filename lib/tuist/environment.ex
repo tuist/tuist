@@ -64,13 +64,6 @@ defmodule Tuist.Environment do
     get([:use_ipv6], secrets)
   end
 
-  def database_use_ssl?(secrets \\ secrets()) do
-    case get([:database, :use_ssl], secrets) do
-      use_ssl when not is_nil(use_ssl) -> truthy?(use_ssl)
-      _ -> true
-    end
-  end
-
   def database_pool_size(secrets \\ secrets()) do
     case get([:database, :pool_size], secrets) do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)

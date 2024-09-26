@@ -17,7 +17,10 @@ console_command = "/app/bin/rails console"
   TUIST_APP_URL="https://canary.tuist.io"
   TUIST_HOSTED="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
-  TUIST_DATABASE_POOL_SIZE="15"
+  # The DB connection limit is 15 so:
+  # 13 connection for the instance
+  # 1 connection for the release script
+  TUIST_DATABASE_POOL_SIZE="13"
 
 [[vm]]
   cpu_kind = 'shared'
