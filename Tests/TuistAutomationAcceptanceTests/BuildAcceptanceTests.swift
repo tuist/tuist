@@ -6,49 +6,47 @@ import XCTest
 @testable import TuistKit
 
 /// Build projects using Tuist build
-// TODO: Uncomment when upgrading to Xcode 16
-// final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
-//    func test_with_templates() async throws {
-//        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
-//        try await run(InstallCommand.self)
-//        try await run(GenerateCommand.self)
-//        try await run(BuildCommand.self)
-//        try await run(BuildCommand.self, "MyApp")
-//        try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
-//        try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
-//    }
-// }
+final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
+    func test_with_templates() async throws {
+        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "MyApp")
+        try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
+        try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
+    }
+}
 
-// TODO: Uncomment when upgrading to Xcode 16
-// final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
-//    func test_with_invalid_arguments() async throws {
-//        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
-//        try await run(InstallCommand.self)
-//        try await run(GenerateCommand.self)
-//        await XCTAssertThrowsSpecific(
-//            try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
-//            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
-//        )
-//        await XCTAssertThrowsSpecific(
-//            try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
-//            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
-//        )
-//        await XCTAssertThrowsSpecific(
-//            try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
-//            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
-//        )
-//        // SystemError is verbose and would lead to flakyness
-//        // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
-//        await XCTAssertThrows(
-//            try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
-//        )
-//        // xcodebuild: error: option '-configuration' may only be provided once
-//        // Usage: xcodebuild [-project <projectname>] ...
-//        await XCTAssertThrows(
-//            try await run(BuildCommand.self, "MyApp", "--configuration", "Debug", "--", "-configuration", "Debug")
-//        )
-//    }
-// }
+final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
+    func test_with_invalid_arguments() async throws {
+        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
+        )
+        await XCTAssertThrowsSpecific(
+            try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
+            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
+        )
+        // SystemError is verbose and would lead to flakyness
+        // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
+        await XCTAssertThrows(
+            try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
+        )
+        // xcodebuild: error: option '-configuration' may only be provided once
+        // Usage: xcodebuild [-project <projectname>] ...
+        await XCTAssertThrows(
+            try await run(BuildCommand.self, "MyApp", "--configuration", "Debug", "--", "-configuration", "Debug")
+        )
+    }
+}
 
 final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
     func test_with_previews() async throws {
