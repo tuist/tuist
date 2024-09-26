@@ -17,7 +17,7 @@ console_command = "/app/bin/rails console"
   TUIST_APP_URL="https://staging.tuist.io"
   TUIST_HOSTED="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
-  TUIST_DATABASE_POOL_SIZE="4"
+  TUIST_DATABASE_POOL_SIZE="15"
 
 [[vm]]
   cpu_kind = 'shared'
