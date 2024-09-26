@@ -44,6 +44,8 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
+    queue_target: Tuist.Environment.database_queue_target(secrets),
+    queue_interval: Tuist.Environment.database_queue_interval(secrets),
     database: parsed_url.path |> String.replace_prefix("/", ""),
     username: username,
     password: password,

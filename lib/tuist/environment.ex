@@ -71,6 +71,20 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_queue_target(secrets \\ secrets()) do
+    case get([:database, :queue_target], secrets) do
+      queue_target when is_binary(queue_target) -> String.to_integer(queue_target)
+      _ -> 300
+    end
+  end
+
+  def database_queue_interval(secrets \\ secrets()) do
+    case get([:database, :queue_interval], secrets) do
+      queue_interval when is_binary(queue_interval) -> String.to_integer(queue_interval)
+      _ -> 2000
+    end
+  end
+
   def analytics_enabled?() do
     not on_premise?() and env() == :prod
   end
