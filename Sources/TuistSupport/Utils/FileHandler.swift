@@ -337,7 +337,7 @@ public class FileHandler: FileHandling {
         let configPath = from.appending(component: path)
 
         let root = try! Path.AbsolutePath(validating: "/") // swiftlint:disable:this force_try
-        if FileHandler.shared.exists(configPath) {
+        if exists(configPath) {
             return configPath
         } else if from == root {
             return nil

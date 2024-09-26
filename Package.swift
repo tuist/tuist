@@ -1,6 +1,6 @@
 // swift-tools-version:5.10
 
-import PackageDescription
+@preconcurrency import PackageDescription
 
 let swiftToolsSupportDependency: Target.Dependency = .product(
     name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"
@@ -12,7 +12,7 @@ let argumentParserDependency: Target.Dependency = .product(
 )
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
-var targets: [Target] = [
+let targets: [Target] = [
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
@@ -472,7 +472,7 @@ let package = Package(
             url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.0"),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.1"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
     ],
     targets: targets

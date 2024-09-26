@@ -1950,6 +1950,12 @@ paths:
         description: Cache action item upload params
         required: false
       responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The request is valid but the cache action item already exists
         201:
           content:
             application/json:

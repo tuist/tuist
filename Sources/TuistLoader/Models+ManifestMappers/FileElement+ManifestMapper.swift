@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -15,9 +16,10 @@ extension XcodeGraph.FileElement {
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [XcodeGraph.FileElement] {
-        func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
-            if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+    ) async throws -> [XcodeGraph.FileElement] {
+        let fileSystem = FileSystem()
+        func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
@@ -34,8 +36,8 @@ extension XcodeGraph.FileElement {
             return files
         }
 
-        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
-            guard FileHandler.shared.exists(path) else {
+        func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
                 logger.warning("\(path.pathString) does not exist")
                 return []
@@ -53,10 +55,10 @@ extension XcodeGraph.FileElement {
         switch manifest {
         case let .glob(pattern: pattern):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map(FileElement.file)
+            return try await globFiles(resolvedPath).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map(FileElement.folderReference)
+            return try await folderReferences(resolvedPath).map(FileElement.folderReference)
         }
     }
 }

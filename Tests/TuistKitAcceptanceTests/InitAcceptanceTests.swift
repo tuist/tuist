@@ -5,23 +5,25 @@ import TuistSupportTesting
 import XcodeProj
 import XCTest
 
-final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
-    func test_init_macos_app() async throws {
-        try await run(InitCommand.self, "--platform", "macos", "--name", "Test")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-    }
-}
+// TODO: Uncomment this when upgrading to Xcode 16
+// final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
+//    func test_init_macos_app() async throws {
+//        try await run(InitCommand.self, "--platform", "macos", "--name", "Test")
+//        try await run(InstallCommand.self)
+//        try await run(GenerateCommand.self)
+//        try await run(BuildCommand.self)
+//    }
+// }
 
-final class InitAcceptanceTestiOSApp: TuistAcceptanceTestCase {
-    func test_init_ios_app() async throws {
-        try await run(InitCommand.self, "--platform", "ios", "--name", "My-App")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-    }
-}
+// TODO: Uncomment this when upgrading to Xcode 16
+// final class InitAcceptanceTestiOSApp: TuistAcceptanceTestCase {
+//    func test_init_ios_app() async throws {
+//        try await run(InitCommand.self, "--platform", "ios", "--name", "My-App")
+//        try await run(InstallCommand.self)
+//        try await run(GenerateCommand.self)
+//        try await run(BuildCommand.self)
+//    }
+// }
 
 // TODO: Fix
 // final class InitAcceptanceTesttvOSApp: TuistAcceptanceTestCase {

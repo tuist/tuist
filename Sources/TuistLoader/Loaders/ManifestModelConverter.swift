@@ -8,15 +8,15 @@ import XcodeGraph
 
 /// A component responsible for converting Manifests (`ProjectDescription`) to Models (`TuistCore`)
 public protocol ManifestModelConverting {
-    func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> XcodeGraph.Workspace
+    func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) async throws -> XcodeGraph.Workspace
     func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         isExternal: Bool
-    ) throws -> XcodeGraph.Project
-    func convert(manifest: TuistLoader.DependenciesGraph, path: AbsolutePath) throws -> XcodeGraph.DependenciesGraph
+    ) async throws -> XcodeGraph.Project
+    func convert(manifest: TuistLoader.DependenciesGraph, path: AbsolutePath) async throws -> XcodeGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -52,9 +52,9 @@ public final class ManifestModelConverter: ManifestModelConverting {
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         isExternal: Bool
-    ) throws -> XcodeGraph.Project {
+    ) async throws -> XcodeGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        return try XcodeGraph.Project.from(
+        return try await XcodeGraph.Project.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             plugins: plugins,
@@ -67,9 +67,9 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
-    ) throws -> XcodeGraph.Workspace {
+    ) async throws -> XcodeGraph.Workspace {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let workspace = try XcodeGraph.Workspace.from(
+        let workspace = try await XcodeGraph.Workspace.from(
             manifest: manifest,
             path: path,
             generatorPaths: generatorPaths,
@@ -81,25 +81,24 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: TuistLoader.DependenciesGraph,
         path: AbsolutePath
-    ) throws -> XcodeGraph.DependenciesGraph {
-        var externalDependencies: [String: [XcodeGraph.TargetDependency]] = .init()
-
-        externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
-            try targetDependencies.flatMap { targetDependencyManifest in
-                try XcodeGraph.TargetDependency.from(
-                    manifest: targetDependencyManifest,
-                    generatorPaths: GeneratorPaths(manifestDirectory: path),
-                    externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies,
-                )
+    ) async throws -> XcodeGraph.DependenciesGraph {
+        let externalDependencies: [String: [XcodeGraph.TargetDependency]] = try manifest.externalDependencies
+            .mapValues { targetDependencies in
+                try targetDependencies.flatMap { targetDependencyManifest in
+                    try XcodeGraph.TargetDependency.from(
+                        manifest: targetDependencyManifest,
+                        generatorPaths: GeneratorPaths(manifestDirectory: path),
+                        externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies,
+                    )
+                }
             }
-        }
 
-        let externalProjects = try [AbsolutePath: XcodeGraph.Project](
+        let externalProjects = try await [AbsolutePath: XcodeGraph.Project](
             uniqueKeysWithValues: manifest.externalProjects
-                .map { project in
-                    let projectPath = try AbsolutePath(validating: project.key.pathString)
-                    var project = try convert(
-                        manifest: project.value,
+                .concurrentMap { path, project in
+                    let projectPath = try AbsolutePath(validating: path.pathString)
+                    var project = try await self.convert(
+                        manifest: project,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,

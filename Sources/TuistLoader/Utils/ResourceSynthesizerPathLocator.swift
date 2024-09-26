@@ -1,21 +1,22 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistSupport
 
 public protocol ResourceSynthesizerPathLocating {
-    func locate(at: AbsolutePath) -> AbsolutePath?
+    func locate(at: AbsolutePath) async throws -> AbsolutePath?
 
     func templatePath(
         for pluginName: String,
         resourceName: String,
         resourceSynthesizerPlugins: [TuistCore.PluginResourceSynthesizer]
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 
     func templatePath(
         for resourceName: String,
         path: AbsolutePath
-    ) -> AbsolutePath?
+    ) async throws -> AbsolutePath?
 }
 
 enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
@@ -42,24 +43,27 @@ enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
 
 public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let fileSystem: FileSysteming
 
     public init(
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileSystem = fileSystem
     }
 
     public func templatePath(
         for pluginName: String,
         resourceName: String,
         resourceSynthesizerPlugins: [PluginResourceSynthesizer]
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         guard let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })
         else { throw ResourceSynthesizerPathLocatorError.pluginNotFound(pluginName, resourceSynthesizerPlugins.map(\.name)) }
 
         let resourceTemplatePath = plugin.path
             .appending(components: "\(resourceName).stencil")
-        guard FileHandler.shared.exists(resourceTemplatePath)
+        guard try await fileSystem.exists(resourceTemplatePath)
         else {
             throw ResourceSynthesizerPathLocatorError
                 .resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name)
@@ -71,7 +75,7 @@ public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocati
     public func templatePath(
         for resourceName: String,
         path: AbsolutePath
-    ) -> AbsolutePath? {
+    ) async throws -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
         let templatePath = rootDirectory
             .appending(
@@ -79,17 +83,17 @@ public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocati
                 Constants.resourceSynthesizersDirectoryName,
                 "\(resourceName).stencil"
             )
-        return FileHandler.shared.exists(templatePath) ? templatePath : nil
+        return try await fileSystem.exists(templatePath) ? templatePath : nil
     }
 
     // MARK: - Helpers
 
-    public func locate(at: AbsolutePath) -> AbsolutePath? {
+    public func locate(at: AbsolutePath) async throws -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.resourceSynthesizersDirectoryName)
-        if !FileHandler.shared.exists(helpersDirectory) { return nil }
+        if try await !fileSystem.exists(helpersDirectory) { return nil }
         return helpersDirectory
     }
 }

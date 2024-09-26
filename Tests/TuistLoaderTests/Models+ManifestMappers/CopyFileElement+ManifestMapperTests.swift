@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
-    func test_from_outputs_a_warning_when_the_paths_point_to_directories() throws {
+    func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -22,7 +22,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.glob(pattern: "Documentation")
 
         // When
-        let model = try XcodeGraph.CopyFileElement.from(
+        let model = try await XcodeGraph.CopyFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             includeFiles: { !FileHandler.shared.isFolder($0) }
@@ -36,7 +36,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model, [])
     }
 
-    func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() throws {
+    func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -47,28 +47,28 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
-    func test_copyFileElement_warning_withMissingFolderReference() throws {
+    func test_copyFileElement_warning_withMissingFolderReference() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 
-    func test_throws_when_the_glob_is_invalid() throws {
+    func test_throws_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -80,6 +80,9 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            error
+        )
     }
 }

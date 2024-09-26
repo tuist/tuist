@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 
-struct MigrationSettingsToXCConfigCommand: ParsableCommand {
+struct MigrationSettingsToXCConfigCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "settings-to-xcconfig",
@@ -36,8 +36,8 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
     )
     var target: String?
 
-    func run() throws {
-        try MigrationSettingsToXCConfigService().run(
+    func run() async throws {
+        try await MigrationSettingsToXCConfigService().run(
             xcodeprojPath: xcodeprojPath,
             xcconfigPath: xcconfigPath,
             target: target

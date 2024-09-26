@@ -2418,6 +2418,19 @@ public struct Client: APIProtocol {
             },
             deserializer: { response in
                 switch response.statusCode {
+                case 200:
+                    let headers: Operations.uploadCacheActionItem.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheActionItem.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
                 case 201:
                     let headers: Operations.uploadCacheActionItem.Output.Created.Headers = .init()
                     try converter.validateContentTypeIfPresent(

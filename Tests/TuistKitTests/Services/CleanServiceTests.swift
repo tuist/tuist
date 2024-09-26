@@ -80,8 +80,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
-        XCTAssertTrue(FileHandler.shared.exists(cachePaths[1]))
+        let cachePathsExists = try await cachePaths.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertFalse(cachePathsExists[0])
+        XCTAssertTrue(cachePathsExists[1])
     }
 
     func test_run_with_dependencies_cleans_dependencies() async throws {
@@ -111,8 +112,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
-        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
+        let localPathsExists = try await localPaths.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertFalse(localPathsExists[0])
+        XCTAssertTrue(localPathsExists[1])
     }
 
     func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
@@ -142,8 +144,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
-        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
+        let localPathsExists = try await localPaths.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertFalse(localPathsExists[0])
+        XCTAssertTrue(localPathsExists[1])
     }
 
     func test_run_without_category_cleans_all() async throws {
@@ -177,8 +180,10 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(cachePaths[0]))
-        XCTAssertFalse(FileHandler.shared.exists(swiftPackageManagerBuildPath))
+        let cachePathExists = try await fileSystem.exists(cachePaths[0])
+        XCTAssertFalse(cachePathExists)
+        let swiftPackageManagerBuildPathExists = try await fileSystem.exists(swiftPackageManagerBuildPath)
+        XCTAssertFalse(swiftPackageManagerBuildPathExists)
     }
 
     func test_run_with_remote() async throws {

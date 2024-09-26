@@ -15,7 +15,7 @@ protocol TargetGenerating: AnyObject {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws -> PBXNativeTarget
+    ) async throws -> PBXNativeTarget
 
     func generateTargetDependencies(
         path: AbsolutePath,
@@ -59,7 +59,7 @@ final class TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws -> PBXNativeTarget {
+    ) async throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -87,7 +87,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         /// Build configuration
-        try configGenerator.generateTargetConfig(
+        try await configGenerator.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,

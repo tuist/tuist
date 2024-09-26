@@ -7105,6 +7105,37 @@ public enum Operations {
             }
         }
         @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheActionItem)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.Ok.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request is valid but the cache action item already exists
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.uploadCacheActionItem.Output.Ok)
             public struct Created: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.

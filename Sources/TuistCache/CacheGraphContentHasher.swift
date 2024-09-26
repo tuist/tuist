@@ -19,7 +19,7 @@ public protocol CacheGraphContentHashing {
         configuration: String?,
         config: TuistCore.Config,
         excludedTargets: Set<String>
-    ) throws -> [GraphTarget: String]
+    ) async throws -> [GraphTarget: String]
 }
 
 public final class CacheGraphContentHasher: CacheGraphContentHashing {
@@ -65,7 +65,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         configuration: String?,
         config: TuistCore.Config,
         excludedTargets: Set<String>
-    ) throws -> [GraphTarget: String] {
+    ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(
@@ -87,7 +87,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
                 configuration,
                 try swiftVersionProvider.swiftlangVersion(),
                 version.rawValue,
-                xcodeController.selectedVersion().xcodeStringValue,
+                try await xcodeController.selectedVersion().xcodeStringValue,
             ]
         )
         return hashes
