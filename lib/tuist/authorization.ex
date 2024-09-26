@@ -3,6 +3,7 @@ defmodule Tuist.Authorization do
   A module to deal with authorization in the system.
   """
   alias Tuist.VCS
+  alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Accounts
   alias Tuist.Accounts.{User, Account}
@@ -73,11 +74,19 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :update, %Account{} = account, :billing) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    if Environment.on_premise?() do
+      false
+    else
+      Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    end
   end
 
   def can(%User{} = user, :read, %Account{} = account, :billing) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    if Environment.on_premise?() do
+      false
+    else
+      Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    end
   end
 
   def can(nil, :update, _account, :billing) do

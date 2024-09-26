@@ -4,45 +4,95 @@ defmodule Tuist.AuthorizationTest do
   alias Tuist.AccountsFixtures
   alias Tuist.Authorization
   alias Tuist.ProjectsFixtures
+  alias Tuist.Environment
   use Tuist.DataCase
   use Mimic
 
-  test "can.update.account.billing when the subject is the same account being read" do
+  test "can.update.account.billing when the subject is the same account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :update, account, :billing) == false
+  end
+
+  test "can.update.account.billing when the subject is the same account being read and it's not on-premise" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == true
   end
 
-  test "can.update.account.billing when the subject is not the same account being read" do
+  test "can.update.account.billing when the subject is not the same account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
     user_two = AccountsFixtures.user_fixture()
     account_two = Accounts.get_account_from_user(user_two)
+    Environment |> stub(:on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :update, account_two, :billing) == false
   end
 
-  test "can.update.account.billing when the subject is an admin of the account being read" do
+  test "can.update.account.billing when the subject is not the same account being read and it's not on-premise" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    user_two = AccountsFixtures.user_fixture()
+    account_two = Accounts.get_account_from_user(user_two)
+    Environment |> stub(:on_premise?, fn -> false end)
+
+    # When
+    assert Authorization.can(user, :update, account_two, :billing) == false
+  end
+
+  test "can.update.account.billing when the subject is an admin of the account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :admin)
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :update, account, :billing) == false
+  end
+
+  test "can.update.account.billing when the subject is an admin of the account being read and it's not on-premise" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == true
   end
 
-  test "can.update.account.billing when the subject is a user of the account being read" do
+  test "can.update.account.billing when the subject is a user of the account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :user)
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :update, account, :billing) == false
+  end
+
+  test "can.update.account.billing when the subject is a user of the account being read and it's not on-premise" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -764,41 +814,89 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.can(user, :read, account, :organization) == true
   end
 
-  test "can.read.account.billing when the subject is a user that belongs to the organization" do
+  test "can.read.account.billing when the subject is a user that belongs to the organization and it's on-premise" do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
+    Environment |> stub(:on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
   end
 
-  test "can.read.account.billing when the subject is a user that doesn't belong to an organization" do
+  test "can.read.account.billing when the subject is a user that belongs to the organization and it's not on-premise" do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
   end
 
-  test "can.read.account.billing when the subject is a user is admin of the organization" do
+  test "can.read.account.billing when the subject is a user that doesn't belong to an organization and it's on-premise" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is a user that doesn't belong to an organization and it's not on-premise" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Environment |> stub(:on_premise?, fn -> false end)
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is a user is admin of the organization and it's on-premise" do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :read, account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is a user is admin of the organization and it's not on-premise" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == true
   end
 
-  test "can.read.account.billing when the subject is interacting with its account" do
+  test "can.read.account.billing when the subject is interacting with its account and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture(preloads: [:account])
+    Environment |> stub(:on_premise?, fn -> true end)
+
+    # When
+    assert Authorization.can(user, :read, user.account, :billing) == false
+  end
+
+  test "can.read.account.billing when the subject is interacting with its account and it's not on-premise" do
+    # Given
+    user = AccountsFixtures.user_fixture(preloads: [:account])
+    Environment |> stub(:on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, user.account, :billing) == true
