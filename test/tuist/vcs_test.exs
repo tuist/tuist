@@ -13,6 +13,20 @@ defmodule Tuist.VCSTest do
   alias Tuist.Previews
   alias Tuist.CommandEventsFixtures
 
+  @default_headers [
+    {"Accept", "application/vnd.github.v3+json"},
+    {"Authorization", "token github_token"}
+  ]
+
+  setup do
+    GitHub.App
+    |> stub(:get_app_installation_token_for_repository, fn "tuist/tuist" ->
+      {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+    end)
+
+    :ok
+  end
+
   describe "get_user_permission/1" do
     test "returns user permission when admin" do
       # Given
@@ -299,8 +313,13 @@ defmodule Tuist.VCSTest do
           status: :failure
         )
 
-      GitHub.Client
-      |> expect(:get_comments, fn _ -> {:ok, []} end)
+      Req
+      |> stub(:get, fn [
+                         headers: @default_headers,
+                         url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                       ] ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
 
       commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
 
@@ -325,13 +344,13 @@ defmodule Tuist.VCSTest do
 
         """
 
-      GitHub.Client
-      |> expect(:create_comment, fn %{
-                                      repository: "tuist/tuist",
-                                      issue_id: "1",
-                                      body: ^expected_body
-                                    } ->
-        {:ok, %{}}
+      Req
+      |> stub(:post, fn [
+                          headers: @default_headers,
+                          url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                          json: %{body: ^expected_body}
+                        ] ->
+        {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
       # When / Then
@@ -373,7 +392,7 @@ defmodule Tuist.VCSTest do
 
       GitHub.Client
       |> expect(:create_comment, fn %{
-                                      repository: "tuist/tuist",
+                                      repository_full_handle: "tuist/tuist",
                                       issue_id: "1",
                                       body: _
                                     } ->
@@ -424,9 +443,21 @@ defmodule Tuist.VCSTest do
          ]}
       end)
 
-      GitHub.Client
-      |> expect(:update_comment, fn _ ->
-        {:ok, %{}}
+      GitHub.App
+      |> stub(:get_app_installation_token_for_repository, fn "tuist/tuist" ->
+        {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
+      end)
+
+      Req
+      |> stub(:patch, fn [
+                           headers: [
+                             {"Accept", "application/vnd.github.v3+json"},
+                             {"Authorization", "token github_token"}
+                           ],
+                           url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
+                           json: %{body: _}
+                         ] ->
+        {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
       GitHub.Client

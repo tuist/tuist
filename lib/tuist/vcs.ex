@@ -139,7 +139,7 @@ defmodule Tuist.VCS do
   end
 
   defp get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id}) do
-    case client.get_comments(%{repository: repository, issue_id: issue_id}) do
+    case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id}) do
       {:ok, comments} ->
         comments
         |> Enum.find(&(&1.client_id == Environment.github_app_client_id()))
@@ -162,14 +162,14 @@ defmodule Tuist.VCS do
 
       is_nil(existing_comment) ->
         client.create_comment(%{
-          repository: repository,
+          repository_full_handle: repository,
           issue_id: issue_id,
           body: vcs_comment_body
         })
 
       true ->
         client.update_comment(%{
-          repository: repository,
+          repository_full_handle: repository,
           comment_id: existing_comment.id,
           body: vcs_comment_body
         })
