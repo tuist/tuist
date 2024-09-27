@@ -73,3 +73,12 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
         XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
     }
 }
+
+final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAcceptanceTestCase {
+    func test_app_with_composable_architecture() async throws {
+        try await setUpFixture(.appWithComposableArchitecture)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}

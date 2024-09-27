@@ -38,8 +38,8 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             ]
         )
         try await run(ShareCommand.self, "App", "--platforms", "ios")
-        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Plus")
-        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Plus")
+        try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 
