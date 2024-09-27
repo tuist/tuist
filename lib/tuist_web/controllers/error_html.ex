@@ -13,6 +13,7 @@ defmodule TuistWeb.ErrorHTML do
   def render("401.html", assigns) do
     render_error_page(
       assigns
+      |> Map.put(:head_title, gettext("Unauthorized"))
       |> Map.put(:title, gettext("You are not authorized to view this page."))
       |> Map.put(
         :message,
@@ -36,6 +37,7 @@ defmodule TuistWeb.ErrorHTML do
 
     render_error_page(
       assigns
+      |> Map.put(:head_title, gettext("Not found"))
       |> Map.put(:title, gettext("We can't find that page."))
       |> Map.put(
         :message,
@@ -57,6 +59,7 @@ defmodule TuistWeb.ErrorHTML do
 
     render_error_page(
       assigns
+      |> Map.put(:head_title, gettext("Too many requests"))
       |> Map.put(:title, gettext("Too many requests."))
       |> Map.put(
         :message,
@@ -69,6 +72,7 @@ defmodule TuistWeb.ErrorHTML do
   def render("500.html", assigns) do
     render_error_page(
       assigns
+      |> Map.put(:head_title, gettext("Server error"))
       |> Map.put(:title, gettext("Oops! Something went wrong."))
       |> Map.put(
         :message,
@@ -95,9 +99,7 @@ defmodule TuistWeb.ErrorHTML do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={get_csrf_token()} />
-        <.live_title>
-          <%= gettext("Not authenticated") %>
-        </.live_title>
+        <.live_title><%= "#{@head_title || gettext("Error")} · Tuist" %></.live_title>
         <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
         <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/error.css"} />
       </head>
