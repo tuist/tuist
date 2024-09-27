@@ -4,12 +4,12 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
-import TuistSupport
 import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
