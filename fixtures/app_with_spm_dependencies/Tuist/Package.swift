@@ -1,5 +1,5 @@
-// swift-tools-version: 5.10
-import PackageDescription
+// swift-tools-version: 6.0
+@preconcurrency import PackageDescription
 
 #if TUIST
     import ProjectDescription
@@ -36,7 +36,7 @@ let package = Package(
         .package(url: "https://github.com/urbanairship/ios-library.git", exact: "17.7.3"),
         .package(url: "https://github.com/braze-inc/braze-swift-sdk.git", exact: "8.4.0"),
         // Has an umbrella header where moduleName must be sanitized
-        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.2.0"),
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.0"),
         .package(url: "https://github.com/googleads/swift-package-manager-google-mobile-ads", from: "11.1.0"),
         .package(url: "https://github.com/apple/swift-testing", .upToNextMajor(from: "0.6.0")),
         .package(path: "../LocalSwiftPackage"),
