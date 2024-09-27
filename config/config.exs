@@ -215,6 +215,15 @@ config :tuist, Tuist.Cache,
   # GC max timeout: 10 min
   gc_cleanup_max_timeout: :timer.minutes(10)
 
+# Error tracker
+config :error_tracker,
+  repo: Tuist.Repo,
+  otp_app: :tuist,
+  enabled: true,
+  ignorer: Tuist.ErrorTracker.Ignorer,
+  # 1 week
+  plugins: [{ErrorTracker.Plugins.Pruner, max_age: :timer.hours(24 * 7)}]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

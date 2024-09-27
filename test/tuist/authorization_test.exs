@@ -1452,4 +1452,33 @@ defmodule Tuist.AuthorizationTest do
     # When
     assert Authorization.can(user, :update, project, :settings) == false
   end
+
+  test "can.user.read.ops when the environment is :dev" do
+    # Given
+    Environment |> stub(:env, fn -> :dev end)
+    user = AccountsFixtures.user_fixture()
+
+    # Then
+    assert Authorization.can(user, :read, :ops) == true
+  end
+
+  test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
+    # Given
+    Environment |> stub(:env, fn -> :prod end)
+    user = AccountsFixtures.user_fixture(preloads: [:account])
+    Environment |> stub(:ops_user_handles, fn -> [] end)
+
+    # Then
+    assert Authorization.can(user, :read, :ops) == false
+  end
+
+  test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
+    # Given
+    Environment |> stub(:env, fn -> :prod end)
+    user = AccountsFixtures.user_fixture(preloads: [:account])
+    Environment |> stub(:ops_user_handles, fn -> [user.account.name] end)
+
+    # Then
+    assert Authorization.can(user, :read, :ops) == true
+  end
 end

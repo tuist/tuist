@@ -3,7 +3,42 @@ defmodule TuistWeb.Authorization do
   A module that provides functions for authorizing requests.
   """
   alias TuistWeb.Authentication
+  alias Tuist.Authorization
   alias Tuist.Projects
+  import TuistWeb.Gettext
+  alias TuistWeb.Errors.UnauthorizedError
+
+  def init(opts), do: opts
+
+  def call(conn, [:current_user, :read, :ops]) do
+    user = Authentication.current_user(conn)
+
+    cond do
+      is_nil(user) ->
+        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+
+      Authorization.can(user, :read, :ops) ->
+        conn
+
+      true ->
+        raise UnauthorizedError, gettext("Only operations roles can access this page.")
+    end
+  end
+
+  def on_mount([:current_user, :read, :ops], _params, _session, socket) do
+    user = Authentication.current_user(socket)
+
+    cond do
+      is_nil(user) ->
+        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+
+      Authorization.can(user, :read, :ops) ->
+        {:cont, socket}
+
+      true ->
+        raise UnauthorizedError, gettext("Only operations roles can access this page.")
+    end
+  end
 
   @doc """
   Used for project routes to ensure a user can read the project.

@@ -222,4 +222,14 @@ defmodule Tuist.Authorization do
   def can(_, :read, %Project{visibility: :public}, :command_event, _opts) do
     true
   end
+
+  def can(%User{} = user, :read, :ops) do
+    env = Tuist.Environment.env()
+
+    if env == :dev do
+      true
+    else
+      user.account.name in Tuist.Environment.ops_user_handles()
+    end
+  end
 end

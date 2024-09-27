@@ -118,10 +118,10 @@ defmodule Tuist.Environment do
     end
   end
 
-  def super_admin_user_ids(secrets \\ secrets()) do
-    case get([:super_admin_user_ids], secrets) do
-      user_ids_string when is_binary(user_ids_string) ->
-        user_ids_string |> String.split(",") |> Enum.map(&String.to_integer(&1))
+  def ops_user_handles(secrets \\ secrets()) do
+    case get([:ops_user_handles], secrets) do
+      user_handles when is_binary(user_handles) ->
+        user_handles |> String.split(",") |> Enum.map(&String.trim(&1))
 
       _ ->
         []

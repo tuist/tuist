@@ -5,7 +5,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
   import Phoenix.LiveDashboard.Router
-
+  use ErrorTracker.Web, :router
   @include_marketing_routes false
 
   pipeline :open_api do
@@ -171,15 +171,29 @@ defmodule TuistWeb.Router do
     post "/auth", AuthController, :authenticate
   end
 
-  # LiveDashboard
+  # Ops Routes
+  pipeline :ops do
+    plug TuistWeb.Authorization, [:current_user, :read, :ops]
+  end
 
-  scope "/dev" do
-    pipe_through [:browser_app, TuistWeb.SuperAdminOnlyPlug]
+  scope "/ops" do
+    pipe_through [:browser_app, :ops]
 
     live_dashboard "/dashboard",
       metrics: TuistWeb.Telemetry,
       ecto_repos: [Tuist.Repo],
-      ecto_psql_extras_options: [long_running_queries: [threshold: "200 milliseconds"]]
+      ecto_psql_extras_options: [long_running_queries: [threshold: "200 milliseconds"]],
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]}
+      ]
+
+    error_tracker_dashboard("/errors",
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]}
+      ]
+    )
 
     forward "/sent_emails", Bamboo.SentEmailViewerPlug
   end
