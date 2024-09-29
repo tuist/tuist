@@ -225,7 +225,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifest].map(\.parentDirectory))
+        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path.basename), [pluginManifest].map(\.parentDirectory.basename))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
