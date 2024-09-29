@@ -336,7 +336,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path.basename), [pluginManifestPath].map(\.parentDirectory.basename))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -395,7 +398,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, editingPath)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path.basename), [pluginManifestPath].map(\.parentDirectory.basename))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 

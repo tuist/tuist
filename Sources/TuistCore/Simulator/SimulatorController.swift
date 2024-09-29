@@ -278,7 +278,12 @@ public final class SimulatorController: SimulatorControlling {
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
         logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        let simulator = try await xcodeController.selected()?.path.appending(components: "Contents", "Developer", "Applications", "Simulator.app")
+        let simulator = try await xcodeController.selected()?.path.appending(
+            components: "Contents",
+            "Developer",
+            "Applications",
+            "Simulator.app"
+        )
         try system.run(["/usr/bin/open", "-a", simulator?.pathString ?? "Simulator"])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }

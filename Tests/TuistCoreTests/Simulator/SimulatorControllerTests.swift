@@ -1,7 +1,7 @@
 import Foundation
+import MockableTest
 import Path
 import XCTest
-import MockableTest
 
 @testable import TuistCore
 @testable import TuistSupport
@@ -303,7 +303,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(system.called(launchAppCommand))
     }
-    
+
     func test_launchApp_when_xcode_available_should_launchAppOnSimulator() async throws {
         // Given
         let xcodePath = try temporaryPath()
@@ -315,7 +315,11 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
-        system.succeedCommand(["/usr/bin/open", "-a", xcodePath.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString])
+        system.succeedCommand([
+            "/usr/bin/open",
+            "-a",
+            xcodePath.appending(components: "Contents", "Developer", "Applications", "Simulator.app").pathString,
+        ])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
         system.succeedCommand(launchAppCommand)
 
