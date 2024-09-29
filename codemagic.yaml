@@ -7,8 +7,6 @@ workflows:
     scripts:
       - name: Set environment variables
         script: |
-          xcode-select -p
-          open -a /Applications/Xcode-16.0.app/Contents/Developer/Applications/Simulator.app
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |

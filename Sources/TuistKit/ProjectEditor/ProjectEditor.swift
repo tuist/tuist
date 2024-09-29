@@ -216,9 +216,9 @@ final class ProjectEditor: ProjectEditing {
         plugins: Plugins,
         onlyCurrentDirectory: Bool
     ) throws -> [EditablePluginManifest] {
-        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
+        let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
+            .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
 
         let localEditablePluginManifests = try manifestFilesLocator.locatePluginManifests(
             at: path,
