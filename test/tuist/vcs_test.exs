@@ -413,6 +413,52 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "creates a comment when full handle and provider is the same and the origin is using SSH" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      preview = Previews.create_preview(%{project: project, display_name: "App"})
+
+      _preview_command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          project_id: project.id,
+          preview_id: preview.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      GitHub.Client
+      |> expect(:get_comments, fn _ -> {:ok, []} end)
+
+      GitHub.Client
+      |> expect(:create_comment, fn %{
+                                      repository_full_handle: "tuist/tuist",
+                                      issue_id: "1",
+                                      body: _
+                                    } ->
+        {:ok, %{}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        command_name: "share",
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: "git@github.com:tuist/tuist.git",
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
     test "updates a comment if one already exists" do
       # Given
       project =

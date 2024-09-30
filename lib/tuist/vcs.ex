@@ -73,7 +73,7 @@ defmodule Tuist.VCS do
   end
 
   defp get_repository_full_handle_from_url(repository_url) do
-    repository_url
+    Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
     |> URI.parse()
     |> Map.get(:path)
     |> String.replace_leading("/", "")
@@ -98,13 +98,20 @@ defmodule Tuist.VCS do
         preview_url: preview_url,
         command_run_url: command_run_url
       }) do
+    repository_full_handle =
+      if is_nil(git_remote_url_origin) do
+        nil
+      else
+        get_repository_full_handle_from_url(git_remote_url_origin)
+      end
+
     should_post_report =
       Enum.member?(@reportable_commands, command_name) and
         not is_nil(git_commit_sha) and
         not is_nil(git_ref) and
-        not is_nil(git_remote_url_origin) and
+        not is_nil(repository_full_handle) and
         connected?(%{
-          repository_full_handle: get_repository_full_handle_from_url(git_remote_url_origin),
+          repository_full_handle: repository_full_handle,
           project: project
         }) and
         String.starts_with?(git_ref, "refs/pull/")
@@ -112,12 +119,14 @@ defmodule Tuist.VCS do
     if should_post_report do
       client = get_client_for_provider(:github)
 
-      repository = get_repository_from_remote_url_origin(git_remote_url_origin)
-
       issue_id = get_issue_id_from_git_ref(git_ref)
 
       existing_comment =
-        get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id})
+        get_existing_vcs_comment_id(%{
+          client: client,
+          repository: repository_full_handle,
+          issue_id: issue_id
+        })
 
       vcs_comment_body =
         get_vcs_comment_body(%{
@@ -130,7 +139,7 @@ defmodule Tuist.VCS do
 
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
-        repository: repository,
+        repository: repository_full_handle,
         issue_id: issue_id,
         existing_comment: existing_comment,
         client: client
@@ -227,10 +236,6 @@ defmodule Tuist.VCS do
         (previews_body || "") <>
         (test_body || "")
     end
-  end
-
-  defp get_repository_from_remote_url_origin(git_remote_url_origin) do
-    git_remote_url_origin |> URI.parse() |> Map.get(:path) |> String.replace_leading("/", "")
   end
 
   defp get_issue_id_from_git_ref(git_ref) do
