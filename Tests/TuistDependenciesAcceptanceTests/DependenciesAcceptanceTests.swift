@@ -11,6 +11,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
         try await run(BuildCommand.self, "VisionOSApp")
         try await run(TestCommand.self, "AppKit")
     }
@@ -38,6 +39,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptance
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
         try await run(TestCommand.self, "App")
     }
 }
@@ -69,5 +71,14 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+    }
+}
+
+final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAcceptanceTestCase {
+    func test_app_with_composable_architecture() async throws {
+        try await setUpFixture(.appWithComposableArchitecture)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
     }
 }

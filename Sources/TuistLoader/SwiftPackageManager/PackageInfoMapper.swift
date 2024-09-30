@@ -856,6 +856,10 @@ extension ProjectDescription.ResourceFileElements {
             .folderReference(path: .path(resourceAbsolutePath.pathString))
         }
 
+        let excludedPaths = try excluding.map {
+            path.appending(try RelativePath(validating: $0))
+        }
+
         /// Handles the conversion of a `.process` resource rule of SPM
         ///
         /// - Parameters:
@@ -866,10 +870,10 @@ extension ProjectDescription.ResourceFileElements {
         {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
-            for exclude in excluding {
-                if absolutePathGlob.isDescendantOfOrEqual(to: path.appending(try RelativePath(validating: exclude))) {
-                    return nil
-                }
+            if try excludedPaths
+                .contains(where: { try FileHandler.shared.resolveSymlinks(absolutePathGlob).isDescendantOfOrEqual(to: $0) })
+            {
+                return nil
             }
             return .glob(
                 pattern: .path(absolutePathGlob.pathString),
