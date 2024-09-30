@@ -156,7 +156,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-extension PlatformCondition?: Comparable {
+extension PlatformCondition?: Swift.Comparable {
     public static func < (lhs: Optional, rhs: Optional) -> Bool {
         guard let lhs else { return false }
         guard let rhs else { return true }

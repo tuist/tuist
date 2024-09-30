@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import Path
-import TSCUtility
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -194,7 +193,7 @@ public struct BuildCommand: AsyncParsableCommand {
     }
 }
 
-extension XcodeGraph.Platform: ExpressibleByArgument {
+extension XcodeGraph.Platform: ArgumentParser.ExpressibleByArgument {
     public init?(argument: String) {
         self.init(commandLineValue: argument)
     }
