@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import App
 
 class AppDelegateTests: XCTestCase {
