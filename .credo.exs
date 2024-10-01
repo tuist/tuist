@@ -14,7 +14,8 @@
       checks: [
         {Credo.Checks.TimestampsType,
          files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
-        {Credo.Checks.TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime}
+        {Credo.Checks.TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
+        {ExcellentMigrations.CredoCheck.MigrationsSafety, []}
       ]
     }
   ]

@@ -19,7 +19,7 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     services:
       postgres:
@@ -56,9 +56,48 @@ jobs:
         run: mix ecto.load
       - name: Run tests
         run: mix test
+  analyze-migrations:
+    name: Analyze migrations
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Create the database
+        run: mix ecto.create
+      # This is necessary because the migrations of Rails continue to be the source
+      # of truth for the current shape of the schema.
+      - name: Dump the initial database schema
+        run: mix ecto.load
+      - name: Analyze migrations
+        run: mix excellent_migrations.migrate
   credo:
     name: Credo
-    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -78,7 +117,7 @@ jobs:
         run: mix credo
   format:
     name: Format
-    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4 # v4
@@ -98,7 +137,7 @@ jobs:
         run: mix format --check-formatted
   seed:
     name: Seed
-    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     services:
       postgres:

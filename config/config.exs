@@ -224,6 +224,8 @@ config :error_tracker,
   # 1 week
   plugins: [{ErrorTracker.Plugins.Pruner, max_age: :timer.hours(24 * 7)}]
 
+config :excellent_migrations, start_after: "20240926093919"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
