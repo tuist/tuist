@@ -264,6 +264,8 @@ class ProjectFileElements {
                     groups: groups,
                     pbxproj: pbxproj
                 )
+            case .packageProduct:
+                break
             }
         }
     }
