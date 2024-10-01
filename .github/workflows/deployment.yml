@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: tuist/tuist-cloud
+          repository: tuist/cli-ext
           token: ${{ secrets.TUIST_SERVER_TESTS_GITHUB_TOKEN }}
       - uses: jdx/mise-action@v2
       - name: Select Xcode
