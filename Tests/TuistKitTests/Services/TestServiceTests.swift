@@ -1197,7 +1197,14 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
+        let expectedResourceBundlePath = try temporaryPath()
+            .appending(component: "test")
+        let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.createSymbolicLink(
+            from: expectedResourceBundlePath,
+            to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        )
         var resourceBundlePath: AbsolutePath?
 
         given(xcodebuildController)
@@ -1327,7 +1334,14 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
+        let expectedResourceBundlePath = try temporaryPath()
+            .appending(component: "test")
+        let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.createSymbolicLink(
+            from: expectedResourceBundlePath,
+            to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        )
         var resourceBundlePath: AbsolutePath?
 
         given(xcodebuildController)
@@ -1382,6 +1396,13 @@ final class TestServiceTests: TuistUnitTestCase {
             resourceBundlePath,
             expectedResourceBundlePath
         )
+        let existsResultBundlePathInCacheDirectory = try await fileSystem.exists(
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: "run-id", "\(Constants.resultBundleName).xcresult"),
+            isDirectory: true
+        )
+        XCTAssertTrue(existsResultBundlePathInCacheDirectory)
     }
 
     func test_run_passes_retry_count_as_argument() async throws {

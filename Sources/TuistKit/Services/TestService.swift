@@ -215,6 +215,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             return
         }
 
+        cacheAnalyticsStore.graphPath = graph.path
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
@@ -233,22 +234,15 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let passedResultBundlePath = resultBundlePath
 
+        let runResultBundlePath = try cacheDirectoriesProvider
+            .cacheDirectory(for: .runs)
+            .appending(components: runId, Constants.resultBundleName)
+
         let resultBundlePath = try await self.resultBundlePath(
+            runResultBundlePath: runResultBundlePath,
             passedResultBundlePath: passedResultBundlePath,
-            runId: runId,
             config: config
         )
-
-        defer {
-            if let resultBundlePath, let passedResultBundlePath, config.fullHandle != nil {
-                Task {
-                    if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
-                        try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
-                    }
-                    try await fileSystem.copy(passedResultBundlePath, to: resultBundlePath)
-                }
-            }
-        }
 
         let schemes: [Scheme]
         if let schemeName {
@@ -284,28 +278,56 @@ final class TestService { // swiftlint:disable:this type_body_length
             schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         }
 
-        try await testSchemes(
-            schemes,
-            graph: graph,
-            mapperEnvironment: mapperEnvironment,
-            cacheStorage: cacheStorage,
-            clean: clean,
-            configuration: configuration,
-            version: version,
-            deviceName: deviceName,
-            platform: platform,
-            rosetta: rosetta,
-            resultBundlePath: resultBundlePath,
-            derivedDataPath: derivedDataPath,
-            retryCount: retryCount,
-            testTargets: testTargets,
-            skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        do {
+            try await testSchemes(
+                schemes,
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: cacheStorage,
+                clean: clean,
+                configuration: configuration,
+                version: version,
+                deviceName: deviceName,
+                platform: platform,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        } catch {
+            try await copyResultBundlePathIfNeeded(
+                runResultBundlePath: runResultBundlePath,
+                resultBundlePath: resultBundlePath
+            )
+            throw error
+        }
+
+        try await copyResultBundlePathIfNeeded(
+            runResultBundlePath: runResultBundlePath,
+            resultBundlePath: resultBundlePath
         )
     }
 
     // MARK: - Helpers
+
+    private func copyResultBundlePathIfNeeded(
+        runResultBundlePath: AbsolutePath?,
+        resultBundlePath: AbsolutePath?
+    ) async throws {
+        if let runResultBundlePath, let resultBundlePath, runResultBundlePath != resultBundlePath {
+            if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
+            }
+            try await fileSystem.copy(
+                try await fileSystem.resolveSymbolicLink(resultBundlePath),
+                to: runResultBundlePath.parentDirectory.appending(components: "\(Constants.resultBundleName).xcresult")
+            )
+        }
+    }
 
     private func testSchemes(
         _ schemes: [Scheme],
@@ -521,14 +543,10 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     /// - Returns: Result bundle path to use. Either passed by the user or a path in the Tuist cache
     private func resultBundlePath(
+        runResultBundlePath: AbsolutePath,
         passedResultBundlePath: AbsolutePath?,
-        runId: String,
         config: Config
     ) async throws -> AbsolutePath? {
-        let runResultBundlePath = try cacheDirectoriesProvider
-            .cacheDirectory(for: .runs)
-            .appending(components: runId, Constants.resultBundleName)
-
         if config.fullHandle == nil {
             return passedResultBundlePath
         } else {
