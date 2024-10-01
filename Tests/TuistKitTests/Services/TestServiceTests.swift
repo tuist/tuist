@@ -1591,6 +1591,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 "TargetB": "hash-b",
             ],
         ]
+        environment.targetCacheItems = [
+            projectPath: [:],
+        ]
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
@@ -1622,12 +1625,6 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
-        environment.targetTestHashes = [
-            projectPath: [
-                "TargetA": "hash-a",
-                "TargetB": "hash-b",
-            ],
-        ]
         var testedSchemes: [String] = []
         given(xcodebuildController)
             .test(
@@ -1668,6 +1665,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
+        verify(cacheAnalyticsStore)
+            .testTargets(newValue: .value(["TargetA"]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .localTestTargetHits(newValue: .value([]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .remoteTestTargetHits(newValue: .value([]))
+            .setCalled(1)
     }
 
     func test_run_test_plan_failure() async throws {
