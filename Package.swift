@@ -510,7 +510,8 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.16.0")
+            url: "https://github.com/Garfeild/XcodeGraph.git",
+            branch: "feature/embedded-spm-packages"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.13")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
