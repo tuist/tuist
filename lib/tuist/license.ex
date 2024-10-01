@@ -3,6 +3,8 @@ defmodule Tuist.License do
   Interface to check the environment licenses.
   """
 
+  require Logger
+
   @cache_key "license"
   @validation_url "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
 
@@ -19,7 +21,7 @@ defmodule Tuist.License do
 
     result =
       Cachex.fetch(cache, @cache_key, fn ->
-        case resolve_license() do
+        case resolve_license(Tuist.Environment.get_license_key()) do
           {:ok, license} -> {:commit, license, ttl: ttl}
           {:error, error} -> {:error, error}
         end
@@ -33,6 +35,8 @@ defmodule Tuist.License do
   end
 
   def assert_valid!(opts \\ []) do
+    Logger.info("Validating the license...")
+
     case {Tuist.Environment.on_premise?(), get_license(opts)} do
       {false, _} ->
         :ok
@@ -45,32 +49,42 @@ defmodule Tuist.License do
 
       {true, {:ok, %{valid: false}}} ->
         raise "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one."
+
+      {true, {:error, error}} ->
+        raise "The license validation failed with the following error: #{error}"
     end
   end
 
-  def resolve_license() do
-    key = Tuist.Environment.get_license_key()
+  def resolve_license(key) when is_nil(key) do
+    {:ok, nil}
+  end
 
-    if is_nil(key) do
-      {:ok, nil}
-    else
-      url =
-        "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
+  def resolve_license(key) when not is_nil(key) do
+    Logger.debug("Validating the license against the Keygen API...")
 
-      payload = Req.post!(url, json: %{meta: %{key: key}}).body
+    url =
+      "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
 
-      # When the license doesn't exist, keygen's API returns a 2xx response with "data" set to nil in the payload.
-      if is_nil(payload["data"]) do
-        {:ok, nil}
-      else
-        {:ok,
-         %__MODULE__{
-           valid: payload["meta"]["valid"],
-           id: payload["data"]["id"],
-           features: [],
-           expiration_date: Timex.parse!(payload["data"]["attributes"]["expiry"], "{RFC3339}")
-         }}
-      end
+    case Req.post(url, json: %{meta: %{key: key}}) do
+      {:ok, %{body: payload, status: status}} when status in 200..299 ->
+        # When the license doesn't exist, keygen's API returns a 2xx response with "data" set to nil in the payload.
+        if is_nil(payload["data"]) do
+          {:ok, nil}
+        else
+          {:ok,
+           %__MODULE__{
+             valid: payload["meta"]["valid"],
+             id: payload["data"]["id"],
+             features: [],
+             expiration_date: Timex.parse!(payload["data"]["attributes"]["expiry"], "{RFC3339}")
+           }}
+        end
+
+      {:ok, %{status: status}} when status in 400..599 ->
+        {:error, "The server to validate the license responded with a #{status} status code."}
+
+      {:error, error} ->
+        {:error, inspect(error)}
     end
   end
 end

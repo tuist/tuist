@@ -23,20 +23,22 @@ defmodule Tuist.LicenseTest do
       Environment |> stub(:get_license_key, fn -> license_key end)
 
       Req
-      |> stub(:post!, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        %{
-          body: %{
-            "data" => %{
-              "id" => "1234",
-              "attributes" => %{
-                "expiry" => expiry
-              }
-            },
-            "meta" => %{
-              "valid" => true
-            }
-          }
-        }
+      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             "data" => %{
+               "id" => "1234",
+               "attributes" => %{
+                 "expiry" => expiry
+               }
+             },
+             "meta" => %{
+               "valid" => true
+             }
+           }
+         }}
       end)
 
       # When
@@ -59,7 +61,7 @@ defmodule Tuist.LicenseTest do
                    end
     end
 
-    test "raises an error when the license is invalid" do
+    test "raises an error when the server reports that the license is invalid" do
       # Given
       cache = UUIDv7.generate() |> String.to_atom()
       {:ok, _} = Cachex.start_link(name: cache)
@@ -69,25 +71,72 @@ defmodule Tuist.LicenseTest do
       Environment |> stub(:get_license_key, fn -> license_key end)
 
       Req
-      |> stub(:post!, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        %{
-          body: %{
-            "data" => %{
-              "id" => "1234",
-              "attributes" => %{
-                "expiry" => expiry
-              }
-            },
-            "meta" => %{
-              "valid" => false
-            }
-          }
-        }
+      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             "data" => %{
+               "id" => "1234",
+               "attributes" => %{
+                 "expiry" => expiry
+               }
+             },
+             "meta" => %{
+               "valid" => false
+             }
+           }
+         }}
       end)
 
       # When/Then
       assert_raise RuntimeError,
                    "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one.",
+                   fn ->
+                     License.assert_valid!(cache: cache)
+                   end
+    end
+
+    test "raises an error when the request to validate the license fails" do
+      # Given
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
+      validation_url = License.get_validation_url()
+      license_key = UUIDv7.generate() |> String.to_atom()
+      Environment |> stub(:get_license_key, fn -> license_key end)
+
+      Req
+      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:ok,
+         %{
+           status: 500
+         }}
+      end)
+
+      # When/Then
+      assert_raise RuntimeError,
+                   "The license validation failed with the following error: The server to validate the license responded with a 500 status code.",
+                   fn ->
+                     License.assert_valid!(cache: cache)
+                   end
+    end
+
+    test "raises an error when the Req errors" do
+      # Given
+      cache = UUIDv7.generate() |> String.to_atom()
+      {:ok, _} = Cachex.start_link(name: cache)
+      validation_url = License.get_validation_url()
+      license_key = UUIDv7.generate() |> String.to_atom()
+      Environment |> stub(:get_license_key, fn -> license_key end)
+
+      Req
+      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:error, "req error."}
+      end)
+
+      # When/Then
+      assert_raise RuntimeError,
+                   "The license validation failed with the following error: \"req error.\"",
                    fn ->
                      License.assert_valid!(cache: cache)
                    end

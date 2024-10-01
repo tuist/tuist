@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   alias Tuist.Environment
   import Environment, only: [run_if_error_tracking_enabled: 1]
+  require Logger
 
   @impl true
   def start(_type, _args) do
@@ -13,6 +14,8 @@ defmodule Tuist.Application do
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
+
+    Logger.info("Tuist application started")
 
     Tuist.License.assert_valid!()
 
