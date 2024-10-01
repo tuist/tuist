@@ -5,7 +5,7 @@ final class VendorExtension: NSObject, AppExtension {
     override init() {
         super.init()
     }
-    
+
     var configuration: Config {
         return Config()
     }
