@@ -359,11 +359,17 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let stubs = createSimulatorDevicesAndRuntimes(versions: versions)
 
         if runtimes {
-            system.stubs["/usr/bin/xcrun simctl list runtimes --json"] = (nil, stubs.runtimesJsonResponse, 0)
+            system.succeedCommand(
+                ["/usr/bin/xcrun", "simctl list runtimes", "--json"],
+                output: stubs.runtimesJsonResponse
+            )
         }
 
         if devices {
-            system.stubs["/usr/bin/xcrun simctl list devices --json"] = (nil, stubs.devicesJsonResponse, 0)
+            system.succeedCommand(
+                ["/usr/bin/xcrun", "simctl list devices", "--json"],
+                output: stubs.devicesJsonResponse
+            )
         }
 
         return stubs.simulators
