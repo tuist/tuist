@@ -9,20 +9,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class GraphTraverserTests: TuistUnitTestCase {
-    private var fileSystem: FileSysteming!
-
-    override func setUp() {
-        super.setUp()
-
-        fileSystem = FileSystem()
-    }
-
-    override func tearDown() {
-        fileSystem = nil
-
-        super.tearDown()
-    }
-
     func test_dependsOnXCTest_when_is_framework() {
         // Given
         let target = Target.test(

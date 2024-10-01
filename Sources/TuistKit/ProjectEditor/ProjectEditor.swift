@@ -161,7 +161,7 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let editablePluginManifests = locateEditablePluginManifests(
+        let editablePluginManifests = try locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
             plugins: plugins,
@@ -215,17 +215,21 @@ final class ProjectEditor: ProjectEditing {
         excluding: [String],
         plugins: Plugins,
         onlyCurrentDirectory: Bool
-    ) -> [EditablePluginManifest] {
-        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
+    ) throws -> [EditablePluginManifest] {
+        let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
+            .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
 
-        let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(
+        let localEditablePluginManifests = try manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
-        )
-        .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }
+        ).map {
+            EditablePluginManifest(
+                name: $0.parentDirectory.basename,
+                path: try FileHandler.shared.resolveSymlinks($0.parentDirectory)
+            )
+        }
 
         return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
     }

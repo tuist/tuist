@@ -2,6 +2,7 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithBuildRules
+    case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
     case appWithGoogleMaps
@@ -83,6 +84,8 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithBuildRules:
             return "app_with_build_rules"
+        case .appWithComposableArchitecture:
+            return "app_with_composable_architecture"
         case .appWithCustomDefaultConfiguration:
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:

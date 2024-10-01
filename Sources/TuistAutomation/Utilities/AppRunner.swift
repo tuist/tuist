@@ -130,7 +130,7 @@ public final class AppRunner: AppRunning {
         logger.notice("Installing and launching \(appBundle.infoPlist.name) on \(simulator.device.name)")
         let device = try simulatorController.booted(device: simulator.device)
         try simulatorController.installApp(at: appBundle.path, device: device)
-        try simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
+        try await simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
         logger.notice("\(appBundle.infoPlist.name) was successfully launched 📲", metadata: .success)
     }
 }

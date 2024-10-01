@@ -56,14 +56,32 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty else { return [:] }
 
+            let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
+                staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    .filter { $0.containsLibrary() }
+
             sideEffects += try generateModuleMapAndUmbrellaHeader(
-                for: staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies,
+                for: staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies,
                 derivedDirectory: derivedDirectory
             )
 
-            return [
-                "OTHER_SWIFT_FLAGS": .array(
-                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+            let staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies =
+                staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    .filter { !$0.containsLibrary() }
+
+            var settings = SettingsDictionary()
+            if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
+                settings["FRAMEWORK_SEARCH_PATHS"] = .array(
+                    staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
+                        .map {
+                            "\"$(SRCROOT)/\($0.primaryBinaryPath.parentDirectory.parentDirectory.relative(to: project.path).pathString)\""
+                        }
+                )
+            }
+
+            if !staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
+                settings["OTHER_SWIFT_FLAGS"] = .array(
+                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
                         [
                             "-Xcc",
                             moduleMapFlag(
@@ -73,9 +91,9 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             ),
                         ]
                     }
-                ),
-                "OTHER_C_FLAGS": .array(
-                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+                )
+                settings["OTHER_C_FLAGS"] = .array(
+                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
                         [
                             moduleMapFlag(
                                 for: xcframework,
@@ -84,17 +102,19 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             ),
                         ]
                     }
-                ),
-                "HEADER_SEARCH_PATHS": .array(
-                    staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
+                )
+                settings["HEADER_SEARCH_PATHS"] = .array(
+                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
                         guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
                         else { return [] }
                         return [
                             "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\"",
                         ]
                     }
-                ),
-            ]
+                )
+            }
+
+            return settings
         }
 
         return (
@@ -123,11 +143,9 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
                 else { return [] }
                 let name = xcframework.path.basenameWithoutExt
-                let umbrellaHeader = moduleMap.parentDirectory.appending(component: "\(name).h")
-                guard fileHandler.exists(umbrellaHeader)
-                else { return [] }
+                let umbrellaHeader = xcframework.path.glob("**/\(name).h").first
                 let headersDirectory = derivedDirectory.appending(components: name, "Headers")
-                return [
+                var sideEffects: [SideEffectDescriptor] = [
                     .directory(DirectoryDescriptor(path: headersDirectory)),
                     .file(
                         FileDescriptor(
@@ -135,15 +153,22 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             contents: try fileHandler.readFile(moduleMap)
                         )
                     ),
-                    .file(
-                        FileDescriptor(
-                            path: headersDirectory.appending(components: "\(name).h"),
-                            contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
-                                .replacingOccurrences(of: "<\(name)/", with: "<")
-                                .data(using: .utf8)
-                        )
-                    ),
                 ]
+
+                if let umbrellaHeader {
+                    sideEffects.append(
+                        .file(
+                            FileDescriptor(
+                                path: headersDirectory.appending(components: "\(name).h"),
+                                contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
+                                    .replacingOccurrences(of: "<\(name)/", with: "<")
+                                    .data(using: .utf8)
+                            )
+                        )
+                    )
+                }
+
+                return sideEffects
             }
     }
 
@@ -180,5 +205,12 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             return project
         }
         return graph
+    }
+}
+
+extension GraphDependency.XCFramework {
+    fileprivate func containsLibrary() -> Bool {
+        infoPlist.libraries
+            .contains(where: { $0.path.extension == "a" })
     }
 }

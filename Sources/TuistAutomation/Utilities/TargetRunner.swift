@@ -167,6 +167,6 @@ public final class TargetRunner: TargetRunning {
         logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
         logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
-        try simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
     }
 }

@@ -225,7 +225,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifest].map(\.parentDirectory))
+        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path.basename), [pluginManifest].map(\.parentDirectory.basename))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -293,7 +293,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         ]
 
         // Local plugin
-        let pluginDirectory = directory.appending(component: "Plugin")
+        let pluginDirectory = directory.appending(component: "LocalPlugin")
         let pluginHelpersDirectory = pluginDirectory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(pluginDirectory)
         try FileHandler.shared.createFolder(pluginHelpersDirectory)
@@ -336,7 +336,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -395,7 +398,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, editingPath)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 

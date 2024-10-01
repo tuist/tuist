@@ -126,13 +126,19 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileHandler: FileHandler.shared
+        )
     ) {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
+        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -311,13 +317,22 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-        let baseSettings = packageSettings.baseSettings.with(
-            base: packageSettings.baseSettings.base.combine(
-                with: [
-                    "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
-                ]
+        let baseSettings: XcodeGraph.Settings
+
+        let swiftToolsVersion = try swiftPackageManagerController
+            .getToolsVersion(at: path)
+
+        if swiftToolsVersion >= Version(5, 9, 0) {
+            baseSettings = packageSettings.baseSettings.with(
+                base: packageSettings.baseSettings.base.combine(
+                    with: [
+                        "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
+                    ]
+                )
             )
-        )
+        } else {
+            baseSettings = packageSettings.baseSettings
+        }
 
         var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
@@ -841,6 +856,10 @@ extension ProjectDescription.ResourceFileElements {
             .folderReference(path: .path(resourceAbsolutePath.pathString))
         }
 
+        let excludedPaths = try excluding.map {
+            path.appending(try RelativePath(validating: $0))
+        }
+
         /// Handles the conversion of a `.process` resource rule of SPM
         ///
         /// - Parameters:
@@ -851,10 +870,10 @@ extension ProjectDescription.ResourceFileElements {
         {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
-            for exclude in excluding {
-                if absolutePathGlob.isDescendantOfOrEqual(to: path.appending(try RelativePath(validating: exclude))) {
-                    return nil
-                }
+            if try excludedPaths
+                .contains(where: { try FileHandler.shared.resolveSymlinks(absolutePathGlob).isDescendantOfOrEqual(to: $0) })
+            {
+                return nil
             }
             return .glob(
                 pattern: .path(absolutePathGlob.pathString),
@@ -1082,13 +1101,15 @@ extension ProjectDescription.Settings {
         }
 
         let moduleAliases = dependencyModuleAliases.flatMap { ["-module-alias", "\($0.key)=\($0.value)"] }
-        settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] ?? .array([]) {
-        case let .array(values):
-            .array(values + moduleAliases)
-        case let .string(value):
-            .array(
-                value.split(separator: " ").map(String.init) + moduleAliases
-            )
+        if !moduleAliases.isEmpty {
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] ?? .array([]) {
+            case let .array(values):
+                .array(values + moduleAliases)
+            case let .string(value):
+                .array(
+                    value.split(separator: " ").map(String.init) + moduleAliases
+                )
+            }
         }
 
         var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)

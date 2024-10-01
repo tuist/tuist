@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Path
 import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
+@Mockable
 public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameters:

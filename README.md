@@ -80,8 +80,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-            srcset="assets/companies/stream-darkmode.png" 
+            <source
+            srcset="assets/companies/stream-darkmode.png"
             media="(prefers-color-scheme: dark)">
             <img src="assets/companies/stream.png" alt="stream_logo"/>
           </picture>
@@ -101,8 +101,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/emergetools-darkmode.svg" 
+            <source
+              srcset="assets/companies/emergetools-darkmode.svg"
               media="(prefers-color-scheme: dark)">
             <img width="140" src="assets/companies/emergetools.svg" alt="emerge_logo"/>
           </picture>
@@ -158,8 +158,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://bendingspoons.com" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/bendingspoons-darkmode.png" 
+            <source
+              srcset="assets/companies/bendingspoons-darkmode.png"
               media="(prefers-color-scheme: dark)">
             <img src="assets/companies/bendingspoons.png" alt="bendingspoons_logo"/>
           </picture>
@@ -303,6 +303,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://wise.com" target="_blank">
           <img src="assets/companies/wise.png" alt="wise_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://zapis.kz/" target="_blank">
+          <img src="assets/companies/zapis.svg" alt="wise_logo" height="75"/>
         </a>
       </td>
     </tr>

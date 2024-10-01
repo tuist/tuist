@@ -70,6 +70,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .appending(component: "fixtures")
 
         fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
+        if fixturePath.components[1] == "var" {
+            // `resolveSymlinks` doesn't seem to properly resolve /var to /private/var when running the fixture in a temporary
+            // directory.
+            // The project needs to be reference by its full absolute path without symlinks.
+            fixturePath = try AbsolutePath(validating: "/private")
+                .appending(components: Array(fixturePath.components.dropFirst()))
+        }
 
         try FileHandler.shared.copy(
             from: fixturesPath.appending(component: fixture.path),

@@ -1,6 +1,6 @@
-// swift-tools-version:5.10
+// swift-tools-version: 5.10
 
-import PackageDescription
+@preconcurrency import PackageDescription
 
 let swiftToolsSupportDependency: Target.Dependency = .product(
     name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"
@@ -12,7 +12,7 @@ let argumentParserDependency: Target.Dependency = .product(
 )
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
-var targets: [Target] = [
+let targets: [Target] = [
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
