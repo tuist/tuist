@@ -441,7 +441,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition)
             case let .xcframework(path, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
-            case .bundle, .macro:
+            case .bundle, .macro, .packageProduct:
                 break
             case let .product(dependencyTarget, _, status, condition):
                 guard status != .none else { return }
