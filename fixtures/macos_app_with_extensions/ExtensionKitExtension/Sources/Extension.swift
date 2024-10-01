@@ -2,7 +2,9 @@ import ExtensionKit
 
 @main
 final class VendorExtension: NSObject, AppExtension {
-    override init() {}
+    override init() {
+        super.init()
+    }
     
     var configuration: Config {
         return Config()
