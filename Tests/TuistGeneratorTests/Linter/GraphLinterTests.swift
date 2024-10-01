@@ -2143,4 +2143,97 @@ final class GraphLinterTests: TuistUnitTestCase {
             )]
         )
     }
+
+    func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() throws {
+        let platforms: [Platform] = [.macOS, .iOS]
+
+        for platform in platforms {
+            // Given
+            let path = try temporaryPath()
+
+            /* extension kit target is under test */
+            let sut = Target.test(name: "Extension", platform: platform, product: .extensionKitExtension)
+
+            /* app embedding the extension */
+            let app = Target.test(name: "App", platform: platform, product: .app)
+
+            /* extension dependencies */
+            let dynamicFramework = Target.test(name: "DynamicFramework", platform: platform, product: .framework)
+            let staticFramework = Target.test(name: "StaticFramework", platform: platform, product: .staticFramework)
+            let dynamicLibrary = Target.test(name: "DynamicLibrary", platform: platform, product: .dynamicLibrary)
+            let staticLibrary = Target.test(name: "StaticLibrary", platform: platform, product: .staticLibrary)
+            let macro = Target.test(name: "Macro", platform: .macOS, product: .macro)
+
+            let project = Project.test(
+                path: path,
+                targets: [
+                    app,
+                    sut,
+                    dynamicFramework,
+                    staticFramework,
+                    dynamicLibrary,
+                    staticLibrary,
+                    macro,
+                ]
+            )
+
+            let graph = Graph.test(
+                projects: [path: project],
+                dependencies: [
+                    .target(name: app.name, path: path): [
+                        .target(name: sut.name, path: path),
+                    ],
+                    .target(name: sut.name, path: path): [
+                        .target(name: dynamicFramework.name, path: path),
+                        .target(name: staticFramework.name, path: path),
+                        .target(name: dynamicLibrary.name, path: path),
+                        .target(name: staticLibrary.name, path: path),
+                        .target(name: macro.name, path: path),
+                    ],
+                ]
+            )
+            let config = Config.test()
+            let graphTraverser = GraphTraverser(graph: graph)
+
+            // When
+            let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+            // Then
+            XCTAssertTrue(results.isEmpty, "Expected to get no lint failures on \(platform), got \(results)")
+        }
+    }
+
+    func test_extensionKitExtension_macOS_canEmbedAnXPCService() throws {
+        // Given
+        let path = try temporaryPath()
+
+        let sut = Target.test(name: "Extension", platform: .macOS, product: .extensionKitExtension)
+        let xpcService = Target.test(name: "XPCService", platform: .macOS, product: .xpc)
+
+        let project = Project.test(
+            path: path,
+            targets: [
+                sut,
+                xpcService,
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [path: project],
+            dependencies: [
+                .target(name: sut.name, path: path): [
+                    .target(name: xpcService.name, path: path),
+                ],
+            ]
+        )
+
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertTrue(results.isEmpty, "Expected to get no lint failures, got \(results)")
+    }
 }
