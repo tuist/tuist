@@ -88,21 +88,27 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             graphTraverser: graphTraverser
         )
 
+        try generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        try generatePackages(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
+        )
+
         try generateEmbedPhase(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             fileElements: fileElements,
             sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
-        try generateLinkingPhase(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements,
             path: path,
             graphTraverser: graphTraverser
         )
@@ -114,12 +120,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             fileElements: fileElements
-        )
-
-        try generatePackages(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj
         )
     }
 
