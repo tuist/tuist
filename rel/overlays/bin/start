@@ -10,28 +10,19 @@ echo "Current database schema version: $BEFORE_MIGRATION_SCHEMA_VERSION"
 echo "Running migration..."
 ./tuist eval Tuist.Release.migrate
 if [ $? -ne 0 ]; then
-  echo "Migration failed. Exiting..."
-  exit 1
-fi
-echo "Migration completed successfully."
+  echo "Migration failed!"
+  AFTER_MIGRATION_SCHEMA_VERSION=$(psql $DATABASE_URL -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;")
+  AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
 
-AFTER_MIGRATION_SCHEMA_VERSION=$(psql $DATABASE_URL -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;")
-AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
-echo "Database schema version after migration: $AFTER_MIGRATION_SCHEMA_VERSION"
-
-# Starting the server
-# Since we don't use 'exec' we need to trap the signals and forward them to the child process of the server.
-trap 'kill -TERM $PID' TERM INT HUP
-echo "Starting the server..."
-PHX_SERVER=true ./tuist start &
-PID=$!
-wait $PID
-EXIT_STATUS=$?
-
-if [ $EXIT_STATUS -ne 0 ]; then
   if [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then
-    echo "Tuist failed to start. Rolling back database schema to version $BEFORE_MIGRATION_SCHEMA_VERSION..."
+    echo "Rolling back from version $AFTER_MIGRATION_SCHEMA_VERSION to $BEFORE_MIGRATION_SCHEMA_VERSION (excluded)"
     ROLLBACK_VERSION=$BEFORE_MIGRATION_SCHEMA_VERSION ./tuist eval Tuist.Release.rollback
   fi
   exit 1
 fi
+
+echo "Migration completed successfully."
+
+# Starting the server
+echo "Starting the server..."
+PHX_SERVER=true exec ./tuist start
