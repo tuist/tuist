@@ -20,8 +20,11 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         self.manifestFilesLocator = manifestFilesLocator
     }
 
-    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard let packageManifest = manifestFilesLocator.locatePackageManifest(at: graph.path)
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+        guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
         else { return (graph, [], environment) }
         let derivedDirectory = packageManifest
             .parentDirectory

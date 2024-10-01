@@ -13,7 +13,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
@@ -32,7 +36,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_doesntGlob_whenVariable() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",
@@ -93,7 +101,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_glob_whenExcluding() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",

@@ -24,14 +24,21 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     typealias ArgumentsManifest = ProjectDescription.Arguments
 
     private var manifestLinter: MockManifestLinter!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
         manifestLinter = MockManifestLinter()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
     }
 
     override func tearDown() {
         manifestLinter = nil
+        rootDirectoryLocator = nil
         super.tearDown()
     }
 
@@ -60,7 +67,11 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadProject_withTargets() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let targetA = TargetManifest.test(name: "A", sources: [], resources: [])
         let targetB = TargetManifest.test(name: "B", sources: [], resources: [])
         let manifest = ProjectManifest.test(
@@ -313,7 +324,8 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 

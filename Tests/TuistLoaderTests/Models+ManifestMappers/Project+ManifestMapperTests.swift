@@ -48,7 +48,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         // When
         let got = try await XcodeGraph.Project.from(
             manifest: project,
-            generatorPaths: .init(manifestDirectory: "/"),
+            generatorPaths: .init(manifestDirectory: "/", rootDirectory: "/"),
             plugins: .none,
             externalDependencies: [:],
             resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
