@@ -2144,7 +2144,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
     }
 
-    func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() throws {
+    func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() async throws {
         let platforms: [Platform] = [.macOS, .iOS]
 
         for platform in platforms {
@@ -2196,14 +2196,14 @@ final class GraphLinterTests: TuistUnitTestCase {
             let graphTraverser = GraphTraverser(graph: graph)
 
             // When
-            let results = subject.lint(graphTraverser: graphTraverser, config: config)
+            let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
 
             // Then
             XCTAssertTrue(results.isEmpty, "Expected to get no lint failures on \(platform), got \(results)")
         }
     }
 
-    func test_extensionKitExtension_macOS_canEmbedAnXPCService() throws {
+    func test_extensionKitExtension_macOS_canEmbedAnXPCService() async throws {
         // Given
         let path = try temporaryPath()
 
@@ -2231,7 +2231,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty, "Expected to get no lint failures, got \(results)")
