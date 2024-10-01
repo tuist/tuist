@@ -14,7 +14,7 @@ import XCTest
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
     private var subject: PackageInfoMapper!
-    private var fileSystem: FileSystem!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
     override func setUp() {
         super.setUp()
@@ -22,16 +22,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.9")
-        subject = PackageInfoMapper()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(6, 0, 0))
+        subject = PackageInfoMapper(
+            swiftPackageManagerController: swiftPackageManagerController
+        )
     }
 
     override func tearDown() {
         subject = nil
-        fileSystem = nil
         super.tearDown()
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTarget_mapsToXcframework() throws {
+    func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -43,7 +48,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
                     targets: [
-                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com/target1.xcframework.zip"),
                         .test(name: "Target_2"),
                     ],
                     platforms: [.ios],
@@ -56,7 +61,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
-            ]]
+            ]],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -70,7 +76,84 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() throws {
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() async throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, path: "Sources/Target_1/Target_1.xcframework.zip"),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": try!
+                    .init(validating: "/artifacts/Package/Target_1.xcframework"),
+            ]],
+            packageModuleAliases: [:]
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Product1": [
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -92,7 +175,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageToFolder: ["Package": basePath],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -106,7 +190,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenPackageIDDifferentThanName() throws {
+    func testResolveDependencies_whenPackageIDDifferentThanName() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
@@ -154,7 +238,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "Package2": basePath.appending(component: "Package2"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertBetterEqual(
@@ -178,7 +263,84 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() throws {
+    func testResolveDependencies_whenHasModuleAliases() async throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
+        let resolvedDependencies = try subject.resolveExternalDependencies(
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Product",
+                            dependencies: [
+                                .product(
+                                    name: "Product",
+                                    package: "Package2",
+                                    moduleAliases: ["Product": "Package2Product"],
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "Package2": .init(
+                    name: "Package2",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Product",
+                            dependencies: [
+                                .target(name: "Product", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: [
+                "Package": basePath.appending(component: "Package"),
+                "Package2": basePath.appending(component: "Package2"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: ["Package2": ["Product": "Package2Product"]]
+        )
+
+        XCTAssertBetterEqual(
+            resolvedDependencies,
+            [
+                "Product": [
+                    .project(
+                        target: "Product",
+                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                        condition: nil
+                    ),
+                ],
+                "Package2Product": [
+                    .project(
+                        target: "Package2Product",
+                        path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                        condition: nil
+                    ),
+                ],
+            ]
+        )
+    }
+
+    func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler
@@ -226,7 +388,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -250,7 +413,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenTargetDependenciesOnTargetHaveConditions() throws {
+    func testResolveDependencies_whenTargetDependenciesOnTargetHaveConditions() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
@@ -282,7 +445,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertEqual(
@@ -299,7 +463,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() throws {
+    func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
@@ -355,7 +519,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package_1": basePath.appending(component: "Package_1"),
                 "Package_2": basePath.appending(component: "Package_2"),
             ],
-            packageToTargetsToArtifactPaths: [:]
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
         )
 
         XCTAssertBetterEqual(
@@ -386,12 +551,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap() throws {
+    func testMap() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -422,12 +587,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() throws {
+    func testMap_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -459,7 +624,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
+    func testMap_whenLegacySwift_usesLegacyIOSVersion() async throws {
         // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then
         // this one.
         swiftVersionProvider.reset()
@@ -471,7 +636,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -512,12 +677,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenMacCatalyst() throws {
+    func testMap_whenMacCatalyst() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -565,7 +730,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             let sourcesPath = basePath.appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1"))
             try fileHandler.createFolder(sourcesPath)
 
-            let project = try subject.map(
+            let project = try await subject.map(
                 package: "Package",
                 basePath: basePath,
                 packageInfos: [
@@ -609,8 +774,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         }
     }
 
-    func testMap_whenOnlyBinaries_doesNotCreateProject() throws {
-        let project = try subject.map(
+    func testMap_whenOnlyBinaries_doesNotCreateProject() async throws {
+        let project = try await subject.map(
             package: "Package",
             packageInfos: [
                 "Package": .init(
@@ -632,12 +797,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertNil(project)
     }
 
-    func testMap_whenNameContainsUnderscores_mapsToDashInBundleID() throws {
+    func testMap_whenNameContainsUnderscores_mapsToDashInBundleID() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target_1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -667,7 +832,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsDefinesContainsQuotes() throws {
+    func testMap_whenSettingsDefinesContainsQuotes() async throws {
         // When having a manifest that includes a GCC definition like `FOO="BAR"`, SPM successfully maintains the quotes
         // and it will convert it to a compiler parameter like `-DFOO=\"BAR\"`.
         // Xcode configuration, instead, treats the quotes as value assignment, resulting in `-DFOO=BAR`,
@@ -678,7 +843,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -754,12 +919,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() throws {
+    func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/com.example.target-1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -799,14 +964,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetNotInProduct_ignoresIt() throws {
+    func testMap_whenTargetNotInProduct_ignoresIt() async throws {
         let basePath = try temporaryPath()
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
         try fileHandler.createFolder(sourcesPath1)
         try fileHandler.createFolder(sourcesPath2)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -837,7 +1002,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetIsNotRegular_ignoresTarget() throws {
+    func testMap_whenTargetIsNotRegular_ignoresTarget() async throws {
         let basePath = try temporaryPath()
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
@@ -846,7 +1011,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(sourcesPath2)
         try fileHandler.createFolder(sourcesPath3)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -878,13 +1043,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenProductIsNotLibrary_ignoresProduct() throws {
+    func testMap_whenProductIsNotLibrary_ignoresProduct() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target3")))
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -918,12 +1083,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenCustomSources() throws {
+    func testMap_whenCustomSources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -971,7 +1136,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasResources() throws {
+    func testMap_whenHasResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -986,7 +1151,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(resource3)
 
         // Project declaration
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1073,7 +1238,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasAlreadyIncludedDefaultResources() throws {
+    func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let resourcesPath = sourcesPath.appending(try RelativePath(validating: "Resources"))
@@ -1089,8 +1254,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         fileHandler.stubExists = { path in
             [basePath, sourcesPath, resourcesPath, defaultResourcePath].contains(path)
         }
+        try await fileSystem.makeDirectory(at: resourcesPath)
+        try await fileSystem.touch(defaultResourcePath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1135,16 +1302,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasDefaultResources() throws {
+    func testMap_whenHasDefaultResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let defaultResourcePath = sourcesPath.appending(try RelativePath(validating: "Resources/file.xib"))
+        let defaultResourcePaths = try Set([
+            "xib",
+            "storyboard",
+            "xcdatamodeld",
+            "xcmappingmodel",
+            "xcassets",
+            "strings",
+            "metal",
+        ].map { sourcesPath.appending(try RelativePath(validating: "Resouces/file.\($0)")) })
         try fileHandler.createFolder(sourcesPath)
         fileHandler.stubFiles = { _, _, _, _ in
-            return [defaultResourcePath]
+            return defaultResourcePaths
         }
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1171,20 +1346,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        resources: [
-                            .glob(
-                                pattern: .path(defaultResourcePath.pathString),
-                                excluding: [],
-                                tags: []
-                            ),
-                        ]
+                        resources: defaultResourcePaths.map {
+                            ResourceFileElement.glob(pattern: .path($0.pathString), excluding: [], tags: [])
+                        }
                     ),
                 ]
             )
         )
     }
 
-    func testMap_whenHasHeadersWithCustomModuleMap() throws {
+    func testMap_whenHasHeadersWithCustomModuleMap() async throws {
         let basePath = try temporaryPath()
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
@@ -1195,7 +1366,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.write("", path: topHeaderPath, atomically: true)
         try fileHandler.write("", path: nestedHeaderPath, atomically: true)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1236,14 +1407,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasSystemLibrary() throws {
+    func testMap_whenHasSystemLibrary() async throws {
         let basePath = try temporaryPath()
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
         try fileHandler.createFolder(targetPath)
         try fileHandler.write("", path: moduleMapPath, atomically: true)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1286,7 +1457,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_errorWhenSystemLibraryHasMissingModuleMap() throws {
+    func testMap_errorWhenSystemLibraryHasMissingModuleMap() async throws {
         let basePath = try temporaryPath()
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
@@ -1298,7 +1469,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             target: "Target1"
         )
 
-        XCTAssertThrowsSpecific(try subject.map(
+        await XCTAssertThrowsSpecific(try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1322,7 +1493,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         ), error)
     }
 
-    func testMap_whenHasHeadersWithUmbrellaHeader() throws {
+    func testMap_whenHasHeadersWithUmbrellaHeader() async throws {
         let basePath = try temporaryPath()
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let topHeaderPath = headersPath.appending(component: "Target1.h")
@@ -1331,7 +1502,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.write("", path: topHeaderPath, atomically: true)
         try fileHandler.write("", path: nestedHeaderPath, atomically: true)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1372,7 +1543,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDependenciesHaveHeaders() throws {
+    func testMap_whenDependenciesHaveHeaders() async throws {
         let basePath = try temporaryPath()
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
@@ -1387,7 +1558,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(dependency2HeadersPath.appending(component: "Subfolder"))
         try fileHandler.write("", path: dependency2ModuleMapPath, atomically: true)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1462,7 +1633,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenExternalDependenciesHaveHeaders() throws {
+    func testMap_whenExternalDependenciesHaveHeaders() async throws {
         let basePath = try temporaryPath()
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
@@ -1477,7 +1648,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(dependency2HeadersPath.appending(component: "Subfolder"))
         try fileHandler.write("", path: dependency2ModuleMapPath, atomically: true)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1553,7 +1724,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenCustomPath() throws {
+    func testMap_whenCustomPath() async throws {
         let basePath = try temporaryPath()
 
         // Create resources files and directories
@@ -1568,7 +1739,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(resourceFolderPathCustomTarget)
 
         // Project declaration
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1627,14 +1798,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() throws {
+    func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
         let basePath = try temporaryPath()
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(dependencyHeadersPath)
         try fileHandler.touch(dependencyHeadersPath.appending(component: "Header.h"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1687,14 +1858,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenMultipleAvailable_takesMultiple() throws {
+    func testMap_whenMultipleAvailable_takesMultiple() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1740,11 +1911,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual(projectTargets, expectedTargets)
     }
 
-    func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() throws {
+    func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1790,11 +1961,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
+    func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1840,11 +2011,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
+    func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1881,11 +2052,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() throws {
+    func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1926,11 +2097,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() throws {
+    func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -1970,11 +2141,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() throws {
+    func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2009,11 +2180,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() throws {
+    func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2049,11 +2220,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() throws {
+    func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2089,11 +2260,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() throws {
+    func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2133,11 +2304,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() throws {
+    func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2176,11 +2347,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() throws {
+    func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2219,12 +2390,55 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() throws {
+    func testMap_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"]]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2260,12 +2474,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() throws {
+    func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -2354,7 +2568,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() throws {
+    func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2363,7 +2577,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
         let targetSettings = ["Target1": customSettings]
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2410,12 +2624,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenConditionalSetting() throws {
+    func testMap_whenConditionalSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2477,12 +2691,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() throws {
+    func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2521,12 +2735,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() throws {
+    func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2565,14 +2779,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetDependency_mapsToTargetDependency() throws {
+    func testMap_whenTargetDependency_mapsToTargetDependency() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
         try fileHandler.createFolder(sourcesPath)
         try fileHandler.createFolder(dependenciesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2607,14 +2821,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetDependency_mapsToXcframework() throws {
+    func testMap_whenBinaryTargetDependency_mapsToXcframework() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
         try fileHandler.createFolder(sourcesPath)
         try fileHandler.createFolder(dependenciesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2657,14 +2871,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetByNameDependency_mapsToTargetDependency() throws {
+    func testMap_whenTargetByNameDependency_mapsToTargetDependency() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
         try fileHandler.createFolder(sourcesPath)
         try fileHandler.createFolder(dependenciesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2699,12 +2913,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() throws {
+    func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2749,12 +2963,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetPathByNameDependency_mapsToXcFramework() throws {
+    func testMap_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2770,7 +2984,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
-                        .test(name: "Dependency1", type: .binary, path: "Dependency1/Dependency1.xcframework"),
+                        .test(name: "Dependency1", type: .binary, path: "Package/Sources/Target1/Dependency1.xcframework"),
                     ],
                     platforms: [.ios],
                     cLanguageStandard: nil,
@@ -2789,7 +3003,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         dependencies: [.xcframework(path: .path(
                             basePath
-                                .appending(try RelativePath(validating: "artifacts/Package/Dependency1/Dependency1.xcframework"))
+                                .appending(try RelativePath(validating: "Package/Sources/Target1/Dependency1.xcframework"))
                                 .pathString
                         ))]
                     ),
@@ -2798,7 +3012,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenExternalProductDependency_mapsToProjectDependencies() throws {
+    func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Dependency1", type: .binary, path: "Package/Sources/Target1/Dependency1.xcframework.zip"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.xcframework(path: .path(
+                            basePath
+                                .appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
+                                .pathString
+                        ))]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenExternalProductDependency_mapsToProjectDependencies() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -2839,7 +3102,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: ["Package": package1, "Package2": package2]
@@ -2861,7 +3124,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() throws {
+    func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -2902,7 +3165,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: ["Package": package1, "Package2": package2]
@@ -2924,12 +3187,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() throws {
+    func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2960,12 +3223,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() throws {
+    func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -2996,12 +3259,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() throws {
+    func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3032,12 +3295,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() throws {
+    func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3068,12 +3331,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() throws {
+    func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3108,12 +3371,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
+    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3143,7 +3406,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertNotNil(project?.settings?.configurations.first(where: { $0.name == "Custom" }))
     }
 
-    func testMap_whenTargetsWithDefaultHardcodedMapping() throws {
+    func testMap_whenTargetsWithDefaultHardcodedMapping() async throws {
         let basePath = try temporaryPath()
         let testTargets = [
             "Nimble",
@@ -3161,7 +3424,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
             .forEach { try fileHandler.createFolder($0) }
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3219,13 +3482,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetDependenciesOnTargetHaveConditions() throws {
+    func testMap_whenTargetDependenciesOnTargetHaveConditions() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2")))
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: [
@@ -3297,7 +3560,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual(projectTargets, expectedTargets)
     }
 
-    func testMap_whenTargetDependenciesOnProductHaveConditions() throws {
+    func testMap_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -3340,7 +3603,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageInfos: ["Package": package1, "Package2": package2]
@@ -3375,13 +3638,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenTargetNameContainsSpaces() throws {
+    func testMap_whenTargetNameContainsSpaces() async throws {
         let packageName = "Package With Space"
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "\(packageName)/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let project = try subject.map(
+        let project = try await subject.map(
             package: packageName,
             basePath: basePath,
             packageInfos: [
@@ -3415,7 +3678,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTarget() throws {
+    func testMap_whenSwiftPackageHasTestTarget() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3424,7 +3687,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(testsPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -3476,7 +3739,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() throws {
+    func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3485,7 +3748,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(testsPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -3547,7 +3810,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
+    func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() async throws {
         // Given
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target"]))
@@ -3559,7 +3822,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(macProductTestsPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -3660,7 +3923,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() throws {
+    func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3669,7 +3932,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(testsPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -3722,6 +3985,183 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenHasModuleAliases() async throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product",
+                        dependencies: [
+                            .product(
+                                name: "Product",
+                                package: "Package2",
+                                moduleAliases: ["Product": "Package2Product"],
+                                condition: nil
+                            ),
+                        ]
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+            "Package2": .init(
+                name: "Package2",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        let packageModuleAliases = [
+            "Package2": [
+                "Product": "Package2Product",
+            ],
+        ]
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageModuleAliases: packageModuleAliases
+        )
+        let projectTwo = try await subject.map(
+            package: "Package2",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageModuleAliases: packageModuleAliases
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Product",
+                        basePath: basePath,
+                        dependencies: [
+                            .target(name: "Package2Product", condition: nil),
+                        ],
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-module-alias", "Product=Package2Product"]]
+                    ),
+                ]
+            )
+        )
+        XCTAssertBetterEqual(
+            projectTwo,
+            .testWithDefaultConfigs(
+                name: "Package2",
+                targets: [
+                    .test(
+                        "Package2Product",
+                        packageName: "Package2",
+                        basePath: basePath,
+                        customSources: .custom(
+                            .sourceFilesList(
+                                globs: [basePath.appending(components: "Package2", "Sources", "Product").pathString + "/**"]
+                            )
+                        )
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        swiftPackageManagerController.reset()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(5, 8, 0))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+            nil
+        )
+    }
+
+    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let packageInfos: [String: PackageInfo] = [
+            "Package": .init(
+                name: "Package",
+                products: [
+                    .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Product"
+                    ),
+                ],
+                platforms: [.ios],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            ),
+        ]
+        swiftPackageManagerController.reset()
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn(Version(5, 9, 0))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: packageInfos
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-package-name", "Package"])
+        )
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -3749,8 +4189,9 @@ extension PackageInfoMapping {
         packageInfos: [String: PackageInfo] = [:],
         packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
-        )
-    ) throws -> ProjectDescription.Project? {
+        ),
+        packageModuleAliases: [String: [String: String]] = [:]
+    ) async throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
             .reduce(into: [:]) { packagesResult, element in
                 let (packageName, packageInfo) = element
@@ -3759,9 +4200,9 @@ extension PackageInfoMapping {
                         guard target.type == .binary else {
                             return
                         }
-                        if let path = target.path {
+                        if let path = target.path, !path.hasSuffix(".zip") {
                             targetsResult[target.name] = basePath.appending(
-                                try RelativePath(validating: "artifacts/\(packageName)/\(path)")
+                                try RelativePath(validating: "\(path)")
                             )
                         } else {
                             targetsResult[target.name] = basePath.appending(
@@ -3771,14 +4212,12 @@ extension PackageInfoMapping {
                     }
             }
 
-        return try map(
+        return try await map(
             packageInfo: packageInfos[package]!,
             path: basePath.appending(component: package),
             packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
-            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
-                ($0, basePath.appending(component: $0))
-            })
+            packageModuleAliases: packageModuleAliases
         )
     }
 }

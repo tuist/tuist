@@ -74,7 +74,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         hashedPaths: inout [AbsolutePath: String]
     ) throws -> String {
         switch dependency {
-        case let .target(targetName, _):
+        case let .target(targetName, _, _):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)]
             else {
                 throw DependenciesContentHasherError.missingTargetHash(
@@ -84,7 +84,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                 )
             }
             return dependencyHash
-        case let .project(targetName, projectPath, _):
+        case let .project(targetName, projectPath, _, _):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: projectPath, targetName: targetName)] else {
                 throw DependenciesContentHasherError.missingProjectTargetHash(
                     sourceProjectPath: graphTarget.path,

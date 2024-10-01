@@ -68,7 +68,7 @@ class InitService {
         optional: [String]
     ) {
         let path = try self.path(path)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
@@ -134,7 +134,7 @@ class InitService {
                 )
             })
         } else {
-            let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 

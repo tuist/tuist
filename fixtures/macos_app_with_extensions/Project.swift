@@ -5,7 +5,7 @@ import ProjectDescription
  **/
 let workflowExtensionSettings: SettingsDictionary = [
     "ADDITIONAL_SDKS": "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk $(inherited)",
-    "OTHER_LDFLAGS": "-fapplication-extension -e_ProExtensionMain -lProExtension",
+    "OTHER_LDFLAGS": "-fapplication-extension -e _ProExtensionMain -lProExtension",
     "FRAMEWORK_SEARCH_PATHS": "/Library/Frameworks $(inherited)",
     "LIBRARY_SEARCH_PATHS": "/usr/lib $(inherited)",
     "SWIFT_OBJC_BRIDGING_HEADER": "$SRCROOT/Workflow/Workflow-Bridging-Header.h",

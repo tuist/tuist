@@ -79,12 +79,14 @@ extension ProjectAutomation.Target {
 
     static func from(_ dependency: XcodeGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
         switch dependency {
-        case let .target(name, _):
-            return .target(name: name)
-        case let .project(target, path, _):
-            return .project(target: target, path: path.pathString)
+        case let .target(name, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .target(name: name, status: linkingStatus)
+        case let .project(target, path, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .project(target: target, path: path.pathString, status: linkingStatus)
         case let .framework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
@@ -93,7 +95,7 @@ extension ProjectAutomation.Target {
             }
             return .framework(path: path.pathString, status: frameworkStatus)
         case let .xcframework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
@@ -117,7 +119,7 @@ extension ProjectAutomation.Target {
                 return .package(product: product)
             }
         case let .sdk(name, status, _):
-            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            let projectAutomationStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 projectAutomationStatus = .optional

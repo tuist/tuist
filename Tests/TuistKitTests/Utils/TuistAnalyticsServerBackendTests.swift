@@ -14,28 +14,24 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     private var fullHandle = "tuist-org/tuist"
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecking!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
-    private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
     private var subject: TuistAnalyticsServerBackend!
 
     override func setUpWithError() throws {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
         cacheDirectoriesProvider = .init()
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
         subject = TuistAnalyticsServerBackend(
             fullHandle: fullHandle,
             url: Constants.URLs.production,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: FileSystem()
         )
@@ -44,7 +40,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     override func tearDown() {
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         subject = nil
         super.tearDown()

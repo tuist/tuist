@@ -18,7 +18,6 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var configManifests: [AbsolutePath: ProjectDescription.Config] = [:]
@@ -36,10 +35,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         do {
             cacheDirectoriesProvider = .init()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
-            cacheDirectoriesProviderFactory = .init()
-            given(cacheDirectoriesProviderFactory)
-                .cacheDirectories()
-                .willReturn(cacheDirectoriesProvider)
+            cacheDirectoriesProvider = .init()
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.manifests))
                 .willReturn(cacheDirectory)
@@ -329,7 +325,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             helpersDirectoryLocator: helpersDirectoryLocator,
             fileHandler: fileHandler,
             environment: environment,
-            cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             tuistVersion: tuistVersion
         )
     }

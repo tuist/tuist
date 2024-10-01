@@ -1,3 +1,4 @@
+import AnyCodable
 import Foundation
 import Path
 import TuistAutomation
@@ -141,12 +142,13 @@ struct ShareService {
             guard appNames.count == 1,
                   let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
-            let url = try await previewsUploadService.uploadPreviews(
-                appPaths,
+            let preview = try await previewsUploadService.uploadPreviews(
+                displayName: appName,
+                previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
-            logger.notice("\(appName) uploaded – share it with others using the following link: \(url.absoluteString)")
+            logger.notice("\(appName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
         } else if manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
@@ -258,12 +260,19 @@ struct ShareService {
                 }
                 .uniqued()
 
-            let url = try await previewsUploadService.uploadPreviews(
-                appPaths,
+            let preview = try await previewsUploadService.uploadPreviews(
+                displayName: app,
+                previewPaths: appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
-            logger.notice("\(app) uploaded – share it with others using the following link: \(url.absoluteString)")
+            logger.notice("\(app) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+
+            ShareCommand.analyticsDelegate?.addParameters(
+                [
+                    "preview_id": "\(preview.id)",
+                ]
+            )
         }
     }
 }

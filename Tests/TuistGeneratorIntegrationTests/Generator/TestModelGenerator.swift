@@ -29,7 +29,7 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> Graph {
+    func generate() async throws -> Graph {
         let models = try createModels()
         let graphLoader = GraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
@@ -38,7 +38,7 @@ final class TestModelGenerator {
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
 
-        return try graphLoader.loadWorkspace(
+        return try await graphLoader.loadWorkspace(
             workspace: models.workspace,
             projects: models.projects
         )

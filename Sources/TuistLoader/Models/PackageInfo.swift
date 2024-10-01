@@ -371,6 +371,7 @@ extension PackageInfo.Target {
 
         /// The name of the build setting.
         public enum SettingName: String, Codable, Hashable {
+            case swiftLanguageMode
             case headerSearchPath
             case define
             case linkedLibrary
@@ -419,6 +420,7 @@ extension PackageInfo.Target {
 
             // Xcode 14 format
             private enum Kind: Codable, Equatable {
+                case swiftLanguageMode(String)
                 case headerSearchPath(String)
                 case define(String)
                 case linkedLibrary(String)
@@ -456,6 +458,9 @@ extension PackageInfo.Target {
                     case let .enableExperimentalFeature(value):
                         name = .enableExperimentalFeature
                         self.value = [value]
+                    case let .swiftLanguageMode(value):
+                        name = .swiftLanguageMode
+                        self.value = [value]
                     }
                 } else {
                     name = try container.decode(SettingName.self, forKey: .name)
@@ -483,6 +488,8 @@ extension PackageInfo.Target {
                     try container.encode(Kind.enableUpcomingFeature(value.first!), forKey: .kind)
                 case .enableExperimentalFeature:
                     try container.encode(Kind.enableExperimentalFeature(value.first!), forKey: .kind)
+                case .swiftLanguageMode:
+                    try container.encode(Kind.swiftLanguageMode(value.first!), forKey: .kind)
                 }
             }
         }

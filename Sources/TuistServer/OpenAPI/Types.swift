@@ -189,12 +189,28 @@ public protocol APIProtocol: Sendable {
         -> Operations.showProject.Output
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
     func updateProject(_ input: Operations.updateProject.Input) async throws
         -> Operations.updateProject.Output
+    /// It uploads a given cache action item.
+    ///
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws
+        -> Operations.uploadCacheActionItem.Output
+    /// Get a cache action item.
+    ///
+    /// This endpoint gets an item from the action cache.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws
+        -> Operations.getCacheActionItem.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -601,31 +617,33 @@ public enum Components {
                 case refresh_token
             }
         }
-        /// The URL to download a build.
+        /// Represents an action item stored in the cache.
         ///
-        /// - Remark: Generated from `#/components/schemas/BuildDownloadURL`.
-        public struct BuildDownloadURL: Codable, Equatable, Hashable, Sendable {
-            /// The UNIX timestamp when the URL expires.
+        /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
+        public struct CacheActionItem: Codable, Equatable, Hashable, Sendable {
+            /// The hash that uniquely identifies the artifact in the cache.
             ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/expires_at`.
-            public var expires_at: Swift.Int
-            /// The URL to download the artifact from the cache.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildDownloadURL/url`.
-            public var url: Swift.String
-            /// Creates a new `BuildDownloadURL`.
+            /// - Remark: Generated from `#/components/schemas/CacheActionItem/hash`.
+            public var hash: Swift.String
+            /// Creates a new `CacheActionItem`.
             ///
             /// - Parameters:
-            ///   - expires_at: The UNIX timestamp when the URL expires.
-            ///   - url: The URL to download the artifact from the cache.
-            public init(expires_at: Swift.Int, url: Swift.String) {
-                self.expires_at = expires_at
-                self.url = url
-            }
-            public enum CodingKeys: String, CodingKey {
-                case expires_at
-                case url
-            }
+            ///   - hash: The hash that uniquely identifies the artifact in the cache.
+            public init(hash: Swift.String) { self.hash = hash }
+            public enum CodingKeys: String, CodingKey { case hash }
+        }
+        /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
+        public struct CacheActionItemUploadParams: Codable, Equatable, Hashable, Sendable {
+            /// The hash of the cache action item.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams/hash`.
+            public var hash: Swift.String?
+            /// Creates a new `CacheActionItemUploadParams`.
+            ///
+            /// - Parameters:
+            ///   - hash: The hash of the cache action item.
+            public init(hash: Swift.String? = nil) { self.hash = hash }
+            public enum CodingKeys: String, CodingKey { case hash }
         }
         /// The URL to download the artifact from the cache.
         ///
@@ -1388,6 +1406,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/id`.
             public var id: Swift.Double
+            /// The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
+            public var repository_url: Swift.String?
             /// The token that should be used to authenticate the project. For CI only.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
@@ -1398,22 +1420,26 @@ public enum Components {
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
+            ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
             ///   - token: The token that should be used to authenticate the project. For CI only.
             public init(
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
+                repository_url: Swift.String? = nil,
                 token: Swift.String
             ) {
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
+                self.repository_url = repository_url
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
                 case default_branch
                 case full_name
                 case id
+                case repository_url
                 case token
             }
         }
@@ -1568,6 +1594,18 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/error_message`.
                     public var error_message: Swift.String?
+                    /// The commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
+                    /// The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// The git remote URL origin.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
                     /// Whether the command was run in a CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/is_ci`.
@@ -1646,6 +1684,10 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/params`.
                     public var params:
                         Operations.createCommandEvent.Input.Body.jsonPayload.paramsPayload?
+                    /// The preview identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/json/preview_id`.
+                    public var preview_id: Swift.String?
                     /// The status of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/json/status`.
@@ -1697,10 +1739,14 @@ public enum Operations {
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
+                    ///   - git_commit_sha: The commit SHA.
+                    ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                    ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
                     ///   - name: The name of the command.
                     ///   - params: Extra parameters.
+                    ///   - preview_id: The preview identifier.
                     ///   - status: The status of the command.
                     ///   - subcommand: The subcommand of the command.
                     ///   - swift_version: The version of Swift that ran the command.
@@ -1710,11 +1756,15 @@ public enum Operations {
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Double,
                         error_message: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String,
                         name: Swift.String,
                         params: Operations.createCommandEvent.Input.Body.jsonPayload
                             .paramsPayload? = nil,
+                        preview_id: Swift.String? = nil,
                         status: Operations.createCommandEvent.Input.Body.jsonPayload
                             .statusPayload? = nil,
                         subcommand: Swift.String? = nil,
@@ -1725,10 +1775,14 @@ public enum Operations {
                         self.command_arguments = command_arguments
                         self.duration = duration
                         self.error_message = error_message
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.name = name
                         self.params = params
+                        self.preview_id = preview_id
                         self.status = status
                         self.subcommand = subcommand
                         self.swift_version = swift_version
@@ -1739,10 +1793,14 @@ public enum Operations {
                         case command_arguments
                         case duration
                         case error_message
+                        case git_commit_sha
+                        case git_ref
+                        case git_remote_url_origin
                         case is_ci
                         case macos_version
                         case name
                         case params
+                        case preview_id
                         case status
                         case subcommand
                         case swift_version
@@ -6714,7 +6772,7 @@ public enum Operations {
     }
     /// Updates a project
     ///
-    /// Updates an project with given parameters.
+    /// Updates a project with given parameters.
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
@@ -6759,14 +6817,26 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/default_branch`.
                     public var default_branch: Swift.String?
+                    /// The repository URL for the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/json/repository_url`.
+                    public var repository_url: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
-                    public init(default_branch: Swift.String? = nil) {
+                    ///   - repository_url: The repository URL for the project.
+                    public init(
+                        default_branch: Swift.String? = nil,
+                        repository_url: Swift.String? = nil
+                    ) {
                         self.default_branch = default_branch
+                        self.repository_url = repository_url
                     }
-                    public enum CodingKeys: String, CodingKey { case default_branch }
+                    public enum CodingKeys: String, CodingKey {
+                        case default_branch
+                        case repository_url
+                    }
                 }
                 case json(Operations.updateProject.Input.Body.jsonPayload)
             }
@@ -6825,6 +6895,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.updateProject.Output.Ok)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateProject.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateProject.Output.BadRequest.Headers = .init(),
+                    body: Operations.updateProject.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateProject.Output.BadRequest)
             public struct Unauthorized: Sendable, Equatable, Hashable {
                 public struct Headers: Sendable, Equatable, Hashable {
                     /// Creates a new `Headers`.
@@ -6918,6 +7019,541 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.updateProject.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// It uploads a given cache action item.
+    ///
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    public enum uploadCacheActionItem {
+        public static let id: String = "uploadCacheActionItem"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                public init(account_handle: Swift.String, project_handle: Swift.String) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.uploadCacheActionItem.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.uploadCacheActionItem.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.uploadCacheActionItem.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.uploadCacheActionItem.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Cache action item upload params
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The hash of the cache action item.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/json/hash`.
+                    public var hash: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - hash: The hash of the cache action item.
+                    public init(hash: Swift.String? = nil) { self.hash = hash }
+                    public enum CodingKeys: String, CodingKey { case hash }
+                }
+                case json(Operations.uploadCacheActionItem.Input.Body.jsonPayload)
+            }
+            public var body: Operations.uploadCacheActionItem.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.uploadCacheActionItem.Input.Path,
+                query: Operations.uploadCacheActionItem.Input.Query = .init(),
+                headers: Operations.uploadCacheActionItem.Input.Headers = .init(),
+                cookies: Operations.uploadCacheActionItem.Input.Cookies = .init(),
+                body: Operations.uploadCacheActionItem.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheActionItem)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.Ok.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request is valid but the cache action item already exists
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.uploadCacheActionItem.Output.Ok)
+            public struct Created: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.Created.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheActionItem)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.Created.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.Created.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The action item was cached
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.uploadCacheActionItem.Output.Created)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.BadRequest.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The request has missing or invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.uploadCacheActionItem.Output.BadRequest)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.Unauthorized.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadCacheActionItem.Output.Unauthorized)
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.PaymentRequired.Body
+                /// Creates a new `PaymentRequired`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.PaymentRequired.Headers =
+                        .init(),
+                    body: Operations.uploadCacheActionItem.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/402`.
+            ///
+            /// HTTP response code: `402 paymentRequired`.
+            case paymentRequired(Operations.uploadCacheActionItem.Output.PaymentRequired)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.Forbidden.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.uploadCacheActionItem.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCacheActionItem.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCacheActionItem.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCacheActionItem.Output.NotFound.Headers = .init(),
+                    body: Operations.uploadCacheActionItem.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.uploadCacheActionItem.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// Get a cache action item.
+    ///
+    /// This endpoint gets an item from the action cache.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    public enum getCacheActionItem {
+        public static let id: String = "getCacheActionItem"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_handle: Swift.String
+                public var project_handle: Swift.String
+                public var hash: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - project_handle:
+                ///   - hash:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    hash: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.hash = hash
+                }
+            }
+            public var path: Operations.getCacheActionItem.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.getCacheActionItem.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.getCacheActionItem.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getCacheActionItem.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getCacheActionItem.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getCacheActionItem.Input.Path,
+                query: Operations.getCacheActionItem.Input.Query = .init(),
+                headers: Operations.getCacheActionItem.Input.Headers = .init(),
+                cookies: Operations.getCacheActionItem.Input.Cookies = .init(),
+                body: Operations.getCacheActionItem.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheActionItem.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheActionItem)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheActionItem.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheActionItem.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheActionItem.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The item exists in the action cache
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheActionItem.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheActionItem.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheActionItem.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheActionItem.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getCacheActionItem.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheActionItem.Output.Unauthorized)
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheActionItem.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheActionItem.Output.PaymentRequired.Body
+                /// Creates a new `PaymentRequired`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheActionItem.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.getCacheActionItem.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/402`.
+            ///
+            /// HTTP response code: `402 paymentRequired`.
+            case paymentRequired(Operations.getCacheActionItem.Output.PaymentRequired)
+            public struct Forbidden: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheActionItem.Output.Forbidden.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheActionItem.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheActionItem.Output.Forbidden.Headers = .init(),
+                    body: Operations.getCacheActionItem.Output.Forbidden.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getCacheActionItem.Output.Forbidden)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheActionItem.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheActionItem.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheActionItem.Output.NotFound.Headers = .init(),
+                    body: Operations.getCacheActionItem.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The item doesn't exist in the actino cache
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getCacheActionItem.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -7625,7 +8261,26 @@ public enum Operations {
                 public init() {}
             }
             public var cookies: Operations.startPreviewsMultipartUpload.Input.Cookies
-            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// Preview upload request params
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The display name of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/display_name`.
+                    public var display_name: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - display_name: The display name of the preview.
+                    public init(display_name: Swift.String? = nil) {
+                        self.display_name = display_name
+                    }
+                    public enum CodingKeys: String, CodingKey { case display_name }
+                }
+                case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
+            }
             public var body: Operations.startPreviewsMultipartUpload.Input.Body?
             /// Creates a new `Input`.
             ///
@@ -9120,6 +9775,45 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            public struct InternalServerError: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body:
+                    Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+                        .Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Headers = .init(),
+                    body: Operations.completeAnalyticsArtifactMultipartUpload.Output
+                        .InternalServerError.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(
+                Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError
+            )
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

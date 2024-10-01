@@ -19,13 +19,13 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_bcsymbolmapPaths() throws {
+    func test_bcsymbolmapPaths() async throws {
         // Given
         let testPath = try temporaryFixture("PrebuiltFramework/")
         let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
 
         // When
-        let got = try subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
+        let got = try await subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
 
         // Then
         XCTAssertEqual(got, [
@@ -34,13 +34,13 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         ])
     }
 
-    func test_dsymPath() throws {
+    func test_dsymPath() async throws {
         // Given
         let testPath = try temporaryFixture("PrebuiltFramework/")
         let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
 
         // When
-        let got = try subject.dsymPath(frameworkPath: frameworkPath)
+        let got = try await subject.dsymPath(frameworkPath: frameworkPath)
 
         // Then
         XCTAssertEqual(got, testPath.appending(component: "\(frameworkPath.basename).dSYM"))

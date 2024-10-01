@@ -22,6 +22,10 @@ public final class ContentHasher: ContentHashing {
             .compactMap { String(format: "%02x", $0) }.joined()
     }
 
+    public func hash(_ boolean: Bool) throws -> String {
+        return try hash(boolean ? "1" : "0")
+    }
+
     public func hash(_ string: String) throws -> String {
         guard let data = string.data(using: .utf8) else {
             throw ContentHashingError.stringHashingFailed(string)

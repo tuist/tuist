@@ -2,12 +2,14 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithBuildRules
+    case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
     case appWithSpmDependencies
+    case appWithSpmModuleAliases
     case appWithTestPlan
     case appWithTests
     case commandLineToolBasic
@@ -45,6 +47,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithPluginsAndTemplates
     case iosAppWithPrivacyManifest
     case iosAppWithSpmDependencies
+    case iosAppWithSpmDependenciesForceResolvedVersions
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
     case iosAppWithStaticFrameworks
@@ -54,6 +57,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithTests
     case iosAppWithTransitiveFramework
     case iosAppWithWatchapp2
+    case iosAppWithWeaklyLinkedFramework
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
@@ -80,6 +84,8 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithBuildRules:
             return "app_with_build_rules"
+        case .appWithComposableArchitecture:
+            return "app_with_composable_architecture"
         case .appWithCustomDefaultConfiguration:
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
@@ -92,6 +98,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_previews"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
+        case .appWithSpmModuleAliases:
+            return "app_with_spm_module_aliases"
         case .appWithTestPlan:
             return "app_with_test_plan"
         case .appWithTests:
@@ -162,6 +170,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_on_demand_resources"
         case .iosAppWithSpmDependencies:
             return "ios_app_with_spm_dependencies"
+        case .iosAppWithSpmDependenciesForceResolvedVersions:
+            return "ios_app_with_spm_dependencies_forced_resolved_versions"
         case .iosAppWithPluginsAndTemplates:
             return "ios_app_with_plugins_and_templates"
         case .iosAppWithPrivacyManifest:
@@ -184,6 +194,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_transitive_framework"
         case .iosAppWithWatchapp2:
             return "ios_app_with_watchapp2"
+        case .iosAppWithWeaklyLinkedFramework:
+            return "ios_app_with_weakly_linked_framework"
         case .iosAppWithXcframeworks:
             return "ios_app_with_xcframeworks"
         case .iosWorkspaceWithDependencyCycle:

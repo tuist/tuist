@@ -97,7 +97,7 @@ final class PluginArchiveService {
         let zipName = "\(plugin.name).tuist-plugin.zip"
         let temporaryZipPath = try archiver.zip(name: zipName)
         let zipPath = path.appending(component: zipName)
-        if FileHandler.shared.exists(zipPath) {
+        if try await fileSystem.exists(zipPath) {
             try await fileSystem.remove(zipPath)
         }
         try FileHandler.shared.copy(

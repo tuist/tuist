@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -8,7 +9,7 @@ import XcodeGraph
 public protocol AnalyticsArtifactUploadServicing {
     func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [GraphTarget: String],
+        targetHashes: [CommandEventGraphTarget: String],
         graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
@@ -66,7 +67,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
     public func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [GraphTarget: String],
+        targetHashes: [CommandEventGraphTarget: String],
         graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL

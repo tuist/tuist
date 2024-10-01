@@ -783,7 +783,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
@@ -823,7 +823,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
@@ -885,7 +885,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,

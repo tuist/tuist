@@ -31,7 +31,6 @@ let project = Project(
             dependencies: [
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
-                .external(name: "ComposableArchitecture"),
                 .external(name: "ZipArchive"),
                 .external(name: "Yams"),
                 .external(name: "GoogleSignIn"),

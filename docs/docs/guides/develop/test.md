@@ -6,11 +6,11 @@ description: Learn how to run tests efficiently with Tuist.
 
 # Test
 
-Tuist provides a command, `tuist test` to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
+Tuist provides a command, [`tuist test`](/cli/test) to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
 
-You might wonder what's the value of using `tuist test` over generating the project with `tuist generate` and running the tests with the platform-specific build tool.
+You might wonder what's the value of using [`tuist test`](/cli/test) over generating the project with [`tuist generate`](/cli/generate) and running the tests with the platform-specific build tool.
 
-- **Single command:** `tuist test` ensures the project is generated if needed before compiling the project.
+- **Single command:** [`tuist test`](/cli/test) ensures the project is generated if needed before compiling the project.
 - **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
 - [**Cache:**](/guides/develop/build/cache) It optimizes the build by deterministically reusing the build artifacts from a remote cache.
 - [**Smart runner:**](/guides/develop/test/smart-runner) It runs only the tests that need to be run, saving time and resources.
@@ -32,3 +32,12 @@ tuist test --no-binary-cache
 tuist test --no-selective-testing
 ```
 :::
+
+## Pull/merge request comments
+
+> [!IMPORTANT] REQUIREMENTS
+> To get automatic pull/merge request comments, integrate your [remote project](/server/introduction/accounts-and-projects#projects) with a [Git platform](/server/introduction/integrations#git-platforms).
+
+When running tests in your CI environments we can correlate the test results with the pull/merge request that triggered the CI build. This allows us to post a comment on the pull/merge request with the test results.
+
+![GitHub App example](./github-app-comment.png)

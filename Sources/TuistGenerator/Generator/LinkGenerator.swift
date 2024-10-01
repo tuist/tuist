@@ -227,7 +227,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .product(dependencyTarget, _, condition):
+            case let .product(dependencyTarget, _, _, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -396,7 +396,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         func addBuildFile(
             _ path: AbsolutePath,
             condition: PlatformCondition?,
-            status: FrameworkStatus = .required
+            status: LinkingStatus = .required
         ) throws {
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
@@ -421,11 +421,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition, status: status)
             case .bundle, .macro:
                 break
-            case let .product(dependencyTarget, _, condition):
+            case let .product(dependencyTarget, _, status, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
-                let buildFile = PBXBuildFile(file: fileRef)
+                let settings = status == .optional ? ["ATTRIBUTES": ["Weak"]] : nil
+                let buildFile = PBXBuildFile(file: fileRef, settings: settings)
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
@@ -507,7 +508,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .product(target: dependencyTarget, _, condition: condition):
+            case let .product(target: dependencyTarget, _, _, condition: condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -591,7 +592,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxTarget.buildPhases.append(buildPhase)
     }
 
-    func createSDKBuildFile(for fileReference: PBXFileReference, status: SDKStatus) -> PBXBuildFile {
+    func createSDKBuildFile(for fileReference: PBXFileReference, status: LinkingStatus) -> PBXBuildFile {
         var settings: [String: Any]?
         if status == .optional {
             settings = ["ATTRIBUTES": ["Weak"]]

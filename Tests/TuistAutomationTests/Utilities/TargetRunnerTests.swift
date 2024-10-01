@@ -1,3 +1,4 @@
+import FileSystem
 import MockableTest
 import Path
 import struct TSCUtility.Version
@@ -93,8 +94,13 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        fileHandler.stubExists = { _ in true }
-        system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
+        try await fileSystem.makeDirectory(at: workspacePath)
+        try await fileSystem.touch(workspacePath.appending(component: "Target"))
+        system.succeedCommand(
+            [
+                workspacePath.appending(component: "Target").pathString,
+            ]
+        )
 
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
@@ -103,7 +109,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 derivedDataPath: .any,
                 configuration: .any
             )
-            .willReturn(try AbsolutePath(validating: "/path/to/proj.xcworkspace"))
+            .willReturn(workspacePath)
 
         // When
         try await subject.runTarget(
@@ -138,7 +144,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let executablePath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
 
-        fileHandler.stubExists = { _ in true }
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
                 platform: .any,
@@ -180,7 +187,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let deviceName = "iPhone 11"
         let bundleId = "com.tuist.bundleid"
 
-        fileHandler.stubExists = { _ in true }
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target.app"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
                 platform: .any,

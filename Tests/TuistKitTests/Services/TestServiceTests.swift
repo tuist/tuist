@@ -48,15 +48,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .store(.any, cacheCategory: .any)
             .willReturn()
 
-        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
-        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(mockCacheDirectoriesProvider)
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
         let runsCacheDirectory = try temporaryPath()
-        given(mockCacheDirectoriesProvider)
+        given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
@@ -77,7 +72,7 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader
         )
 
@@ -1495,19 +1490,78 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.default)
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectTestableSchemes = [
+            Scheme.test(
+                name: "TestScheme",
+                testAction: .test(
+                    targets: [
+                        .test(
+                            // This target's hash should _not_ be stored
+                            // as only targets in the test plan were tested.
+                            target: TargetReference(
+                                projectPath: projectPath,
+                                name: "TargetB"
+                            )
+                        ),
+                    ],
+                    testPlans: [
+                        .init(
+                            path: testPlanPath,
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: projectPath,
+                                        name: "TargetA"
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                    ]
+                )
+            ),
+        ]
+
+        let graph: Graph = .test(
+            workspace: .test(
+                schemes: [
+                    Scheme.test(name: "App-Workspace"),
+                ]
+            ),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "TargetA",
+                            bundleId: "io.tuist.TargetA"
+                        ),
+                        .test(
+                            name: "TargetB",
+                            bundleId: "io.tuist.TargetB"
+                        ),
+                    ],
+                    schemes: projectTestableSchemes
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    graph,
+                    environment
+                )
+            }
+
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
-            .willReturn(
-                [
-                    Scheme.test(name: "App-Workspace"),
-                    Scheme.test(
-                        name: "TestScheme",
-                        testAction: .test(
-                            testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
-                        )
-                    ),
-                ]
-            )
+            .willReturn(projectTestableSchemes)
         given(buildGraphInspector)
             .testableTarget(
                 scheme: .any,
@@ -1526,24 +1580,10 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(
-                        workspace: .test(
-                            schemes: [
-                                .test(
-                                    name: "TestScheme",
-                                    testAction: .test(targets: [.test()])
-                                ),
-                            ]
-                        )
-                    ),
-                    MapperEnvironment()
-                )
-            }
+        environment.testsCacheUntestedHashes = [
+            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
+            .test(name: "TargetB", bundleId: "io.tuist.TargetB"): "hash-b",
+        ]
         var testedSchemes: [String] = []
         given(xcodebuildController)
             .test(
@@ -1574,6 +1614,16 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["TestScheme"])
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
     }
 
     func test_run_test_plan_failure() async throws {

@@ -9,7 +9,7 @@ extension XcodeGraph.Scheme {
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Scheme, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Scheme {
+    static func from(manifest: ProjectDescription.Scheme, generatorPaths: GeneratorPaths) async throws -> XcodeGraph.Scheme {
         let name = manifest.name
         let shared = manifest.shared
         let hidden = manifest.hidden
@@ -17,10 +17,15 @@ extension XcodeGraph.Scheme {
             manifest: $0,
             generatorPaths: generatorPaths
         ) }
-        let testAction = try manifest.testAction.map { try XcodeGraph.TestAction.from(
-            manifest: $0,
-            generatorPaths: generatorPaths
-        ) }
+        let testAction: XcodeGraph.TestAction?
+        if let manifestTestAction = manifest.testAction {
+            testAction = try await XcodeGraph.TestAction.from(
+                manifest: manifestTestAction,
+                generatorPaths: generatorPaths
+            )
+        } else {
+            testAction = nil
+        }
         let runAction = try manifest.runAction.map { try XcodeGraph.RunAction.from(
             manifest: $0,
             generatorPaths: generatorPaths

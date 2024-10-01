@@ -78,6 +78,22 @@ extension XCTestCase {
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
+    public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
+        let standardOutput = TestingLogHandler.collected[.info, <=]
+
+        let message = """
+        The standard output:
+        ===========
+        \(standardOutput)
+
+        Contains the not expected:
+        ===========
+        \(pattern)
+        """
+
+        XCTAssertFalse(standardOutput.contains(pattern), message, file: file, line: line)
+    }
+
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
         let standardError = TestingLogHandler.collected[.error, ==]
 

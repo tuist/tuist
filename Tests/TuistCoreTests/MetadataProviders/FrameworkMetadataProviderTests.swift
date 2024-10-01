@@ -17,12 +17,12 @@ final class FrameworkMetadataProviderTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_loadMetadata() throws {
+    func test_loadMetadata() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "xpm.framework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedBinaryPath = frameworkPath.appending(component: frameworkPath.basenameWithoutExt)

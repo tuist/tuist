@@ -1,5 +1,5 @@
 {
-  "originHash" : "1daeb9a853c51e17c138cf3bca0322cfb85340fe1fbf28fe3baeb52cd037df48",
+  "originHash" : "57e8e560522d98da034eecf136da2a0571e102267ae8fa09d2264359afbe28cd",
   "pins" : [
     {
       "identity" : "bigint",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kstenerud/KSCrash",
       "state" : {
-        "revision" : "0ad825211ec38404e03b6f677a2312deb728528a",
-        "version" : "1.17.1"
+        "revision" : "353a7ea8f32e34b9008dd7aa6dc0b6466b7daf37",
+        "version" : "2.0.0-rc.3"
       }
     },
     {

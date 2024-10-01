@@ -5,6 +5,7 @@ import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
+import TuistScaffold
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -13,7 +14,6 @@ import XCTest
 @testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
-@testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
@@ -36,7 +36,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var manifestFilesLocator: MockManifestFilesLocating!
     private var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     private var writer: MockXcodeProjWriter!
-    private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
     private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
     private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
     private var subject: ProjectEditor!
@@ -49,7 +49,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator = MockManifestFilesLocating()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
         projectDescriptionHelpersBuilderFactory
@@ -129,6 +129,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         // When
         try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
@@ -170,6 +173,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         // Then
         await XCTAssertThrowsSpecific(
@@ -206,6 +212,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspace"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         // When
         try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
@@ -216,7 +225,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifest].map(\.parentDirectory))
+        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path.basename), [pluginManifest].map(\.parentDirectory.basename))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -247,6 +256,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
             .willReturn([])
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -281,7 +293,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         ]
 
         // Local plugin
-        let pluginDirectory = directory.appending(component: "Plugin")
+        let pluginDirectory = directory.appending(component: "LocalPlugin")
         let pluginHelpersDirectory = pluginDirectory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(pluginDirectory)
         try FileHandler.shared.createFolder(pluginHelpersDirectory)
@@ -307,6 +319,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
@@ -321,7 +336,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -362,6 +380,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: editingPath.appending(component: "Edit.xcworkspacepath"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
@@ -377,7 +398,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, editingPath)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path.basename),
+            [pluginManifestPath].map(\.parentDirectory.basename)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -413,6 +437,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
         }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
 
         projectDescriptionHelpersBuilder.buildPluginsStub = { _, _, plugins in
             plugins.map { ProjectDescriptionHelpersModule(name: $0.name, path: $0.path) }

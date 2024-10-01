@@ -34,7 +34,7 @@ final class TargetGeneratorTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_generateTarget_productName() throws {
+    func test_generateTarget_productName() async throws {
         // Given
         let target = Target.test(
             name: "MyFramework",
@@ -74,7 +74,7 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // When
-        let generatedTarget = try subject.generateTarget(
+        let generatedTarget = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -104,7 +104,7 @@ final class TargetGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildPhase.outputFileListPaths, ["../tmp/d"])
     }
 
-    func test_generateTargetDependencies() throws {
+    func test_generateTargetDependencies() async throws {
         // Given
         let targetA = Target.test(
             name: "TargetA",
@@ -162,7 +162,7 @@ final class TargetGeneratorTests: XCTestCase {
         }
     }
 
-    func test_generateTarget_actions() throws {
+    func test_generateTarget_actions() async throws {
         // Given
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -200,7 +200,7 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // When
-        let pbxTarget = try subject.generateTarget(
+        let pbxTarget = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,

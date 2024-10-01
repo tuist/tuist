@@ -15,7 +15,11 @@ class XcodeControllerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_selected_version_succeeds() throws {
-        XCTAssertNoThrow(try subject.selectedVersion())
+    func test_selected_version_succeeds() async throws {
+        // When
+        let got = try await subject.selectedVersion()
+
+        // Then
+        XCTAssertNoThrow(got)
     }
 }

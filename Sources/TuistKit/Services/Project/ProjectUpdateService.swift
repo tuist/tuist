@@ -43,6 +43,7 @@ struct ProjectUpdateService {
     func run(
         fullHandle: String?,
         defaultBranch: String?,
+        repositoryURL: String?,
         path: String?
     ) async throws {
         let path = try self.path(path)
@@ -55,7 +56,8 @@ struct ProjectUpdateService {
         _ = try await updateProjectService.updateProject(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            defaultBranch: defaultBranch
+            defaultBranch: defaultBranch,
+            repositoryURL: repositoryURL
         )
 
         logger.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)

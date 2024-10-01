@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MockableTest
 import TuistAnalytics
 import TuistCore
 import TuistSupport
@@ -10,17 +11,23 @@ import XCTest
 
 final class CommandEventFactoryTests: TuistUnitTestCase {
     private var subject: CommandEventFactory!
-    private var mockMachineEnv: MachineEnvironmentRetrieving!
+    private var machineEnvironment: MachineEnvironmentRetrieving!
+    private var gitController: MockGitControlling!
 
     override func setUp() {
         super.setUp()
-        mockMachineEnv = MockMachineEnvironment()
-        subject = CommandEventFactory(machineEnvironment: mockMachineEnv)
+        machineEnvironment = MockMachineEnvironment()
+        gitController = MockGitControlling()
+        subject = CommandEventFactory(
+            machineEnvironment: machineEnvironment,
+            gitController: gitController
+        )
     }
 
     override func tearDown() {
         subject = nil
-        mockMachineEnv = nil
+        machineEnvironment = nil
+        gitController = nil
         super.tearDown()
     }
 
@@ -28,6 +35,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
 
     func test_tagCommand_tagsExpectedCommand() throws {
         // Given
+        let path = try temporaryPath()
         let info = TrackableCommandInfo(
             runId: "run-id",
             name: "cache",
@@ -35,7 +43,9 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
-            status: .failure("Failed!")
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: path
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -50,11 +60,34 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             macOSVersion: "10.15.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .failure("Failed!")
+            status: .failure("Failed!"),
+            gitCommitSHA: "commit-sha",
+            gitRef: "github-ref",
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            targetHashes: nil,
+            graphPath: path
         )
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(path))
+            .willReturn("commit-sha")
+
+        given(gitController)
+            .urlOrigin(workingDirectory: .value(path))
+            .willReturn("https://github.com/tuist/tuist")
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn("github-ref")
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
 
         // When
-        let event = subject.make(from: info)
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
 
         // Then
         XCTAssertEqual(event.name, expectedEvent.name)
@@ -67,6 +100,46 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.macOSVersion, expectedEvent.macOSVersion)
         XCTAssertEqual(event.machineHardwareName, expectedEvent.machineHardwareName)
         XCTAssertEqual(event.isCI, expectedEvent.isCI)
+        XCTAssertEqual(event.gitCommitSHA, expectedEvent.gitCommitSHA)
+        XCTAssertEqual(event.gitRemoteURLOrigin, expectedEvent.gitRemoteURLOrigin)
+        XCTAssertEqual(event.gitRef, expectedEvent.gitRef)
+        XCTAssertEqual(event.targetHashes, expectedEvent.targetHashes)
+        XCTAssertEqual(event.graphPath, expectedEvent.graphPath)
+    }
+
+    func test_make_when_is_not_in_git_repository() throws {
+        // Given
+        let path = try temporaryPath()
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "cache",
+            subcommand: "warm",
+            parameters: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
+            durationInMs: 5000,
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: nil
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn(nil)
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        XCTAssertEqual(event.gitCommitSHA, nil)
+        XCTAssertEqual(event.gitRemoteURLOrigin, nil)
+        XCTAssertEqual(event.gitRef, nil)
     }
 }
 

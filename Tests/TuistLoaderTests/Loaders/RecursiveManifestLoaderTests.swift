@@ -305,7 +305,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             path: .any,
             packageType: .any,
             packageSettings: .any,
-            packageToProject: .any
+            packageModuleAliases: .any
         )
         .willReturn(
             .test(name: "PackageA")

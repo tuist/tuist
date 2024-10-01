@@ -31,13 +31,20 @@ public final class TargetContentHasher: TargetContentHashing {
     // MARK: - Init
 
     public convenience init(contentHasher: ContentHashing) {
+        let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
-            sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
+            sourceFilesContentHasher: SourceFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: platformConditionContentHasher
+            ),
             targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
-            copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
+            copyFilesContentHasher: CopyFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: platformConditionContentHasher
+            ),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
@@ -80,9 +87,9 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String] = []
     ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
-        let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
-        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
+        let sourcesHash = try sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
+        let resourcesHash = try resourcesContentHasher.hash(identifier: "resources", resources: graphTarget.target.resources).hash
+        let copyFilesHash = try copyFilesContentHasher.hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
         let targetScriptsHash = try targetScriptsContentHasher.hash(
             targetScripts: graphTarget.target.scripts,
