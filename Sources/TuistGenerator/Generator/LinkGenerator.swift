@@ -211,6 +211,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
 
         var frameworkReferences: [GraphDependencyReference] = []
+        let productRefs = pbxproj.buildFiles.compactMap(\.product)
 
         for dependency in embeddableFrameworks {
             switch dependency {
@@ -236,6 +237,17 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
                 buildFile.applyCondition(condition, applicableTo: target)
+                pbxproj.add(object: buildFile)
+                embedPhase.files?.append(buildFile)
+            case let .packageProduct(product, _):
+                guard let productRef = productRefs.first(where: { $0.productName == product }) else {
+                        break
+                    }
+
+                let buildFile = PBXBuildFile(
+                    product: productRef,
+                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk, .macro:
