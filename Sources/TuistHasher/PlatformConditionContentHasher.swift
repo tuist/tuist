@@ -19,16 +19,15 @@ public struct PlatformConditionContentHasher: PlatformConditionContentHashing {
     }
 
     public func hash(identifier: String, platformCondition: PlatformCondition) throws -> MerkleNode {
-        let children = try platformCondition.platformFilters.sorted().map { filter in
+        let children = try platformCondition.platformFilters.sorted().map {
             MerkleNode(
-                hash: try contentHasher.hash(filter.xcodeprojValue),
-                identifier: filter.xcodeprojValue,
-                children: []
+                hash: try contentHasher.hash($0.xcodeprojValue),
+                identifier: "\($0)"
             )
         }
 
         return MerkleNode(
-            hash: try contentHasher.hash(children.map(\.hash)),
+            hash: try contentHasher.hash(children),
             identifier: identifier,
             children: children
         )

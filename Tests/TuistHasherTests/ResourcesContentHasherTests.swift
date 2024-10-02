@@ -49,7 +49,11 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
         // When
         for _ in 0 ..< 100 {
-            hashes.insert(try subject.hash(identifier: "resources", resources: resourceFileElements).hash)
+            hashes.insert(try subject.hash(
+                identifier: "resources",
+                resources: resourceFileElements,
+                sourceRootPath: temporaryDirectory
+            ).hash)
         }
 
         // Then
@@ -77,7 +81,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         ], privacyManifest: privacyManifest)
 
         // When
-        let got = try subject.hash(identifier: "resources", resources: resourceFileElements)
+        let got = try subject.hash(identifier: "resources", resources: resourceFileElements, sourceRootPath: temporaryDirectory)
 
         // Then
         XCTAssertEqual(got, MerkleNode(
@@ -86,7 +90,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
             children: [
                 MerkleNode(
                     hash: "069310d0d484da1c8bcc98386a1f36e7",
-                    identifier: resource1.pathString,
+                    identifier: resource1.relative(to: temporaryDirectory).pathString,
                     children: [
                         MerkleNode(
                             hash: "c4ca4238a0b923820dcc509a6f75849b",
@@ -118,7 +122,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
                 ),
                 MerkleNode(
                     hash: "09eb77e7eb4c9f21384c143fc399c5ca",
-                    identifier: resource2.parentDirectory.pathString,
+                    identifier: resource2.parentDirectory.relative(to: temporaryDirectory).pathString,
                     children: [
                         MerkleNode(
                             hash: "c81e728d9d4c2f636f067f89cc14862c",

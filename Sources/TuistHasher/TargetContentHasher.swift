@@ -87,14 +87,36 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String] = []
     ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
-        let resourcesHash = try resourcesContentHasher.hash(identifier: "resources", resources: graphTarget.target.resources).hash
-        let copyFilesHash = try copyFilesContentHasher.hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
-        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetScriptsHash = try targetScriptsContentHasher.hash(
+        let sourceRootPath = graphTarget.project.sourceRootPath
+        let sourcesHash = try sourceFilesContentHasher.hash(
+            identifier: "sources",
+            sources: graphTarget.target.sources,
+            sourceRootPath: sourceRootPath
+        ).hash
+
+        let resourcesHash = try resourcesContentHasher.hash(
+            identifier: "resources",
+            resources: graphTarget.target.resources,
+            sourceRootPath: sourceRootPath
+        ).hash
+        let copyFilesHash = try copyFilesContentHasher.hash(
+            identifier: "copyFiles",
+            copyFiles: graphTarget.target.copyFiles,
+            sourceRootPath: sourceRootPath
+        ).hash
+        let coreDataModelHash = try coreDataModelsContentHasher.hash(
+            identifier: "coreDataModels",
+            coreDataModels: graphTarget.target.coreDataModels,
+            sourceRootPath: sourceRootPath
+        ).hash
+        let scriptsHash = try targetScriptsContentHasher.hash(
+            identifier: "scripts",
             targetScripts: graphTarget.target.scripts,
-            sourceRootPath: graphTarget.project.sourceRootPath
-        )
+            sourceRootPath: sourceRootPath
+        ).hash
+
+        // NEXT
+
         let dependenciesHash = try dependenciesContentHasher.hash(
             graphTarget: graphTarget,
             hashedTargets: &hashedTargets,
@@ -111,7 +133,7 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesHash,
             copyFilesHash,
             coreDataModelHash,
-            targetScriptsHash,
+            scriptsHash,
             environmentHash,
         ]
 

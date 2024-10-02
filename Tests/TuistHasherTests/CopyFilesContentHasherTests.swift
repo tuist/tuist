@@ -51,7 +51,11 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
 
         // When
         for _ in 0 ... 100 {
-            results.insert(try subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction]).hash)
+            results.insert(try subject.hash(
+                identifier: "copyFilesActions",
+                copyFiles: [copyFilesAction],
+                sourceRootPath: temporaryDirectory
+            ).hash)
         }
 
         // Then
@@ -78,7 +82,11 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction])
+        let got = try subject.hash(
+            identifier: "copyFilesActions",
+            copyFiles: [copyFilesAction],
+            sourceRootPath: temporaryDirectory
+        )
 
         // Then
         XCTAssertEqual(got, MerkleNode(
@@ -106,7 +114,7 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
                             children: [
                                 MerkleNode(
                                     hash: "7178d66b2f9f58b50207c4ac3eef73d4",
-                                    identifier: filePath.pathString,
+                                    identifier: filePath.relative(to: temporaryDirectory).pathString,
                                     children: [
                                         MerkleNode(
                                             hash: "d41d8cd98f00b204e9800998ecf8427e",
