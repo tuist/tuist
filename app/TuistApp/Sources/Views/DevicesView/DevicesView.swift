@@ -5,8 +5,8 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
-struct SimulatorsView: View, ErrorViewHandling {
-    @State var viewModel = SimulatorsViewModel()
+struct DevicesView: View, ErrorViewHandling {
+    @State var viewModel = DevicesViewModel()
     @EnvironmentObject var errorHandling: ErrorHandling
     @State var isExpanded = false
     private var cancellables = Set<AnyCancellable>()
@@ -39,19 +39,42 @@ struct SimulatorsView: View, ErrorViewHandling {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 4) {
-                if !viewModel.pinnedSimulators.isEmpty {
-                    Text("Pinned simulators")
+                if !viewModel.devices.isEmpty || !viewModel.pinnedSimulators.isEmpty {
+                    Text("Devices")
                         .font(.headline)
                         .fontWeight(.medium)
                         .padding(.leading, 4)
+                }
 
-                    simulators(viewModel.pinnedSimulators)
+                VStack(spacing: 0) {
+                    if !viewModel.devices.isEmpty {
+                        ForEach(viewModel.devices) { device in
+                            let selected = switch viewModel.selectedDevice {
+                            case let .device(selectedDevice):
+                                selectedDevice.id == device.id
+                            case .simulator, .none:
+                                false
+                            }
 
+                            return PhysicalDeviceRow(
+                                device: device,
+                                selected: selected,
+                                onSelected: viewModel.selectPhysicalDevice
+                            )
+                        }
+                    }
+
+                    if !viewModel.pinnedSimulators.isEmpty {
+                        simulators(viewModel.pinnedSimulators)
+                    }
+                }
+
+                if !viewModel.devices.isEmpty || !viewModel.pinnedSimulators.isEmpty {
                     Divider()
                 }
 
                 HStack {
-                    Text("Other simulators")
+                    Text("Other devices")
                         .font(.headline)
                         .fontWeight(.medium)
                     Spacer()
@@ -78,9 +101,16 @@ struct SimulatorsView: View, ErrorViewHandling {
 
     private func simulators(_ simulators: [SimulatorDeviceAndRuntime]) -> some View {
         ForEach(simulators) { simulator in
-            SimulatorRow(
+            let selected = switch viewModel.selectedDevice {
+            case let .simulator(selectedSimulator):
+                simulator.device.udid == selectedSimulator.device.udid
+            case .device, .none:
+                false
+            }
+
+            return SimulatorRow(
                 simulator: simulator,
-                selected: simulator.device.udid == viewModel.selectedSimulator?.device.udid,
+                selected: selected,
                 pinned: viewModel.pinnedSimulators.contains(where: { $0.device.udid == simulator.device.udid })
             ) { simulator in
                 viewModel.selectSimulator(simulator)
