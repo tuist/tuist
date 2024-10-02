@@ -20,6 +20,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileHandler: FileHandling
     private let manifestFilesLocator: ManifestFilesLocating
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
@@ -28,19 +29,25 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
             fileHandler: FileHandler.shared
         ),
         fileHandler: FileHandling = FileHandler.shared,
-        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.manifestLoader = manifestLoader
         self.swiftPackageManagerController = swiftPackageManagerController
         self.fileHandler = fileHandler
         self.manifestFilesLocator = manifestFilesLocator
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) async throws -> TuistCore.PackageSettings {
-        let path = manifestFilesLocator.locatePackageManifest(at: path)?.parentDirectory ?? path
+        let path = try await manifestFilesLocator.locatePackageManifest(at: path)?.parentDirectory ?? path
         try manifestLoader.register(plugins: plugins)
         let manifest = try await manifestLoader.loadPackageSettings(at: path)
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: path,
+            rootDirectory: rootDirectory
+        )
         let swiftToolsVersion = try swiftPackageManagerController.getToolsVersion(
             at: path
         )

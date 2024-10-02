@@ -17,7 +17,6 @@ final class InitServiceTests: TuistUnitTestCase {
     private var templateGenerator: MockTemplateGenerating!
     private var templateLoader: MockTemplateLoading!
     private var templateGitLoader: MockTemplateGitLoader!
-    private var tuistVersionLoader: MockTuistVersionLoader!
 
     override func setUp() {
         super.setUp()
@@ -25,13 +24,11 @@ final class InitServiceTests: TuistUnitTestCase {
         templateGenerator = MockTemplateGenerating()
         templateLoader = MockTemplateLoading()
         templateGitLoader = MockTemplateGitLoader()
-        tuistVersionLoader = MockTuistVersionLoader()
         subject = InitService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateGenerator: templateGenerator,
-            templateGitLoader: templateGitLoader,
-            tuistVersionLoader: tuistVersionLoader
+            templateGitLoader: templateGitLoader
         )
     }
 
@@ -74,13 +71,10 @@ final class InitServiceTests: TuistUnitTestCase {
             .templateDirectories(at: .any)
             .willReturn([defaultTemplatePath])
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
         ]
@@ -115,13 +109,10 @@ final class InitServiceTests: TuistUnitTestCase {
             .templateDirectories(at: .any)
             .willReturn([defaultTemplatePath])
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
         ]
@@ -155,13 +146,11 @@ final class InitServiceTests: TuistUnitTestCase {
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
             .willReturn([defaultTemplatePath])
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
 
         let expectedAttributes: [String: TuistCore.Template.Attribute.Value] = [
             "name": .string("unusual name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("UnusualName"),
             "bundle_identifier": .string("unusual-name"),
         ]
@@ -202,13 +191,10 @@ final class InitServiceTests: TuistUnitTestCase {
             )
         }
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "required": .string("requiredValue"),
@@ -260,9 +246,6 @@ final class InitServiceTests: TuistUnitTestCase {
                 ])
             )
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
@@ -271,7 +254,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "optional": context,
@@ -310,9 +293,6 @@ final class InitServiceTests: TuistUnitTestCase {
                 ])
             )
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
@@ -321,7 +301,7 @@ final class InitServiceTests: TuistUnitTestCase {
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "optional": defaultIntegerValue,

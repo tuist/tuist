@@ -128,7 +128,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         ]
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(
@@ -241,7 +241,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         ]
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(
@@ -342,7 +342,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         ]
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(
@@ -482,7 +482,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         ]
 
         // When
-        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(
@@ -538,7 +538,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(

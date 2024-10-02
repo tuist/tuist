@@ -208,7 +208,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     private func stub(rootDirectory: AbsolutePath) {
         given(rootDirectoryLocator)
             .locate(from: .any)
-            .willReturn(rootDirectory)
+            .willReturn(rootDirectory as AbsolutePath?)
     }
 
     private enum TestError: Error, Equatable {

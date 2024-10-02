@@ -75,7 +75,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     }
 
     public func locateUserTemplates(at: AbsolutePath) async throws -> AbsolutePath? {
-        guard let customTemplatesDirectory = locate(from: at) else { return nil }
+        guard let customTemplatesDirectory = try await locate(from: at) else { return nil }
         if try await !fileSystem.exists(customTemplatesDirectory) { return nil }
         return customTemplatesDirectory
     }
@@ -94,8 +94,8 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     // MARK: - Helpers
 
-    private func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+    private func locate(from path: AbsolutePath) async throws -> AbsolutePath? {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else { return nil }
         return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
 }

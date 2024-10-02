@@ -77,7 +77,7 @@ public final class StencilPathLocator: StencilPathLocating {
         for resourceName: String,
         path: AbsolutePath
     ) async throws -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else { return nil }
         let templatePath = rootDirectory
             .appending(
                 components: Constants.tuistDirectoryName,
@@ -90,7 +90,7 @@ public final class StencilPathLocator: StencilPathLocating {
     // MARK: - Helpers
 
     public func locate(at: AbsolutePath) async throws -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.stencilsDirectoryName)

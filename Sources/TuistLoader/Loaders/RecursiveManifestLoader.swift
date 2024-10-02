@@ -38,15 +38,18 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
     private let packageInfoMapper: PackageInfoMapping
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared,
-        packageInfoMapper: PackageInfoMapping = PackageInfoMapper()
+        packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
         self.packageInfoMapper = packageInfoMapper
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func loadWorkspace(at path: AbsolutePath) async throws -> LoadedWorkspace {
@@ -56,8 +59,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         } catch ManifestLoaderError.manifestNotFound {
             loadedWorkspace = nil
         }
-
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: path,
+            rootDirectory: rootDirectory
+        )
         let projectSearchPaths = (loadedWorkspace?.projects ?? ["."])
         let projectPaths = try projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
@@ -88,7 +94,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     public func loadAndMergePackageProjects(in loadedWorkspace: LoadedWorkspace, packageSettings: TuistCore.PackageSettings)
         async throws -> LoadedWorkspace
     {
-        let generatorPaths = GeneratorPaths(manifestDirectory: loadedWorkspace.path)
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: loadedWorkspace.path)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: loadedWorkspace.path,
+            rootDirectory: rootDirectory
+        )
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
         let packagePaths = try projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
@@ -141,7 +151,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             var newDependenciesPaths = Set<AbsolutePath>()
             for (path, project) in zip(paths, projects) {
                 cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+                await newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
             }
             paths = newDependenciesPaths
         }
@@ -160,15 +170,19 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             var newDependenciesPaths = Set<AbsolutePath>()
             for (path, project) in zip(paths, projects) {
                 cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+                await newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
             }
             paths = newDependenciesPaths
         }
         return LoadedProjects(projects: cache)
     }
 
-    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) async throws -> [AbsolutePath] {
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: path,
+            rootDirectory: rootDirectory
+        )
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {

@@ -22,7 +22,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     public func lint(config: Config) async throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
-        issues.append(contentsOf: try lintConfigPath(config: config))
+        issues.append(contentsOf: try await lintConfigPath(config: config))
         issues.append(contentsOf: try await lintXcodeVersion(config: config))
 
         return issues
@@ -51,9 +51,9 @@ public class EnvironmentLinter: EnvironmentLinting {
         }
     }
 
-    func lintConfigPath(config: Config) throws -> [LintingIssue] {
+    func lintConfigPath(config: Config) async throws -> [LintingIssue] {
         guard let configPath = config.path,
-              let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath)
+              let rootDirectoryPath = try await rootDirectoryLocator.locate(from: configPath)
         else {
             return []
         }

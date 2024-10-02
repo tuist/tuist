@@ -112,7 +112,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let packageSettings: TuistCore.PackageSettings?
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
-        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
+        if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
             let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(

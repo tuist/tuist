@@ -13,7 +13,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
@@ -39,7 +43,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "README.md",
         ])
@@ -57,7 +65,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     func test_copyFileElement_warning_withMissingFolderReference() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "Documentation")
 
         // When
@@ -71,7 +83,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     func test_throws_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.CopyFileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
             pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,

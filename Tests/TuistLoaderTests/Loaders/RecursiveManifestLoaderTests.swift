@@ -2,6 +2,7 @@ import Foundation
 import MockableTest
 import Path
 import ProjectDescription
+import TuistCore
 import TuistSupport
 import XCTest
 
@@ -17,8 +18,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private var packageManifests: [AbsolutePath: PackageInfo] = [:]
 
     private var subject: RecursiveManifestLoader!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
         do {
             path = try temporaryPath()
@@ -28,10 +30,17 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         manifestLoader = createManifestLoader()
         packageInfoMapper = MockPackageInfoMapping()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
+
         subject = RecursiveManifestLoader(
             manifestLoader: manifestLoader,
             fileHandler: fileHandler,
-            packageInfoMapper: packageInfoMapper
+            packageInfoMapper: packageInfoMapper,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 

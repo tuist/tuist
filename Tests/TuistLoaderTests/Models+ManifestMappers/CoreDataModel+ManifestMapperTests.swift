@@ -13,7 +13,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
         let manifest = ProjectDescription.CoreDataModel.coreDataModel(
             "model.xcdatamodeld",
@@ -30,7 +34,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from_getsCurrentVersionFrom_file_xccurrentversion() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: temporaryPath.appending(component: "model.xcdatamodeld").pathString),
@@ -63,7 +71,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from_getsCurrentVersionFrom_file_xccurrentversion_butCannotFindVersion() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: temporaryPath.appending(component: "model.xcdatamodeld").pathString),
@@ -86,7 +98,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from_getsCurrentVersionFrom_file_xccurrentversion_butFileDoesNotExist() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld")
 
         // When

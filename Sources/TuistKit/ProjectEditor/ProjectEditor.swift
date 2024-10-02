@@ -127,7 +127,7 @@ final class ProjectEditor: ProjectEditing {
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try await resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(
+        let projectManifests = try await manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
             onlyCurrentDirectory: onlyCurrentDirectory
@@ -136,7 +136,7 @@ final class ProjectEditor: ProjectEditing {
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
-        let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
+        let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
 
         let helpers = try await helpersDirectoryLocator.locate(at: editingPath).map {
             [
@@ -161,7 +161,7 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let editablePluginManifests = try locateEditablePluginManifests(
+        let editablePluginManifests = try await locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
             plugins: plugins,
@@ -215,12 +215,12 @@ final class ProjectEditor: ProjectEditing {
         excluding: [String],
         plugins: Plugins,
         onlyCurrentDirectory: Bool
-    ) throws -> [EditablePluginManifest] {
+    ) async throws -> [EditablePluginManifest] {
         let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
             .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
 
-        let localEditablePluginManifests = try manifestFilesLocator.locatePluginManifests(
+        let localEditablePluginManifests = try await manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory

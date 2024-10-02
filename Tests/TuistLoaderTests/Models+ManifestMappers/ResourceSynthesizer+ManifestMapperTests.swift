@@ -29,11 +29,15 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_from_when_default_strings() async throws {
         // Given
         let manifestDirectory = try temporaryPath()
+        let rootDirectory = try temporaryPath()
 
         // When
         let got = try await ResourceSynthesizer.from(
             manifest: .strings(),
-            generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: rootDirectory
+            ),
             plugins: .none,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
@@ -59,11 +63,15 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             "doubleValue": 1.0,
         ]
         let manifestDirectory = try temporaryPath()
+        let rootDirectory = try temporaryPath()
 
         // When
         let got = try await ResourceSynthesizer.from(
             manifest: .strings(parserOptions: parserOptions),
-            generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: rootDirectory
+            ),
             plugins: .none,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
@@ -88,6 +96,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_from_when_default_strings_and_custom_template_defined() async throws {
         // Given
         let manifestDirectory = try temporaryPath()
+        let rootDirectory = try temporaryPath()
         var gotResourceName: String?
         resourceSynthesizerPathLocator.templatePathResourceStub = { resourceName, path in
             gotResourceName = resourceName
@@ -97,7 +106,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         // When
         let got = try await ResourceSynthesizer.from(
             manifest: .strings(),
-            generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: rootDirectory
+            ),
             plugins: .none,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
@@ -124,6 +136,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             "doubleValue": 1.0,
         ]
         let manifestDirectory = try temporaryPath()
+        let rootDirectory = try temporaryPath()
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
         var invokedResourceSynthesizerPlugins: [TuistCore.PluginResourceSynthesizer] = []
@@ -137,7 +150,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         // When
         let got = try await ResourceSynthesizer.from(
             manifest: .assets(plugin: "Plugin", parserOptions: parserOptions),
-            generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: rootDirectory
+            ),
             plugins: .test(
                 resourceSynthesizers: [
                     .test(name: "Plugin"),
