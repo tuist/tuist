@@ -69,6 +69,10 @@ extension XcodeGraph.TargetScript {
             if path.pathString.contains("$") {
                 return [try generatorPaths.resolve(path: path)]
             }
+            // avoid globbing paths that point to specific files
+            if !path.pathString.contains("*") {
+                return [try generatorPaths.resolve(path: path)]
+            }
             let absolutePath = try generatorPaths.resolve(path: path)
             let base = try AbsolutePath(validating: absolutePath.dirname)
             return try base.throwingGlob(absolutePath.basename)
