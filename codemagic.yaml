@@ -12,6 +12,8 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
       - name: Lint
         script: mise run lint
     triggering: &branch_triggering
