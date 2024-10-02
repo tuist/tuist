@@ -241,6 +241,13 @@ final class RunService {
 
         try targetRunner.assertCanRunTarget(graphTarget.target)
 
+        let derivedDataPath = try? System.shared.env["CI_DERIVED_DATA_PATH"].map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            )
+        }
+
         try await targetBuilder.buildTarget(
             graphTarget,
             platform: try graphTarget.target.servicePlatform,
@@ -249,7 +256,7 @@ final class RunService {
             clean: clean,
             configuration: configuration,
             buildOutputPath: nil,
-            derivedDataPath: nil,
+            derivedDataPath: derivedDataPath,
             device: device,
             osVersion: version.map { XcodeGraph.Version(stringLiteral: $0.description) },
             rosetta: rosetta,
@@ -281,6 +288,7 @@ final class RunService {
             minVersion: minVersion,
             version: version,
             deviceName: device,
+            derivedDataPath: derivedDataPath,
             arguments: arguments
         )
     }
