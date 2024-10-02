@@ -27,7 +27,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         @end
         """
         let imports = try subject.extractImports(from: code, language: .objc)
-        XCTAssertEqual(imports, ["UIKit", "A"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "UIKit", line: 1),
+            FoundImport(module: "A", line: 2),
+        ])
     }
 
     func test_whenObjcCodeWithOneLineImports() throws {
@@ -41,7 +44,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         @end
         """
         let imports = try subject.extractImports(from: code, language: .objc)
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ModuleA", line: 1),
+            FoundImport(module: "ModuleB", line: 1),
+        ])
     }
 
     func test_whenObjcCodeWithSubmoduleImport() throws {
@@ -55,7 +61,9 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         @end
         """
         let imports = try subject.extractImports(from: code, language: .objc)
-        XCTAssertEqual(imports, ["ModuleA"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ModuleA", line: 1),
+        ])
     }
 
     func test_whenObjcWithSemanticImports() throws {
@@ -71,7 +79,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         #define AXTEXTMRKRNG_TAG "hs.axuielement.axtextmarkerrange"
         """
         let imports = try subject.extractImports(from: code, language: .objc)
-        XCTAssertEqual(imports, ["Cocoa", "LuaSkin"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "Cocoa", line: 1),
+            FoundImport(module: "LuaSkin", line: 2),
+        ])
     }
 
     func test_whenObjcWithInclude() throws {
@@ -87,7 +98,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .objc
         )
-        XCTAssertEqual(imports, ["Foundation", "mach-o", "objc"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "Foundation", line: 1),
+            FoundImport(module: "mach-o", line: 2),
+            FoundImport(module: "objc", line: 3),
+        ])
     }
 
     func test_whenSwiftWithDefaultImport() throws {
@@ -100,7 +115,9 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["PackageDescription"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "PackageDescription", line: 1),
+        ])
     }
 
     func test_whenSwiftWithOneLineImports() throws {
@@ -113,7 +130,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ModuleA", line: 1),
+            FoundImport(module: "ModuleB", line: 1),
+        ])
     }
 
     func test_whenSwiftWithSubmoduleImport() throws {
@@ -126,7 +146,9 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["ModuleC"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ModuleC", line: 1),
+        ])
     }
 
     func test_whenSwiftWithTypeImports() throws {
@@ -141,7 +163,11 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB", "ModuleC"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ModuleA", line: 1),
+            FoundImport(module: "ModuleB", line: 2),
+            FoundImport(module: "ModuleC", line: 3),
+        ])
     }
 
     func test_whenSwiftWithIfImport() throws {
@@ -161,7 +187,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ProjectDescription", line: 2),
+            FoundImport(module: "ProjectDescriptionHelpers", line: 3),
+        ])
     }
 
     func test_whenSwiftWithTestableImport() throws {
@@ -179,6 +208,9 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
             from: code,
             language: .swift
         )
-        XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
+        XCTAssertEqual(imports, [
+            FoundImport(module: "ProjectDescription", line: 1),
+            FoundImport(module: "ProjectDescriptionHelpers", line: 2),
+        ])
     }
 }
