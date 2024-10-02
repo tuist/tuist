@@ -82,3 +82,12 @@ final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAccept
         try await run(BuildCommand.self, "App")
     }
 }
+
+final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
+    func test_app_with_realm() async throws {
+        try await setUpFixture(.appWithRealm)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}

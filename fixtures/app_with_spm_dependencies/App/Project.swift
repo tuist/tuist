@@ -35,7 +35,6 @@ let project = Project(
                 .external(name: "Yams"),
                 .external(name: "GoogleSignIn"),
                 .external(name: "Sentry"),
-                .external(name: "RealmSwift"),
                 .external(name: "CocoaLumberjackSwift"),
                 .external(name: "AppCenterAnalytics"),
                 .external(name: "AppCenterCrashes"),

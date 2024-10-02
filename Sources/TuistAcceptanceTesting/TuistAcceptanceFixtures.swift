@@ -8,6 +8,7 @@ public enum TuistAcceptanceFixtures {
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
+    case appWithRealm
     case appWithSpmDependencies
     case appWithSpmModuleAliases
     case appWithTestPlan
@@ -96,6 +97,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_plugins"
         case .appWithPreviews:
             return "app_with_previews"
+        case .appWithRealm:
+            return "app_with_realm"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
