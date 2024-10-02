@@ -31,7 +31,6 @@ let package = Package(
         .package(url: "https://github.com/Quick/Nimble", exact: "13.2.0"),
         .package(url: "https://github.com/SVProgressHUD/SVProgressHUD", exact: "2.3.1"),
         // Has missing resources and its own resource bundle accessors
-        .package(url: "https://github.com/urbanairship/ios-library.git", exact: "17.7.3"),
         .package(url: "https://github.com/braze-inc/braze-swift-sdk.git", exact: "8.4.0"),
         // Has an umbrella header where moduleName must be sanitized
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.4.0"),
