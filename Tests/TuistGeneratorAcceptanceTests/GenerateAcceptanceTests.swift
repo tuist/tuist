@@ -495,14 +495,17 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
         try await setUpFixture(.iosAppWithExtensions)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
-        
+
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
         let target = try XCTUnwrapTarget("App", in: xcodeproj)
         let sourceFileNames = try target.sourceFiles().compactMap(\.path)
-        
-        XCTAssertTrue(sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }), "Expected Documentation to be included in generated project")
+
+        XCTAssertTrue(
+            sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }),
+            "Expected Documentation to be included in generated project"
+        )
 
         try await XCTAssertProductWithDestinationContainsExtension(
             "App.app",
