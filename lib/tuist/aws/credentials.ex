@@ -40,7 +40,7 @@ defmodule Tuist.AWS.Credentials do
       Logger.debug("Requesting AWS credentials using the identity token file.")
       %{body: body} = Req.get!("https://sts.amazonaws.com/", form: form, headers: headers)
 
-      Logger.debug("Received AWS credentials using the identity token file.")
+      Logger.debug("Received AWS credentials using the identity token file: #{inspect(body)}")
 
       %{
         access_key_id: body |> xpath(~x"//AccessKeyId/text()"),
