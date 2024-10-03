@@ -38,7 +38,7 @@ final class ImportSourceCodeScanner {
                 .compactMap { line in
                     let range = NSRange(location: 0, length: line.utf16.count)
                     let matches = regex.matches(in: line, options: [], range: range)
-                    return matches.compactMap { _ in
+                    return matches.compactMap { match in
                         let match = switch language {
                         case .swift:
                             processMatchSwift(match: match, line: line)
