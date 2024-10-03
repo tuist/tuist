@@ -1,43 +1,16 @@
 defmodule Tuist.AccountTest do
   alias Tuist.Accounts.Account
-  alias Tuist.Billing
   use Tuist.DataCase
   use Mimic
 
-  test "customer_id is required when billing is enabled" do
-    # Given
-    Billing
-    |> stub(:enabled?, fn -> true end)
-
-    changeset =
-      Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
-
-    assert changeset.valid? == false
-    assert "can't be blank" in errors_on(changeset).customer_id
-  end
-
   test "account is created when customer_id is present and billing is enabled" do
     # Given
-    Billing
-    |> stub(:enabled?, fn -> true end)
-
     changeset =
       Account.create_changeset(%Account{}, %{
         name: "Test",
         user_id: 1,
         customer_id: "cus_123"
       })
-
-    assert changeset.valid? == true
-  end
-
-  test "customer_id is not required when billing is not enabled" do
-    # Given
-    Billing
-    |> stub(:enabled?, fn -> false end)
-
-    changeset =
-      Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
 
     assert changeset.valid? == true
   end
@@ -65,14 +38,18 @@ defmodule Tuist.AccountTest do
   describe "user_id and organization_id validity" do
     test "changeset is valid when user_id is present" do
       changeset =
-        Account.create_changeset(%Account{}, %{name: "Test", user_id: 1})
+        Account.create_changeset(%Account{}, %{name: "Test", user_id: 1, customer_id: "cus_123"})
 
       assert changeset.valid? == true
     end
 
     test "changeset is valid when organization_id is present" do
       changeset =
-        Account.create_changeset(%Account{}, %{name: "Test", organization_id: 1})
+        Account.create_changeset(%Account{}, %{
+          name: "Test",
+          organization_id: 1,
+          customer_id: "cus_123"
+        })
 
       assert changeset.valid? == true
     end

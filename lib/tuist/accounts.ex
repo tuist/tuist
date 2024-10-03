@@ -168,7 +168,7 @@ defmodule Tuist.Accounts do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    start_trial = opts |> Keyword.get(:start_trial, true)
+    setup_billing = opts |> Keyword.get(:setup_billing, not Tuist.Environment.on_premise?())
 
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
@@ -193,7 +193,10 @@ defmodule Tuist.Accounts do
               Keyword.get(
                 opts,
                 :customer_id,
-                Billing.create_customer(%{name: name, email: user_email})
+                if(setup_billing,
+                  do: Billing.create_customer(%{name: name, email: user_email}),
+                  else: nil
+                )
               )
           })
         )
@@ -220,7 +223,7 @@ defmodule Tuist.Accounts do
       end)
       |> Repo.transaction()
 
-    if start_trial do
+    if setup_billing do
       account = Accounts.get_account_from_organization(organization)
       Billing.start_trial(%{plan: :air, account: account})
     end
@@ -314,7 +317,7 @@ defmodule Tuist.Accounts do
     oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
     suffix = opts |> Keyword.get(:suffix, "")
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    start_trial = opts |> Keyword.get(:start_trial, true)
+    setup_billing = opts |> Keyword.get(:setup_billing, not Tuist.Environment.on_premise?())
 
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
@@ -339,17 +342,22 @@ defmodule Tuist.Accounts do
         })
       )
       |> Ecto.Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
+        customer_id =
+          Keyword.get(
+            opts,
+            :customer_id,
+            if(setup_billing,
+              do: Billing.create_customer(%{name: name, email: email}),
+              else: nil
+            )
+          )
+
         repo.insert(
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: name,
             current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-            customer_id:
-              Keyword.get(
-                opts,
-                :customer_id,
-                Billing.create_customer(%{name: name, email: email})
-              )
+            customer_id: customer_id
           })
         )
       end)
@@ -374,7 +382,7 @@ defmodule Tuist.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
-        if start_trial do
+        if setup_billing do
           account = Accounts.get_account_from_user(user)
           Billing.start_trial(%{plan: :air, account: account})
         end

@@ -1,4 +1,7 @@
 defmodule Tuist.ProjectsTest do
+  use Tuist.DataCase, async: true
+  use Tuist.StubCase, billing: true
+
   alias Tuist.Base64
   alias Tuist.Projects.ProjectToken
   alias Tuist.Billing
@@ -9,7 +12,6 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.ProjectsFixtures
   alias Tuist.Projects
   alias Tuist.Accounts
-  use Tuist.DataCase, async: true
   use Mimic
 
   setup do

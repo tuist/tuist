@@ -17,7 +17,7 @@ account =
       Accounts.create_user(email,
         password: password,
         confirmed_at: NaiveDateTime.utc_now(),
-        start_trial: false
+        setup_billing: false
       )
 
     account
@@ -52,7 +52,7 @@ org_account =
   if Accounts.get_organization_account_by_name("tuist") do
     Accounts.get_organization_account_by_name("tuist").organization
   else
-    Accounts.create_organization(%{name: "tuist", creator: user}, start_trial: false)
+    Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
   end
 
 tuist_cloud_acceptance_tests_project =

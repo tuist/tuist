@@ -1,5 +1,6 @@
 defmodule Tuist.VCSTest do
   use ExUnit.Case, async: false
+  use Tuist.StubCase, billing: true
   use Tuist.DataCase
   use Mimic
 

@@ -1,11 +1,13 @@
 defmodule TuistWeb.API.OrganizationsControllerTest do
+  use TuistWeb.ConnCase, async: true
+  use Tuist.StubCase, billing: true
+
   alias Tuist.BillingFixtures
   alias Tuist.Environment
   alias TuistWeb.Authentication
   alias Tuist.AccountsFixtures
   alias Tuist.Accounts
   alias Tuist.Billing
-  use TuistWeb.ConnCase, async: true
   use Mimic
 
   setup do

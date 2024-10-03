@@ -13,9 +13,6 @@ defmodule Tuist.BillingTest do
 
   setup do
     Environment
-    |> stub(:stripe_configured?, fn -> true end)
-
-    Environment
     |> stub(:stripe_prices, fn ->
       %{
         air: %{

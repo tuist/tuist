@@ -1,4 +1,7 @@
 defmodule TuistWeb.API.ProjectsControllerTest do
+  use TuistWeb.ConnCase, async: true
+  use Tuist.StubCase, billing: true
+
   alias Tuist.VCS
   alias Tuist.GitHub
   alias Tuist.ProjectsFixtures
@@ -7,7 +10,6 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   alias Tuist.Projects
   alias Tuist.Billing
   alias TuistWeb.Authentication
-  use TuistWeb.ConnCase, async: true
   use Mimic
 
   setup do

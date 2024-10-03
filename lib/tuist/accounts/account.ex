@@ -5,7 +5,6 @@ defmodule Tuist.Accounts.Account do
   use Ecto.Schema
   import Ecto.Changeset
   alias Tuist.Projects.Project
-  alias Tuist.Billing
 
   schema "accounts" do
     field :name, :string
@@ -39,7 +38,6 @@ defmodule Tuist.Accounts.Account do
     changeset
     |> validate_required(
       [:name] ++
-        if(Billing.enabled?(), do: [:customer_id], else: []) ++
         if(is_nil(user_id), do: [:organization_id], else: [:user_id])
     )
     |> validate_change(:organization_id, fn :organization_id, organization_id ->

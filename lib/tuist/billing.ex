@@ -7,7 +7,6 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
-  alias Tuist.Environment
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Repo
@@ -15,12 +14,8 @@ defmodule Tuist.Billing do
   import Ecto.Query, only: [from: 2]
 
   def create_customer(%{name: name, email: email}) do
-    if enabled?() do
-      {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
-      customer.id
-    else
-      nil
-    end
+    {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
+    customer.id
   end
 
   def create_session(customer) do
@@ -230,10 +225,6 @@ defmodule Tuist.Billing do
       limit: 1
     )
     |> Repo.one()
-  end
-
-  def enabled? do
-    Environment.stripe_configured?()
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

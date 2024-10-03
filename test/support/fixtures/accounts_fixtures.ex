@@ -11,7 +11,7 @@ defmodule Tuist.AccountsFixtures do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     preloads = Keyword.get(opts, :preloads, [])
     customer_id = Keyword.get(opts, :customer_id, "#{TestUtilities.unique_integer()}")
-    start_trial = Keyword.get(opts, :start_trial, false)
+    setup_billing = Keyword.get(opts, :setup_billing, false)
 
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
@@ -22,7 +22,7 @@ defmodule Tuist.AccountsFixtures do
         confirmed_at: confirmed_at,
         created_at: created_at,
         customer_id: customer_id,
-        start_trial: start_trial,
+        setup_billing: setup_billing,
         current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
       )
 
@@ -37,7 +37,7 @@ defmodule Tuist.AccountsFixtures do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     customer_id = Keyword.get(opts, :customer_id, "#{TestUtilities.unique_integer()}")
     preloads = Keyword.get(opts, :preloads, [:account])
-    start_trial = Keyword.get(opts, :start_trial, false)
+    setup_billing = Keyword.get(opts, :setup_billing, false)
 
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
@@ -47,7 +47,7 @@ defmodule Tuist.AccountsFixtures do
       sso_organization_id: sso_organization_id,
       created_at: created_at,
       customer_id: customer_id,
-      start_trial: start_trial,
+      setup_billing: setup_billing,
       current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
     )
     |> Tuist.Repo.preload(preloads)
