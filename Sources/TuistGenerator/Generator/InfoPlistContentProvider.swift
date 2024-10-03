@@ -244,7 +244,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     private func hostTarget(for target: Target, in project: Project) -> Target? {
         project.targets.values.first {
             $0.dependencies.contains(where: { dependency in
-                if case let .target(name, _) = dependency, name == target.name {
+                if case let .target(name, _, _) = dependency, name == target.name {
                     return true
                 } else {
                     return false

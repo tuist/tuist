@@ -2377,6 +2377,247 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// It uploads a given cache action item.
+    ///
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    public func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws
+        -> Operations.uploadCacheActionItem.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.uploadCacheActionItem.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}/cache/ac",
+                    parameters: [input.path.account_handle, input.path.project_handle]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setOptionalRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.uploadCacheActionItem.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheActionItem.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 201:
+                    let headers: Operations.uploadCacheActionItem.Output.Created.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.Created.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheActionItem.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .created(.init(headers: headers, body: body))
+                case 400:
+                    let headers: Operations.uploadCacheActionItem.Output.BadRequest.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.BadRequest.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .badRequest(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.uploadCacheActionItem.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 402:
+                    let headers: Operations.uploadCacheActionItem.Output.PaymentRequired.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.PaymentRequired.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .paymentRequired(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.uploadCacheActionItem.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.uploadCacheActionItem.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCacheActionItem.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// Get a cache action item.
+    ///
+    /// This endpoint gets an item from the action cache.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    public func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws
+        -> Operations.getCacheActionItem.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getCacheActionItem.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}/cache/ac/{}",
+                    parameters: [
+                        input.path.account_handle, input.path.project_handle, input.path.hash,
+                    ]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.getCacheActionItem.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCacheActionItem.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheActionItem.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.getCacheActionItem.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCacheActionItem.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 402:
+                    let headers: Operations.getCacheActionItem.Output.PaymentRequired.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCacheActionItem.Output.PaymentRequired.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .paymentRequired(.init(headers: headers, body: body))
+                case 403:
+                    let headers: Operations.getCacheActionItem.Output.Forbidden.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCacheActionItem.Output.Forbidden.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .forbidden(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.getCacheActionItem.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCacheActionItem.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.

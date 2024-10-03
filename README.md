@@ -80,8 +80,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-            srcset="assets/companies/stream-darkmode.png" 
+            <source
+            srcset="assets/companies/stream-darkmode.png"
             media="(prefers-color-scheme: dark)">
             <img src="assets/companies/stream.png" alt="stream_logo"/>
           </picture>
@@ -101,8 +101,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/emergetools-darkmode.svg" 
+            <source
+              srcset="assets/companies/emergetools-darkmode.svg"
               media="(prefers-color-scheme: dark)">
             <img width="140" src="assets/companies/emergetools.svg" alt="emerge_logo"/>
           </picture>
@@ -158,8 +158,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://bendingspoons.com" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/bendingspoons-darkmode.png" 
+            <source
+              srcset="assets/companies/bendingspoons-darkmode.png"
               media="(prefers-color-scheme: dark)">
             <img src="assets/companies/bendingspoons.png" alt="bendingspoons_logo"/>
           </picture>
@@ -298,6 +298,16 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://travel.yandex.ru" target="_blank">
           <img src="assets/companies/yandexTravel.svg" alt="yandexTravel_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://wise.com" target="_blank">
+          <img src="assets/companies/wise.png" alt="wise_logo" height="75"/>
+        </a>
+      </td>
+      <td width="20%" align="center">
+        <a href="https://zapis.kz/" target="_blank">
+          <img src="assets/companies/zapis.svg" alt="wise_logo" height="75"/>
         </a>
       </td>
     </tr>
@@ -587,6 +597,9 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sphanley"><img src="https://avatars.githubusercontent.com/u/1323769?v=4" width="100px;" alt=""/><br /><sub><b>Sam Hanley</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmdyasser"><img src="https://avatars.githubusercontent.com/u/42544598?v=4" width="100px;" alt=""/><br /><sub><b>ahmdyasser</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/minhaaan"><img src="https://avatars.githubusercontent.com/u/87178301?v=4" width="100px;" alt=""/><br /><sub><b>minhaaan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/TamarMilchtaich"><img src="https://avatars.githubusercontent.com/u/49520876?v=4" width="100px;" alt=""/><br /><sub><b>Tamar Milchtaich Lavi</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/rock88"><img src="https://avatars.githubusercontent.com/u/323908?v=4" width="100px;" alt=""/><br /><sub><b>Andrey K</b></sub></a></td>
     </tr>
   </tbody>
 </table>

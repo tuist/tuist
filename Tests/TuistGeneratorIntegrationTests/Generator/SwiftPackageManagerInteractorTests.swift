@@ -52,7 +52,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        XCTAssertTrue(exists)
     }
 
     func test_generate_usesSystemGitCredentials() async throws {
@@ -104,7 +105,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        XCTAssertTrue(exists)
     }
 
     func test_generate_linksRootPackageResolved_before_resolving() async throws {
@@ -177,7 +179,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        XCTAssertFalse(exists)
     }
 
     func test_generate_sets_cloned_source_packages_dir_path() async throws {
@@ -229,7 +232,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        XCTAssertTrue(exists)
     }
 
     // MARK: - Helpers

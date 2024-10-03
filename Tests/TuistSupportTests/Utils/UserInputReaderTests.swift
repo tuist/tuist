@@ -73,7 +73,6 @@ class UserInputReaderTests: TuistUnitTestCase {
             XCTFail("Value should be returned without reading a line")
             return "string-value"
         }
-        let value = Value(name: "value-one")
 
         // When / Then
         XCTAssertThrowsSpecific(

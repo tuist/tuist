@@ -82,6 +82,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
         XCTAssertEqual(resourcesTarget.settings?.base, [
+            "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
         ])
     }

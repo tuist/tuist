@@ -13,7 +13,11 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
     func test_from_returns_nil_when_manifest_is_nil() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         // When
         let got = try XcodeGraph.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
@@ -27,7 +31,11 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let xcconfigPath = temporaryPath.appending(component: "Config.xcconfig")
         let settings: [String: ProjectDescription.SettingValue] = ["A": "B"]
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest: ProjectDescription.Configuration = .debug(
             name: .debug,
             settings: settings,

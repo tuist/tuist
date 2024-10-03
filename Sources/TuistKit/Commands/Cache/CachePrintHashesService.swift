@@ -54,7 +54,7 @@ final class CachePrintHashesService {
         let config = try await configLoader.loadConfig(path: absolutePath)
         let generator = generatorFactory.defaultGenerator(config: config, sources: [])
         let graph = try await generator.load(path: absolutePath)
-        let hashes = try cacheGraphContentHasher.contentHashes(
+        let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,
             configuration: configuration,
             config: config,

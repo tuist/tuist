@@ -29,7 +29,7 @@ extension XcodeGraph.Target {
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [XcodeGraph.TargetDependency]]
-    ) throws -> XcodeGraph.Target {
+    ) async throws -> XcodeGraph.Target {
         let name = manifest.name
         let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
 
@@ -60,7 +60,7 @@ extension XcodeGraph.Target {
             generatorPaths: generatorPaths
         )
 
-        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try resourcesAndOthers(
+        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try await resourcesAndOthers(
             manifest: manifest,
             generatorPaths: generatorPaths
         )
@@ -69,8 +69,8 @@ extension XcodeGraph.Target {
             throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
         }
 
-        let copyFiles = try (manifest.copyFiles ?? []).map {
-            try XcodeGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
+        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap {
+            try await XcodeGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
         let headers = try manifest.headers.map { try XcodeGraph.Headers.from(
@@ -79,9 +79,9 @@ extension XcodeGraph.Target {
             productName: manifest.productName
         ) }
 
-        let coreDataModels = try manifest.coreDataModels.map {
-            try XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
-        } + resourcesCoreDatas.map { try XcodeGraph.CoreDataModel.from(path: $0) }
+        let coreDataModels = try await manifest.coreDataModels.concurrentMap {
+            try await XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
+        } + resourcesCoreDatas.concurrentMap { try await XcodeGraph.CoreDataModel.from(path: $0) }
 
         let scripts = try manifest.scripts.map {
             try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
@@ -92,8 +92,9 @@ extension XcodeGraph.Target {
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
-        let additionalFiles = try manifest.additionalFiles
-            .flatMap { try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let additionalFiles = try await manifest.additionalFiles
+            .concurrentMap { try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .flatMap { $0 }
 
         let buildRules = manifest.buildRules.map {
             XcodeGraph.BuildRule.from(manifest: $0)
@@ -138,7 +139,7 @@ extension XcodeGraph.Target {
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
-    ) throws -> (
+    ) async throws -> (
         resources: XcodeGraph.ResourceFileElements,
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath],
@@ -157,23 +158,29 @@ extension XcodeGraph.Target {
             )
         }
 
-        var invalidResourceGlobs: [InvalidGlob] = []
         var filteredResources: XcodeGraph.ResourceFileElements = .init([], privacyManifest: privacyManifest)
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
-        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [XcodeGraph.ResourceFileElement] in
+        let result = try await (manifest.resources?.resources ?? []).concurrentMap { manifest async throws -> (
+            [XcodeGraph.ResourceFileElement],
+            InvalidGlob?
+        ) in
             do {
-                return try XcodeGraph.ResourceFileElement.from(
-                    manifest: manifest,
-                    generatorPaths: generatorPaths,
-                    includeFiles: resourceFilter
+                return (
+                    try await XcodeGraph.ResourceFileElement.from(
+                        manifest: manifest,
+                        generatorPaths: generatorPaths,
+                        includeFiles: resourceFilter
+                    ),
+                    nil
                 )
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
-                invalidResourceGlobs.append(invalidGlob)
-                return []
+                return ([], invalidGlob)
             }
         }
+        let allResources = result.map(\.0).flatMap { $0 }
+        let invalidResourceGlobs = result.compactMap(\.1)
 
         for fileElement in allResources {
             switch fileElement {

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -30,17 +31,17 @@ enum FrameworkMetadataProviderError: FatalError, Equatable {
 public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with a framework at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) throws -> FrameworkMetadata
+    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws -> FrameworkMetadata
 
     /// Given the path to a framework, it returns the path to its dSYMs if they exist
     /// in the same framework directory.
     /// - Parameter frameworkPath: Path to the .framework directory.
-    func dsymPath(frameworkPath: AbsolutePath) throws -> AbsolutePath?
+    func dsymPath(frameworkPath: AbsolutePath) async throws -> AbsolutePath?
 
     /// Given the path to a framework, it returns the list of .bcsymbolmap files that
     /// are associated to the framework and that are present in the same directory.
     /// - Parameter frameworkPath: Path to the .framework directory.
-    func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath]
+    func bcsymbolmapPaths(frameworkPath: AbsolutePath) async throws -> [AbsolutePath]
 
     /// Returns the product for the framework at the given path.
     /// - Parameter frameworkPath: Path to the .framework directory.
@@ -50,18 +51,23 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
-    override public init() {
+    private let fileSystem: FileSysteming
+
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
         super.init()
     }
 
-    public func loadMetadata(at path: AbsolutePath, status: LinkingStatus) throws -> FrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws -> FrameworkMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw FrameworkMetadataProviderError.frameworkNotFound(path)
         }
         let binaryPath = binaryPath(frameworkPath: path)
-        let dsymPath = try dsymPath(frameworkPath: path)
-        let bcsymbolmapPaths = try bcsymbolmapPaths(frameworkPath: path)
+        let dsymPath = try await dsymPath(frameworkPath: path)
+        let bcsymbolmapPaths = try await bcsymbolmapPaths(frameworkPath: path)
         let linking = try linking(binaryPath: binaryPath)
         let architectures = try architectures(binaryPath: binaryPath)
         return FrameworkMetadata(
@@ -75,18 +81,18 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         )
     }
 
-    public func dsymPath(frameworkPath: AbsolutePath) throws -> AbsolutePath? {
+    public func dsymPath(frameworkPath: AbsolutePath) async throws -> AbsolutePath? {
         let path = try AbsolutePath(validating: "\(frameworkPath.pathString).dSYM")
-        if FileHandler.shared.exists(path) { return path }
+        if try await fileSystem.exists(path) { return path }
         return nil
     }
 
-    public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
+    public func bcsymbolmapPaths(frameworkPath: AbsolutePath) async throws -> [AbsolutePath] {
         let binaryPath = binaryPath(frameworkPath: frameworkPath)
         let uuids = try uuids(binaryPath: binaryPath)
-        return uuids
+        return try await uuids
             .map { frameworkPath.parentDirectory.appending(component: "\($0).bcsymbolmap") }
-            .filter { FileHandler.shared.exists($0) }
+            .concurrentFilter { try await self.fileSystem.exists($0) }
             .sorted()
     }
 

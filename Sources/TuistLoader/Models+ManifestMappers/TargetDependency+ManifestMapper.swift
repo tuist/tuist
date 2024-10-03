@@ -32,12 +32,17 @@ extension XcodeGraph.TargetDependency {
         externalDependencies: [String: [XcodeGraph.TargetDependency]]
     ) throws -> [XcodeGraph.TargetDependency] {
         switch manifest {
-        case let .target(name, condition):
-            return [.target(name: name, condition: condition?.asGraphCondition)]
-        case let .project(target, projectPath, condition):
+        case let .target(name, status, condition):
+            return [.target(
+                name: name,
+                status: .from(manifest: status),
+                condition: condition?.asGraphCondition
+            )]
+        case let .project(target, projectPath, status, condition):
             return [.project(
                 target: target,
                 path: try generatorPaths.resolve(path: projectPath),
+                status: .from(manifest: status),
                 condition: condition?.asGraphCondition
             )]
         case let .framework(frameworkPath, status, condition):

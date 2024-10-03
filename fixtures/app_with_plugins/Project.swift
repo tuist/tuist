@@ -1,7 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-import ExampleTuistPlugin
+@preconcurrency import ExampleTuistPlugin
 import LocalPlugin
 
 // Test plugins are loaded

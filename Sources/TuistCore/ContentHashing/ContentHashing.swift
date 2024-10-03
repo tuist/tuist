@@ -9,5 +9,5 @@ public protocol ContentHashing: FileContentHashing {
     func hash(_ boolean: Bool) throws -> String
     func hash(_ strings: [String]) throws -> String
     func hash(_ dictionary: [String: String]) throws -> String
-    func hash(path filePath: AbsolutePath) throws -> String
+    func hash(path: AbsolutePath) throws -> String
 }

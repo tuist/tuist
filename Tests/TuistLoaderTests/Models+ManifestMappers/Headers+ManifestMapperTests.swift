@@ -13,7 +13,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
@@ -64,7 +68,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from_when_array() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
@@ -115,7 +123,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from_when_array_and_string() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
@@ -152,7 +164,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from_and_excluding() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
@@ -201,7 +217,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from_and_excluding_same_folder() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/A1.h",
             "Sources/A1.m",
@@ -244,7 +264,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from_and_excluding_in_nested_folder() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
@@ -287,7 +311,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
@@ -346,7 +374,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_exclusionRule_publicExcludesPrivateAndProject() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         try createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
@@ -399,7 +431,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_load_from_umbrella() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
@@ -462,7 +498,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_load_from_umbrella_withExcluding() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
@@ -529,7 +569,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_load_from_umbrella_withExcluding_withOutProject() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>

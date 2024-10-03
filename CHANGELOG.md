@@ -1,5 +1,42 @@
 # Changelog
 
+## 4.28.1 - 2024-09-26
+
+### Tuist
+
+#### Fixed
+
+- Fix tuist test failing due to a conflict when uploading test results [#6770](https://github.com/tuist/tuist/pull/6770) by [@fortmarek](https://github.com/fortmarek)
+- Fix compiling swift-syntax in Swift 6 language mode [#6771](https://github.com/tuist/tuist/pull/6771) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
+## 4.28.0 - 2024-09-25
+
+### Tuist
+
+#### Changed
+
+- Optimize storing and fetching selective tests [#6701](https://github.com/tuist/tuist/pull/6701) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add support for setting linking status to target and product dependencies [#6731](https://github.com/tuist/tuist/pull/6731) by [@rgnns](https://github.com/rgnns)
+
+#### Fixed
+
+- Fix missing metal resources in the Tuist SPM integration [#6753](https://github.com/tuist/tuist/pull/6753) by [@minhaaan](https://github.com/minhaaan)
+- Embed precompiled bundles linked through a dynamic framework [#6721](https://github.com/tuist/tuist/pull/6721) by [@fortmarek](https://github.com/fortmarek)
+- Fix integrating static xcframeworks linked through dynamic xcframeworks [#6757](https://github.com/tuist/tuist/pull/6757) by [@fortmarek](https://github.com/fortmarek)
+- Do not put Resources  Bundle in the Products folder when archiving [#6754](https://github.com/tuist/tuist/pull/6754) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+- fix: Manifests Packages module build error when using Swift 6 [#6738](https://github.com/tuist/tuist/pull/6738) by [@minhaaan](https://github.com/minhaaan)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.27.0 - 2024-09-19
 
 ### Tuist

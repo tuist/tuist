@@ -59,6 +59,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(ExplicitDependencyGraphMapper())
         }
         mappers.append(TreeShakePrunedTargetsGraphMapper())
+        mappers.append(StaticXCFrameworkModuleMapGraphMapper())
         return mappers
     }
 }
