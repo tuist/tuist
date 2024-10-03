@@ -4,6 +4,7 @@ defmodule Tuist.AWS.Credentials do
   """
   alias Tuist.Environment
   import SweetXml
+  require Logger
 
   @cache_key "aws_token_file_credentials"
 
@@ -13,6 +14,7 @@ defmodule Tuist.AWS.Credentials do
 
     case Cachex.fetch(cache, @cache_key, fn ->
            ttl = Keyword.get(opts, :ttl, Environment.aws_token_file_credentials_ttl())
+           Logger.debug("Resolving the AWS credentials using the identity token file.")
            {:commit, refresh_credentials_using_identity_token_file(ttl: ttl), ttl: ttl}
          end) do
       {:commit, credentials, _} -> credentials
@@ -35,7 +37,10 @@ defmodule Tuist.AWS.Credentials do
 
       headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
+      Logger.debug("Requesting AWS credentials using the identity token file.")
       %{body: body} = Req.get!("https://sts.amazonaws.com/", form: form, headers: headers)
+
+      Logger.debug("Received AWS credentials using the identity token file.")
 
       %{
         access_key_id: body |> xpath(~x"//AccessKeyId/text()"),
