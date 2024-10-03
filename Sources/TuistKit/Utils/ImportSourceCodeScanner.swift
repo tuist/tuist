@@ -32,28 +32,24 @@ final class ImportSourceCodeScanner {
 
         let regex = try NSRegularExpression(pattern: pattern, options: [])
 
-        let lines = codeWithoutComments.components(separatedBy: .newlines)
-
         return Set(
             codeWithoutComments
                 .components(separatedBy: .newlines)
                 .compactMap { line in
                     let range = NSRange(location: 0, length: line.utf16.count)
                     let matches = regex.matches(in: line, options: [], range: range)
-
-                    for match in matches {
+                    return matches.compactMap { match in
                         let match = switch language {
                         case .swift:
                             processMatchSwift(match: match, line: line)
                         case .objc:
                             processMatchObjc(match: match, line: line)
                         }
-                        if let match {
-                            return match.module
-                        }
+                        
+                        return match?.module
                     }
-                    return nil
                 }
+                .flatMap { $0 }
         )
     }
 
