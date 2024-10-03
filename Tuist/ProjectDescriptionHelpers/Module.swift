@@ -317,6 +317,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "Stencil"),
             ]
         case .scaffold:
             [
@@ -388,6 +389,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "XcodeProj"),
                 .external(name: "XcbeautifyLib"),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .server:
             [
@@ -431,6 +433,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .projectDescription:
             [
@@ -469,6 +472,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "FileSystem"),
                 .external(name: "Mockable"),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .core:
             [
@@ -486,6 +490,7 @@ public enum Module: String, CaseIterable {
                 .external(name: "XcodeProj"),
                 .external(name: "GraphViz"),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .scaffold:
             [
@@ -501,6 +506,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
+                .external(name: "SwiftToolsSupport"),
                 .external(name: "Mockable"),
                 .external(name: "FileSystem"),
                 .external(name: "XcodeGraph"),
@@ -524,6 +530,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.core.testingTargetName!),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .analytics:
             [
@@ -552,6 +559,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.testingTargetName!),
                 .external(name: "XcodeGraph"),
                 .external(name: "FileSystem"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .server:
             [
@@ -569,6 +577,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeGraph"),
+                .external(name: "FileSystem"),
             ]
         case .cache:
             [
@@ -578,6 +587,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.targetName),
                 .external(name: "Mockable"),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         }
         dependencies = dependencies + sharedDependencies + [.target(name: targetName), .external(name: "MockableTest")]
@@ -606,6 +616,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.core.targetName),
                 .external(name: "XcodeGraph"),
                 .external(name: "Difference"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .kit:
             []
@@ -649,6 +660,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.projectDescription.targetName),
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         }
         return dependencies + sharedDependencies + [.target(name: targetName)]
@@ -666,6 +678,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .target(name: Module.hasher.targetName),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .tuist:
             [
@@ -704,6 +717,7 @@ public enum Module: String, CaseIterable {
                 .target(name: Module.support.testingTargetName!),
                 .external(name: "XcodeProj"),
                 .external(name: "XcodeGraph"),
+                .external(name: "SwiftToolsSupport"),
             ]
         case .scaffold:
             [
