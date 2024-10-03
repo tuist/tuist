@@ -3,15 +3,12 @@ import AppCenter
 import AppCenterAnalytics
 import AppCenterCrashes
 import CocoaLumberjackSwift
-import ComposableArchitecture
 import CrashReporter
 import GoogleMobileAds
 import GoogleSignIn
 import libzstd
 import MarkdownUI
 import NYTPhotoViewer
-import Realm
-import RealmSwift
 import Sentry
 import SVProgressHUD
 import Yams
@@ -21,9 +18,6 @@ public enum AppKit {
     public static func start() {
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
-
-        // Use ComposableArchitecture to make sure it links fine
-        _ = EmptyReducer<Never, Never>()
 
         // Use ZipArchive
         _ = SSZipArchive.createZipFile(atPath: #file + "/ss.zip", withFilesAtPaths: [])
@@ -40,9 +34,6 @@ public enum AppKit {
         // Use CocoaLumberjack
         _ = DDOSLogger.sharedInstance
 
-        // Use Realm
-        _ = Realm.Configuration()
-
         // Use AppCenter
         AppCenter.start(withAppSecret: "{Your App Secret}", services: [Analytics.self, Crashes.self])
 
@@ -57,30 +48,5 @@ public enum AppKit {
 
         // Use MarkdownUI
         _ = BulletedList(of: [""])
-    }
-}
-
-@Reducer
-struct Counter {
-    struct State: Equatable {
-        var count = 0
-    }
-
-    enum Action {
-        case decrementButtonTapped
-        case incrementButtonTapped
-    }
-
-    var body: some Reducer<State, Action> {
-        Reduce { state, action in
-            switch action {
-            case .decrementButtonTapped:
-                state.count -= 1
-                return .none
-            case .incrementButtonTapped:
-                state.count += 1
-                return .none
-            }
-        }
     }
 }

@@ -47,7 +47,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() throws {
+    func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
             path: "/Project/Path",
@@ -67,7 +67,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
         // When
-        _ = try subject.contentHashes(
+        _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
             config: .test(),
@@ -86,7 +86,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() throws {
+    func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
         let excludedTarget = GraphTarget(
             path: "/Project/Path",
@@ -111,7 +111,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
         // When
-        _ = try subject.contentHashes(
+        _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
             config: .test(),
@@ -130,7 +130,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() throws {
+    func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given
         let project = Project.test()
 
@@ -162,7 +162,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
         // When
-        _ = try subject.contentHashes(
+        _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
             config: .test(),

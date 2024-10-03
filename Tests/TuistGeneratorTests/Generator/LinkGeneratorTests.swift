@@ -681,6 +681,83 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
+    func test_generateLinkingPhase_requiredProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .required
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        XCTAssertNil(testBuildFile?.settings?["ATTRIBUTES"])
+    }
+
+    func test_generateLinkingPhase_optionalProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .optional
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        XCTAssertEqual(attributes, ["Weak"])
+    }
+
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))

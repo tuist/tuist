@@ -10,13 +10,13 @@ public protocol XcodeControlling: Sendable {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    func selected() throws -> Xcode?
+    func selected() async throws -> Xcode?
 
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
-    func selectedVersion() throws -> Version
+    func selectedVersion() async throws -> Version
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
@@ -31,21 +31,22 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
     static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command
-    private let selectedXcode = ThrowableCaching<Xcode?> {
-        guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
-            return nil
-        }
-
-        return try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
-    }
+    private let selectedXcode: ThreadSafe<Xcode?> = ThreadSafe(nil)
 
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    public func selected() throws -> Xcode? {
-        return try selectedXcode.value
+    public func selected() async throws -> Xcode? {
+        if let selectedXcode = selectedXcode.value {
+            return selectedXcode
+        } else {
+            guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else { return nil }
+            let value = try await Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
+            selectedXcode.mutate { $0 = value }
+            return selectedXcode.value
+        }
     }
 
     enum XcodeVersionError: FatalError {
@@ -64,8 +65,8 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
         }
     }
 
-    public func selectedVersion() throws -> Version {
-        guard let xcode = try selected() else {
+    public func selectedVersion() async throws -> Version {
+        guard let xcode = try await selected() else {
             throw XcodeVersionError.noXcode
         }
 

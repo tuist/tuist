@@ -108,7 +108,7 @@ final class CleanService {
             FileHandler.shared.currentPath
         }
 
-        let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
+        let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
             let directory: AbsolutePath?

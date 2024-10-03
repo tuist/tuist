@@ -61,7 +61,7 @@ final class InstallService {
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {
-        guard let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: path)
+        guard let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: path)
         else {
             return
         }

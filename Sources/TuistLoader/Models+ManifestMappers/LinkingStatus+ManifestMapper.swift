@@ -3,11 +3,11 @@ import ProjectDescription
 import TuistCore
 import XcodeGraph
 
-extension XcodeGraph.FrameworkStatus {
-    /// Maps a ProjectDescription.FrameworkStatus instance into a XcodeGraph.FrameworkStatus instance.
+extension XcodeGraph.LinkingStatus {
+    /// Maps a ProjectDescription.LinkingStatus instance into a XcodeGraph.LinkingStatus instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the framework status model.
-    static func from(manifest: ProjectDescription.FrameworkStatus) -> XcodeGraph.FrameworkStatus {
+    static func from(manifest: ProjectDescription.LinkingStatus) -> XcodeGraph.LinkingStatus {
         switch manifest {
         case .required:
             return .required

@@ -1,12 +1,15 @@
 import Foundation
 
 public enum TuistAcceptanceFixtures {
+    case appWithAirshipSDK
     case appWithBuildRules
+    case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
     case appWithFrameworkAndTests
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
+    case appWithRealm
     case appWithSpmDependencies
     case appWithSpmModuleAliases
     case appWithTestPlan
@@ -56,6 +59,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithTests
     case iosAppWithTransitiveFramework
     case iosAppWithWatchapp2
+    case iosAppWithWeaklyLinkedFramework
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
@@ -80,8 +84,12 @@ public enum TuistAcceptanceFixtures {
 
     public var path: String {
         switch self {
+        case .appWithAirshipSDK:
+            return "app_with_airship_sdk"
         case .appWithBuildRules:
             return "app_with_build_rules"
+        case .appWithComposableArchitecture:
+            return "app_with_composable_architecture"
         case .appWithCustomDefaultConfiguration:
             return "app_with_custom_default_configuration"
         case .appWithFrameworkAndTests:
@@ -92,6 +100,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_plugins"
         case .appWithPreviews:
             return "app_with_previews"
+        case .appWithRealm:
+            return "app_with_realm"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
@@ -190,6 +200,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_transitive_framework"
         case .iosAppWithWatchapp2:
             return "ios_app_with_watchapp2"
+        case .iosAppWithWeaklyLinkedFramework:
+            return "ios_app_with_weakly_linked_framework"
         case .iosAppWithXcframeworks:
             return "ios_app_with_xcframeworks"
         case .iosWorkspaceWithDependencyCycle:

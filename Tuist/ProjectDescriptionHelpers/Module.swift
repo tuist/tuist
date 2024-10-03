@@ -395,6 +395,7 @@ public enum Module: String, CaseIterable {
             [
                 .target(name: Module.core.targetName),
                 .target(name: Module.support.targetName),
+                .target(name: Module.cache.targetName),
                 .external(name: "FileSystem"),
                 .external(name: "OpenAPIRuntime"),
                 .external(name: "OpenAPIURLSession"),

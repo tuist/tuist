@@ -277,7 +277,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 }
 
-extension TestIdentifier: ExpressibleByArgument {
+extension TestIdentifier: ArgumentParser.ExpressibleByArgument {
     public init?(argument: String) {
         do {
             try self.init(string: argument)

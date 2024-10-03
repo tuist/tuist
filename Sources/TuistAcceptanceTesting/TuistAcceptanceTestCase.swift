@@ -1,3 +1,5 @@
+import FileSystem
+
 // swiftlint:disable force_try
 import Path
 import TuistCore
@@ -20,6 +22,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
     public var derivedDataPath: AbsolutePath { derivedDataDirectory.path }
     public var environment: MockEnvironment!
     public var sourceRootPath: AbsolutePath!
+    public var fileSystem: FileSysteming!
 
     private var derivedDataDirectory: TemporaryDirectory!
     private var fixtureTemporaryDirectory: TemporaryDirectory!
@@ -27,8 +30,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
     override open func setUp() async throws {
         try await super.setUp()
 
+        fileSystem = FileSystem()
+
         DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)
+            LoggingSystem.bootstrap { AcceptanceTestCaseLogHandler(label: $0) }
         }
 
         derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -50,6 +55,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     override open func tearDown() async throws {
+        fileSystem = nil
         xcodeprojPath = nil
         workspacePath = nil
         fixturePath = nil
@@ -64,6 +70,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .appending(component: "fixtures")
 
         fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
+        if fixturePath.components[1] == "var" {
+            // `resolveSymlinks` doesn't seem to properly resolve /var to /private/var when running the fixture in a temporary
+            // directory.
+            // The project needs to be reference by its full absolute path without symlinks.
+            fixturePath = try AbsolutePath(validating: "/private")
+                .appending(components: Array(fixturePath.components.dropFirst()))
+        }
 
         try FileHandler.shared.copy(
             from: fixturesPath.appending(component: fixture.path),
@@ -129,13 +142,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.basename == "Manifests.xcworkspace" })
     }
 
-    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: String...) throws {
-        try run(command, arguments)
+    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
     }
 
-    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: [String] = []) throws {
+    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: [String] = []) async throws {
         let parsedCommand = try command.parse(arguments)
-        try parsedCommand.run()
+        try await parsedCommand.run()
     }
 
     public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {

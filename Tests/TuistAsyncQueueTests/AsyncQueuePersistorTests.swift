@@ -54,7 +54,10 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
 
     func test_write_whenDirectoryDoesntExist_itCreatesDirectory() async throws {
         let temporaryDirectory = try! temporaryPath()
-        subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(try RelativePath(validating: "test/")))
+        subject = AsyncQueuePersistor(
+            directory: temporaryDirectory.appending(try RelativePath(validating: "test/")),
+            dateService: dateService
+        )
 
         // Given
         let event = AnyAsyncQueueEvent(

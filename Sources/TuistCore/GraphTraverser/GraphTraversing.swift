@@ -273,6 +273,15 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
+
+    /// Given a target's project path and name, it returns all XCFramework dependencies that linked by a dynamic XCFramework.
+    /// - Parameters:
+    ///   - path: Project path.
+    ///   - name: Target name.
+    func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency>
 }
 
 extension GraphTraversing {

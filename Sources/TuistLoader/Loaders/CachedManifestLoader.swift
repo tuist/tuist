@@ -16,7 +16,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileHandler: FileHandling
     private let environment: Environmenting
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
@@ -32,7 +32,7 @@ public class CachedManifestLoader: ManifestLoading {
             helpersDirectoryLocator: HelpersDirectoryLocator(),
             fileHandler: FileHandler.shared,
             environment: environment,
-            cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
             tuistVersion: Constants.version
         )
     }
@@ -43,7 +43,7 @@ public class CachedManifestLoader: ManifestLoading {
         helpersDirectoryLocator: HelpersDirectoryLocating,
         fileHandler: FileHandling,
         environment: Environmenting,
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
         tuistVersion: String
     ) {
         self.manifestLoader = manifestLoader
@@ -51,10 +51,10 @@ public class CachedManifestLoader: ManifestLoading {
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileHandler = fileHandler
         self.environment = environment
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.tuistVersion = tuistVersion
         cacheDirectory = ThrowableCaching {
-            try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
+            try cacheDirectoriesProvider.cacheDirectory(for: .manifests)
         }
     }
 
@@ -126,7 +126,7 @@ public class CachedManifestLoader: ManifestLoading {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
-        let calculatedHashes = try? calculateHashes(
+        let calculatedHashes = try? await calculateHashes(
             path: path,
             manifestPath: manifestPath,
             manifest: manifest
@@ -161,9 +161,9 @@ public class CachedManifestLoader: ManifestLoading {
         path: AbsolutePath,
         manifestPath: AbsolutePath,
         manifest: Manifest
-    ) throws -> Hashes {
+    ) async throws -> Hashes {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
-        let helpersHash = try calculateHelpersHash(at: path)
+        let helpersHash = try await calculateHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
 
         return Hashes(
@@ -181,8 +181,8 @@ public class CachedManifestLoader: ManifestLoading {
         return hash
     }
 
-    private func calculateHelpersHash(at path: AbsolutePath) throws -> String? {
-        guard let helpersDirectory = helpersDirectoryLocator.locate(at: path) else {
+    private func calculateHelpersHash(at path: AbsolutePath) async throws -> String? {
+        guard let helpersDirectory = try await helpersDirectoryLocator.locate(at: path) else {
             return nil
         }
 

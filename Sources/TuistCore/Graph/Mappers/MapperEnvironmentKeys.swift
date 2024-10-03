@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import XcodeGraph
 
 // Common MapperEnvironment keys that need to be shared with the closed source repository.
@@ -11,11 +12,15 @@ private struct InitialGraphKey: MapperEnvironmentKey {
     static var defaultValue: Graph?
 }
 
+private struct TargetTestHashesKey: MapperEnvironmentKey {
+    static var defaultValue: [AbsolutePath: [String: String]] = [:]
+}
+
 extension MapperEnvironment {
-    /// Hashes of targets that are missing in the remote storage
-    public var testsCacheUntestedHashes: [Target: String] {
-        get { self[TestsCacheHashesKey.self] }
-        set { self[TestsCacheHashesKey.self] = newValue }
+    /// Target hashes for the `test` action.
+    public var targetTestHashes: [AbsolutePath: [String: String]] {
+        get { self[TargetTestHashesKey.self] }
+        set { self[TargetTestHashesKey.self] = newValue }
     }
 
     public var initialGraph: Graph? {
