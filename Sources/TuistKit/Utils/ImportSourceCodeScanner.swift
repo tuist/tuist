@@ -11,7 +11,7 @@ struct Match {
 }
 
 final class ImportSourceCodeScanner {
-    func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> [String] {
+    func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> Set<String> {
         switch language {
         case .swift:
             try extract(from: sourceCode, language: .swift)
@@ -20,7 +20,7 @@ final class ImportSourceCodeScanner {
         }
     }
 
-    private func extract(from code: String, language: ProgrammingLanguage) throws -> [String] {
+    private func extract(from code: String, language: ProgrammingLanguage) throws -> Set<String> {
         let pattern = switch language {
         case .swift:
             #"import\s+(?:struct\s+|enum\s+|class\s+)?([\w]+)"#
@@ -28,61 +28,66 @@ final class ImportSourceCodeScanner {
             "@import\\s+([A-Za-z_0-9]+)|#(?:import|include)\\s+<([A-Za-z_0-9-]+)/"
         }
 
-        let codeWithoutComments = try CommentsRemover.removeComments(from: code)
-
-        var result: [String] = []
+        let codeWithoutComments = try removeComments(from: code)
 
         let regex = try NSRegularExpression(pattern: pattern, options: [])
 
         let lines = codeWithoutComments.components(separatedBy: .newlines)
 
-        for line in lines {
-            let range = NSRange(location: 0, length: line.utf16.count)
-            let matches = regex.matches(in: line, options: [], range: range)
+        return Set(
+            codeWithoutComments
+                .components(separatedBy: .newlines)
+                .compactMap { line in
+                    let range = NSRange(location: 0, length: line.utf16.count)
+                    let matches = regex.matches(in: line, options: [], range: range)
 
-            for match in matches {
-                let match = switch language {
-                case .swift:
-                    processMatchSwift(match: match, line: line)
-                case .objc:
-                    processMatchObjc(match: match, line: line)
-                }
-                if let match {
-                    if !result.contains(where: { $0 == match.module }) {
-                        result.append(match.module)
+                    for match in matches {
+                        let match = switch language {
+                        case .swift:
+                            processMatchSwift(match: match, line: line)
+                        case .objc:
+                            processMatchObjc(match: match, line: line)
+                        }
+                        if let match {
+                            return match.module
+                        }
                     }
+                    return nil
                 }
-            }
-        }
-        return result
+        )
     }
 
     private func processMatchSwift(match: NSTextCheckingResult, line: String) -> Match? {
-        var module: Match?
-        if let moduleRange = Range(match.range(at: 1), in: line),
-           let foundModule = String(line[moduleRange]).split(separator: ".").first.map(String.init)
-        {
-            module = Match(
-                module: foundModule,
-                range: moduleRange
-            )
-        }
-        return module
+        guard let moduleRange = Range(match.range(at: 1), in: line),
+              let foundModule = String(line[moduleRange]).split(separator: ".").first.map(String.init) else { return nil }
+        return Match(
+            module: foundModule,
+            range: moduleRange
+        )
     }
 
-    func processMatchObjc(match: NSTextCheckingResult, line: String) -> Match? {
-        var result: Match?
+    private func processMatchObjc(match: NSTextCheckingResult, line: String) -> Match? {
         if let range = Range(match.range(at: 1), in: line) {
-            result = Match(
+            return Match(
                 module: String(line[range]),
                 range: range
             )
         } else if let range = Range(match.range(at: 2), in: line) {
-            result = Match(
+            return Match(
                 module: String(line[range]),
                 range: range
             )
         }
-        return result
+        return nil
+    }
+
+    private func removeComments(from code: String) throws -> String {
+        let regexPattern = #"//.*?$|/\*[\s\S]*?\*/"#
+        let regex = try NSRegularExpression(pattern: regexPattern, options: [.anchorsMatchLines])
+        let range = NSRange(location: 0, length: code.count)
+
+        return regex
+            .stringByReplacingMatches(in: code, options: [], range: range, withTemplate: "")
+            .replacingOccurrences(of: #"(?m)^\s*\n"#, with: "", options: .regularExpression)
     }
 }
