@@ -244,6 +244,30 @@ extension Sequence {
     }
 
     /// Transform the sequence into an array of new values using
+    /// an async closure that non-optional values.
+    ///
+    /// The closure calls will be performed in order, by waiting for
+    /// each call to complete before proceeding with the next one. If
+    /// any of the closure calls throw an error, then the iteration
+    /// will be terminated and the error rethrown.
+    ///
+    /// - parameter transform: The transform to run on each element.
+    /// - returns: The transformed values as an array. The order of
+    ///   the transformed values will match the original sequence.
+    /// - throws: Rethrows any error thrown by the passed closure.
+    public func serialMap<T>(
+        _ transform: (Element) async throws -> T
+    ) async rethrows -> [T] {
+        var values = [T]()
+
+        for element in self {
+            values.append(try await transform(element))
+        }
+
+        return values
+    }
+
+    /// Transform the sequence into an array of new values using
     /// an async closure that returns sequences. The returned sequences
     /// will be flattened into the array returned from this function.
     ///

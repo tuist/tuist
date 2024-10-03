@@ -31,7 +31,7 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_hash_callsContentHasherWithTheExpectedParameters() throws {
+    func test_hash_callsContentHasherWithTheExpectedParameters() async throws {
         // Given
         given(contentHasher)
             .hash(path: .value(filePath1))
@@ -63,7 +63,7 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        let hash = try subject.hash(headers: headers)
+        let hash = try await subject.hash(headers: headers)
         XCTAssertEqual(hash, "1;2;3;4;5;6")
         verify(contentHasher)
             .hash(path: .any)

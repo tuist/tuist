@@ -4,12 +4,12 @@ import TuistCore
 import XcodeGraph
 
 public protocol TargetScriptsContentHashing {
-    func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) throws -> String
+    func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) async throws -> String
 }
 
 /// `TargetScriptsContentHasher`
 /// is responsible for computing a unique hash that identifies a list of target scripts
-public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
+public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init
@@ -23,7 +23,7 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
     /// Returns the hash that uniquely identifies an array of target scripts
     /// The hash takes into consideration the content of the script to execute, the content of input/output files, the name of the
     /// tool to execute, the order, the arguments and its name
-    public func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) throws -> String {
+    public func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) async throws -> String {
         var stringsToHash: [String] = []
         for script in targetScripts {
             var pathsToHash: [AbsolutePath] = []
@@ -44,7 +44,7 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
                     pathsToHash.append(path)
                 }
             }
-            stringsToHash.append(contentsOf: try pathsToHash.map { try contentHasher.hash(path: $0) })
+            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
             stringsToHash.append(
                 contentsOf: (script.outputPaths.compactMap { try? AbsolutePath(validating: $0) } + script.outputFileListPaths)
                     .map { $0.relative(to: sourceRootPath).pathString }

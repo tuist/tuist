@@ -40,7 +40,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_hash_returnsSameValue() throws {
+    func test_hash_returnsSameValue() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
         given(contentHasher)
@@ -48,13 +48,13 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.basename }
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
         XCTAssertEqual(hash, "fixed-hash;currentV1;v1;v2")
     }
 
-    func test_hash_fileContentChangesHash() throws {
+    func test_hash_fileContentChangesHash() async throws {
         // Given
         let name = "CoreDataModel"
         coreDataModel = try buildCoreDataModel()
@@ -67,13 +67,13 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
             .willReturn("different-hash")
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 
-    func test_hash_currentVersionChangesHash() throws {
+    func test_hash_currentVersionChangesHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
         given(contentHasher)
@@ -81,12 +81,12 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.basename }
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 
-    func test_hash_versionsChangeHash() throws {
+    func test_hash_versionsChangeHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
         given(contentHasher)
@@ -94,7 +94,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.basename }
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
         XCTAssertNotEqual(hash, defaultValuesHash)
