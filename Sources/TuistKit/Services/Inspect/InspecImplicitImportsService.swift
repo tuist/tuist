@@ -59,10 +59,9 @@ final class InspectImplicitImportsService {
     }
 
     private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
-        let allTargets = graphTraverser
-            .allTargets()
         let allInternalTargets = graphTraverser
             .allInternalTargets()
+        let allTargets = allInternalTargets.union(graphTraverser.allExternalTargets())
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
