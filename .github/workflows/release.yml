@@ -3,7 +3,7 @@ name: Release
 on:
   schedule:
     # Every Monday at 11:00
-    - cron: '0 10 * * 1'
+    - cron: "0 10 * * 1"
   workflow_dispatch: {}
 
 permissions:
@@ -18,14 +18,14 @@ env:
 jobs:
   release:
     name: Release
-    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
-      - name: 'Get version'
+      - name: "Get version"
         id: version
         run: |
           version=$(.mise/tasks/generate-version)
@@ -35,7 +35,7 @@ jobs:
         with:
           owner: tuist
           repo: server
-          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
       - name: "Generate Changelog"
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v2
@@ -78,7 +78,7 @@ jobs:
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          github-token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
       - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit
         with:
@@ -93,6 +93,5 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
-          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
           target_commitish: ${{ steps.commit.outputs.commit_hash }}
-
