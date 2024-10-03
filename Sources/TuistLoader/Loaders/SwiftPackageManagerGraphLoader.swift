@@ -144,7 +144,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             ($0.name, $0.targetToArtifactPaths)
         })
 
-        var packageModuleAliases: [String: [String: String]] = [:]
+        var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
         for packageInfo in packageInfoDictionary.values {
             for target in packageInfo.targets {
@@ -157,7 +157,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                         condition: _
                     ):
                         guard let moduleAliases else { continue }
-                        packageModuleAliases[
+                        mutablePackageModuleAliases[
                             packageInfos.first(where: { $0.folder.basename == packageName })?
                                 .name ?? packageName
                         ] = moduleAliases
@@ -172,19 +172,26 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
-            packageModuleAliases: packageModuleAliases
+            packageModuleAliases: mutablePackageModuleAliases
         )
 
-        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            let manifest = try packageInfoMapper.map(
-                packageInfo: packageInfo.info,
-                path: packageInfo.folder,
-                packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
-                packageSettings: packageSettings,
-                packageModuleAliases: packageModuleAliases
+        let packageModuleAliases = mutablePackageModuleAliases
+        let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
+            (
+                packageInfo,
+                try await self.packageInfoMapper.map(
+                    packageInfo: packageInfo.info,
+                    path: packageInfo.folder,
+                    packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                    packageSettings: packageSettings,
+                    packageModuleAliases: packageModuleAliases
+                )
             )
-            result[.path(packageInfo.folder.pathString)] = manifest
         }
+        let externalProjects: [Path: ProjectDescription.Project] = mappedPackageInfos
+            .reduce(into: [:]) { result, mappedPackageInfo in
+                result[.path(mappedPackageInfo.0.folder.pathString)] = mappedPackageInfo.1
+            }
 
         return DependenciesGraph(
             externalDependencies: externalDependencies,

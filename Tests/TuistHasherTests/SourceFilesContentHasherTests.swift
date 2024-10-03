@@ -14,12 +14,10 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
     private var sourceFile1Path: AbsolutePath!
     private var sourceFile2Path: AbsolutePath!
-    private var fileSystem: FileSystem!
 
     override func setUp() async throws {
         try await super.setUp()
         let contentHasher = ContentHasher()
-        fileSystem = FileSystem()
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         subject = SourceFilesContentHasher(
             contentHasher: contentHasher,
@@ -33,7 +31,6 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     override func tearDown() {
         sourceFile1Path = nil
         sourceFile2Path = nil
-        fileSystem = nil
         subject = nil
         super.tearDown()
     }

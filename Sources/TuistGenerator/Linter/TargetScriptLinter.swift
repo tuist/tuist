@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
@@ -9,15 +10,23 @@ protocol TargetScriptLinting {
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    func lint(_ script: TargetScript) -> [LintingIssue]
+    func lint(_ script: TargetScript) async throws -> [LintingIssue]
 }
 
 class TargetScriptLinter: TargetScriptLinting {
-    func lint(_ script: TargetScript) -> [LintingIssue] {
+    private let fileSystem: FileSysteming
+
+    init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
+
+    func lint(_ script: TargetScript) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintEmbeddedScriptNotEmpty(script))
         issues.append(contentsOf: lintToolExistence(script))
-        issues.append(contentsOf: lintPathExistence(script))
+        try await issues.append(contentsOf: lintPathExistence(script))
         return issues
     }
 
@@ -49,9 +58,9 @@ class TargetScriptLinter: TargetScriptLinting {
         }
     }
 
-    private func lintPathExistence(_ script: TargetScript) -> [LintingIssue] {
+    private func lintPathExistence(_ script: TargetScript) async throws -> [LintingIssue] {
         guard let path = script.path,
-              !FileHandler.shared.exists(path)
+              try await !fileSystem.exists(path)
         else { return [] }
         return [LintingIssue(
             reason: "The script path \(path.pathString) doesn't exist",

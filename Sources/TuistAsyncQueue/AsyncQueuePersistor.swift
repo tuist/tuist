@@ -57,7 +57,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     func delete(filename: String) async throws {
         let path = directory.appending(component: filename)
-        guard FileHandler.shared.exists(path) else { return }
+        guard try await fileSystem.exists(path) else { return }
         try await fileSystem.remove(path)
     }
 
@@ -65,7 +65,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         let dateService = dateService
         let fileSystem = fileSystem
         let paths = FileHandler.shared.glob(directory, glob: "*.json")
-        let events: [AsyncQueueEventTuple] = try await paths.concurrentCompactMap { eventPath in
+        let events: [AsyncQueueEventTuple] = await paths.concurrentCompactMap { eventPath in
             let fileName = eventPath.basenameWithoutExt
             let components = fileName.split(separator: ".")
             guard components.count == 3,

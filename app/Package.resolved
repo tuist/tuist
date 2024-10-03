@@ -1,5 +1,5 @@
 {
-  "originHash" : "e1acc6da7ed6b9f7c56b6f9eaaa9b5824dd9ed3b8f8d008c6431e6ae5be20f1b",
+  "originHash" : "5f446944862a15ae8e9e9cdee0de3ebe7ffb9bccf2a7bbfd9b07e74f9b184467",
   "pins" : [
     {
       "identity" : "aexml",
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Path",
       "state" : {
-        "revision" : "25b8619f75e3d2141940a64a7b870d893164c352",
-        "version" : "0.3.3"
+        "revision" : "7c74ac435e03a927c3a73134c48b61e60221abcb",
+        "version" : "0.3.8"
       }
     },
     {
@@ -294,8 +294,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "179fbd4fa5da6ddbdd67e541f4eb4afe6438f86d",
-        "version" : "0.10.0"
+        "revision" : "12462c8fff97fc5efb8476ef4625f434acd5058f",
+        "version" : "0.12.1"
       }
     },
     {

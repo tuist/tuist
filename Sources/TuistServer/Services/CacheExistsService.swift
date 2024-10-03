@@ -11,12 +11,11 @@ public protocol CacheExistsServicing {
         hash: String,
         name: String,
         cacheCategory: RemoteCacheCategory
-    ) async throws
+    ) async throws -> Bool
 }
 
 public enum CacheExistsServiceError: FatalError, Equatable {
     case unknownError(Int)
-    case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
     case unauthorized(String)
@@ -25,7 +24,7 @@ public enum CacheExistsServiceError: FatalError, Equatable {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden, .unauthorized:
+        case .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -34,7 +33,7 @@ public enum CacheExistsServiceError: FatalError, Equatable {
         switch self {
         case let .unknownError(statusCode):
             return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
+        case let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -49,7 +48,7 @@ public final class CacheExistsService: CacheExistsServicing {
         hash: String,
         name: String,
         cacheCategory: RemoteCacheCategory
-    ) async throws {
+    ) async throws -> Bool {
         let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.cacheArtifactExists(
@@ -58,13 +57,9 @@ public final class CacheExistsService: CacheExistsServicing {
 
         switch response {
         case .ok:
-            // noop
-            break
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
-            case let .json(body):
-                throw CacheExistsServiceError.notFound(body.error?.first?.message ?? "The remote cache artifact does not exist")
-            }
+            return true
+        case .notFound:
+            return false
         case let .paymentRequired(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):

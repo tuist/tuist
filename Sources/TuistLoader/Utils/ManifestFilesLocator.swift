@@ -19,7 +19,7 @@ public protocol ManifestFilesLocating: AnyObject {
         at locatingPath: AbsolutePath,
         excluding: [String],
         onlyCurrentDirectory: Bool
-    ) -> [AbsolutePath]
+    ) async throws -> [AbsolutePath]
 
     /// It locates all project and workspace manifest files under the root directory (as defined in `RootDirectoryLocator`).
     /// - Parameters:
@@ -30,7 +30,7 @@ public protocol ManifestFilesLocating: AnyObject {
         at locatingPath: AbsolutePath,
         excluding: [String],
         onlyCurrentDirectory: Bool
-    ) -> [ManifestFilesLocator.ProjectManifest]
+    ) async throws -> [ManifestFilesLocator.ProjectManifest]
 
     /// It traverses up the directory hierarchy until it finds a `Config.swift` file.
     /// - Parameter locatingPath: Path from where to do the lookup.
@@ -40,7 +40,7 @@ public protocol ManifestFilesLocating: AnyObject {
     /// - Parameter locatingPath: Path from where to do the lookup
     func locatePackageManifest(
         at locatingPath: AbsolutePath
-    ) -> AbsolutePath?
+    ) async throws -> AbsolutePath?
 }
 
 public final class ManifestFilesLocator: ManifestFilesLocating {
@@ -68,7 +68,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         at locatingPath: AbsolutePath,
         excluding: [String],
         onlyCurrentDirectory: Bool
-    ) -> [AbsolutePath] {
+    ) async throws -> [AbsolutePath] {
         if onlyCurrentDirectory {
             let pluginPath = locatingPath.appending(
                 component: Manifest.plugin.fileName(locatingPath)
@@ -76,7 +76,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             guard fileHandler.exists(pluginPath) else { return [] }
             return [pluginPath]
         } else {
-            let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
+            let path = try await rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
             let pluginsPaths = fetchTuistManifestsFilePaths(at: path)
                 .filter { $0.basename == Manifest.plugin.fileName(path) }
@@ -142,7 +142,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         at locatingPath: AbsolutePath,
         excluding: [String],
         onlyCurrentDirectory: Bool
-    ) -> [ProjectManifest] {
+    ) async throws -> [ProjectManifest] {
         if onlyCurrentDirectory {
             return [
                 ProjectManifest(
@@ -160,7 +160,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             ]
             .filter { fileHandler.exists($0.path) }
         } else {
-            let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
+            let path = try await rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
             let manifestsFilePaths = fetchTuistManifestsFilePaths(at: path)
                 .filter { path in
@@ -194,8 +194,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         return nil
     }
 
-    public func locatePackageManifest(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: locatingPath) else { return nil }
+    public func locatePackageManifest(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: locatingPath) else { return nil }
         let defaultPackageSwiftPath = rootDirectory.appending(
             components: [
                 Constants.tuistDirectoryName,

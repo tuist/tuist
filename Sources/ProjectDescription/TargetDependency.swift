@@ -50,16 +50,18 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///
     /// - Parameters:
     ///   - name: Name of the target to depend on
+    ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case target(name: String, condition: PlatformCondition? = nil)
+    case target(name: String, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on a target within another project
     ///
     /// - Parameters:
     ///   - target: Name of the target to depend on
     ///   - path: Relative path to the other project directory
+    ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case project(target: String, path: Path, condition: PlatformCondition? = nil)
+    case project(target: String, path: Path, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on a prebuilt framework
     ///

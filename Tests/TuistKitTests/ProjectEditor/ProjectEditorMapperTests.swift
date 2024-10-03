@@ -35,7 +35,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() throws {
+    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -62,7 +62,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             .willReturn(.test(path: AbsolutePath("/Applications/Xcode.app")))
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -263,7 +263,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() throws {
+    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -277,7 +277,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectsGroup = ProjectGroup.group(name: projectName)
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -342,7 +342,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    func test_tuist_edit_with_more_than_one_manifest() throws {
+    func test_tuist_edit_with_more_than_one_manifest() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
@@ -360,7 +360,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectName = "Manifests"
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -454,7 +454,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    func test_tuist_edit_with_one_plugin_no_projects() throws {
+    func test_tuist_edit_with_one_plugin_no_projects() async throws {
         let sourceRootPath = try temporaryPath()
         let pluginManifestPaths = [sourceRootPath].map { $0.appending(component: "Plugin.swift") }
         let editablePluginManifests = pluginManifestPaths.map {
@@ -470,7 +470,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectsGroup = ProjectGroup.group(name: projectName)
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -530,7 +530,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(allPluginsBuildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
     }
 
-    func test_tuist_edit_with_more_than_one_plugin_no_projects() throws {
+    func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
         let sourceRootPath = try temporaryPath()
         let pluginManifestPaths = [
             sourceRootPath.appending(component: "A").appending(component: "Plugin.swift"),
@@ -549,7 +549,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectsGroup = ProjectGroup.group(name: projectName)
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -634,7 +634,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_tuist_edit_plugin_only_takes_required_sources() throws {
+    func test_tuist_edit_plugin_only_takes_required_sources() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let pluginManifestPath = sourceRootPath.appending(component: "Plugin.swift")
@@ -662,7 +662,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             "Templates/strings.stencil",
         ])
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
@@ -690,7 +690,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_tuist_edit_project_with_plugin() throws {
+    func test_tuist_edit_project_with_plugin() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -708,7 +708,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let remotePlugin = ProjectDescriptionHelpersModule(name: "RemotePlugin", path: "/path/to/remote/plugin")
 
         // When
-        let graph = try subject.map(
+        let graph = try await subject.map(
             name: "TestManifests",
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,

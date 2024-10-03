@@ -131,6 +131,24 @@ components:
       title: AuthenticationTokens
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
+    CacheActionItem:
+      description: Represents an action item stored in the cache.
+      properties:
+        hash:
+          description: The hash that uniquely identifies the artifact in the cache.
+          type: string
+      required:
+        - hash
+      title: CacheActionItem
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+    CacheActionItemUploadParams:
+      properties:
+        hash:
+          description: The hash of the cache action item.
+          type: string
+      title: CacheActionItemUploadParams
+      type: object
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
       properties:
@@ -441,7 +459,7 @@ components:
           description: ID of the project
           type: number
         repository_url:
-          description: The URL of the connected git repository.
+          description: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
           type: string
         token:
           deprecated: true
@@ -1879,7 +1897,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when updating to a non-supported git repository
+          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
         401:
           content:
             application/json:
@@ -1901,6 +1919,140 @@ paths:
       summary: Updates a project
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/cache/ac:
+    post:
+      callbacks: {}
+      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+      operationId: uploadCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project to clean cache for
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                hash:
+                  description: The hash of the cache action item.
+                  type: string
+              title: CacheActionItemUploadParams
+              type: object
+        description: Cache action item upload params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The request is valid but the cache action item already exists
+        201:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The action item was cached
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request has missing or invalid parameters
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It uploads a given cache action item.
+      tags:
+        - Cache
+  /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}:
+    get:
+      callbacks: {}
+      description: This endpoint gets an item from the action cache.
+      operationId: getCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project the cache action item belongs to.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies an item in the action cache.
+          in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The item exists in the action cache
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The item doesn't exist in the actino cache
+      summary: Get a cache action item.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}

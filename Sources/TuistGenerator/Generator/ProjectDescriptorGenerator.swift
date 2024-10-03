@@ -11,7 +11,7 @@ protocol ProjectDescriptorGenerating: AnyObject {
     ///   - project: Project to be generated.
     ///   - graphTraverser: Graph traverser.
     /// - Returns: Generated project descriptor
-    func generate(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
+    func generate(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor
 }
 
 final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
@@ -84,7 +84,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     func generate(
         project: Project,
         graphTraverser: GraphTraversing
-    ) throws -> ProjectDescriptor {
+    ) async throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
@@ -105,7 +105,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             groups: groups,
             pbxproj: pbxproj
         )
-        let configurationList = try configGenerator.generateProjectConfig(
+        let configurationList = try await configGenerator.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: fileElements
@@ -118,7 +118,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             pbxproj: pbxproj
         )
 
-        let nativeTargets = try generateTargets(
+        let nativeTargets = try await generateTargets(
             project: project,
             pbxproj: pbxproj,
             pbxProject: pbxProject,
@@ -202,10 +202,10 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) throws -> [String: PBXNativeTarget] {
+    ) async throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         for target in project.targets.values.sorted() {
-            let nativeTarget = try targetGenerator.generateTarget(
+            let nativeTarget = try await targetGenerator.generateTarget(
                 target: target,
                 project: project,
                 pbxproj: pbxproj,

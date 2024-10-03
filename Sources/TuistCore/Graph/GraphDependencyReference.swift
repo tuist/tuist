@@ -9,7 +9,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
              let .library(_, _, _, _, condition),
              let .xcframework(_, _, _, _, _, condition),
              let .bundle(_, condition),
-             let .product(_, _, condition),
+             let .product(_, _, _, condition),
              let .sdk(_, _, _, condition):
             return condition
         case .macro:
@@ -45,7 +45,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         condition: PlatformCondition? = nil
     )
     case bundle(path: AbsolutePath, condition: PlatformCondition? = nil)
-    case product(target: String, productName: String, condition: PlatformCondition? = nil)
+    case product(target: String, productName: String, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
     case sdk(path: AbsolutePath, status: LinkingStatus, source: SDKSource, condition: PlatformCondition? = nil)
 
     init(_ dependency: GraphDependency, condition: PlatformCondition? = nil) {
@@ -147,7 +147,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .framework(path: path, condition: condition)
             case let .bundle(path: path, condition):
                 self = .bundle(path: path, condition: condition)
-            case let .product(target: target, productName: productName, condition: condition):
+            case let .product(target: target, productName: productName, _, condition: condition):
                 self = .product(target: target, productName: productName, condition: condition)
             case .sdk(path: let path, status: _, source: _, condition: let condition):
                 self = .sdk(path: path, condition: condition)
@@ -156,7 +156,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 }
 
-extension PlatformCondition?: Comparable {
+extension PlatformCondition?: Swift.Comparable {
     public static func < (lhs: Optional, rhs: Optional) -> Bool {
         guard let lhs else { return false }
         guard let rhs else { return true }

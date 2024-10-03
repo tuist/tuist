@@ -18,7 +18,7 @@ If you don’t have any experience with Swift, we recommend [Apple’s official 
 To contribute to Tuist, minimum requirements are:
 
 - macOS 14.0+
-- Xcode 15.0+
+- Xcode 16.0+
 
 ## Set up the project locally
 
@@ -63,4 +63,3 @@ Although `tuist` provides a `tuist run` it does not support CLIs yet. Therefore,
 swift build --product ProjectDescription
 swift run tuist generate --path /path/to/project --no-open
 ```
-

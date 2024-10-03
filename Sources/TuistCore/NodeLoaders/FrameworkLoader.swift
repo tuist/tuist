@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -27,25 +28,30 @@ public protocol FrameworkLoading {
     /// Reads an existing framework and returns its in-memory representation, `GraphDependency.framework`.
     /// - Parameter path: Path to the .framework.
     /// - Parameter status: `.optional` to weakly link the .framework.
-    func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency
+    func load(path: AbsolutePath, status: LinkingStatus) async throws -> GraphDependency
 }
 
 public final class FrameworkLoader: FrameworkLoading {
     /// Framework metadata provider.
     fileprivate let frameworkMetadataProvider: FrameworkMetadataProviding
+    private let fileSystem: FileSysteming
 
     /// Initializes the loader with its attributes.
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
-    public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
+    public init(
+        frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider(),
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
+        self.fileSystem = fileSystem
     }
 
-    public func load(path: AbsolutePath, status: LinkingStatus) throws -> GraphDependency {
-        guard FileHandler.shared.exists(path) else {
+    public func load(path: AbsolutePath, status: LinkingStatus) async throws -> GraphDependency {
+        guard try await fileSystem.exists(path) else {
             throw FrameworkLoaderError.frameworkNotFound(path)
         }
 
-        let metadata = try frameworkMetadataProvider.loadMetadata(
+        let metadata = try await frameworkMetadataProvider.loadMetadata(
             at: path,
             status: status
         )

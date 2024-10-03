@@ -1546,6 +1546,33 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "minhaaan",
+      "name": "minhaaan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/87178301?v=4",
+      "profile": "https://github.com/minhaaan",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "TamarMilchtaich",
+      "name": "Tamar Milchtaich Lavi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/49520876?v=4",
+      "profile": "https://github.com/TamarMilchtaich",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "rock88",
+      "name": "Andrey K",
+      "avatar_url": "https://avatars.githubusercontent.com/u/323908?v=4",
+      "profile": "https://github.com/rock88",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

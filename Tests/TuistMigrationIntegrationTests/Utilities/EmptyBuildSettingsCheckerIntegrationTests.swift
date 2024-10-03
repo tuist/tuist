@@ -19,35 +19,35 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_when_the_xcodeproj_path_doesnt_exist() throws {
+    func test_when_the_xcodeproj_path_doesnt_exist() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/invalid/path.xcodeproj")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.check(
+        await XCTAssertThrowsSpecific(try await subject.check(
             xcodeprojPath: xcodeprojPath,
             targetName: nil
         ), EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath))
     }
 
-    func test_check_when_non_empty_target_build_settings() throws {
+    func test_check_when_non_empty_target_build_settings() async throws {
         // Given
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
 
         // Then
-        XCTAssertThrowsSpecific(try subject.check(
+        await XCTAssertThrowsSpecific(try await subject.check(
             xcodeprojPath: xcodeprojPath,
             targetName: "iOS"
         ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
         XCTAssertPrinterOutputContains("The build setting 'DYLIB_CURRENT_VERSION' of build configuration 'Debug' is not empty.")
     }
 
-    func test_check_when_non_empty_project_build_settings() throws {
+    func test_check_when_non_empty_project_build_settings() async throws {
         // Given
         let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
 
         // Then
-        XCTAssertThrowsSpecific(try subject.check(
+        await XCTAssertThrowsSpecific(try await subject.check(
             xcodeprojPath: xcodeprojPath,
             targetName: nil
         ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))

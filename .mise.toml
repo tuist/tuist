@@ -1,15 +1,15 @@
 [tools]
-tuist = "4.27.0"
+tuist = "4.28.1"
 swiftlint = "0.54.0"
 swiftformat = "0.53.3"
 pnpm = "8.15.6"
 node = "20.12.0"
-sourcedocs = "2.0.1"
+sourcedocs = "2.0.2"
 create-dmg = "1.2.2"
 "git-cliff" = "2.4.0"
 
 [plugins]
-sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
+sourcedocs = "https://github.com/tuist/asdf-sourcedocs#fix/xcode-16"
 create-dmg = "https://github.com/tuist/asdf-create-dmg.git"
 
 [settings]

@@ -28,7 +28,9 @@ public final class CommandEventFactory {
     ) throws -> CommandEvent {
         let gitCommitSHA: String?
         let gitRemoteURLOrigin: String?
-        if gitController.isInGitRepository(workingDirectory: path) {
+        if gitController.isInGitRepository(workingDirectory: path),
+           gitController.hasCurrentBranchCommits(workingDirectory: path)
+        {
             gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
             gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
         } else {

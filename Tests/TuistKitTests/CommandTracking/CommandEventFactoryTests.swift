@@ -83,6 +83,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             .isInGitRepository(workingDirectory: .any)
             .willReturn(true)
 
+        given(gitController)
+            .hasCurrentBranchCommits(workingDirectory: .any)
+            .willReturn(true)
+
         // When
         let event = try subject.make(
             from: info,
@@ -124,6 +128,45 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
 
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn(nil)
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        XCTAssertEqual(event.gitCommitSHA, nil)
+        XCTAssertEqual(event.gitRemoteURLOrigin, nil)
+        XCTAssertEqual(event.gitRef, nil)
+    }
+
+    func test_make_when_is_in_git_repository_and_branch_has_no_commits() throws {
+        // Given
+        let path = try temporaryPath()
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "cache",
+            subcommand: "warm",
+            parameters: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
+            durationInMs: 5000,
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: nil
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .hasCurrentBranchCommits(workingDirectory: .any)
             .willReturn(false)
 
         given(gitController)

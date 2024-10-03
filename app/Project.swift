@@ -42,8 +42,8 @@ let project = Project(
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL": "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.1.0",
-                    "CFBundleVersion": "0.1.0",
+                    "CFBundleShortVersionString": "0.1.1",
+                    "CFBundleVersion": "0.1.1",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],

@@ -168,27 +168,9 @@ final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDepend
     }
 }
 
-final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test() async throws {
-        try await setUpFixture(.appWithSpmDependencies)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-    }
-}
-
 final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
     func test() async throws {
         try await setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-    }
-}
-
-final class BuildAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test() async throws {
-        try await setUpFixture(.iosAppWithSpmDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")

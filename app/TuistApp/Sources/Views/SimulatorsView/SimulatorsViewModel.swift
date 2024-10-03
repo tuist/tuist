@@ -174,7 +174,7 @@ final class SimulatorsViewModel: Sendable {
 
         let bootedDevice = try simulatorController.booted(device: selectedSimulator.device, forced: true)
         try simulatorController.installApp(at: app.path, device: bootedDevice)
-        try simulatorController.launchApp(bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: [])
+        try await simulatorController.launchApp(bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: [])
     }
 }
 

@@ -26,6 +26,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var configLoader: MockConfigLoading!
     private var cacheStorage: MockCacheStoring!
+    private var cacheAnalyticsStore: MockCacheAnalyticsStoring!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -36,6 +37,7 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
+        cacheAnalyticsStore = .init()
 
         cacheStorage = .init()
 
@@ -48,15 +50,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .store(.any, cacheCategory: .any)
             .willReturn()
 
-        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
-        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(mockCacheDirectoriesProvider)
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
         let runsCacheDirectory = try temporaryPath()
-        given(mockCacheDirectoriesProvider)
+        given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
@@ -77,8 +74,9 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            configLoader: configLoader
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            cacheAnalyticsStore: cacheAnalyticsStore
         )
 
         given(simulatorController)
@@ -784,8 +782,24 @@ final class TestServiceTests: TuistUnitTestCase {
                 ),
             ]
         )
-        environment.testsCacheUntestedHashes = [
-            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
+        environment.targetTestHashes = [
+            projectPathOne: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+                "TargetC": "hash-c",
+            ],
+        ]
+        environment.targetCacheItems = [
+            projectPathOne: [
+                "TargetB": .test(
+                    source: .local,
+                    cacheCategory: .selectiveTests
+                ),
+                "TargetC": .test(
+                    source: .remote,
+                    cacheCategory: .selectiveTests
+                ),
+            ],
         ]
         given(generator)
             .generateWithGraph(path: .any)
@@ -818,6 +832,15 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertStandardOutput(
             pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
         )
+        verify(cacheAnalyticsStore)
+            .testTargets(newValue: .value(["TargetA", "TargetB", "TargetC"]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .localTestTargetHits(newValue: .value(["TargetB"]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .remoteTestTargetHits(newValue: .value(["TargetC"]))
+            .setCalled(1)
         verify(cacheStorage)
             .store(
                 .value(
@@ -924,9 +947,13 @@ final class TestServiceTests: TuistUnitTestCase {
                 ),
             ]
         )
-        environment.testsCacheUntestedHashes = [
-            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
-            .test(name: "TargetD", bundleId: "io.tuist.TargetD"): "hash-d",
+        environment.targetTestHashes = [
+            projectPathOne: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+                "TargetC": "hash-c",
+                "TargetD": "hash-d",
+            ],
         ]
         given(generator)
             .generateWithGraph(path: .any)
@@ -1124,10 +1151,14 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .testableTarget(scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any, graphTraverser: .any)
             .willReturn(.test())
+
+        let graph: Graph = .test()
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
-                (path, .test(), MapperEnvironment())
+                (path, .test(), environment)
             }
         var testedSchemes: [String] = []
         given(xcodebuildController)
@@ -1166,7 +1197,14 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
+        let expectedResourceBundlePath = try temporaryPath()
+            .appending(component: "test")
+        let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.createSymbolicLink(
+            from: expectedResourceBundlePath,
+            to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        )
         var resourceBundlePath: AbsolutePath?
 
         given(xcodebuildController)
@@ -1296,7 +1334,14 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
+        let expectedResourceBundlePath = try temporaryPath()
+            .appending(component: "test")
+        let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.createSymbolicLink(
+            from: expectedResourceBundlePath,
+            to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
+        )
         var resourceBundlePath: AbsolutePath?
 
         given(xcodebuildController)
@@ -1351,6 +1396,13 @@ final class TestServiceTests: TuistUnitTestCase {
             resourceBundlePath,
             expectedResourceBundlePath
         )
+        let existsResultBundlePathInCacheDirectory = try await fileSystem.exists(
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: "run-id", "\(Constants.resultBundleName).xcresult"),
+            isDirectory: true
+        )
+        XCTAssertTrue(existsResultBundlePathInCacheDirectory)
     }
 
     func test_run_passes_retry_count_as_argument() async throws {
@@ -1554,6 +1606,15 @@ final class TestServiceTests: TuistUnitTestCase {
 
         var environment = MapperEnvironment()
         environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+            ],
+        ]
+        environment.targetCacheItems = [
+            projectPath: [:],
+        ]
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
@@ -1585,10 +1646,6 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
-        environment.testsCacheUntestedHashes = [
-            .test(name: "TargetA", bundleId: "io.tuist.TargetA"): "hash-a",
-            .test(name: "TargetB", bundleId: "io.tuist.TargetB"): "hash-b",
-        ]
         var testedSchemes: [String] = []
         given(xcodebuildController)
             .test(
@@ -1629,6 +1686,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
+        verify(cacheAnalyticsStore)
+            .testTargets(newValue: .value(["TargetA"]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .localTestTargetHits(newValue: .value([]))
+            .setCalled(1)
+        verify(cacheAnalyticsStore)
+            .remoteTestTargetHits(newValue: .value([]))
+            .setCalled(1)
     }
 
     func test_run_test_plan_failure() async throws {
