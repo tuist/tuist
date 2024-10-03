@@ -38,14 +38,14 @@ final class ImportSourceCodeScanner {
                 .compactMap { line in
                     let range = NSRange(location: 0, length: line.utf16.count)
                     let matches = regex.matches(in: line, options: [], range: range)
-                    return matches.compactMap { match in
+                    return matches.compactMap { _ in
                         let match = switch language {
                         case .swift:
                             processMatchSwift(match: match, line: line)
                         case .objc:
                             processMatchObjc(match: match, line: line)
                         }
-                        
+
                         return match?.module
                     }
                 }
