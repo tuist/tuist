@@ -1,4 +1,5 @@
 import CryptoKit
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -7,12 +8,17 @@ import TuistSupport
 /// is the single source of truth for hashing content.
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
-public final class ContentHasher: ContentHashing {
+public struct ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
-    public init(fileHandler: FileHandling = FileHandler.shared) {
+    public init(
+        fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     // MARK: - ContentHashing
@@ -51,12 +57,12 @@ public final class ContentHasher: ContentHashing {
         return try hash(dictString)
     }
 
-    public func hash(path filePath: AbsolutePath) throws -> String {
+    public func hash(path filePath: AbsolutePath) async throws -> String {
         if fileHandler.isFolder(filePath) {
-            return try fileHandler.contentsOfDirectory(filePath)
+            return try await fileHandler.contentsOfDirectory(filePath)
                 .filter { filesFilter($0) }
                 .sorted(by: { $0 < $1 })
-                .map { try hash(path: $0) }
+                .concurrentMap { try await hash(path: $0) }
                 .joined(separator: "-")
         }
 

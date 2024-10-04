@@ -29,7 +29,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_hash_whenPlistIsFile_tellsContentHasherToHashFileContent() throws {
+    func test_hash_whenPlistIsFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.file(path: filePath1)
         given(contentHasher)
@@ -37,7 +37,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             .willReturn("stubHash")
 
         // When
-        let hash = try subject.hash(plist: .infoPlist(infoPlist))
+        let hash = try await subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         verify(contentHasher)
@@ -46,7 +46,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "stubHash")
     }
 
-    func test_hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() throws {
+    func test_hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.generatedFile(
             path: filePath1,
@@ -57,7 +57,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.base64EncodedString() + "-hash" }
 
         // When
-        let hash = try subject.hash(plist: .infoPlist(infoPlist))
+        let hash = try await subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         verify(contentHasher)
@@ -66,7 +66,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "stubHash-hash")
     }
 
-    func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() throws {
+    func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.dictionary([
             "1": 23,
@@ -77,7 +77,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             "6": ["6a": "6value"],
         ])
         // When
-        let hash = try subject.hash(plist: .infoPlist(infoPlist))
+        let hash = try await subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         verify(contentHasher)
@@ -89,7 +89,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         )
     }
 
-    func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() throws {
+    func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.extendingDefault(with: [
             "1": 23,
@@ -101,7 +101,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         ])
 
         // When
-        let hash = try subject.hash(plist: .infoPlist(infoPlist))
+        let hash = try await subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         verify(contentHasher)

@@ -1,3 +1,11 @@
+## What's Changed in app@0.1.2
+* fix: rename macOS app build by @TahaTesser in [#6802](https://github.com/tuist/tuist/pull/6802)
+
+## New Contributors
+* @TahaTesser made their first contribution in [#6802](https://github.com/tuist/tuist/pull/6802)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.1.1...app@0.1.2
+
 ## What's Changed in app@0.1.1
 * ci: switch to using Xcode 16 on CI by @fortmarek in [#6761](https://github.com/tuist/tuist/pull/6761)
 

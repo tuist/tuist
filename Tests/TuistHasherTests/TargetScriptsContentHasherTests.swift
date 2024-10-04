@@ -64,7 +64,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() throws {
+    func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() async throws {
         // Given
         let inputFileListPaths1 = "inputFileListPaths1-hash"
         given(contentHasher)
@@ -79,7 +79,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
@@ -100,7 +100,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hash_targetAction_callsMockHasherWithExpectedStrings() throws {
+    func test_hash_targetAction_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         let inputFileListPaths1 = "inputFileListPaths1-hash"
@@ -117,7 +117,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
@@ -137,7 +137,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() throws {
+    func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         let inputFileListPaths1 = "inputFileListPaths1-hash"
@@ -155,7 +155,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
@@ -175,7 +175,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hash_targetAction_valuesAreNotHarcoded() throws {
+    func test_hash_targetAction_valuesAreNotHarcoded() async throws {
         // Given
         let inputPaths2Hash = "inputPaths2-hash"
         let inputFileListPaths2 = "inputFileListPaths2-hash"
@@ -202,7 +202,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
