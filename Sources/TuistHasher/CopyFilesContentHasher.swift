@@ -3,12 +3,12 @@ import TuistCore
 import XcodeGraph
 
 public protocol CopyFilesContentHashing {
-    func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode
+    func hash(identifier: String, copyFiles: [CopyFilesAction]) async throws -> MerkleNode
 }
 
 /// `CopyFilesContentHasher`
 /// is responsible for computing a unique hash that identifies a list of CopyFilesAction models
-public final class CopyFilesContentHasher: CopyFilesContentHashing {
+public struct CopyFilesContentHasher: CopyFilesContentHashing {
     private let contentHasher: ContentHashing
     private let platformConditionContentHasher: PlatformConditionContentHashing
 
@@ -21,15 +21,15 @@ public final class CopyFilesContentHasher: CopyFilesContentHashing {
 
     // MARK: - CopyFilesContentHashing
 
-    public func hash(identifier: String, copyFiles: [CopyFilesAction]) throws -> MerkleNode {
-        let children = try copyFiles.map { action in
+    public func hash(identifier: String, copyFiles: [CopyFilesAction]) async throws -> MerkleNode {
+        let children = try await copyFiles.concurrentMap { action in
             var actionChildren: [MerkleNode] = [
                 MerkleNode(hash: try contentHasher.hash(action.name), identifier: "name"),
                 MerkleNode(hash: try contentHasher.hash(action.destination.rawValue), identifier: "destination"),
             ]
-            let actionFiles = try action.files.sorted(by: { $0.path < $1.path }).map { file in
+            let actionFiles = try await action.files.sorted(by: { $0.path < $1.path }).concurrentMap { file in
                 var fileChildren: [MerkleNode] = [
-                    MerkleNode(hash: try contentHasher.hash(path: file.path), identifier: "content"),
+                    MerkleNode(hash: try await contentHasher.hash(path: file.path), identifier: "content"),
                     MerkleNode(hash: try contentHasher.hash(file.isReference), identifier: "isReference"),
                     MerkleNode(hash: try contentHasher.hash(file.codeSignOnCopy), identifier: "codeSignOnCopy"),
                 ]

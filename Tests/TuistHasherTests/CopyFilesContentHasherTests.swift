@@ -51,7 +51,7 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
 
         // When
         for _ in 0 ... 100 {
-            results.insert(try subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction]).hash)
+            results.insert(try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction]).hash)
         }
 
         // Then
@@ -78,7 +78,7 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction])
+        let got = try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction])
 
         // Then
         XCTAssertEqual(got, MerkleNode(
