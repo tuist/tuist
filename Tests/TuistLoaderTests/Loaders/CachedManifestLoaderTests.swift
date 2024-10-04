@@ -98,7 +98,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
 
         // When
         let result = try await subject.loadProject(at: path)
@@ -112,7 +112,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
 
         // When
         _ = try await subject.loadProject(at: path)
@@ -129,12 +129,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let originalProject = Project.test(name: "Original")
-        try stubProject(originalProject, at: path)
+        try await stubProject(originalProject, at: path)
         _ = try await subject.loadProject(at: path)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
-        try stubProject(modifiedProject, at: path)
+        try await stubProject(modifiedProject, at: path)
         let result = try await subject.loadProject(at: path)
 
         // Then
@@ -146,7 +146,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         try stubHelpers(withHash: "hash")
 
         _ = try await subject.loadProject(at: path)
@@ -164,7 +164,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         given(manifestLoader)
             .register(plugins: .any)
             .willReturn()
@@ -185,7 +185,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
@@ -203,7 +203,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         environment.manifestLoadingVariables = ["NAME": "A"]
         _ = try await subject.loadProject(at: path)
 
@@ -219,7 +219,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
         _ = try await subject.loadProject(at: path)
 
@@ -235,7 +235,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
         _ = try await subject.loadProject(at: path)
 
@@ -251,7 +251,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
-        try stubProject(project, at: path)
+        try await stubProject(project, at: path)
         _ = try await subject.loadProject(at: path)
 
         // When
@@ -274,7 +274,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_validate_projectExists() throws {
+    func test_validate_projectExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         given(manifestLoader)
@@ -285,10 +285,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .willReturn()
 
         // When / Then
-        try subject.validateHasRootManifest(at: path)
+        try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_workspaceExists() throws {
+    func test_validate_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         given(manifestLoader)
@@ -299,10 +299,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .willReturn([.workspace])
 
         // When / Then
-        try subject.validateHasRootManifest(at: path)
+        try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_manifestDoesNotExist() throws {
+    func test_validate_manifestDoesNotExist() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         given(manifestLoader)
@@ -310,8 +310,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .willThrow(ManifestLoaderError.manifestNotFound(path))
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.validateHasRootManifest(at: path),
+        await XCTAssertThrowsSpecific(
+            try await subject.validateHasRootManifest(at: path),
             ManifestLoaderError.manifestNotFound(path)
         )
     }
@@ -323,7 +323,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             helpersDirectoryLocator: helpersDirectoryLocator,
-            fileHandler: fileHandler,
+            fileSystem: fileSystem,
             environment: environment,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             tuistVersion: tuistVersion
@@ -344,11 +344,16 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private func stubProject(
         _ project: Project,
         at path: AbsolutePath
-    ) throws {
+    ) async throws {
         let manifestPath = path.appending(component: Manifest.project.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(project)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         projectManifests[path] = project
     }
 

@@ -114,7 +114,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadProject_withAdditionalFiles() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let files = try createFiles([
+        let files = try await createFiles([
             "Documentation/README.md",
             "Documentation/guide.md",
         ])
@@ -243,7 +243,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadWorkspace_withAdditionalFiles() async throws {
         let temporaryPath = try temporaryPath()
-        let files = try createFiles([
+        let files = try await createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
             "Playground.playground",
@@ -274,7 +274,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadWorkspace_withFolderReferences() async throws {
         let temporaryPath = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
         ])
@@ -313,10 +313,8 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        No projects found at: A
-        No projects found at: B
-        """)
+        XCTAssertPrinterOutputContains("No projects found at: A")
+        XCTAssertPrinterOutputContains("No projects found at: B")
         XCTAssertEqual(model.projects, [])
     }
 

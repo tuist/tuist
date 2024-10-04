@@ -33,7 +33,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
     }
 
-    func test_doesntGlob_whenVariable() throws {
+    func test_doesntGlob_whenVariable() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -41,7 +41,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",
             "foo/bar/aTests.swift",
@@ -98,7 +98,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_glob_whenExcluding() throws {
+    func test_glob_whenExcluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -106,7 +106,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",
             "foo/bar/aTests.swift",

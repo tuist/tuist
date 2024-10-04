@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import XCTest
@@ -7,14 +8,17 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ManifestLoaderTests: TuistTestCase {
-    var subject: ManifestLoader!
+    private var subject: ManifestLoader!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
+        fileSystem = FileSystem()
         subject = ManifestLoader()
     }
 
     override func tearDown() {
+        fileSystem = nil
         subject = nil
         super.tearDown()
     }
@@ -75,7 +79,7 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.name, "tuist")
     }
 
-    func test_loadPackage() throws {
+    func test_loadPackage() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let content = """
@@ -118,7 +122,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.loadPackage(at: manifestPath.parentDirectory)
+        let got = try await subject.loadPackage(at: manifestPath.parentDirectory)
 
         // Then
         XCTAssertBetterEqual(
@@ -315,7 +319,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_manifestsAt() throws {
+    func test_manifestsAt() async throws {
         // Given
         let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
@@ -324,7 +328,7 @@ final class ManifestLoaderTests: TuistTestCase {
         try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
 
         // When
-        let got = subject.manifests(at: temporaryPath)
+        let got = try await subject.manifests(at: temporaryPath)
 
         // Then
         XCTAssertTrue(got.contains(.project))
@@ -354,7 +358,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_validate_projectExists() throws {
+    func test_validate_projectExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         try fileHandler.touch(
@@ -362,10 +366,10 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When / Then
-        try subject.validateHasRootManifest(at: path)
+        try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_workspaceExists() throws {
+    func test_validate_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         try fileHandler.touch(
@@ -373,10 +377,10 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When / Then
-        try subject.validateHasRootManifest(at: path)
+        try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_packageExists() throws {
+    func test_validate_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         try fileHandler.touch(
@@ -384,58 +388,71 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When / Then
-        try subject.validateHasRootManifest(at: path)
+        try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_manifestDoesNotExist() throws {
+    func test_validate_manifestDoesNotExist() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.validateHasRootManifest(at: path),
+        await XCTAssertThrowsSpecific(
+            try await subject.validateHasRootManifest(at: path),
             ManifestLoaderError.manifestNotFound(path)
         )
     }
 
-    func test_hasRootManifest_projectExists() throws {
+    func test_hasRootManifest_projectExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Project.swift")
         )
 
-        // When / Then
-        XCTAssertTrue(subject.hasRootManifest(at: path))
+        // When
+        let got = try await subject.hasRootManifest(at: path)
+
+        // Then
+        XCTAssertTrue(got)
     }
 
-    func test_hasRootManifest_workspaceExists() throws {
+    func test_hasRootManifest_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         try fileHandler.touch(
             path.appending(component: "Workspace.swift")
         )
 
-        // When / Then
-        XCTAssertTrue(subject.hasRootManifest(at: path))
+        // When
+        let got = try await subject.hasRootManifest(at: path)
+
+        // Then
+        XCTAssertTrue(got)
     }
 
-    func test_hasRootManifest_packageExists() throws {
+    func test_hasRootManifest_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         try fileHandler.touch(
             path.appending(component: "Package.swift")
         )
 
-        // When / Then
-        XCTAssertTrue(subject.hasRootManifest(at: path))
+        // When
+        let got = try await subject.hasRootManifest(at: path)
+
+        // Then
+        XCTAssertTrue(got)
     }
 
-    func test_hasRootManifest_manifestDoesNotExist() throws {
+    func test_hasRootManifest_manifestDoesNotExist() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
 
-        // When / Then
-        XCTAssertFalse(subject.hasRootManifest(at: path))
+        // When
+        let got = try await subject.hasRootManifest(at: path)
+
+        // Then
+        XCTAssertFalse(got)
     }
 }

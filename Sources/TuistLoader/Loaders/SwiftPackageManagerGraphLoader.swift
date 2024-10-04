@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -56,21 +57,21 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         ),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -84,14 +85,14 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
-        if !fileHandler.exists(workspacePath) {
+        if try await !fileSystem.exists(workspacePath) {
             throw SwiftPackageManagerGraphGeneratorError.installRequired
         }
 
         let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
+            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
-        try validatePackageResolved(at: packagePath.parentDirectory)
+        try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let packageInfos: [
             // swiftlint:disable:next large_tuple
@@ -199,23 +200,23 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         )
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) throws {
+    private func validatePackageResolved(at path: AbsolutePath) async throws {
         let savedPackageResolvedPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
             Constants.DerivedDirectory.name,
             Constants.SwiftPackageManager.packageResolvedName,
         ])
         let savedData: Data?
-        if fileHandler.exists(savedPackageResolvedPath) {
-            savedData = try fileHandler.readFile(savedPackageResolvedPath)
+        if try await fileSystem.exists(savedPackageResolvedPath) {
+            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
         } else {
             savedData = nil
         }
 
         let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
         let currentData: Data?
-        if fileHandler.exists(currentPackageResolvedPath) {
-            currentData = try fileHandler.readFile(currentPackageResolvedPath)
+        if try await fileSystem.exists(currentPackageResolvedPath) {
+            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
         } else {
             currentData = nil
         }

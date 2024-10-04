@@ -154,7 +154,7 @@ public final class GraphLoader: GraphLoading {
             )
 
         case let .library(libraryPath, publicHeaders, swiftModuleMap, _):
-            return try loadLibrary(
+            return try await loadLibrary(
                 path: libraryPath,
                 publicHeaders: publicHeaders,
                 swiftModuleMap: swiftModuleMap,
@@ -162,7 +162,7 @@ public final class GraphLoader: GraphLoading {
             )
 
         case let .xcframework(frameworkPath, status, _):
-            return try loadXCFramework(
+            return try await loadXCFramework(
                 path: frameworkPath,
                 cache: cache,
                 status: status
@@ -226,12 +226,12 @@ public final class GraphLoader: GraphLoading {
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
         cache: Cache
-    ) throws -> GraphDependency {
+    ) async throws -> GraphDependency {
         if let loaded = cache.libraries[path] {
             return loaded
         }
 
-        let metadata = try libraryMetadataProvider.loadMetadata(
+        let metadata = try await libraryMetadataProvider.loadMetadata(
             at: path,
             publicHeaders: publicHeaders,
             swiftModuleMap: swiftModuleMap
@@ -251,12 +251,12 @@ public final class GraphLoader: GraphLoading {
         path: AbsolutePath,
         cache: Cache,
         status: LinkingStatus
-    ) throws -> GraphDependency {
+    ) async throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
         }
 
-        let metadata = try xcframeworkMetadataProvider.loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
             status: status
         )

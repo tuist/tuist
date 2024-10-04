@@ -35,7 +35,6 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
             swiftPackageManagerController: swiftPackageManagerController,
-            fileHandler: fileHandler,
             manifestFilesLocator: manifestFilesLocator,
             rootDirectoryLocator: rootDirectoryLocator
         )

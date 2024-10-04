@@ -58,7 +58,7 @@ public struct ContentHasher: ContentHashing {
     }
 
     public func hash(path filePath: AbsolutePath) async throws -> String {
-        if fileHandler.isFolder(filePath) {
+        if try await fileSystem.exists(filePath, isDirectory: true) {
             return try await fileHandler.contentsOfDirectory(filePath)
                 .filter { filesFilter($0) }
                 .sorted(by: { $0 < $1 })
@@ -66,10 +66,10 @@ public struct ContentHasher: ContentHashing {
                 .joined(separator: "-")
         }
 
-        guard fileHandler.exists(filePath) else {
+        guard try await fileSystem.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
         }
-        guard let sourceData = try? fileHandler.readFile(filePath) else {
+        guard let sourceData = try? await fileSystem.readFile(at: filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)
         }
 

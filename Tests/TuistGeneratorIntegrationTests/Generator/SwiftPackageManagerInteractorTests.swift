@@ -1,4 +1,5 @@
 
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -7,18 +8,28 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 import XCTest
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
-    var subject: SwiftPackageManagerInteractor!
+final class SwiftPackageManagerInteractorTests: TuistTestCase {
+    private var subject: SwiftPackageManagerInteractor!
+    private var system: MockSystem!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
-        subject = SwiftPackageManagerInteractor()
+        system = MockSystem()
+        fileSystem = FileSystem()
+        subject = SwiftPackageManagerInteractor(
+            fileSystem: fileSystem,
+            system: system
+        )
     }
 
     override func tearDown() {
+        system = nil
+        fileSystem = nil
         subject = nil
         super.tearDown()
     }
@@ -46,7 +57,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-        try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
@@ -99,7 +110,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 workspacePath.pathString,
                 "-list",
             ])
-        try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
@@ -226,7 +237,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             workspacePath.pathString,
             "-list",
         ])
-        try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)

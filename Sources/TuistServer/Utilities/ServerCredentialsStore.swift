@@ -30,21 +30,21 @@ public struct ServerCredentials: Codable, Equatable {
 }
 
 @Mockable
-public protocol ServerCredentialsStoring: Sendable {
+public protocol ServerCredentialsStoring {
     /// It stores the credentials for the server with the given URL.
     /// - Parameters:
     ///   - credentials: Credentials to be stored.
     ///   - serverURL: Server URL (without path).
-    func store(credentials: ServerCredentials, serverURL: URL) throws
+    func store(credentials: ServerCredentials, serverURL: URL) async throws
 
     /// Gets the credentials to authenticate the user against the server with the given URL. Throws an error if credentials are
     /// not found.
     /// - Parameter serverURL: Server URL (without path).
-    func get(serverURL: URL) throws -> ServerCredentials
+    func get(serverURL: URL) async throws -> ServerCredentials
 
     /// Reads the credentials to authenticate the user against the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
-    func read(serverURL: URL) throws -> ServerCredentials?
+    func read(serverURL: URL) async throws -> ServerCredentials?
 
     /// Deletes the credentials for the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
@@ -79,37 +79,33 @@ enum ServerCredentialsStoreError: FatalError {
     }
 }
 
-public final class ServerCredentialsStore: ServerCredentialsStoring {
-    private let fileHandler: FileHandling
-    private let fileSystem: FileSystem
+public struct ServerCredentialsStore: ServerCredentialsStoring {
+    private let fileSystem: FileSysteming
     private let configDirectory: AbsolutePath?
 
-    /// Default initializer.
-    public convenience init() {
-        self.init(fileHandler: FileHandler.shared)
-    }
-
-    init(fileHandler: FileHandling, fileSystem: FileSystem = FileSystem(), configDirectory: AbsolutePath? = nil) {
-        self.fileHandler = fileHandler
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        configDirectory: AbsolutePath? = nil
+    ) {
         self.configDirectory = configDirectory
         self.fileSystem = fileSystem
     }
 
     // MARK: - CredentialsStoring
 
-    public func store(credentials: ServerCredentials, serverURL: URL) throws {
+    public func store(credentials: ServerCredentials, serverURL: URL) async throws {
         let path = try credentialsFilePath(serverURL: serverURL)
         let data = try JSONEncoder().encode(credentials)
-        if !fileHandler.exists(path.parentDirectory) {
-            try fileHandler.createFolder(path.parentDirectory)
+        if try await !fileSystem.exists(path.parentDirectory) {
+            try await fileSystem.makeDirectory(at: path.parentDirectory)
         }
         try data.write(to: path.url, options: .atomic)
     }
 
-    public func read(serverURL: URL) throws -> ServerCredentials? {
+    public func read(serverURL: URL) async throws -> ServerCredentials? {
         let path = try credentialsFilePath(serverURL: serverURL)
-        guard fileHandler.exists(path) else { return nil }
-        let data = try fileHandler.readFile(path)
+        guard try await fileSystem.exists(path) else { return nil }
+        let data = try await fileSystem.readFile(at: path)
 
         /**
          This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
@@ -119,8 +115,8 @@ public final class ServerCredentialsStore: ServerCredentialsStoring {
         return try? JSONDecoder().decode(ServerCredentials.self, from: data)
     }
 
-    public func get(serverURL: URL) throws -> ServerCredentials {
-        guard let credentials = try read(serverURL: serverURL)
+    public func get(serverURL: URL) async throws -> ServerCredentials {
+        guard let credentials = try await read(serverURL: serverURL)
         else {
             throw ServerCredentialsStoreError.credentialsNotFound
         }
@@ -130,7 +126,7 @@ public final class ServerCredentialsStore: ServerCredentialsStoring {
 
     public func delete(serverURL: URL) async throws {
         let path = try credentialsFilePath(serverURL: serverURL)
-        if fileHandler.exists(path) {
+        if try await fileSystem.exists(path) {
             try await fileSystem.remove(path)
         }
     }

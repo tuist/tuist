@@ -18,6 +18,11 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         super.setUp()
         machineEnvironment = MockMachineEnvironment()
         gitController = MockGitControlling()
+
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.1")
+
         subject = CommandEventFactory(
             machineEnvironment: machineEnvironment,
             gitController: gitController

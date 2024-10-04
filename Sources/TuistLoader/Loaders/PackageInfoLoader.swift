@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -9,19 +10,19 @@ import TuistSupport
 public protocol PackageInfoLoading {
     /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
-    func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
+    func loadPackageInfo(at path: AbsolutePath) async throws -> PackageInfo
 }
 
 public final class PackageInfoLoader: PackageInfoLoading {
     private let system: Systeming
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     public init(
         system: Systeming = System.shared,
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.system = system
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
@@ -73,7 +74,7 @@ public final class PackageInfoLoader: PackageInfoLoading {
         product: String,
         buildPath: AbsolutePath,
         outputPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let buildCommand: [String] = [
             "swift", "build",
             "--configuration", "release",
@@ -97,8 +98,8 @@ public final class PackageInfoLoader: PackageInfoLoading {
             ]
         )
 
-        if !fileHandler.exists(outputPath) {
-            try fileHandler.createFolder(outputPath)
+        if try await !fileSystem.exists(outputPath) {
+            try await fileSystem.makeDirectory(at: outputPath)
         }
 
         try system.run([

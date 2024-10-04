@@ -35,7 +35,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_when_config_token_is_present_and_is_ci() throws {
+    func test_when_config_token_is_present_and_is_ci() async throws {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.token
@@ -45,7 +45,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(true)
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertEqual(
@@ -54,7 +54,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_when_config_token_is_present_and_is_not_ci() throws {
+    func test_when_config_token_is_present_and_is_not_ci() async throws {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.token
@@ -67,13 +67,13 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(nil)
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertNil(got)
     }
 
-    func test_when_deprecated_config_token_is_present_and_is_ci() throws {
+    func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.deprecatedToken
@@ -83,7 +83,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(true)
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertEqual(
@@ -95,7 +95,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() throws {
+    func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.deprecatedToken
@@ -108,7 +108,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(true)
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertEqual(
@@ -120,7 +120,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_when_credentials_store_returns_legacy_token() throws {
+    func test_when_credentials_store_returns_legacy_token() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -131,7 +131,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(ServerCredentials(token: "legacy-token", accessToken: nil, refreshToken: nil))
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertEqual(
@@ -141,7 +141,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         XCTAssertStandardOutput(pattern: "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
     }
 
-    func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() throws {
+    func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -152,7 +152,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(ServerCredentials(token: "legacy-token", accessToken: accessToken, refreshToken: refreshToken))
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         // Then
@@ -175,7 +175,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_when_credentials_store_returns_jwt_tokens() throws {
+    func test_when_credentials_store_returns_jwt_tokens() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -192,7 +192,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             )
 
         // When
-        let got = try subject.authenticationToken(serverURL: .test())
+        let got = try await subject.authenticationToken(serverURL: .test())
 
         // Then
         XCTAssertEqual(

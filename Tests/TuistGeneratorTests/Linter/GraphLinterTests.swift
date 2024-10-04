@@ -1187,7 +1187,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
 
-        try createFiles([
+        try await createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1231,7 +1231,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
 
-        try createFiles([
+        try await createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1366,7 +1366,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
 
-        try createFiles([
+        try await createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1432,7 +1432,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
 
-        try createFiles([
+        try await createFiles([
             "entitlements/AppClip.entitlements",
         ])
 

@@ -46,7 +46,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
+        let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertTrue(exists.allSatisfy { $0 })
     }
 
     func test_directories_with_attributes() async throws {
@@ -79,7 +80,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
+        let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertTrue(exists.allSatisfy { $0 })
     }
 
     func test_files_are_generated() async throws {
@@ -140,11 +142,6 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         let filePath = "test file path"
         let destinationPath = try temporaryPath()
         try await fileSystem.writeText(fileContent, at: sourcePath.appending(component: filePath))
-        let expectedFiles: [(AbsolutePath, String)] = [
-            //            (destinationPath.appending(component: name), contentName),
-            (destinationPath.appending(components: directoryName, fileName), "bContent"),
-            (destinationPath.appending(component: filePath), fileContent),
-        ]
 
         // When
         try await subject.generate(
