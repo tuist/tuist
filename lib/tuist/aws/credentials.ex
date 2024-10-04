@@ -37,8 +37,14 @@ defmodule Tuist.AWS.Credentials do
 
       headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-      Logger.debug("Requesting AWS credentials using the identity token file.")
-      %{body: body} = Req.get!("https://sts.amazonaws.com/", form: form, headers: headers)
+      url =
+        case Environment.aws_region() do
+          "auto" -> "https://sts.amazonaws.com/"
+          region -> "https://sts.#{region}.amazonaws.com/"
+        end
+
+      Logger.debug("Requesting AWS credentials to #{url} using the identity token file.")
+      %{body: body} = Req.get!(url, form: form, headers: headers)
 
       Logger.debug("Received AWS credentials using the identity token file: #{inspect(body)}")
 
