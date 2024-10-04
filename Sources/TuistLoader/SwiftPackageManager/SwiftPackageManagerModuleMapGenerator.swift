@@ -148,7 +148,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     ///   - atomically: whether to write atomically
     func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically: Bool) async throws {
         let newContentHash = try contentHasher.hash(moduleMapContent)
-        let currentContentHash = try? contentHasher.hash(path: path)
+        let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
             try FileHandler.shared.write(moduleMapContent, path: path, atomically: true)
         }

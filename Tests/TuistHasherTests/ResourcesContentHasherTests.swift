@@ -49,7 +49,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
 
         // When
         for _ in 0 ..< 100 {
-            hashes.insert(try subject.hash(identifier: "resources", resources: resourceFileElements).hash)
+            hashes.insert(try await subject.hash(identifier: "resources", resources: resourceFileElements).hash)
         }
 
         // Then
@@ -77,7 +77,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         ], privacyManifest: privacyManifest)
 
         // When
-        let got = try subject.hash(identifier: "resources", resources: resourceFileElements)
+        let got = try await subject.hash(identifier: "resources", resources: resourceFileElements)
 
         // Then
         XCTAssertEqual(got, MerkleNode(

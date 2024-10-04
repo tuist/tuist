@@ -20,18 +20,18 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_contentHashes_emptyGraph() throws {
+    func test_contentHashes_emptyGraph() async throws {
         // Given
         let graph = Graph.test()
 
         // When
-        let hashes = try subject.contentHashes(for: graph, include: { _ in true }, additionalStrings: [])
+        let hashes = try await subject.contentHashes(for: graph, include: { _ in true }, additionalStrings: [])
 
         // Then
         XCTAssertEqual(hashes, Dictionary())
     }
 
-    func test_contentHashes_returnsOnlyFrameworks() throws {
+    func test_contentHashes_returnsOnlyFrameworks() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let frameworkATarget: Target = .test(
@@ -87,7 +87,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
 
         // When
-        let hashes = try subject.contentHashes(
+        let hashes = try await subject.contentHashes(
             for: graph,
             include: {
                 $0.target.product == .framework
