@@ -41,7 +41,6 @@ let project = Project(
                 .external(name: "AppCenterAnalytics"),
                 .external(name: "AppCenterCrashes"),
                 .external(name: "libzstd"),
-                .external(name: "NYTPhotoViewer"),
                 .external(name: "SVProgressHUD"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
