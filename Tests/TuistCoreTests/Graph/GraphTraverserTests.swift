@@ -4122,6 +4122,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_executableDependencies_when_targetHasExecutableNonLocalDependencies() {
+        // Given
+        let mainApp = Target.test(name: "App", product: .app)
+        let localExecutable = Target.test(name: "LocalExecutable", product: .app)
+        let nonLocalExecutable = Target.test(name: "NonLocalExecutable", product: .app)
+        let mainProject = Project.test(path: "/mainProject", targets: [mainApp, localExecutable])
+        let otherProject = Project.test(path: "/otherProject", targets: [nonLocalExecutable])
+
+        let appDependency = GraphDependency.target(name: mainApp.name, path: mainProject.path)
+        let localExecutableDependencyTarget = GraphDependency.target(name: localExecutable.name, path: mainProject.path)
+        let nonLocalExecutableDependencyTarget = GraphDependency.target(name: nonLocalExecutable.name, path: otherProject.path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([localExecutableDependencyTarget, nonLocalExecutableDependencyTarget]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: mainProject.path,
+            projects: [mainProject.path: mainProject, otherProject.path: otherProject],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.executableDependencies(path: mainProject.path, name: mainApp.name)
+
+        // Then
+        XCTAssertEqual(got, [
+            GraphDependencyReference.product(
+                target: nonLocalExecutable.name,
+                productName: nonLocalExecutable.productNameWithExtension
+            ),
+        ])
+    }
+
     func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
