@@ -186,6 +186,11 @@ public class GraphTraverser: GraphTraversing {
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
+    func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let dependencies = directTargetDependencies(path: path, name: name)
+        return dependencies.subtracting(directLocalTargetDependencies(path: path, name: name))
+    }
+
     func convertToGraphTargetReferences(
         _ dependencies: [(name: String, path: Path.AbsolutePath)],
         for target: GraphDependency
@@ -616,6 +621,18 @@ public class GraphTraverser: GraphTraversing {
         return Set(dependencies)
     }
 
+    public func executableDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
+        return executableNonLocalDependencies(path: path, targetName: targetName)
+    }
+
+    func executableNonLocalDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
+        let dependencies = directNonLocalTargetDependencies(path: path, name: targetName)
+            .filter { $0.target.product == .app }
+            .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension)}
+
+        return Set(dependencies)
+    }
+
     public func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
@@ -797,6 +814,7 @@ public class GraphTraverser: GraphTraversing {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
+            references.formUnion(executableDependencies(path: path, targetName: target.target.name))
         }
         return references
     }
@@ -1379,7 +1397,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {
-        directLocalTargetDependencies(path: path, name: name)
+        directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
