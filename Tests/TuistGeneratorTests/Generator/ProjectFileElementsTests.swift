@@ -1031,6 +1031,54 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/gpx/D", group: filesGroup),
         ])
     }
+
+    func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
+        let target = Target.empty(name: "TargetA")
+        let project = Project.empty(
+            path: "/a/project",
+            targets: [target],
+            packages: [.local(path: localPackagePath)]
+        )
+        let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
+        let groups = ProjectGroups.generate(
+            project: .test(
+                path: .root,
+                sourceRootPath: .root,
+                xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")
+            ),
+            pbxproj: pbxproj
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .local(path: localPackagePath)
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A", type: .runtimeEmbedded),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [])
+    }
 }
 
 extension PBXGroup {
