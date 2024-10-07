@@ -111,6 +111,28 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(type, .runtime)
     }
 
+    func test_from_when_package_runtimeEmbedded() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.package(product: "RuntimeEmbeddedPackageProduct", type: .runtimeEmbedded)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .package(product, type, _) = got[0] else {
+            XCTFail("Dependency should be package")
+            return
+        }
+        XCTAssertEqual(product, "RuntimeEmbeddedPackageProduct")
+        XCTAssertEqual(type, .runtimeEmbedded)
+    }
+
     func test_from_when_package_macro() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "MacroPackageProduct", type: .macro)
