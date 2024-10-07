@@ -1,4 +1,5 @@
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -40,27 +41,21 @@ public struct AppBundle: Equatable {
         /// Minimum OS version
         public let minimumOSVersion: Version
 
-        /// Supported simulator platforms.
-        /// Device is currently not supported.
-        public let supportedPlatforms: [SupportedPlatform]
+        /// Supported destination platforms.
+        public let supportedPlatforms: [DestinationType]
 
         init(
             version: Version,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
-            supportedPlatforms: [SupportedPlatform]
+            supportedPlatforms: [DestinationType]
         ) {
             self.version = version
             self.name = name
             self.bundleId = bundleId
             self.minimumOSVersion = minimumOSVersion
             self.supportedPlatforms = supportedPlatforms
-        }
-
-        public enum SupportedPlatform: Codable, Equatable {
-            case simulator(Platform)
-            case device(Platform)
         }
 
         enum CodingKeys: String, CodingKey {
@@ -85,7 +80,9 @@ public struct AppBundle: Equatable {
             )
             supportedPlatforms = try container.decode([String].self, forKey: AppBundle.InfoPlist.CodingKeys.supportedPlatforms)
                 .map { platformSDK in
-                    if let platform = Platform(commandLineValue: platformSDK) {
+                    if let platform = Platform.allCases
+                        .first(where: { platformSDK.lowercased() == $0.xcodeDeviceSDK })
+                    {
                         return .device(platform)
                     } else if let platform = Platform.allCases
                         .first(where: { platformSDK.lowercased() == $0.xcodeSimulatorSDK })
@@ -118,7 +115,7 @@ public struct AppBundle: Equatable {
             name: String = "App",
             bundleId: String = "io.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
-            supportedPlatforms: [SupportedPlatform] = [.simulator(.iOS)]
+            supportedPlatforms: [DestinationType] = [.simulator(.iOS)]
         ) -> Self {
             .init(
                 version: version,

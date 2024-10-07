@@ -187,6 +187,7 @@ let targets: [Target] = [
             "TuistSupport",
             "Mockable",
             "FileSystem",
+            "Command",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -359,7 +360,7 @@ let targets: [Target] = [
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v13)],
     products: [
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
@@ -465,7 +466,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.5.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
-        .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.10"),
         .package(
             url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"
         ),
@@ -475,6 +476,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.1"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.3.1")),
+        .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
     ],
     targets: targets
 )

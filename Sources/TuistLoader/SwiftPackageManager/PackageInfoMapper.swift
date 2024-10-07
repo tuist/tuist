@@ -725,10 +725,10 @@ extension ProjectDescription.DeploymentTargets {
         }
         // maccatalyst and iOS will be the same, this chooses the first one defined, hopefully they dont disagree
         let platformInfos = Dictionary(versionPairs) { first, _ in first }
-        let destinationPlatforms = destinations.platforms
+        let destinationTypes = destinations.platforms
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
-            guard destinationPlatforms.contains(platform) else { return nil }
+            guard destinationTypes.contains(platform) else { return nil }
             return try max(minDeploymentTargets[platform], platformInfos[platform])
         }
 
