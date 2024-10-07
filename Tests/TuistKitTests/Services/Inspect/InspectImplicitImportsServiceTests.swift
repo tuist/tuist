@@ -64,7 +64,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
     }
 
-    func test_run_DoesntThrowAnyErrors_when_thereAreNoIssuesWithExternal() async throws {
+    func test_run_when_external_package_target_is_implicitly_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Config.test()
