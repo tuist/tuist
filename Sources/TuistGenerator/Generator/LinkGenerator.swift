@@ -241,8 +241,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 embedPhase.files?.append(buildFile)
             case let .packageProduct(product, _):
                 guard let productRef = productRefs.first(where: { $0.productName == product }) else {
-                        break
-                    }
+                    break
+                }
 
                 let buildFile = PBXBuildFile(
                     product: productRef,

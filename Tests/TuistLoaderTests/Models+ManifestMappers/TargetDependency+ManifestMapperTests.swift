@@ -113,7 +113,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
     func test_from_when_package_runtimeEmbedded() throws {
         // Given
-        let dependency = ProjectDescription.TargetDependency.package(product: "RuntimeEmbeddedPackageProduct", type: .runtimeEmbedded)
+        let dependency = ProjectDescription.TargetDependency.package(
+            product: "RuntimeEmbeddedPackageProduct",
+            type: .runtimeEmbedded
+        )
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When

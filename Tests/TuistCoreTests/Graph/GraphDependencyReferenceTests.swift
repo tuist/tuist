@@ -23,7 +23,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .sdk(path: "/B.framework", status: .optional, source: .developer, condition: nil),
             .bundle(path: "/A.bundle", condition: nil),
             .bundle(path: "/B.bundle", condition: nil),
-            .packageProduct(product: "A", condition: nil)
+            .packageProduct(product: "A", condition: nil),
         ]
 
         // When
@@ -42,7 +42,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .testXCFramework(path: "/xcframeworks/B.xcframework"),
             .bundle(path: "/A.bundle", condition: nil),
             .bundle(path: "/B.bundle", condition: nil),
-            .packageProduct(product: "A", condition: nil)
+            .packageProduct(product: "A", condition: nil),
         ])
     }
 
