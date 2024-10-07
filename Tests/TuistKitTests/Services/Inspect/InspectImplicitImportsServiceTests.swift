@@ -64,6 +64,32 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
     }
 
+    func test_run_when_external_package_target_is_implicitly_imported() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Config.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let testTarget = Target.test(name: "PackageTarget", product: .app)
+        let externalProject = Project.test(path: path, targets: [testTarget], isExternal: true)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project, "/a": externalProject]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generator).load(path: .value(path)).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
+
+        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
+            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["PackageTarget"])),
+        ])
+
+        // When / Then
+        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
+    }
+
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
