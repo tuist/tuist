@@ -62,7 +62,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/directory"])
-        try createFiles(["this/is/a/directory/tuist"])
+        try await createFiles(["this/is/a/directory/tuist"])
 
         // When
         let got = try await subject

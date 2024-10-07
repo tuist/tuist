@@ -250,7 +250,7 @@ struct ShareService {
             return nil
         }
 
-        try await fileSystem.copy(from: appPath, to: newAppPath)
+        try await fileSystem.copy(appPath, to: newAppPath)
 
         return newAppPath
     }
@@ -265,7 +265,7 @@ struct ShareService {
         serverURL: URL
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
-            let appPaths = try platforms
+            let appPaths = try await platforms
                 .concurrentFlatMap { platform -> [DestinationType] in
                     switch platform {
                     case .iOS, .tvOS, .visionOS, .watchOS:
