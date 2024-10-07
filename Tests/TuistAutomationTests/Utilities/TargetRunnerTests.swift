@@ -71,7 +71,6 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 configuration: .any
             )
             .willReturn(outputPath)
-        fileHandler.stubExists = { _ in false }
 
         // When / Then
         await XCTAssertThrowsSpecific(

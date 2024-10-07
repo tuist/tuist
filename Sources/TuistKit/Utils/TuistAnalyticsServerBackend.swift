@@ -68,7 +68,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         let resultBundle = runDirectory
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
-        if fileHandler.exists(resultBundle),
+        if try await fileSystem.exists(resultBundle),
            let targetHashes = commandEvent.targetHashes,
            let graphPath = commandEvent.graphPath
         {
@@ -81,7 +81,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             )
         }
 
-        if fileHandler.exists(runDirectory) {
+        if try await fileSystem.exists(runDirectory) {
             try await fileSystem.remove(runDirectory)
         }
 

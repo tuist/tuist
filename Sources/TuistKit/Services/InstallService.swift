@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -13,21 +14,24 @@ final class InstallService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileHandler: FileHandling
     private let manifestFilesLocator: ManifestFilesLocating
+    private let fileSystem: FileSysteming
 
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         ),
         fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.swiftPackageManagerController = swiftPackageManagerController
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
 
@@ -86,19 +90,24 @@ final class InstallService {
             )
         }
 
-        try savePackageResolved(at: packageManifestPath.parentDirectory)
+        try await savePackageResolved(at: packageManifestPath.parentDirectory)
     }
 
-    private func savePackageResolved(at path: AbsolutePath) throws {
+    private func savePackageResolved(at path: AbsolutePath) async throws {
         let sourcePath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
-        guard fileHandler.exists(sourcePath) else { return }
+        guard try await fileSystem.exists(sourcePath) else { return }
 
         let destinationPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
             Constants.DerivedDirectory.name,
             Constants.SwiftPackageManager.packageResolvedName,
         ])
-        try fileHandler.createFolder(destinationPath.parentDirectory)
-        try fileHandler.replace(destinationPath, with: sourcePath)
+        if try await !fileSystem.exists(destinationPath.parentDirectory, isDirectory: true) {
+            try await fileSystem.makeDirectory(at: destinationPath.parentDirectory)
+        }
+        if try await fileSystem.exists(destinationPath) {
+            try await fileSystem.remove(destinationPath)
+        }
+        try await fileSystem.copy(sourcePath, to: destinationPath)
     }
 }

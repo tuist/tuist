@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -14,7 +15,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let manifestLoader: ManifestLoading
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let environment: Environmenting
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let tuistVersion: String
@@ -30,7 +31,7 @@ public class CachedManifestLoader: ManifestLoading {
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
             helpersDirectoryLocator: HelpersDirectoryLocator(),
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             environment: environment,
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             tuistVersion: Constants.version
@@ -41,7 +42,7 @@ public class CachedManifestLoader: ManifestLoading {
         manifestLoader: ManifestLoading,
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
         helpersDirectoryLocator: HelpersDirectoryLocating,
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         environment: Environmenting,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         tuistVersion: String
@@ -49,7 +50,7 @@ public class CachedManifestLoader: ManifestLoading {
         self.manifestLoader = manifestLoader
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.environment = environment
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.tuistVersion = tuistVersion
@@ -101,16 +102,16 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        manifestLoader.manifests(at: path)
+    public func manifests(at path: AbsolutePath) async throws -> Set<Manifest> {
+        try await manifestLoader.manifests(at: path)
     }
 
-    public func validateHasRootManifest(at path: AbsolutePath) throws {
-        try manifestLoader.validateHasRootManifest(at: path)
+    public func validateHasRootManifest(at path: AbsolutePath) async throws {
+        try await manifestLoader.validateHasRootManifest(at: path)
     }
 
-    public func hasRootManifest(at path: AbsolutePath) -> Bool {
-        manifestLoader.hasRootManifest(at: path)
+    public func hasRootManifest(at path: AbsolutePath) async throws -> Bool {
+        try await manifestLoader.hasRootManifest(at: path)
     }
 
     public func register(plugins: Plugins) throws {
@@ -122,7 +123,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () async throws -> T) async throws -> T {
         let manifestPath = path.appending(component: manifest.fileName(path))
-        guard fileHandler.exists(manifestPath) else {
+        guard try await fileSystem.exists(manifestPath) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
@@ -138,7 +139,7 @@ public class CachedManifestLoader: ManifestLoading {
         }
 
         let cachedManifestPath = try cachedPath(for: manifestPath)
-        if let cached: T = loadCachedManifest(
+        if let cached: T = try await loadCachedManifest(
             at: cachedManifestPath,
             hashes: hashes
         ) {
@@ -147,7 +148,7 @@ public class CachedManifestLoader: ManifestLoading {
 
         let loadedManifest = try await loader()
 
-        try cacheManifest(
+        try await cacheManifest(
             manifest: manifest,
             loadedManifest: loadedManifest,
             hashes: hashes,
@@ -223,12 +224,12 @@ public class CachedManifestLoader: ManifestLoading {
     private func loadCachedManifest<T: Decodable>(
         at cachedManifestPath: AbsolutePath,
         hashes: Hashes
-    ) -> T? {
-        guard fileHandler.exists(cachedManifestPath) else {
+    ) async throws -> T? {
+        guard try await fileSystem.exists(cachedManifestPath) else {
             return nil
         }
 
-        guard let data = try? fileHandler.readFile(cachedManifestPath) else {
+        guard let data = try? await fileSystem.readFile(at: cachedManifestPath) else {
             return nil
         }
 
@@ -251,7 +252,7 @@ public class CachedManifestLoader: ManifestLoading {
         loadedManifest: some Encodable,
         hashes: Hashes,
         to cachedManifestPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let cachedManifest = CachedManifest(
             tuistVersion: tuistVersion,
             hashes: hashes,
@@ -263,11 +264,15 @@ public class CachedManifestLoader: ManifestLoading {
             throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
 
-        try fileHandler.touch(cachedManifestPath)
-        try fileHandler.write(
+        if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
+            try await fileSystem.makeDirectory(at: cachedManifestPath)
+        }
+        if try await fileSystem.exists(cachedManifestPath) {
+            try await fileSystem.remove(cachedManifestPath)
+        }
+        try await fileSystem.writeText(
             cachedManifestContent,
-            path: cachedManifestPath,
-            atomically: true
+            at: cachedManifestPath
         )
     }
 }

@@ -38,6 +38,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         appBundleLoader = .init()
         subject = ShareService(
             fileHandler: fileHandler,
+            fileSystem: fileSystem,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
             previewsUploadService: previewsUploadService,

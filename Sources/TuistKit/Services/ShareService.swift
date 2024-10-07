@@ -1,4 +1,5 @@
 import AnyCodable
+import FileSystem
 import Foundation
 import Path
 import TuistAutomation
@@ -44,6 +45,7 @@ enum ShareServiceError: Equatable, FatalError {
 
 struct ShareService {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let buildGraphInspector: BuildGraphInspecting
     private let previewsUploadService: PreviewsUploadServicing
@@ -66,6 +68,7 @@ struct ShareService {
 
         self.init(
             fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
             buildGraphInspector: BuildGraphInspector(),
             previewsUploadService: PreviewsUploadService(),
@@ -81,6 +84,7 @@ struct ShareService {
 
     init(
         fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
         buildGraphInspector: BuildGraphInspecting,
         previewsUploadService: PreviewsUploadServicing,
@@ -93,6 +97,7 @@ struct ShareService {
         appBundleLoader: AppBundleLoading
     ) {
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.buildGraphInspector = buildGraphInspector
         self.previewsUploadService = previewsUploadService
@@ -149,7 +154,7 @@ struct ShareService {
                 serverURL: serverURL
             )
             logger.notice("\(appName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
-        } else if manifestLoader.hasRootManifest(at: path) {
+        } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
             let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
@@ -228,7 +233,7 @@ struct ShareService {
         derivedDataPath: AbsolutePath?,
         configuration: String,
         temporaryPath: AbsolutePath
-    ) throws -> AbsolutePath? {
+    ) async throws -> AbsolutePath? {
         let appPath = try xcodeProjectBuildDirectoryLocator.locate(
             destinationType: destinationType,
             projectPath: projectPath,
@@ -241,11 +246,11 @@ struct ShareService {
             component: "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
         )
 
-        if !fileHandler.exists(appPath) {
+        if try await !fileSystem.exists(appPath) {
             return nil
         }
 
-        try fileHandler.copy(from: appPath, to: newAppPath)
+        try await fileSystem.copy(appPath, to: newAppPath)
 
         return newAppPath
     }
@@ -260,8 +265,8 @@ struct ShareService {
         serverURL: URL
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
-            let appPaths = try platforms
-                .flatMap { platform -> [DestinationType] in
+            let appPaths = try await platforms
+                .concurrentFlatMap { platform -> [DestinationType] in
                     switch platform {
                     case .iOS, .tvOS, .visionOS, .watchOS:
                         return [
@@ -272,8 +277,8 @@ struct ShareService {
                         return [.device(platform)]
                     }
                 }
-                .compactMap { destinationType in
-                    try copyAppBundle(
+                .concurrentCompactMap { destinationType in
+                    try await copyAppBundle(
                         for: destinationType,
                         app: app,
                         projectPath: workspacePath,

@@ -12,7 +12,10 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerController(system: system, fileHandler: fileHandler)
+        subject = SwiftPackageManagerController(
+            system: system,
+            fileSystem: fileSystem
+        )
     }
 
     override func tearDown() {
@@ -83,7 +86,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
     }
 
-    func test_buildFatReleaseBinary() throws {
+    func test_buildFatReleaseBinary() async throws {
         // Given
         let packagePath = try temporaryPath()
         let product = "my-product"
@@ -116,7 +119,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.buildFatReleaseBinary(
+        try await subject.buildFatReleaseBinary(
             packagePath: packagePath,
             product: product,
             buildPath: buildPath,

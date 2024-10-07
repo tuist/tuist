@@ -163,7 +163,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try createFiles([
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/Debug/App.app",
             "Xcode/DerivedData/MyProject-hash/Debug/App.swiftmodule",
         ])
@@ -254,7 +254,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try createFiles([
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.app",
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.swiftmodule",
         ])

@@ -37,14 +37,14 @@ class ProjectLinter: ProjectLinting {
         try await issues.append(contentsOf: lintTargets(project: project))
         try await issues.append(contentsOf: settingsLinter.lint(project: project))
         try await issues.append(contentsOf: schemeLinter.lint(project: project))
-        issues.append(contentsOf: lintPackages(project: project))
+        try await issues.append(contentsOf: lintPackages(project: project))
         return issues
     }
 
     // MARK: - Fileprivate
 
-    private func lintPackages(project: Project) -> [LintingIssue] {
-        project.packages.flatMap(packageLinter.lint)
+    private func lintPackages(project: Project) async throws -> [LintingIssue] {
+        try await project.packages.concurrentFlatMap(packageLinter.lint)
     }
 
     private func lintTargets(project: Project) async throws -> [LintingIssue] {

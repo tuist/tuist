@@ -133,7 +133,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         fileSystem: FileSysteming = FileSystem(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         )
     ) {
         self.moduleMapGenerator = moduleMapGenerator

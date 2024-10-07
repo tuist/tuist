@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -32,7 +33,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         )
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController

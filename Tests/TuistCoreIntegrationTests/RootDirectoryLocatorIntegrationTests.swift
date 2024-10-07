@@ -62,7 +62,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/directory"])
-        try createFiles(["this/is/a/directory/tuist"])
+        try await createFiles(["this/is/a/directory/tuist"])
 
         // When
         let got = try await subject
@@ -96,7 +96,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_only_plugin_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "Plugin.swift",
         ])
 
@@ -110,7 +110,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_tuist_directory_and_plugin_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "APlugin/Plugin.swift",
             "Tuist/",
         ])
@@ -134,7 +134,7 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_git_directory_and_plugin_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "APlugin/Plugin.swift",
             ".git/",
         ])

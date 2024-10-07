@@ -647,17 +647,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
-        try createFiles([
+        try await createFiles([
             "Unrelated/Source.swift",
             "Source.swift",
             "ProjectDescriptionHelpers/data.json",
             "Templates/strings.stencil",
         ])
-        let helperSources = try createFiles([
+        let helperSources = try await createFiles([
             "ProjectDescriptionHelpers/HelperA.swift",
             "ProjectDescriptionHelpers/HelperB.swift",
         ])
-        let templateSources = try createFiles([
+        let templateSources = try await createFiles([
             "Templates/custom.swift",
             "Templates/strings.stencil",
         ])

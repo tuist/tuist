@@ -132,7 +132,7 @@ final class ProjectEditor: ProjectEditing {
             excluding: pathsToExclude,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let configPath = manifestFilesLocator.locateConfig(at: editingPath)
+        let configPath = try await manifestFilesLocator.locateConfig(at: editingPath)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
