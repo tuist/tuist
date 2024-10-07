@@ -474,7 +474,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.1"),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.3.1")),
     ],
     targets: targets
 )
