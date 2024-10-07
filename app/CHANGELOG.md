@@ -1,3 +1,8 @@
+## What's Changed in app@0.2.0
+* feat: add support for device previews by @fortmarek in [#6800](https://github.com/tuist/tuist/pull/6800)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.1.2...app@0.2.0
+
 ## What's Changed in app@0.1.2
 * fix: rename macOS app build by @TahaTesser in [#6802](https://github.com/tuist/tuist/pull/6802)
 
