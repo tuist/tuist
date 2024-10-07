@@ -366,7 +366,7 @@ final class LinkGeneratorTests: XCTestCase {
             .librariesPublicHeadersFolders(path: .any, name: .any)
             .willReturn(
                 [
-                    try AbsolutePath(validating: "/headers")
+                    try AbsolutePath(validating: "/headers"),
                 ]
             )
 

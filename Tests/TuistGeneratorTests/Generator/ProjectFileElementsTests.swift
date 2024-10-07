@@ -1056,7 +1056,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .local(path: localPackagePath)
+                    "A": .local(path: localPackagePath),
                 ],
             ],
             dependencies: [
