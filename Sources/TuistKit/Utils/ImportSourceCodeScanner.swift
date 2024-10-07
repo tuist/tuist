@@ -5,7 +5,7 @@ enum ProgrammingLanguage {
     case objc
 }
 
-struct Match {
+private struct Match {
     let module: String
     let range: Range<String.Index>
 }
