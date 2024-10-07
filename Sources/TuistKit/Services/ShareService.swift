@@ -221,6 +221,35 @@ struct ShareService {
         }
     }
 
+    private func copyAppBundle(
+        for destinationType: DestinationType,
+        app: String,
+        projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
+        configuration: String,
+        temporaryPath: AbsolutePath
+    ) throws -> AbsolutePath? {
+        let appPath = try xcodeProjectBuildDirectoryLocator.locate(
+            destinationType: destinationType,
+            projectPath: projectPath,
+            derivedDataPath: derivedDataPath,
+            configuration: configuration
+        )
+        .appending(component: "\(app).app")
+
+        let newAppPath = temporaryPath.appending(
+            component: "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
+        )
+
+        if !fileHandler.exists(appPath) {
+            return nil
+        }
+
+        try fileHandler.copy(from: appPath, to: newAppPath)
+
+        return newAppPath
+    }
+
     private func uploadPreviews(
         for platforms: [Platform],
         workspacePath: AbsolutePath,
@@ -232,33 +261,32 @@ struct ShareService {
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let appPaths = try platforms
-                .map { platform in
-                    let sdkPathComponent: String = {
-                        guard platform != .macOS else {
-                            return platform.xcodeDeviceSDK
-                        }
-                        return "\(platform.xcodeSimulatorSDK!)"
-                    }()
-
-                    let appPath = try xcodeProjectBuildDirectoryLocator.locate(
-                        platform: platform,
+                .flatMap { platform -> [DestinationType] in
+                    switch platform {
+                    case .iOS, .tvOS, .visionOS, .watchOS:
+                        return [
+                            .simulator(platform),
+                            .device(platform),
+                        ]
+                    case .macOS:
+                        return [.device(platform)]
+                    }
+                }
+                .compactMap { destinationType in
+                    try copyAppBundle(
+                        for: destinationType,
+                        app: app,
                         projectPath: workspacePath,
                         derivedDataPath: derivedDataPath,
-                        configuration: configuration
+                        configuration: configuration,
+                        temporaryPath: temporaryPath
                     )
-                    .appending(component: "\(app).app")
-
-                    let newAppPath = temporaryPath.appending(component: "\(sdkPathComponent)-\(app).app")
-
-                    if !fileHandler.exists(appPath) {
-                        throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
-                    }
-
-                    try fileHandler.copy(from: appPath, to: newAppPath)
-
-                    return newAppPath
                 }
                 .uniqued()
+
+            if appPaths.isEmpty {
+                throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
+            }
 
             let preview = try await previewsUploadService.uploadPreviews(
                 displayName: app,
