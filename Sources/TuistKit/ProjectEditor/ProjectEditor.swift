@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -73,6 +74,7 @@ final class ProjectEditor: ProjectEditing {
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
+    private let fileSystem: FileSysteming
 
     init(
         generator: DescriptorGenerating = DescriptorGenerator(),
@@ -86,7 +88,8 @@ final class ProjectEditor: ProjectEditing {
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
-            ProjectDescriptionHelpersBuilderFactory()
+            ProjectDescriptionHelpersBuilderFactory(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -99,6 +102,7 @@ final class ProjectEditor: ProjectEditing {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -216,18 +220,25 @@ final class ProjectEditor: ProjectEditing {
         plugins: Plugins,
         onlyCurrentDirectory: Bool
     ) async throws -> [EditablePluginManifest] {
-        let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
+        let fileSystem = fileSystem
+        let loadedEditablePluginManifests = try await plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
+            .concurrentMap {
+                EditablePluginManifest(
+                    name: $0.name,
+                    path: try await fileSystem.resolveSymbolicLink($0.path.parentDirectory)
+                )
+            }
 
         let localEditablePluginManifests = try await manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
-        ).map {
+        )
+        .concurrentMap {
             EditablePluginManifest(
                 name: $0.parentDirectory.basename,
-                path: try FileHandler.shared.resolveSymlinks($0.parentDirectory)
+                path: try await fileSystem.resolveSymbolicLink($0.parentDirectory)
             )
         }
 
