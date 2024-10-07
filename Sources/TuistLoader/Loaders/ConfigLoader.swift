@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -23,17 +24,17 @@ public protocol ConfigLoading {
 public final class ConfigLoader: ConfigLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.rootDirectoryLocator = rootDirectoryLocator
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
@@ -64,12 +65,15 @@ public final class ConfigLoader: ConfigLoading {
             // swiftlint:disable:next force_try
             let relativePath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
             let configPath = rootDirectoryPath.appending(relativePath)
-            if fileHandler.exists(configPath) {
+            if try await fileSystem.exists(configPath) {
                 return configPath
             }
         }
 
         // Otherwise we try to traverse up the directories to find it
-        return fileHandler.locateDirectoryTraversingParents(from: path, path: Manifest.config.fileName(path))
+        return try await fileSystem.locateTraversingUp(
+            from: path,
+            relativePath: try RelativePath(validating: Manifest.config.fileName(path))
+        )
     }
 }

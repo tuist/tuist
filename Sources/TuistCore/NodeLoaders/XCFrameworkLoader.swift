@@ -54,7 +54,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         guard try await fileSystem.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }
-        let metadata = try xcframeworkMetadataProvider.loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
             status: status
         )

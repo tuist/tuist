@@ -87,13 +87,13 @@ public protocol ManifestLoading {
 
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returned.
-    func manifests(at path: AbsolutePath) -> Set<Manifest>
+    func manifests(at path: AbsolutePath) async throws -> Set<Manifest>
 
     /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
-    func validateHasRootManifest(at path: AbsolutePath) throws
+    func validateHasRootManifest(at path: AbsolutePath) async throws
 
     /// - Returns: `true` if there is a project or workspace manifest at the given path
-    func hasRootManifest(at path: AbsolutePath) -> Bool
+    func hasRootManifest(at path: AbsolutePath) async throws -> Bool
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
@@ -131,7 +131,10 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared),
+            swiftPackageManagerController: SwiftPackageManagerController(
+                system: System.shared,
+                fileSystem: FileSystem()
+            ),
             packageInfoLoader: PackageInfoLoader()
         )
     }
@@ -159,18 +162,18 @@ public class ManifestLoader: ManifestLoading {
         decoder = JSONDecoder()
     }
 
-    public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
+    public func manifests(at path: AbsolutePath) async throws -> Set<Manifest> {
+        try await Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
     }
 
-    public func validateHasRootManifest(at path: AbsolutePath) throws {
-        guard hasRootManifest(at: path) else {
+    public func validateHasRootManifest(at path: AbsolutePath) async throws {
+        guard try await hasRootManifest(at: path) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 
-    public func hasRootManifest(at path: AbsolutePath) -> Bool {
-        let manifests = manifests(at: path)
+    public func hasRootManifest(at path: AbsolutePath) async throws -> Bool {
+        let manifests = try await manifests(at: path)
         let rootManifests: Set<Manifest> = [.workspace, .project, .package]
         return !manifests.isDisjoint(with: rootManifests)
     }
@@ -191,8 +194,8 @@ public class ManifestLoader: ManifestLoading {
         try await loadManifest(.template, at: path)
     }
 
-    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try packageInfoLoader.loadPackageInfo(
+    public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
+        try await packageInfoLoader.loadPackageInfo(
             at: path
         )
     }

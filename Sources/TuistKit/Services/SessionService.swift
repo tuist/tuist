@@ -43,6 +43,6 @@ final class SessionService: SessionServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        try serverSessionController.printSession(serverURL: serverURL)
+        try await serverSessionController.printSession(serverURL: serverURL)
     }
 }

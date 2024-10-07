@@ -16,13 +16,13 @@ extension XcodeGraph.Workspace {
         generatorPaths: GeneratorPaths,
         manifestLoader: ManifestLoading
     ) async throws -> XcodeGraph.Workspace {
-        func globProjects(_ path: Path) throws -> [AbsolutePath] {
+        func globProjects(_ path: Path) async throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
+            let projects = try await FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
                 .filter(FileHandler.shared.isFolder)
                 .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
-                .filter {
-                    manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
+                .concurrentFilter {
+                    try await manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
                 }
 
             if projects.isEmpty {
@@ -54,7 +54,7 @@ extension XcodeGraph.Workspace {
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,
-            projects: try manifest.projects.flatMap(globProjects),
+            projects: try await manifest.projects.concurrentFlatMap(globProjects),
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,

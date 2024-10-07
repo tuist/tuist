@@ -38,7 +38,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_workspaceStructure() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "README.md",
             "Documentation/README.md",
             "Website/index.html",

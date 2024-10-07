@@ -49,7 +49,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
         try await setUpFixture(.iosAppWithSpmDependenciesForceResolvedVersions)
         try await run(InstallCommand.self)
         let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
         // NB: Should not modify SnapKit version in Package.resolved
         XCTAssertTrue(packageResolvedContents.contains(#""version" : "5.0.0""#))
         try await run(GenerateCommand.self)
@@ -63,7 +63,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
         try await setUpFixture(.iosAppWithSpmDependencies)
         try await run(InstallCommand.self)
         let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
         try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
         try await run(GenerateCommand.self)
         XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")

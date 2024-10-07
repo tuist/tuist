@@ -65,13 +65,12 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let productPath = outputPath.appending(component: "Target.app")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(outputPath)
-        fileHandler.stubExists = { _ in false }
 
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -104,7 +103,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
 
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -127,7 +126,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Then
         verify(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .value(BuildConfiguration.debug.name)
@@ -148,7 +147,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         try await fileSystem.touch(outputPath.appending(component: "Target"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -191,7 +190,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         try await fileSystem.touch(outputPath.appending(component: "Target.app"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any

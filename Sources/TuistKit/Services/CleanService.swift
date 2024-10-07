@@ -121,7 +121,7 @@ final class CleanService {
                 )
             }
             if let directory,
-               fileHandler.exists(directory)
+               try await fileSystem.exists(directory)
             {
                 try await fileSystem.remove(directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)

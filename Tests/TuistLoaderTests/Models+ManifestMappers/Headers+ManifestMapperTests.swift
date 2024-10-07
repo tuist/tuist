@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class HeadersManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+    func test_from() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -18,7 +18,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
             "Sources/public/A2.h",
@@ -65,7 +65,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_when_array() throws {
+    func test_from_when_array() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -73,7 +73,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
             "Sources/public/B/B1.h",
@@ -120,7 +120,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_when_array_and_string() throws {
+    func test_from_when_array_and_string() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -128,7 +128,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
 
@@ -161,7 +161,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding() throws {
+    func test_from_and_excluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -169,7 +169,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
             "Sources/public/A2.h",
@@ -214,7 +214,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding_same_folder() throws {
+    func test_from_and_excluding_same_folder() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -222,7 +222,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/A1.h",
             "Sources/A1.m",
             "Sources/A2.h",
@@ -261,7 +261,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding_in_nested_folder() throws {
+    func test_from_and_excluding_in_nested_folder() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -269,7 +269,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A2.h",
@@ -308,7 +308,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
+    func test_exclusionRule_projectExcludesPrivateAndPublic() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -316,7 +316,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A1+Project.h",
@@ -371,7 +371,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_exclusionRule_publicExcludesPrivateAndProject() throws {
+    func test_exclusionRule_publicExcludesPrivateAndProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -379,7 +379,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A1+Project.h",
@@ -428,7 +428,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella() throws {
+    func test_load_from_umbrella() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -456,7 +456,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
@@ -495,7 +495,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella_withExcluding() throws {
+    func test_load_from_umbrella_withExcluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -521,7 +521,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
@@ -566,7 +566,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella_withExcluding_withOutProject() throws {
+    func test_load_from_umbrella_withExcluding_withOutProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -592,7 +592,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",

@@ -55,7 +55,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         next: (Request, URL) async throws -> Response
     ) async throws -> Response {
         var request = request
-        guard let token = try serverAuthenticationController.authenticationToken(serverURL: baseURL)
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
         else {
             throw ServerClientAuthenticationError.notAuthenticated
         }
@@ -81,7 +81,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                                     refreshToken: refreshToken.token
                                 )
                             }
-                        try serverCredentialsStore
+                        try await serverCredentialsStore
                             .store(
                                 credentials: ServerCredentials(
                                     token: nil,

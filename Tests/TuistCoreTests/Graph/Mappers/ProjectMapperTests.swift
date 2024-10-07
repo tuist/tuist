@@ -68,7 +68,7 @@ final class TargetProjectMapperTests: XCTestCase {
 }
 
 final class SequentialProjectMapperTests: XCTestCase {
-    func test_map_project() throws {
+    func test_map_project() async throws {
         // Given
         let mapper1 = ProjectMapper {
             (Project.test(name: "Update1_\($0.name)"), [])
@@ -80,14 +80,14 @@ final class SequentialProjectMapperTests: XCTestCase {
         let project = Project.test(name: "Project")
 
         // When
-        let (updatedProject, sideEffects) = try subject.map(project: project)
+        let (updatedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(updatedProject.name, "Update2_Update1_Project")
         XCTAssertTrue(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() throws {
+    func test_map_sideEffects() async throws {
         // Given
         let mapper1 = ProjectMapper {
             (Project.test(name: "Update1_\($0.name)"), [
@@ -103,7 +103,7 @@ final class SequentialProjectMapperTests: XCTestCase {
         let project = Project.test(name: "Project")
 
         // When
-        let (_, sideEffects) = try subject.map(project: project)
+        let (_, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(sideEffects, [

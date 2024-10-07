@@ -1,4 +1,6 @@
+import FileSystem
 import Foundation
+import MockableTest
 import Path
 import TuistSupport
 import XCTest
@@ -9,13 +11,16 @@ import XCTest
 
 final class DumpServiceTests: TuistTestCase {
     private var subject: DumpService!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
+        fileSystem = FileSystem()
         subject = DumpService()
     }
 
     override func tearDown() {
+        fileSystem = nil
         subject = nil
         super.tearDown()
     }
@@ -340,13 +345,12 @@ final class DumpServiceTests: TuistTestCase {
         )
 
         """
-        try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
-        try config.write(
-            toFile: tmpDir.appending(
+        try await fileSystem.makeDirectory(at: tmpDir.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.writeText(
+            config,
+            at: tmpDir.appending(
                 component: Constants.SwiftPackageManager.packageSwiftName
-            ).pathString,
-            atomically: true,
-            encoding: .utf8
+            )
         )
         try await subject.run(path: tmpDir.pathString, manifest: .package)
         let expected = """
@@ -432,8 +436,8 @@ final class DumpServiceTests: TuistTestCase {
             var expectedDirectory = tmpDir
             if manifest == .config {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
-                if !self.fileHandler.exists(expectedDirectory) {
-                    try self.fileHandler.createFolder(expectedDirectory)
+                if try await !self.fileSystem.exists(expectedDirectory) {
+                    try await self.fileSystem.makeDirectory(at: expectedDirectory)
                 }
             }
             await self.XCTAssertThrowsSpecific(

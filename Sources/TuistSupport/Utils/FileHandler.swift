@@ -49,7 +49,6 @@ public protocol FileHandling: AnyObject {
     var homeDirectory: Path.AbsolutePath { get }
 
     func replace(_ to: Path.AbsolutePath, with: Path.AbsolutePath) throws
-    func exists(_ path: Path.AbsolutePath) -> Bool
     func move(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
     func copy(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
     func readFile(_ at: Path.AbsolutePath) throws -> Data
@@ -194,7 +193,7 @@ public class FileHandler: FileHandling {
         }
     }
 
-    public func exists(_ path: Path.AbsolutePath) -> Bool {
+    private func exists(_ path: Path.AbsolutePath) -> Bool {
         let exists = fileManager.fileExists(atPath: path.pathString)
         return exists
     }

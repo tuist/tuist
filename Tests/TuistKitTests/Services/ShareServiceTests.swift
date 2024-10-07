@@ -38,6 +38,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         appBundleLoader = .init()
         subject = ShareService(
             fileHandler: fileHandler,
+            fileSystem: fileSystem,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
             previewsUploadService: previewsUploadService,
@@ -154,25 +155,43 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn("Debug")
 
         let iosPath = try temporaryPath()
+        let iosDevicePath = try temporaryPath().appending(component: "iphoneos")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .value(.iOS),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(iosDevicePath)
         try fileHandler.touch(iosPath.appending(component: "App.app"))
+        try fileHandler.touch(iosDevicePath.appending(component: "App.app"))
 
         let visionOSPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .value(.visionOS),
+                destinationType: .value(.simulator(.visionOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(visionOSPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.visionOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "visionOS"))
         try fileHandler.touch(visionOSPath.appending(component: "App.app"))
 
         let shareURL: URL = .test()
@@ -206,6 +225,89 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         XCTAssertStandardOutput(
             pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
+        )
+    }
+
+    func test_share_tuist_project_when_no_app_found() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(manifestLoader)
+            .hasRootManifest(at: .any)
+            .willReturn(true)
+
+        let projectPath = try temporaryPath()
+        let appTarget: Target = .test(
+            name: "AppTarget",
+            destinations: [.iPhone],
+            productName: "App"
+        )
+        let project: Project = .test(
+            targets: [
+                appTarget,
+            ]
+        )
+        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+
+        given(manifestGraphLoader)
+            .load(path: .any)
+            .willReturn(
+                (
+                    .test(
+                        projects: [
+                            projectPath: project,
+                        ]
+                    ),
+                    [],
+                    MapperEnvironment(),
+                    []
+                )
+            )
+
+        given(userInputReader)
+            .readValue(
+                asking: .any,
+                values: .value([
+                    graphAppTarget,
+                ]),
+                valueDescription: .any
+            )
+            .willReturn(graphAppTarget)
+
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, config: .any, graph: .any)
+            .willReturn("Debug")
+
+        let iosPath = try temporaryPath()
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "iphoneos"))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                path: nil,
+                apps: [],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil
+            ),
+            ShareServiceError.noAppsFound(app: "App", configuration: "Debug")
         )
     }
 
@@ -265,12 +367,20 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .value(.iOS),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
 
         let shareURL: URL = .test()
@@ -418,12 +528,20 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .value(.iOS),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "App.app"))
 
         let shareURL: URL = .test()

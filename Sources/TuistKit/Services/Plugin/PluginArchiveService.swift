@@ -16,7 +16,7 @@ final class PluginArchiveService {
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         ),
         packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader(),
@@ -33,7 +33,7 @@ final class PluginArchiveService {
     func run(path: String?) async throws {
         let path = try self.path(path)
 
-        let packageInfo = try packageInfoLoader.loadPackageInfo(at: path)
+        let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path)
         let taskProducts = packageInfo.products
             .filter {
                 switch $0.type {
@@ -83,7 +83,7 @@ final class PluginArchiveService {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
             logger.notice("Building \(product)...")
-            try swiftPackageManagerController.buildFatReleaseBinary(
+            try await swiftPackageManagerController.buildFatReleaseBinary(
                 packagePath: path,
                 product: product,
                 buildPath: temporaryDirectory.appending(component: "build"),

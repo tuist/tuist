@@ -17,10 +17,10 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_libraries_when_frameworkIsPresent() throws {
+    func test_libraries_when_frameworkIsPresent() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
 
         // Then
         XCTAssertEqual(infoPlist.libraries, [
@@ -42,11 +42,11 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
-    func test_binaryPath_when_frameworkIsPresent() throws {
+    func test_binaryPath_when_frameworkIsPresent() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
+        let binaryPath = try await subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(
@@ -55,11 +55,11 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         )
     }
 
-    func test_binaryPath_when_frameworkIsPresentAndHasDifferentName() throws {
+    func test_binaryPath_when_frameworkIsPresentAndHasDifferentName() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFrameworkDifferentProductName.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
+        let binaryPath = try await subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(
@@ -70,13 +70,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
-    func test_binaryPath_when_dylibIsPresent() throws {
+    func test_binaryPath_when_dylibIsPresent() async throws {
         // Given
         let xcframeworkPath = fixturePath(path: try RelativePath(validating: "DylibXCFramework.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: xcframeworkPath)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: xcframeworkPath)
 
         // When
-        let binaryPath = try subject.binaryPath(xcframeworkPath: xcframeworkPath, libraries: infoPlist.libraries)
+        let binaryPath = try await subject.binaryPath(xcframeworkPath: xcframeworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(
@@ -87,10 +87,10 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "libDylibXCFramework") }
     }
 
-    func test_libraries_when_staticLibraryIsPresent() throws {
+    func test_libraries_when_staticLibraryIsPresent() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
 
         // Then
         XCTAssertEqual(infoPlist.libraries, [
@@ -112,11 +112,11 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "libMyStaticLibrary") }
     }
 
-    func test_binaryPath_when_staticLibraryIsPresent() throws {
+    func test_binaryPath_when_staticLibraryIsPresent() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
-        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
-        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
+        let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
+        let binaryPath = try await subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(
@@ -125,12 +125,12 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         )
     }
 
-    func test_loadMetadata_dynamicLibrary() throws {
+    func test_loadMetadata_dynamicLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -163,12 +163,12 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         ))
     }
 
-    func test_loadMetadata_mergeableDynamicLibrary() throws {
+    func test_loadMetadata_mergeableDynamicLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMergeableFramework.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -201,12 +201,12 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         ))
     }
 
-    func test_loadMetadata_staticLibrary() throws {
+    func test_loadMetadata_staticLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -238,12 +238,12 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         ))
     }
 
-    func test_loadMetadata_frameworkMissingArchitecture() throws {
+    func test_loadMetadata_frameworkMissingArchitecture() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -279,7 +279,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         """)
     }
 
-    func test_loadMetadata_when_containsMacros() throws {
+    func test_loadMetadata_when_containsMacros() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let xcframeworkPath = temporaryDirectory.appending(component: "MyFramework.xcframework")
@@ -296,7 +296,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         }
 
         // When
-        let metadata = try subject.loadMetadata(at: xcframeworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: xcframeworkPath, status: .required)
 
         // Then
         XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)

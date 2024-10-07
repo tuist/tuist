@@ -18,7 +18,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
         ])
@@ -48,7 +48,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles([
+        try await createFiles([
             "README.md",
         ])
 

@@ -65,14 +65,15 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             rootDirectory: rootDirectory
         )
         let projectSearchPaths = (loadedWorkspace?.projects ?? ["."])
-        let projectPaths = try projectSearchPaths.map {
+        let manifestLoader = manifestLoader
+        let projectPaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.flatMap {
             fileHandler.glob($0, glob: "")
         }.filter {
             fileHandler.isFolder($0)
-        }.filter {
-            manifestLoader.manifests(at: $0).contains(.project)
+        }.concurrentFilter {
+            try await manifestLoader.manifests(at: $0).contains(.project)
         }
 
         let projects = await LoadedProjects(projects: try loadProjects(paths: projectPaths).projects)
@@ -100,14 +101,15 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             rootDirectory: rootDirectory
         )
         let projectSearchPaths = loadedWorkspace.workspace.projects.isEmpty ? ["."] : loadedWorkspace.workspace.projects
-        let packagePaths = try projectSearchPaths.map {
+        let manifestLoader = manifestLoader
+        let packagePaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.flatMap {
             fileHandler.glob($0, glob: "")
         }.filter {
             fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
-        }.filter {
-            let manifests = manifestLoader.manifests(at: $0)
+        }.concurrentFilter {
+            let manifests = try await manifestLoader.manifests(at: $0)
             return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace) && !$0
                 .pathString.contains(".build/checkouts")
         }

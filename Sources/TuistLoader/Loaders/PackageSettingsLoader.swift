@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -18,7 +19,6 @@ public protocol PackageSettingsLoading {
 public final class PackageSettingsLoader: PackageSettingsLoading {
     private let manifestLoader: ManifestLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let fileHandler: FileHandling
     private let manifestFilesLocator: ManifestFilesLocating
     private let rootDirectoryLocator: RootDirectoryLocating
 
@@ -26,15 +26,13 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
         manifestLoader: ManifestLoading = ManifestLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         ),
-        fileHandler: FileHandling = FileHandler.shared,
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.manifestLoader = manifestLoader
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.fileHandler = fileHandler
         self.manifestFilesLocator = manifestFilesLocator
         self.rootDirectoryLocator = rootDirectoryLocator
     }

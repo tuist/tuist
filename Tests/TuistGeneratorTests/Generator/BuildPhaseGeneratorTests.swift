@@ -495,13 +495,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() throws {
+    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
         // Given
         let path = try temporaryPath()
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try createFiles([
+        let files = try await createFiles([
             "resources/fr.lproj/Controller.strings",
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -544,13 +544,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() throws {
+    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
         // Given
         let path = try temporaryPath()
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try createFiles([
+        let files = try await createFiles([
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/en.lproj/Intents.strings",
             "resources/fr.lproj/Intents.strings",
