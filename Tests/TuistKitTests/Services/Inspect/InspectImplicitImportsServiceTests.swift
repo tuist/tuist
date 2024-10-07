@@ -86,7 +86,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
             InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["PackageTarget"])),
         ])
 
-        // When
+        // When / Then
         await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
     }
 
