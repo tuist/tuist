@@ -23,6 +23,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .sdk(path: "/B.framework", status: .optional, source: .developer, condition: nil),
             .bundle(path: "/A.bundle", condition: nil),
             .bundle(path: "/B.bundle", condition: nil),
+            .packageProduct(product: "A", condition: nil)
         ]
 
         // When
@@ -41,6 +42,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .testXCFramework(path: "/xcframeworks/B.xcframework"),
             .bundle(path: "/A.bundle", condition: nil),
             .bundle(path: "/B.bundle", condition: nil),
+            .packageProduct(product: "A", condition: nil)
         ])
     }
 
@@ -77,6 +79,7 @@ private enum KnownGraphDependencyReference: CaseIterable {
     case product
     case sdk
     case macro
+    case packageProduct
 
     func sampleReferences(name: String) -> [GraphDependencyReference] {
         switch self {
@@ -114,6 +117,8 @@ private enum KnownGraphDependencyReference: CaseIterable {
                     condition: nil
                 ),
             ]
+        case .packageProduct:
+            return [.testPackageProduct(product: "\(name)", condition: nil)]
         }
     }
 }
@@ -136,6 +141,8 @@ extension GraphDependencyReference {
             return .sdk
         case .macro:
             return .macro
+        case .packageProduct:
+            return .packageProduct
         }
     }
 }
