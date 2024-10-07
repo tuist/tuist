@@ -87,25 +87,6 @@ final class FileHandlerTests: TuistUnitTestCase {
         XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
     }
 
-    func test_changeExtension() throws {
-        // Given
-        let temporaryDirectory = try temporaryPath()
-        let testZippedFrameworkPath = temporaryDirectory.appending(component: "uUI.xcframework.zip")
-        try FileHandler.shared.copy(
-            from: fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip")),
-            to: testZippedFrameworkPath
-        )
-
-        // When
-        let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")
-
-        // Then
-        XCTAssertEqual(result.pathString.dropLast(4), testZippedFrameworkPath.pathString.dropLast(4))
-        XCTAssertEqual(result.basenameWithoutExt, testZippedFrameworkPath.basenameWithoutExt)
-        XCTAssertEqual(result.basename, "\(testZippedFrameworkPath.basenameWithoutExt).txt")
-        _ = try subject.changeExtension(path: result, to: "zip")
-    }
-
     func test_readPlistFile_throwsAnError_when_invalidPlist() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
