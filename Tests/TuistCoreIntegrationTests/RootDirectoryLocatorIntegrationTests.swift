@@ -58,6 +58,20 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this")))
     }
 
+    func test_locate_when_a_tuist_file_is_present_not_directory() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders(["this/is/a/directory"])
+        try createFiles(["this/is/a/directory/tuist"])
+
+        // When
+        let got = try await subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/directory")))
+
+        // Then
+        XCTAssertNil(got)
+    }
+
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()

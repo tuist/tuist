@@ -91,3 +91,12 @@ final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
         try await run(BuildCommand.self)
     }
 }
+
+final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase {
+    func test_app_with_airship_sdk() async throws {
+        try await setUpFixture(.appWithAirshipSDK)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}

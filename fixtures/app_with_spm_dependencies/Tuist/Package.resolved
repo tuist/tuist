@@ -1,5 +1,5 @@
 {
-  "originHash" : "f5380001e57a3fe0ecdfcd40afedcd1bd885142cd4e4232aa8a78a8a1e60e9f8",
+  "originHash" : "de5a39263681a457f5ae8b66c966e957674db1a5f0df7a4d6b21efe02017a4f2",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -101,15 +101,6 @@
       }
     },
     {
-      "identity" : "ios-library",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/urbanairship/ios-library.git",
-      "state" : {
-        "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
-        "version" : "17.7.3"
-      }
-    },
-    {
       "identity" : "lookinserver",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/QMUI/LookinServer",
@@ -134,15 +125,6 @@
       "state" : {
         "revision" : "c1f3dd66222d5e7a1a20afc237f7e7bc432c564f",
         "version" : "13.2.0"
-      }
-    },
-    {
-      "identity" : "nytphotoviewer",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/NYTPhotoViewer",
-      "state" : {
-        "branch" : "develop",
-        "revision" : "e4acd0988c43e3df0908fc463104e567098f9dfc"
       }
     },
     {
