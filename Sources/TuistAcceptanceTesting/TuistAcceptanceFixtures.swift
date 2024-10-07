@@ -12,6 +12,7 @@ public enum TuistAcceptanceFixtures {
     case appWithRealm
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+    case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
     case appWithTests
     case commandLineToolBasic
@@ -106,6 +107,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithLocalSPMModuleWithRemoteDependencies:
+            return "app_with_local_spm_module_with_remote_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
         case .appWithTests:
