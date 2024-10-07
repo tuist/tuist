@@ -1,13 +1,11 @@
 import Foundation
 import XcodeGraph
 
-/// Represents a platform either for a simulator or a device
-public enum DestinationPlatform: Codable, Equatable {
+/// Represents a destination type either for a simulator or a device with a given platform.
+public enum DestinationType: Codable, Equatable {
     case simulator(Platform)
     case device(Platform)
-}
 
-extension DestinationPlatform {
     public func buildProductDestinationPathComponent(
         for configuration: String
     ) -> String {

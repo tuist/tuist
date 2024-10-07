@@ -11,12 +11,12 @@ public protocol XcodeProjectBuildDirectoryLocating {
     /// For example: `~/Library/Developer/Xcode/DerivedData/PROJECT_NAME/Build/Products/CONFIG_NAME`
     ///
     /// - Parameters:
-    ///   - destinationPlatform: The destination platform for the built scheme.
+    ///   - destinationType: The destination platform for the built scheme.
     ///   - projectPath: The path of the Xcode project or workspace.
     ///   - derivedDataPath: The path of the derived data
     ///   - configuration: The configuration name, i.e. `Release`, `Debug`, or something custom.
     func locate(
-        destinationPlatform: DestinationPlatform,
+        destinationType: DestinationType,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String
@@ -31,7 +31,7 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
     }
 
     public func locate(
-        destinationPlatform: DestinationPlatform,
+        destinationType: DestinationType,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String
@@ -43,7 +43,7 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
             .appending(component: "Build")
             .appending(component: "Products")
             .appending(
-                component: destinationPlatform.buildProductDestinationPathComponent(
+                component: destinationType.buildProductDestinationPathComponent(
                     for: configuration
                 )
             )

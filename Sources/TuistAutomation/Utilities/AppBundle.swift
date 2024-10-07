@@ -42,14 +42,14 @@ public struct AppBundle: Equatable {
         public let minimumOSVersion: Version
 
         /// Supported destination platforms.
-        public let supportedPlatforms: [DestinationPlatform]
+        public let supportedPlatforms: [DestinationType]
 
         init(
             version: Version,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
-            supportedPlatforms: [DestinationPlatform]
+            supportedPlatforms: [DestinationType]
         ) {
             self.version = version
             self.name = name
@@ -115,7 +115,7 @@ public struct AppBundle: Equatable {
             name: String = "App",
             bundleId: String = "io.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
-            supportedPlatforms: [DestinationPlatform] = [.simulator(.iOS)]
+            supportedPlatforms: [DestinationType] = [.simulator(.iOS)]
         ) -> Self {
             .init(
                 version: version,

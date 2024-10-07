@@ -222,7 +222,7 @@ struct ShareService {
     }
 
     private func copyAppBundle(
-        for destinationPlatform: DestinationPlatform,
+        for destinationType: DestinationType,
         app: String,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
@@ -230,7 +230,7 @@ struct ShareService {
         temporaryPath: AbsolutePath
     ) throws -> AbsolutePath? {
         let appPath = try xcodeProjectBuildDirectoryLocator.locate(
-            destinationPlatform: destinationPlatform,
+            destinationType: destinationType,
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
             configuration: configuration
@@ -238,7 +238,7 @@ struct ShareService {
         .appending(component: "\(app).app")
 
         let newAppPath = temporaryPath.appending(
-            component: "\(destinationPlatform.buildProductDestinationPathComponent(for: configuration))-\(app).app"
+            component: "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
         )
 
         if !fileHandler.exists(appPath) {
@@ -261,7 +261,7 @@ struct ShareService {
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let appPaths = try platforms
-                .flatMap { platform -> [DestinationPlatform] in
+                .flatMap { platform -> [DestinationType] in
                     switch platform {
                     case .iOS, .tvOS, .visionOS, .watchOS:
                         return [
@@ -272,9 +272,9 @@ struct ShareService {
                         return [.device(platform)]
                     }
                 }
-                .compactMap { destinationPlatform in
+                .compactMap { destinationType in
                     try copyAppBundle(
-                        for: destinationPlatform,
+                        for: destinationType,
                         app: app,
                         projectPath: workspacePath,
                         derivedDataPath: derivedDataPath,

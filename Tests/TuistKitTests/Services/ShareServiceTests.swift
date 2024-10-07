@@ -157,7 +157,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosDevicePath = try temporaryPath().appending(component: "iphoneos")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.simulator(.iOS)),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -165,7 +165,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(iosPath)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.device(.iOS)),
+                destinationType: .value(.device(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -177,7 +177,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let visionOSPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.simulator(.visionOS)),
+                destinationType: .value(.simulator(.visionOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -185,7 +185,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(visionOSPath)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.device(.visionOS)),
+                destinationType: .value(.device(.visionOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -282,7 +282,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.simulator(.iOS)),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -290,7 +290,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(iosPath)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.device(.iOS)),
+                destinationType: .value(.device(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -366,7 +366,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.simulator(.iOS)),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -374,7 +374,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(iosPath)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.device(.iOS)),
+                destinationType: .value(.device(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -527,7 +527,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosPath = try temporaryPath()
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.simulator(.iOS)),
+                destinationType: .value(.simulator(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -535,7 +535,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(iosPath)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                destinationPlatform: .value(.device(.iOS)),
+                destinationType: .value(.device(.iOS)),
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any

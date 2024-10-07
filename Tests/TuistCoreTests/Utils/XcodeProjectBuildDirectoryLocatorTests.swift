@@ -30,7 +30,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // WHEN
         let path = try subject.locate(
-            destinationPlatform: .device(.macOS),
+            destinationType: .device(.macOS),
             projectPath: projectPath,
             derivedDataPath: nil,
             configuration: configuration
@@ -51,7 +51,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // WHEN
         let path = try subject.locate(
-            destinationPlatform: .simulator(.iOS),
+            destinationType: .simulator(.iOS),
             projectPath: projectPath,
             derivedDataPath: nil,
             configuration: configuration
@@ -73,7 +73,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // WHEN
         let path = try subject.locate(
-            destinationPlatform: .device(.iOS),
+            destinationType: .device(.iOS),
             projectPath: projectPath,
             derivedDataPath: nil,
             configuration: configuration

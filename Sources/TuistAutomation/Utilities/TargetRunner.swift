@@ -94,7 +94,7 @@ public final class TargetRunner: TargetRunning {
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            destinationPlatform: .simulator(platform),
+            destinationType: .simulator(platform),
             projectPath: workspacePath,
             derivedDataPath: nil,
             configuration: configuration
