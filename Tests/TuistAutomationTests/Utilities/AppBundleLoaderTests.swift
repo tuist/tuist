@@ -46,6 +46,31 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         )
     }
 
+    func test_load_iphoneos_app_bundle() async throws {
+        // Given
+        let appBundlePath = fixturePath(
+            path: try RelativePath(validating: "ios_app_with_frameworks_iphoneos-App.app")
+        )
+
+        // When
+        let appBundle = try await subject.load(appBundlePath)
+
+        // Then
+        XCTAssertBetterEqual(
+            appBundle,
+            AppBundle(
+                path: appBundlePath,
+                infoPlist: AppBundle.InfoPlist(
+                    version: Version("1.0"),
+                    name: "App",
+                    bundleId: "io.tuist.App",
+                    minimumOSVersion: Version("17.0"),
+                    supportedPlatforms: [.device(.iOS)]
+                )
+            )
+        )
+    }
+
     func test_load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
         // Given
         let appBundlePath = try temporaryPath()

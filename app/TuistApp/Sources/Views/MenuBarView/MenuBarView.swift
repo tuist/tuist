@@ -5,14 +5,14 @@ import SwiftUI
 struct MenuBarView: View {
     @State var isExpanded = false
     @StateObject var errorHandling = ErrorHandling()
-    private let simulatorsView: SimulatorsView
+    private let simulatorsView: DevicesView
     private let viewModel: MenuBarViewModel
 
     init(
         appDelegate: AppDelegate,
         updaterController: SPUStandardUpdaterController
     ) {
-        simulatorsView = SimulatorsView(appDelegate: appDelegate)
+        simulatorsView = DevicesView(appDelegate: appDelegate)
         viewModel = MenuBarViewModel(
             updater: updaterController.updater
         )

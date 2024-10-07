@@ -18,24 +18,27 @@ However, this process can be cumbersome and slow, especially when you're just lo
 
 To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
 
-> [!IMPORTANT] ONLY SIMULATOR ARCHITECTURES ARE CURRENTLY SUPPORTED
-> We only support simulator architectures for previews at the moment. Support for devices will come in the future.
+> [!IMPORTANT] DEVICE BUILDS NEED TO BE SIGNED
+> When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
 
 :::code-group
 ```bash [Tuist Project]
-tuist build App # Build the app first
+tuist build App # Build the app for the simulator
+tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
 ```bash [Xcode Project]
-xcodebuild -scheme App -project App.xcodeproj -configuration Debug
+xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
+xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
 ```
 :::
 
-The command will generate a link that you can share with anyone to run the app. All they'll need to do is to run the command below:
+The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
 
 ```bash
 tuist run {url}
+tuist run {url} --device "My iPhone" # Run the app on a specific device
 ```
 
 > [!IMPORTANT] PREVIEWS' VISIBILITY

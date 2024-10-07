@@ -9,14 +9,15 @@ import XCTest
 
 @testable import Tuist
 
-final class SimulatorsViewModelTests: TuistUnitTestCase {
-    private var subject: SimulatorsViewModel!
+final class DevicesViewModelTests: TuistUnitTestCase {
+    private var subject: DevicesViewModel!
     private var simulatorController: MockSimulatorControlling!
     private var downloadPreviewService: MockDownloadPreviewServicing!
     private var fileArchiverFactory: MockFileArchivingFactorying!
     private var remoteArtifactDownloader: MockRemoteArtifactDownloading!
     private var appBundleLoader: MockAppBundleLoading!
     private var appStorage: MockAppStoring!
+    private var deviceController: MockDeviceControlling!
 
     private let previewURL =
         URL(
@@ -51,7 +52,36 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
         appStorage = .init()
-        subject = SimulatorsViewModel(
+        deviceController = .init()
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([])
+
+        given(appStorage)
+            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
+            .willReturn([])
+
+        given(appStorage)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(.simulator(iPhone15))
+
+        given(appStorage)
+            .set(.any as Parameter<SelectedDeviceKey.Type>, value: .any)
+            .willReturn()
+
+        given(simulatorController)
+            .devicesAndRuntimes()
+            .willReturn(
+                [
+                    iPhone15,
+                    iPhone15Pro,
+                    appleTV,
+                ]
+            )
+
+        subject = DevicesViewModel(
+            deviceController: deviceController,
             simulatorController: simulatorController,
             downloadPreviewService: downloadPreviewService,
             fileArchiverFactory: fileArchiverFactory,
@@ -63,6 +93,7 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
         Matcher.register(SimulatorDeviceAndRuntime?.self)
         Matcher.register([SimulatorDeviceAndRuntime].self)
+        Matcher.register(SelectedDevice?.self)
     }
 
     override func tearDown() {
@@ -81,12 +112,15 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_onAppear_when_appStorage_is_empty_and_no_simulator_is_booted() async throws {
         // Given
+        appStorage.reset()
+        simulatorController.reset()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([])
 
         given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
             .willReturn(nil)
 
         let simulators: [SimulatorDeviceAndRuntime] = [
@@ -110,19 +144,22 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
         try await subject.onAppear()
 
         // Then
-        XCTAssertEqual(subject.selectedSimulator, nil)
+        XCTAssertEqual(subject.selectedDevice, nil)
         XCTAssertEmpty(subject.pinnedSimulators)
         XCTAssertEqual(subject.unpinnedSimulators, simulators)
     }
 
     func test_onAppear_when_appStorage_is_empty_and_a_simulator_is_booted() async throws {
         // Given
+        appStorage.reset()
+        simulatorController.reset()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([])
 
         given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
             .willReturn(nil)
 
         let simulators: [SimulatorDeviceAndRuntime] = [
@@ -147,13 +184,15 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
         try await subject.onAppear()
 
         // Then
-        XCTAssertEqual(subject.selectedSimulator, simulators.last)
+        XCTAssertEqual(subject.selectedDevice, .simulator(try XCTUnwrap(simulators.last)))
         XCTAssertEmpty(subject.pinnedSimulators)
         XCTAssertEqual(subject.unpinnedSimulators, simulators)
     }
 
     func test_onAppear_when_appStorage_contains_selected_and_pinned_simulators() async throws {
         // Given
+        appStorage.reset()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn(
@@ -164,89 +203,76 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
             )
 
         given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(appleTV)
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(.simulator(appleTV))
 
         // When
         try await subject.onAppear()
 
         // Then
-        XCTAssertEqual(subject.selectedSimulator, appleTV)
+        XCTAssertEqual(subject.selectedDevice, .simulator(appleTV))
         XCTAssertEqual(subject.pinnedSimulators, [appleTV, iPhone15])
         XCTAssertEqual(subject.unpinnedSimulators, [iPhone15Pro])
     }
 
     func test_selectSimulator() async throws {
         // Given
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(appleTV)
-
-        given(appStorage)
-            .set(.any as Parameter<SelectedSimulatorKey.Type>, value: .any)
-            .willReturn()
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         // When
         subject.selectSimulator(iPhone15Pro)
 
         // Then
-        XCTAssertEqual(subject.selectedSimulator, iPhone15Pro)
+        XCTAssertEqual(subject.selectedDevice, .simulator(iPhone15Pro))
         verify(appStorage)
             .set(
-                .any as Parameter<SelectedSimulatorKey.Type>,
-                value: .value(iPhone15Pro)
+                .any as Parameter<SelectedDeviceKey.Type>,
+                value: .value(.simulator(iPhone15Pro))
+            )
+            .called(1)
+    }
+
+    func test_selectPhysicalDevice() async throws {
+        // Given
+        deviceController.reset()
+
+        let myiPhone: PhysicalDevice = .test()
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([myiPhone])
+
+        try await subject.onAppear()
+
+        // When
+        subject.selectPhysicalDevice(myiPhone)
+
+        // Then
+        XCTAssertEqual(subject.selectedDevice, .device(myiPhone))
+        verify(appStorage)
+            .set(
+                .any as Parameter<SelectedDeviceKey.Type>,
+                value: .value(.device(myiPhone))
             )
             .called(1)
     }
 
     func test_pin_simulator() async throws {
         // Given
+        appStorage.reset()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([iPhone15])
 
         given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
             .willReturn(nil)
 
         given(appStorage)
             .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .any)
             .willReturn()
 
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         // When
@@ -262,27 +288,20 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_unpin_simulator() async throws {
         // Given
+        appStorage.reset()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([iPhone15])
 
         given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
             .willReturn(nil)
 
         given(appStorage)
             .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .any)
             .willReturn()
 
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         // When
@@ -298,23 +317,6 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_onChangeOfURL() async throws {
         // Given
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(iPhone15)
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         given(downloadPreviewService)
@@ -390,6 +392,105 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_onChangeOfURL_when_physical_device_selected() async throws {
+        // Given
+        let myiPhone: PhysicalDevice = .test()
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([myiPhone])
+
+        try await subject.onAppear()
+
+        subject.selectPhysicalDevice(myiPhone)
+
+        given(downloadPreviewService)
+            .downloadPreview(
+                .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
+                fullHandle: .value("tuist/ios_app_with_frameworks"),
+                serverURL: .value(Constants.URLs.production)
+            )
+            .willReturn("https://tuist.io/download-link")
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        let appPath = unarchivedPath.appending(component: "iphoneos-App.app")
+        try fileHandler.touch(appPath)
+
+        given(appBundleLoader)
+            .load(.value(appPath))
+            .willReturn(
+                .test(
+                    path: appPath,
+                    infoPlist: .test(
+                        bundleId: "tuist.app",
+                        supportedPlatforms: [
+                            .device(.iOS),
+                        ]
+                    )
+                )
+            )
+
+        let appSimulatorPath = unarchivedPath.appending(component: "iphonesimulator-App.app")
+        try fileHandler.touch(appSimulatorPath)
+
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(
+                .test(
+                    path: appSimulatorPath,
+                    infoPlist: .test(
+                        bundleId: "tuist.app",
+                        supportedPlatforms: [
+                            .simulator(.iOS),
+                        ]
+                    )
+                )
+            )
+
+        given(deviceController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+
+        given(deviceController)
+            .launchApp(
+                bundleId: .any,
+                device: .any
+            )
+            .willReturn()
+
+        // When
+        try await subject.onChangeOfURL(previewURL)
+
+        // Then
+        verify(deviceController)
+            .installApp(
+                at: .value(appPath),
+                device: .value(myiPhone)
+            )
+            .called(1)
+        verify(deviceController)
+            .launchApp(
+                bundleId: .value("tuist.app"),
+                device: .value(myiPhone)
+            )
+            .called(1)
+    }
+
     func test_onChangeOfURL_when_no_simulator_selected() async throws {
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -400,23 +501,6 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_onChangeOfURL_when_deeplink_is_invalid() async throws {
         // Given
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(iPhone15)
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         let invalidDeeplinkURL =
@@ -433,23 +517,6 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_onChangeOfURL_when_appDownloadFailed() async throws {
         // Given
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(iPhone15)
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         given(downloadPreviewService)
@@ -469,23 +536,6 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
 
     func test_onChangeOfURL_when_appNotFound() async throws {
         // Given
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedSimulatorKey.Type>)
-            .willReturn(iPhone15)
-
-        given(simulatorController)
-            .devicesAndRuntimes()
-            .willReturn(
-                [
-                    iPhone15,
-                    iPhone15Pro,
-                    appleTV,
-                ]
-            )
         try await subject.onAppear()
 
         given(downloadPreviewService)
@@ -527,7 +577,7 @@ final class SimulatorsViewModelTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.onChangeOfURL(previewURL),
-            SimulatorsViewModelError.appNotFound(iPhone15, [.visionOS])
+            SimulatorsViewModelError.appNotFound(.simulator(iPhone15), [.visionOS])
         )
     }
 }

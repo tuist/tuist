@@ -157,7 +157,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -248,7 +248,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", configuration)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
