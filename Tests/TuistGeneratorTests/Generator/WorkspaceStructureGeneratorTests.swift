@@ -467,10 +467,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             0
         }
 
-        func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath {
-            path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
-        }
-
         func zipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}
 
         func unzipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}

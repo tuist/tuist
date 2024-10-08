@@ -303,7 +303,7 @@ public struct PluginService: PluginServicing {
                 if try await fileSystem.exists(downloadZipPath) {
                     try await fileSystem.remove(downloadZipPath)
                 }
-                try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
+                try await fileSystem.move(from: downloadPath, to: downloadZipPath)
 
                 // Unzip
                 let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
@@ -312,7 +312,7 @@ public struct PluginService: PluginServicing {
 
                 try FileHandler.shared.createFolder(pluginReleaseDirectory)
                 for unarchivedContent in unarchivedContents {
-                    try FileHandler.shared.move(
+                    try await fileSystem.move(
                         from: unarchivedContent,
                         to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
                     )
