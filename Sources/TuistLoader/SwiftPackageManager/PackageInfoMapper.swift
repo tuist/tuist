@@ -870,8 +870,8 @@ extension ProjectDescription.ResourceFileElements {
         {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
-            if try excludedPaths
-                .contains(where: { try FileHandler.shared.resolveSymlinks(absolutePathGlob).isDescendantOfOrEqual(to: $0) })
+            if excludedPaths
+                .contains(where: { absolutePathGlob.isDescendantOfOrEqual(to: $0) })
             {
                 return nil
             }
@@ -927,7 +927,7 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
+            resourceFileElements += try await defaultResourcePaths(from: path) { candidateURL in
                 let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
                 let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
                 return candidateNotInExcludedDirectory

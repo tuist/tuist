@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -216,18 +217,24 @@ final class ProjectEditor: ProjectEditing {
         plugins: Plugins,
         onlyCurrentDirectory: Bool
     ) async throws -> [EditablePluginManifest] {
-        let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
+        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
+            .map {
+                EditablePluginManifest(
+                    name: $0.name,
+                    path: $0.path.parentDirectory
+                )
+            }
 
         let localEditablePluginManifests = try await manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
-        ).map {
+        )
+        .map {
             EditablePluginManifest(
                 name: $0.parentDirectory.basename,
-                path: try FileHandler.shared.resolveSymlinks($0.parentDirectory)
+                path: $0.parentDirectory
             )
         }
 
