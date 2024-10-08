@@ -61,7 +61,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview {
-        let buildPath = try fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+        let buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
 
         return try await retryProvider.runWithRetries { [self] in
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(

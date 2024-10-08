@@ -1,6 +1,7 @@
 import ArgumentParser
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 enum BenchmarkCommandError: LocalizedError {
@@ -28,7 +29,7 @@ extension AbsolutePath: ExpressibleByArgument {
     }
 }
 
-struct BenchmarkCommand: ParsableCommand {
+struct BenchmarkCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "benchmark",
@@ -78,13 +79,13 @@ struct BenchmarkCommand: ParsableCommand {
     )
     var referenceBinary: AbsolutePath?
 
-    func run() throws {
-        let fileHandler = FileHandler()
-        let config: BenchmarkConfig = try config.map { try parseConfig(path: $0, fileHandler: fileHandler) } ?? .default
-        let fixtures = try getFixturePaths(
+    func run() async throws {
+        let fileSystem = FileSystem()
+        let config: BenchmarkConfig = try config.map { try parseConfig(path: $0) } ?? .default
+        let fixtures = try await getFixturePaths(
             fixturesListPath: fixtureList,
             fixturePath: fixture,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         let renderer = makeRenderer(
@@ -93,20 +94,20 @@ struct BenchmarkCommand: ParsableCommand {
         )
 
         if let referenceBinary {
-            let results = try benchmark(
+            let results = try await benchmark(
                 config: config,
                 fixtures: fixtures,
                 binaryPath: binary,
                 referenceBinaryPath: referenceBinary,
-                fileHandler: fileHandler
+                fileSystem: fileSystem
             )
             renderer.render(results: results)
         } else {
-            let results = try measure(
+            let results = try await measure(
                 config: config,
                 fixtures: fixtures,
                 binaryPath: binary,
-                fileHandler: fileHandler
+                fileSystem: fileSystem
             )
             renderer.render(results: results)
         }
@@ -116,14 +117,14 @@ struct BenchmarkCommand: ParsableCommand {
         config: BenchmarkConfig,
         fixtures: [AbsolutePath],
         binaryPath: AbsolutePath,
-        fileHandler: FileHandler
-    ) throws -> [MeasureResult] {
+        fileSystem: FileSysteming
+    ) async throws -> [MeasureResult] {
         let measure = Measure(
-            fileHandler: fileHandler,
+            fileSystem: fileSystem,
             binaryPath: binaryPath
         )
-        let results = try fixtures.map {
-            try measure.measure(
+        let results = try await fixtures.serialMap {
+            try await measure.measure(
                 runs: config.runs,
                 arguments: config.arguments,
                 fixturePath: $0
@@ -137,15 +138,15 @@ struct BenchmarkCommand: ParsableCommand {
         fixtures: [AbsolutePath],
         binaryPath: AbsolutePath,
         referenceBinaryPath: AbsolutePath,
-        fileHandler: FileHandler
-    ) throws -> [BenchmarkResult] {
+        fileSystem: FileSysteming
+    ) async throws -> [BenchmarkResult] {
         let benchmark = Benchmark(
-            fileHandler: fileHandler,
+            fileSystem: fileSystem,
             binaryPath: binaryPath,
             referenceBinaryPath: referenceBinaryPath
         )
-        let results = try fixtures.map {
-            try benchmark.benchmark(
+        let results = try await fixtures.serialMap {
+            try await benchmark.benchmark(
                 runs: config.runs,
                 arguments: config.arguments,
                 fixturePath: $0
@@ -157,16 +158,16 @@ struct BenchmarkCommand: ParsableCommand {
     private func getFixturePaths(
         fixturesListPath: AbsolutePath?,
         fixturePath: AbsolutePath?,
-        fileHandler: FileHandler
-    ) throws -> [AbsolutePath] {
+        fileSystem: FileSysteming
+    ) async throws -> [AbsolutePath] {
         if let fixturePath {
             return [fixturePath]
         }
 
         if let fixturesListPath {
-            let fixtures = try parseFixtureList(path: fixturesListPath, fileHandler: fileHandler)
-            return try fixtures.paths.map {
-                try AbsolutePath(validating: $0, relativeTo: fileHandler.currentPath)
+            let fixtures = try parseFixtureList(path: fixturesListPath)
+            return try await fixtures.paths.serialMap {
+                try AbsolutePath(validating: $0, relativeTo: try await fileSystem.currentWorkingDirectory())
             }
         }
 
@@ -182,15 +183,15 @@ struct BenchmarkCommand: ParsableCommand {
         }
     }
 
-    private func parseConfig(path: AbsolutePath, fileHandler: FileHandler) throws -> BenchmarkConfig {
+    private func parseConfig(path: AbsolutePath) throws -> BenchmarkConfig {
         let decoder = JSONDecoder()
-        let data = try fileHandler.contents(of: path)
+        let data = try Data(contentsOf: URL(string: path.pathString)!)
         return try decoder.decode(BenchmarkConfig.self, from: data)
     }
 
-    private func parseFixtureList(path: AbsolutePath, fileHandler: FileHandler) throws -> Fixtures {
+    private func parseFixtureList(path: AbsolutePath) throws -> Fixtures {
         let decoder = JSONDecoder()
-        let data = try fileHandler.contents(of: path)
+        let data = try Data(contentsOf: URL(string: path.pathString)!)
         return try decoder.decode(Fixtures.self, from: data)
     }
 }

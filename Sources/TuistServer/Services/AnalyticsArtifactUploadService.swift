@@ -146,7 +146,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
         switch artifact.type {
         case .resultBundle:
-            artifactPath = try fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+            artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
                 .zip(name: passedArtifactPath.basenameWithoutExt)
         case .invocationRecord, .resultBundleObject:
             artifactPath = passedArtifactPath

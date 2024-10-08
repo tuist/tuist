@@ -4,8 +4,8 @@ import XCTest
 @testable import TuistSupportTesting
 @testable import XcodeGraph
 
-final class XCFrameworkMetadataProviderTests: TuistTestCase {
-    var subject: XCFrameworkMetadataProvider!
+final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
+    private var subject: XCFrameworkMetadataProvider!
 
     override func setUp() {
         super.setUp()
@@ -283,8 +283,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let xcframeworkPath = temporaryDirectory.appending(component: "MyFramework.xcframework")
-        try fileHandler.copy(
-            from: fixturePath(path: try RelativePath(validating: "MyFramework.xcframework")),
+        try await fileSystem.copy(
+            fixturePath(path: try RelativePath(validating: "MyFramework.xcframework")),
             to: xcframeworkPath
         )
         var macroPaths: [AbsolutePath] = []

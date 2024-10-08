@@ -71,8 +71,8 @@ open class TuistAcceptanceTestCase: XCTestCase {
 
         fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
 
-        try FileHandler.shared.copy(
-            from: fixturesPath.appending(component: fixture.path),
+        try await fileSystem.copy(
+            fixturesPath.appending(component: fixture.path),
             to: fixturePath
         )
     }

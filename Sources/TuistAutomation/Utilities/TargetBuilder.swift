@@ -168,7 +168,7 @@ public final class TargetBuilder: TargetBuilding {
                 try await fileSystem.remove(productOutputPath)
             }
 
-            try FileHandler.shared.copy(from: product, to: productOutputPath)
+            try await fileSystem.copy(product, to: productOutputPath)
         }
     }
 }
