@@ -865,21 +865,13 @@ extension ProjectDescription.ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) async throws -> ProjectDescription
+        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription
             .ResourceFileElement?
         {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
-            if try await excludedPaths
-                .concurrentFilter({
-                    if try await fileSystem.exists(resourceAbsolutePath) {
-                        return try await fileSystem.resolveSymbolicLink(resourceAbsolutePath)
-                            .isDescendantOfOrEqual(to: $0)
-                    } else {
-                        return false
-                    }
-                })
-                .isEmpty == false
+            if excludedPaths
+                .contains(where: { absolutePathGlob.isDescendantOfOrEqual(to: $0) })
             {
                 return nil
             }
@@ -900,12 +892,12 @@ extension ProjectDescription.ResourceFileElements {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
                 if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
-                    return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                    return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
                 }
             case .process:
-                return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
         .concurrentFilter {
@@ -940,7 +932,7 @@ extension ProjectDescription.ResourceFileElements {
                 let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
                 return candidateNotInExcludedDirectory
             }
-            .concurrentCompactMap { try await handleProcessResource(resourceAbsolutePath: $0) }
+            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files

@@ -74,7 +74,6 @@ final class ProjectEditor: ProjectEditing {
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
-    private let fileSystem: FileSysteming
 
     init(
         generator: DescriptorGenerating = DescriptorGenerator(),
@@ -88,8 +87,7 @@ final class ProjectEditor: ProjectEditing {
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
-            ProjectDescriptionHelpersBuilderFactory(),
-        fileSystem: FileSysteming = FileSystem()
+            ProjectDescriptionHelpersBuilderFactory()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -102,7 +100,6 @@ final class ProjectEditor: ProjectEditing {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
-        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -220,13 +217,12 @@ final class ProjectEditor: ProjectEditing {
         plugins: Plugins,
         onlyCurrentDirectory: Bool
     ) async throws -> [EditablePluginManifest] {
-        let fileSystem = fileSystem
-        let loadedEditablePluginManifests = try await plugins.projectDescriptionHelpers
+        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .concurrentMap {
+            .map {
                 EditablePluginManifest(
                     name: $0.name,
-                    path: try await fileSystem.resolveSymbolicLink($0.path.parentDirectory)
+                    path: $0.path.parentDirectory
                 )
             }
 
@@ -235,10 +231,10 @@ final class ProjectEditor: ProjectEditing {
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        .concurrentMap {
+        .map {
             EditablePluginManifest(
                 name: $0.parentDirectory.basename,
-                path: try await fileSystem.resolveSymbolicLink($0.parentDirectory)
+                path: $0.parentDirectory
             )
         }
 
