@@ -12,10 +12,15 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "io.tuist.MainApp",
             deploymentTargets: .iOS("17.0.0"),
-            infoPlist: .extendingDefault(with: [:]),
+            infoPlist: .extendingDefault(
+                with: [
+                    "UILaunchStoryboardName": "LaunchScreen",
+                ]
+            ),
             sources: "App/Sources/**",
+            resources: "App/Resources/**",
             dependencies: [
                 .target(name: "Framework1"),
                 .target(name: "Framework2-iOS"),
