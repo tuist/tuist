@@ -516,7 +516,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) throws {
-        let dependencies = graphTraverser.executableDependencies(path: path, targetName: target.name).sorted()
+        let dependencies = graphTraverser.copyExecutableDependencies(path: path, name: target.name).sorted()
 
         try generateDependenciesBuildPhase(
             dependencies: dependencies,

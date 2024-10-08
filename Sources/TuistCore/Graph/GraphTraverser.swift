@@ -212,6 +212,16 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    func executableNonLocalDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
+        let dependencies = directNonLocalTargetDependencies(path: path, name: targetName)
+            .filter {
+                [.app, .appExtension].contains($0.target.product)
+            }
+            .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension)}
+
+        return Set(dependencies)
+    }
+
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
@@ -266,7 +276,7 @@ public class GraphTraverser: GraphTraversing {
             .messagesExtension,
         ]
         return Set(
-            directLocalTargetDependencies(path: path, name: name)
+            directTargetDependencies(path: path, name: name)
                 .filter { validProducts.contains($0.target.product) }
         )
     }
@@ -616,21 +626,24 @@ public class GraphTraverser: GraphTraversing {
             )
         }
 
+        dependencies.formUnion(
+            executableNonLocalDependencies(path: path, targetName: target.target.name)
+        )
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
     }
 
-    public func executableDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
-        return executableNonLocalDependencies(path: path, targetName: targetName)
-    }
-
-    func executableNonLocalDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
-        let dependencies = directNonLocalTargetDependencies(path: path, name: targetName)
-            .filter { $0.target.product == .app }
-            .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension)}
-
-        return Set(dependencies)
+    public func copyExecutableDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        let validProducts: [Product] = [.app]
+        return Set(
+            directNonLocalTargetDependencies(path: path, name: name)
+                .filter { validProducts.contains($0.target.product) }
+                .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+        )
     }
 
     public func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<
@@ -814,7 +827,6 @@ public class GraphTraverser: GraphTraversing {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
-            references.formUnion(executableDependencies(path: path, targetName: target.target.name))
         }
         return references
     }
