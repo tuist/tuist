@@ -249,6 +249,7 @@ public enum Module: String, CaseIterable {
             [
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "ArgumentParser"),
+                .external(name: "FileSystem"),
             ]
         case .tuistFixtureGenerator:
             [

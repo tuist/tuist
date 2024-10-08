@@ -87,12 +87,12 @@ final class FileHandlerTests: TuistUnitTestCase {
         XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
     }
 
-    func test_changeExtension() throws {
+    func test_changeExtension() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let testZippedFrameworkPath = temporaryDirectory.appending(component: "uUI.xcframework.zip")
-        try FileHandler.shared.copy(
-            from: fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip")),
+        try await fileSystem.copy(
+            fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip")),
             to: testZippedFrameworkPath
         )
 
