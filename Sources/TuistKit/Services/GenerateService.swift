@@ -48,7 +48,7 @@ final class GenerateService {
         let timer = clock.startTimer()
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
             config: config,
             sources: sources,

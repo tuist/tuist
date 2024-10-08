@@ -10,10 +10,10 @@ struct MyApp: SwiftUI.App {
         let framework2Objc = MyPublicClass()
 
         print(hello())
-        print("AppDelegate -> \(framework1.hello())")
-        print("AppDelegate -> \(framework1.helloFromFramework2())")
-        print("AppDelegate -> \(framework2.hello())")
-        print("AppDelegate -> \(framework2Objc.hello())")
+        print("MyApp -> \(framework1.hello())")
+        print("MyApp -> \(framework1.helloFromFramework2())")
+        print("MyApp -> \(framework2.hello())")
+        print("MyApp -> \(framework2Objc.hello())")
     }
 
     var body: some Scene {
@@ -23,6 +23,6 @@ struct MyApp: SwiftUI.App {
     }
 
     func hello() -> String {
-        "AppDelegate.hello()"
+        "MyApp.hello()"
     }
 }
