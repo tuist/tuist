@@ -1,5 +1,5 @@
 {
-  "originHash" : "5248e1130946e9b964bba2f1eb11132015318051fb35328af86d51d4c0d1a489",
+  "originHash" : "ae2c2ad63323472407bff711b48a303a046039ad8a998ae561d89ff837e9b10b",
   "pins" : [
     {
       "identity" : "aexml",
@@ -76,7 +76,7 @@
     {
       "identity" : "keychainaccess",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kishikawakatsumi/KeychainAccess.git",
+      "location" : "https://github.com/kishikawakatsumi/KeychainAccess",
       "state" : {
         "revision" : "84e546727d66f1adc5439debad16270d0fdd04e7",
         "version" : "4.2.2"
@@ -130,7 +130,7 @@
     {
       "identity" : "queuer",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/FabrizioBrancati/Queuer.git",
+      "location" : "https://github.com/FabrizioBrancati/Queuer",
       "state" : {
         "revision" : "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
         "version" : "2.1.1"
@@ -157,7 +157,7 @@
     {
       "identity" : "stencil",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/stencilproject/Stencil.git",
+      "location" : "https://github.com/stencilproject/Stencil",
       "state" : {
         "revision" : "4f222ac85d673f35df29962fc4c36ccfdaf9da5b",
         "version" : "0.15.1"
@@ -166,7 +166,7 @@
     {
       "identity" : "stencilswiftkit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftGen/StencilSwiftKit.git",
+      "location" : "https://github.com/SwiftGen/StencilSwiftKit",
       "state" : {
         "revision" : "20e2de5322c83df005939d9d9300fab130b49f97",
         "version" : "2.10.1"
@@ -175,7 +175,7 @@
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "location" : "https://github.com/apple/swift-argument-parser",
       "state" : {
         "revision" : "41982a3656a71c768319979febd796c6fd111d5c",
         "version" : "1.5.0"
@@ -211,7 +211,7 @@
     {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-log.git",
+      "location" : "https://github.com/apple/swift-log",
       "state" : {
         "revision" : "9cb486020ebf03bfa5b5df985387a14a98744537",
         "version" : "1.6.1"
@@ -265,7 +265,7 @@
     {
       "identity" : "swift-tools-support-core",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-tools-support-core.git",
+      "location" : "https://github.com/apple/swift-tools-support-core",
       "state" : {
         "revision" : "3b13e439a341bbbfe0f710c7d1be37221745ef1a",
         "version" : "0.6.1"
@@ -294,8 +294,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "12462c8fff97fc5efb8476ef4625f434acd5058f",
-        "version" : "0.12.1"
+        "revision" : "4e22c6060b7c38d6e9396a393202eb37c35e3d28",
+        "version" : "0.13.1"
       }
     },
     {
@@ -328,7 +328,7 @@
     {
       "identity" : "zipfoundation",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/weichsel/ZIPFoundation.git",
+      "location" : "https://github.com/weichsel/ZIPFoundation",
       "state" : {
         "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
         "version" : "0.9.19"

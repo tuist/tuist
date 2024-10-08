@@ -876,6 +876,25 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework: TuistAcceptanceTestCase {
+    func test_ios_app_with_none_linking_status_framework() async throws {
+        try await setUpFixture(.iosAppWithNoneLinkingStatusFramework)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let frameworksBuildPhase = try target.frameworksBuildPhase()
+        guard let frameworkFiles = frameworksBuildPhase?.files else {
+            XCTFail("A linking dependencies phase should exist even though empty")
+            return
+        }
+        XCTAssertEmpty(frameworkFiles)
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_weakly_linked_framework() async throws {
         try await setUpFixture(.iosAppWithWeaklyLinkedFramework)
