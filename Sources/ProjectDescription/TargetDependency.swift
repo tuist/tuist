@@ -7,6 +7,9 @@ public enum LinkingStatus: String, Codable, Hashable, Sendable {
 
     /// Optional dependency (weakly linked)
     case optional
+
+    /// Skip linking
+    case none
 }
 
 @available(*, deprecated, renamed: "LinkingStatus")
