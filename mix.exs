@@ -97,12 +97,12 @@ defmodule Tuist.MixProject do
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 3.6"},
-      # Cache
       {:nebulex, "~> 2.6"},
       {:horde, "~> 0.8.0"},
       {:nebulex_adapters_horde, "~> 1.0"},
       {:error_tracker, "~> 0.3.0"},
-      {:excellent_migrations, "~> 0.1.8"}
+      {:excellent_migrations, "~> 0.1.8"},
+      {:ex_aws_sts, "~> 2.2"}
     ]
   end
 

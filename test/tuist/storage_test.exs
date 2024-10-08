@@ -3,7 +3,6 @@ defmodule Tuist.StorageTest do
   use Mimic
   alias Tuist.Environment
   alias Tuist.Storage
-  alias Tuist.Storage.Options
 
   describe "multipart_generate_url/4" do
     test "generates the URL using the ExAws.S3 module and reports the telemetry event" do
@@ -16,14 +15,12 @@ defmodule Tuist.StorageTest do
       event_ref =
         :telemetry_test.attach_event_handlers(self(), [event_name])
 
-      Options |> expect(:get, fn -> %{} end)
-
       upload_id = UUIDv7.generate()
       object_key = UUIDv7.generate()
       part_number = 1
       expires_in = 30
       bucket_name = UUIDv7.generate()
-      ExAws.Config |> stub(:new, fn :s3, _ -> %{} end)
+      ExAws.Config |> stub(:new, fn :s3 -> %{} end)
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
 
       ExAws.S3
@@ -70,9 +67,6 @@ defmodule Tuist.StorageTest do
       upload_id = UUIDv7.generate()
       object_key = UUIDv7.generate()
       parts = [{1, "etag-1"}, {2, "etag-2"}]
-      options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
-
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
 
       operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
@@ -82,7 +76,7 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      ExAws |> expect(:request!, fn ^operation, ^options -> :ok end)
+      ExAws |> expect(:request!, fn ^operation -> :ok end)
 
       # When
       assert Storage.multipart_complete_upload(object_key, upload_id, parts) == :ok
@@ -111,10 +105,8 @@ defmodule Tuist.StorageTest do
       bucket_name = UUIDv7.generate()
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
 
-      options = %{session_token: UUIDv7.generate()}
       expires_in = 60
-      Options |> expect(:get, fn -> options end)
-      ExAws.Config |> stub(:new, fn :s3, ^options -> %{} end)
+      ExAws.Config |> stub(:new, fn :s3 -> %{} end)
 
       ExAws.S3
       |> expect(:presigned_url, fn _,
@@ -148,15 +140,13 @@ defmodule Tuist.StorageTest do
       bucket_name = UUIDv7.generate()
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
       operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
-      options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
 
       ExAws.S3
       |> expect(:head_object, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      ExAws |> expect(:request, fn ^operation, ^options -> {:ok, %{}} end)
+      ExAws |> expect(:request, fn ^operation -> {:ok, %{}} end)
 
       # When
       assert Storage.object_exists?(object_key) == true
@@ -182,15 +172,13 @@ defmodule Tuist.StorageTest do
       bucket_name = UUIDv7.generate()
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
       operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
-      options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
 
       ExAws.S3
       |> expect(:get_object, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      ExAws |> expect(:request!, fn ^operation, ^options -> %{body: content} end)
+      ExAws |> expect(:request!, fn ^operation -> %{body: content} end)
 
       # When
       assert Storage.get_object_as_string(object_key) == content
@@ -216,15 +204,13 @@ defmodule Tuist.StorageTest do
       bucket_name = UUIDv7.generate()
       Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
       operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
-      options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
 
       ExAws.S3
       |> expect(:initiate_multipart_upload, fn ^bucket_name, ^object_key ->
         operation
       end)
 
-      ExAws |> expect(:request!, fn ^operation, ^options -> %{body: %{upload_id: upload_id}} end)
+      ExAws |> expect(:request!, fn ^operation -> %{body: %{upload_id: upload_id}} end)
 
       # When
       assert Storage.multipart_start(object_key) == upload_id
@@ -251,8 +237,6 @@ defmodule Tuist.StorageTest do
 
       Environment |> stub(:s3_bucket_name, fn -> bucket_name end)
       list_operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
-      options = %{session_token: UUIDv7.generate()}
-      Options |> stub(:get, fn -> options end)
 
       ExAws.S3
       |> expect(:list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: 1000] ->
@@ -260,7 +244,7 @@ defmodule Tuist.StorageTest do
       end)
 
       ExAws
-      |> stub(:stream!, fn ^list_operation, ^options ->
+      |> stub(:stream!, fn ^list_operation ->
         Stream.cycle([%{key: object_key}]) |> Stream.take(1)
       end)
 
@@ -271,7 +255,7 @@ defmodule Tuist.StorageTest do
         delete_operation
       end)
 
-      ExAws |> expect(:request!, fn ^delete_operation, ^options -> :ok end)
+      ExAws |> expect(:request!, fn ^delete_operation -> :ok end)
 
       # When
       assert Storage.delete_all_objects(project_slug) == :ok
@@ -297,13 +281,11 @@ defmodule Tuist.StorageTest do
       bucket_name = UUIDv7.generate()
       Environment |> stub(:s3_bucket_name, fn -> bucket_name end)
       operation = %ExAws.Operation.S3{body: UUIDv7.generate()}
-      options = %{session_token: UUIDv7.generate()}
-      Options |> expect(:get, fn -> options end)
 
       ExAws.S3 |> expect(:head_object, fn ^bucket_name, ^object_key -> operation end)
 
       ExAws
-      |> expect(:request!, fn ^operation, ^options ->
+      |> expect(:request!, fn ^operation ->
         %{headers: %{"content-length" => ["#{size}"]}}
       end)
 

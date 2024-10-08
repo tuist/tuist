@@ -162,8 +162,40 @@ if Tuist.Environment.error_tracking_enabled?() do
 end
 
 # Ex.AWS
-config :ex_aws, http_client: ExAws.Request.Req
-config :ex_aws, :req_opts, receive_timeout: :timer.seconds(30), pool_timeout: :timer.seconds(5)
+if Tuist.Environment.env() not in [:test] do
+  config :ex_aws,
+    http_client: Tuist.AWS.Client
+
+  config :ex_aws, :req_opts,
+    receive_timeout: :timer.seconds(Tuist.Environment.s3_request_timeout(secrets)),
+    pool_timeout: :timer.seconds(Tuist.Environment.s3_pool_timeout(secrets))
+
+  %{host: s3_endpoint_host} = Tuist.Environment.s3_endpoint(secrets) |> URI.parse()
+
+  config :ex_aws,
+    region: Tuist.Environment.s3_region(secrets)
+
+  config :ex_aws, :s3,
+    scheme: "https://",
+    host: s3_endpoint_host
+
+  case Tuist.Environment.s3_authentication_method(secrets) do
+    :env_access_key_id_and_secret_access_key ->
+      config :ex_aws,
+        secret_access_key: Tuist.Environment.s3_secret_access_key(secrets),
+        access_key_id: Tuist.Environment.s3_access_key_id(secrets)
+
+    :aws_web_identity_token_from_env_vars ->
+      config :ex_aws,
+        secret_access_key: [{:awscli, "profile_name", 30}],
+        access_key_id: [{:awscli, "profile_name", 30}],
+        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
+
+    _ ->
+      nil
+      # Noop
+  end
+end
 
 # Stripe config
 if Tuist.Environment.stripe_configured?(secrets) do

@@ -3,14 +3,13 @@ defmodule Tuist.Storage do
   A module that provides functions for storing and retrieving files from cloud storages
   """
   alias Tuist.Environment
-  alias Tuist.Storage.Options
   alias Tuist.Performance
 
   require Logger
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     {:ok, url} =
-      ExAws.Config.new(:s3, Options.get())
+      ExAws.Config.new(:s3)
       |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
         query_params: [
           {"partNumber", part_number},
@@ -35,7 +34,7 @@ defmodule Tuist.Storage do
       Performance.measure_time_in_milliseconds(fn ->
         Environment.s3_bucket_name()
         |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(Options.get())
+        |> ExAws.request!()
 
         :ok
       end)
@@ -55,7 +54,7 @@ defmodule Tuist.Storage do
     {time, url} =
       Performance.measure_time_in_milliseconds(fn ->
         {:ok, url} =
-          ExAws.Config.new(:s3, Options.get())
+          ExAws.Config.new(:s3)
           |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
             query_params: [],
             expires_in: opts |> Keyword.get(:expires_in, 3600),
@@ -79,7 +78,7 @@ defmodule Tuist.Storage do
       Performance.measure_time_in_milliseconds(fn ->
         case Environment.s3_bucket_name()
              |> ExAws.S3.head_object(object_key)
-             |> ExAws.request(Options.get()) do
+             |> ExAws.request() do
           {:ok, _} -> true
           {:error, _} -> false
         end
@@ -102,7 +101,7 @@ defmodule Tuist.Storage do
         %{body: content} =
           Environment.s3_bucket_name()
           |> ExAws.S3.get_object(object_key)
-          |> ExAws.request!(Options.get())
+          |> ExAws.request!()
 
         content
       end)
@@ -124,7 +123,7 @@ defmodule Tuist.Storage do
         %{body: %{upload_id: upload_id}} =
           Environment.s3_bucket_name()
           |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> ExAws.request!(Options.get())
+          |> ExAws.request!()
 
         upload_id
       end)
@@ -146,11 +145,11 @@ defmodule Tuist.Storage do
         stream =
           Environment.s3_bucket_name()
           |> ExAws.S3.list_objects_v2(prefix: project_slug, max_keys: 1000)
-          |> ExAws.stream!(Options.get())
+          |> ExAws.stream!()
           |> Stream.map(& &1.key)
 
         ExAws.S3.delete_all_objects(Environment.s3_bucket_name(), stream)
-        |> ExAws.request!(Options.get())
+        |> ExAws.request!()
       end)
 
     Logger.debug("All objects deleted in #{time} ms.")
@@ -169,7 +168,7 @@ defmodule Tuist.Storage do
       Performance.measure_time_in_milliseconds(fn ->
         Environment.s3_bucket_name()
         |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!(Options.get())
+        |> ExAws.request!()
         |> Map.get(:headers)
         |> Enum.find(fn {key, _value} -> key == "content-length" end)
         |> elem(1)

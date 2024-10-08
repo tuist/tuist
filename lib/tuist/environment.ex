@@ -140,6 +140,30 @@ defmodule Tuist.Environment do
     get([:posthog, :url], secrets)
   end
 
+  def s3_authentication_method(secrets \\ secrets()) do
+    case get([:s3, :authentication_method], secrets) do
+      authentication_method when is_binary(authentication_method) ->
+        String.to_atom(authentication_method)
+
+      _ ->
+        :env_access_key_id_and_secret_access_key
+    end
+  end
+
+  def s3_request_timeout(secrets \\ secrets()) do
+    case get([:s3, :request_timeout], secrets) do
+      request_timeout when is_binary(request_timeout) -> String.to_integer(request_timeout)
+      _ -> 30
+    end
+  end
+
+  def s3_pool_timeout(secrets \\ secrets()) do
+    case get([:s3, :pool_timeout], secrets) do
+      pool_timeout when is_binary(pool_timeout) -> String.to_integer(pool_timeout)
+      _ -> 5
+    end
+  end
+
   def s3_access_key_id(secrets \\ secrets()) do
     System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
       get([:s3, :access_key_id], secrets)
@@ -150,46 +174,9 @@ defmodule Tuist.Environment do
       get([:s3, :secret_access_key], secrets)
   end
 
-  def aws_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || "auto"
-  end
-
-  def aws_token_file_credentials_ttl() do
-    value = System.get_env("AWS_TOKEN_FILE_CREDENTIALS_TTL")
-
-    if is_nil(value) do
-      :timer.hours(1)
-    else
-      String.to_integer(value)
-    end
-  end
-
-  def aws_web_identity_token_file() do
-    System.get_env("AWS_WEB_IDENTITY_TOKEN_FILE")
-  end
-
-  def aws_session_token(secrets \\ secrets()) do
-    System.get_env("AWS_SESSION_TOKEN") || get([:aws, :session_token], secrets)
-  end
-
-  def aws_profile(secrets \\ secrets()) do
-    System.get_env("AWS_PROFILE") || get([:aws, :profile], secrets)
-  end
-
-  def aws_use_session_token?(secrets \\ secrets()) do
-    get([:aws, :use_session_token], secrets) |> truthy?()
-  end
-
-  def aws_role_arn() do
-    System.get_env("AWS_ROLE_ARN")
-  end
-
-  def aws_role_session_name(default \\ nil) do
-    System.get_env("AWS_ROLE_SESSION_NAME", default)
-  end
-
   def s3_region(secrets \\ secrets()) do
-    get([:aws, :region], secrets) || get([:s3, :region], secrets)
+    System.get_env("AWS_REGION") || get([:aws, :region], secrets) || get([:s3, :region], secrets) ||
+      "auto"
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
@@ -220,12 +207,6 @@ defmodule Tuist.Environment do
       protocol when is_binary(protocol) -> protocol |> String.to_atom()
       _ -> :http2
     end
-  end
-
-  def s3_configured?(secrets \\ secrets()) do
-    s3_access_key_id(secrets) != nil and s3_secret_access_key(secrets) != nil and
-      s3_region(secrets) != nil and
-      (!on_premise?() or s3_bucket_name(secrets) != nil)
   end
 
   def slack_tuist_token(secrets \\ secrets()) do

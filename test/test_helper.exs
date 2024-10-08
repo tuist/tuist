@@ -32,7 +32,6 @@ Mimic.copy(Tuist.Projects)
 Mimic.copy(Tuist.Repo)
 Mimic.copy(Tuist.Slack)
 Mimic.copy(Tuist.Storage)
-Mimic.copy(Tuist.Storage.Options)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.VCS)
 
