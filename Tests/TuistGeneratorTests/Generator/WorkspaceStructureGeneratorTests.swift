@@ -405,10 +405,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
-            path
-        }
-
         func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
             [:]
         }

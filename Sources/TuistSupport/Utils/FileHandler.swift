@@ -84,7 +84,6 @@ public protocol FileHandling: AnyObject {
     func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath]
     func urlSafeBase64MD5(path: Path.AbsolutePath) throws -> String
     func fileSize(path: Path.AbsolutePath) throws -> UInt64
-    func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath
     func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any]
     func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]?
     func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
@@ -345,10 +344,6 @@ public class FileHandler: FileHandling {
 
     public func createSymbolicLink(at path: Path.AbsolutePath, destination: Path.AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
-    }
-
-    public func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath {
-        try .init(validating: TSCBasic.resolveSymlinks(.init(validating: path.pathString)).pathString)
     }
 
     public func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any] {

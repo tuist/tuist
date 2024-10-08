@@ -264,11 +264,11 @@ open class TuistTestCase: XCTestCase {
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
 
-    public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
+    public func temporaryFixture(_ pathString: String) async throws -> AbsolutePath {
         let path = try RelativePath(validating: pathString)
         let fixturePath = fixturePath(path: path)
         let destinationPath = (try temporaryPath()).appending(component: path.basename)
-        try FileHandler.shared.copy(from: fixturePath, to: destinationPath)
+        try await FileSystem().copy(fixturePath, to: destinationPath)
         return destinationPath
     }
 }

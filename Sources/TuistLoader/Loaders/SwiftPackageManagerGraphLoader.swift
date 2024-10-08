@@ -115,7 +115,12 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
                     throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
                 }
-                packageFolder = try AbsolutePath(validating: path)
+                // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+                // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+                // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                packageFolder = try AbsolutePath(
+                    validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+                )
             case "registry":
                 let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
                 packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))

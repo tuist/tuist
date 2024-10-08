@@ -4692,6 +4692,59 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
+    func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let directPackageProduct = Target.test(
+            name: "DirectPackage",
+            destinations: [.iPhone],
+            product: .app
+        )
+        let packageProject = Project.test(
+            path: try! AbsolutePath(validating: "/Package"),
+            name: "Package",
+            targets: [directPackageProduct],
+            isExternal: true
+        )
+        let directPackageProductDependency = GraphDependency.target(
+            name: directPackageProduct.name,
+            path: packageProject.path
+        )
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project, packageProject.path: packageProject],
+            dependencies: [
+                appDependency: Set([directPackageProductDependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: appDependency,
+                    to: directPackageProductDependency
+                ): try XCTUnwrap(.when([.macos])),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            Set(
+                [
+                    GraphTarget(
+                        path: packageProject.path,
+                        target: directPackageProduct,
+                        project: packageProject
+                    ),
+                ]
+            )
+        )
+    }
+
     func test_targetsWithExternalDependencies() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
