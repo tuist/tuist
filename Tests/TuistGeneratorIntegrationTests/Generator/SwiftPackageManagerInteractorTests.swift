@@ -34,13 +34,46 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_generate_addsPackageDependencyManager() async throws {
+    func test_generate_addsPackageDependencyManager_withRemotePackageDependency() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target],
+            packages: [package]
+        )
+        let graph = Graph.test(
+            path: project.path,
+            packages: [project.path: ["Test": package]],
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
+        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+
+        // When
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
+
+        // Then
+        let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
+        XCTAssertTrue(exists)
+    }
+
+    func test_generate_addsPackageDependencyManager_withLocalPackageDependency() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let target = anyTarget(dependencies: [
+            .package(product: "Example", type: .runtime),
+        ])
+        let package = try Package.local(path: AbsolutePath(validating: "/Package/"))
         let project = Project.test(
             path: temporaryPath,
             name: "Test",
