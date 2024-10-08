@@ -75,7 +75,7 @@ public final class BuildService {
     ) async throws {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
