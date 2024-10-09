@@ -355,7 +355,7 @@ defmodule Tuist.Environment do
   end
 
   def secrets do
-    Application.get_env(:tuist, :secrets)[env()] || %{}
+    Application.get_env(:tuist, :secrets) || %{}
   end
 
   def put_application_secrets(secrets) do
@@ -369,15 +369,23 @@ defmodule Tuist.Environment do
   def decrypt_secrets() do
     if env() == :test do
       {:ok, secrets_map} =
-        File.read!("priv/secrets/test_secrets.yml")
+        File.read!("priv/secrets/test.yml")
         |> YamlElixir.read_from_string()
 
       secrets_map
       |> to_atom_map()
     else
-      master_key_path = Path.join("priv/secrets", "master.key")
-      master_key_env_variable = "PHX_MASTER_KEY"
-      secrets_path = System.get_env("SECRETS_PATH", "priv/secrets/secrets.yml.enc")
+      master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
+      master_key_env_variable = "MASTER_KEY"
+
+      secrets_path =
+        case System.get_env("SECRETS_DIRECTORY") do
+          env_directory when is_binary(env_directory) ->
+            Path.join(env_directory, "#{Atom.to_string(env())}.yml.enc")
+
+          _ ->
+            Path.join("priv/secrets", "#{Atom.to_string(env())}.yml.enc")
+        end
 
       if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
         key = System.get_env(master_key_env_variable) || File.read!(master_key_path)

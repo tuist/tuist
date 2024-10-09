@@ -69,8 +69,8 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client  \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+    apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client  \
+    && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -91,9 +91,11 @@ ENV APP_REVISION=$APP_REVISION
 
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
-COPY priv/secrets/secrets.yml.enc /app/priv/secrets/secrets.yml.enc
+COPY priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
+COPY priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
+COPY priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
+ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
-ENV SECRETS_PATH=/app/priv/secrets/secrets.yml.enc
 
 USER nobody
 

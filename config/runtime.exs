@@ -21,7 +21,7 @@ if System.get_env("PHX_SERVER") do
 end
 
 env = Tuist.Environment.env()
-secrets = Tuist.Environment.decrypt_secrets()[env]
+secrets = Tuist.Environment.decrypt_secrets()
 secret_key_base = Tuist.Environment.secret_key_base(secrets)
 
 if env != :test do
