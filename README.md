@@ -7,7 +7,6 @@
   <a href="https://twitter.com/tuistio"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=x" alt="Twitter Followers"></a>
   <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=slack" alt="Slack Workspace"></a>
   <a href="https://t.me/tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=telegram" alt="Slack Workspace"></a>
-  </a>
   <div>
     <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
