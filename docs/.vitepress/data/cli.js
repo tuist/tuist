@@ -1,9 +1,29 @@
-import cliDataLoader from "./commands.data";
+import { $ } from "execa";
+import { temporaryDirectoryTask } from "tempy";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import ejs from "ejs";
 
+// Root directory
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDirectory = path.join(__dirname, "../../..");
+
+// Schema
+await $`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
+await $`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
+var dumpedCLISchema;
+await temporaryDirectoryTask(async (tmpDir) => {
+  // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
+  dumpedCLISchema =
+    await $`${path.join(rootDirectory, ".build/debug/tuist")} --experimental-dump-help --path ${tmpDir}`;
+});
+const { stdout } = dumpedCLISchema;
+export const schema = JSON.parse(stdout);
+
+// Paths
 function traverse(command, paths) {
   paths.push({
-    params: { command: command.link.replace(/\/cli\//, "") },
+    params: { command: command.link.split("cli/")[1] },
     content: content(command),
   });
   (command.items ?? []).forEach((subCommand) => {
@@ -83,12 +103,52 @@ function content(command) {
   return content;
 }
 
-export default {
-  async paths() {
-    let paths = [];
-    (await cliDataLoader.load()).items.forEach((command) => {
-      traverse(command, paths);
-    });
-    return paths;
-  },
-};
+export async function paths(locale) {
+  let paths = [];
+  (await loadData(locale)).items.forEach((command) => {
+    traverse(command, paths);
+  });
+  return paths;
+}
+
+export async function loadData(locale) {
+  function parseCommand(
+    command,
+    parentCommand = "tuist",
+    parentPath = `/${locale}/cli/`,
+  ) {
+    const output = {
+      text: command.commandName,
+      fullCommand: parentCommand + " " + command.commandName,
+      link: path.join(parentPath, command.commandName),
+      spec: command,
+    };
+    if (command.subcommands && command.subcommands.length !== 0) {
+      output.items = command.subcommands.map((subcommand) => {
+        return parseCommand(
+          subcommand,
+          parentCommand + " " + command.commandName,
+          path.join(parentPath, command.commandName),
+        );
+      });
+    }
+
+    return output;
+  }
+
+  const {
+    command: { subcommands },
+  } = schema;
+
+  return {
+    text: "CLI",
+    items: subcommands
+      .map((command) => {
+        return {
+          ...parseCommand(command),
+          collapsed: true,
+        };
+      })
+      .sort((a, b) => a.text.localeCompare(b.text)),
+  };
+}
