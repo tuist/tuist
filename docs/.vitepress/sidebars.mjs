@@ -13,103 +13,67 @@ import {
   server04Icon,
 } from "./icons.mjs";
 import examplesDataLoader from "./data/examples/examples.data";
-import projectDescriptionTypesDataLoader from "./data/project-description/types.data";
+import { loadData as loadProjectDescriptionData } from "./data/project-description";
 
-const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
-
-const projectDescriptionSidebar = {
-  text: "Project Description",
-  collapsed: true,
-  items: [],
-};
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-["structs", "enums", "extensions", "typealiases"].forEach((category) => {
-  if (projectDescriptionTypesData.find((item) => item.category === category)) {
-    projectDescriptionSidebar.items.push({
-      text: capitalize(category),
-      collapsed: true,
-      items: projectDescriptionTypesData
-        .filter((item) => item.category === category)
-        .map((item) => ({
-          text: item.title,
-          link: `/references/project-description/${item.identifier}`,
-        })),
-    });
+async function projectDescriptionSidebar(locale) {
+  const projectDescriptionTypesData = await loadProjectDescriptionData();
+  const projectDescriptionSidebar = {
+    text: "Project Description",
+    collapsed: true,
+    items: [],
+  };
+  function capitalize(text) {
+    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
   }
-});
-
-function generateNestedSidebarItems(items) {
-  const nestedItems = {};
-
-  items.forEach((item) => {
-    const category = item.category;
-    if (!nestedItems[category]) {
-      nestedItems[category] = {
+  ["structs", "enums", "extensions", "typealiases"].forEach((category) => {
+    if (
+      projectDescriptionTypesData.find((item) => item.category === category)
+    ) {
+      projectDescriptionSidebar.items.push({
         text: capitalize(category),
         collapsed: true,
-        items: [],
-      };
+        items: projectDescriptionTypesData
+          .filter((item) => item.category === category)
+          .map((item) => ({
+            text: item.title,
+            link: `/${locale}/references/project-description/${item.identifier}`,
+          })),
+      });
     }
-    nestedItems[category].items.push({
-      text: item.title,
-      link: `/references/cli/${item.command}`,
-    });
   });
-
-  function isLinkItem(item) {
-    return typeof item.link === "string";
-  }
-
-  function convertToArray(obj) {
-    return Object.values(obj).reduce((acc, item) => {
-      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
-        acc.push(item);
-      } else {
-        acc.push({
-          text: item.text,
-          collapsed: true,
-          items: convertToArray(item.items),
-        });
-      }
-      return acc;
-    }, []);
-  }
-
-  return convertToArray(nestedItems);
+  return projectDescriptionSidebar;
 }
 
-export const referencesSidebar = [
-  {
-    text: "Reference",
-    items: [
-      projectDescriptionSidebar,
-      {
-        text: "Examples",
-        collapsed: true,
-        items: examplesDataLoader.load().map((item) => {
-          return {
-            text: item.title,
-            link: `/references/examples/${item.name}`,
-          };
-        }),
-      },
-      {
-        text: "Migrations",
-        collapsed: true,
-        items: [
-          {
-            text: "From v3 to v4",
-            link: "/references/migrations/from-v3-to-v4",
-          },
-        ],
-      },
-    ],
-  },
-];
+export async function referencesSidebar(locale) {
+  return [
+    {
+      text: "Reference",
+      items: [
+        await projectDescriptionSidebar(locale),
+        {
+          text: "Examples",
+          collapsed: true,
+          items: examplesDataLoader.load().map((item) => {
+            return {
+              text: item.title,
+              link: `/references/examples/${item.name}`,
+            };
+          }),
+        },
+        {
+          text: "Migrations",
+          collapsed: true,
+          items: [
+            {
+              text: "From v3 to v4",
+              link: "/references/migrations/from-v3-to-v4",
+            },
+          ],
+        },
+      ],
+    },
+  ];
+}
 
 export function contributorsSidebar(locale) {
   return [
