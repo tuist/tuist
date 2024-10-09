@@ -17,9 +17,17 @@ export default defineConfig({
   srcDir: "docs",
   lastUpdated: true,
   locales: {
-    root: {
+    en: {
       label: "English",
-      lange: "en",
+      lang: "en",
+    },
+    ko: {
+      label: "Korean",
+      lang: "ko",
+    },
+    jp: {
+      label: "Japanese",
+      lang: "jp",
     },
   },
   cleanUrls: true,

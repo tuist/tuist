@@ -12,9 +12,9 @@ import {
   cloudBlank02Icon,
   server04Icon,
 } from "./icons.mjs";
-import examplesDataLoader from "../docs/references/examples/examples.data";
-import projectDescriptionTypesDataLoader from "../docs/references/project-description/types.data";
-import cliDataLoader from "../docs/cli/commands.data";
+import examplesDataLoader from "./data/examples/examples.data";
+import projectDescriptionTypesDataLoader from "./data/project-description/types.data";
+import cliDataLoader from "./data/cli/commands.data";
 
 const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
 
