@@ -5,7 +5,7 @@ description: Learn how to migrate an Xcode project to a Tuist project.
 
 # Migrate an Xcode project
 
-Unless you [create a new project using Tuist](/guides/start/new-project), in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
+Unless you [create a new project using Tuist](/ko/guides/start/new-project), in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
 
 As you probably know, Xcode projects can become messy and complex over time: groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some). All that accumulated complexity makes it hard for us to provide a command that reliably migrates project.
 
@@ -48,7 +48,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
         // Default is .staticFramework
-        // productTypes: ["Alamofire": .framework,] 
+        // productTypes: ["Alamofire": .framework,]
         productTypes: [:]
     )
 #endif
@@ -126,7 +126,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
         // Default is .staticFramework
-        // productTypes: ["Alamofire": .framework,] 
+        // productTypes: ["Alamofire": .framework,]
         productTypes: [:]
     )
 #endif
@@ -159,7 +159,7 @@ Start migrating the targets from the top of the list, as they are the ones that 
 
 ## Migrate targets
 
-Migrate the targets one by one. We recommend doing a pull request for each target to ensure that the changes are reviewed and tested before merging them. 
+Migrate the targets one by one. We recommend doing a pull request for each target to ensure that the changes are reviewed and tested before merging them.
 
 ### Extract the target build settings into `.xcconfig` files
 

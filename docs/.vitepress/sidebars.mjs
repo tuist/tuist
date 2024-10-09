@@ -12,7 +12,7 @@ import {
   cloudBlank02Icon,
   server04Icon,
 } from "./icons.mjs";
-import examplesDataLoader from "./data/examples/examples.data";
+import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
 
 async function projectDescriptionSidebar(locale) {
@@ -53,10 +53,10 @@ export async function referencesSidebar(locale) {
         {
           text: "Examples",
           collapsed: true,
-          items: examplesDataLoader.load().map((item) => {
+          items: (await loadExamplesData()).map((item) => {
             return {
               text: item.title,
-              link: `/references/examples/${item.name}`,
+              link: `/${locale}/references/examples/${item.name}`,
             };
           }),
         },

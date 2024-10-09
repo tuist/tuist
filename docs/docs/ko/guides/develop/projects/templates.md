@@ -16,7 +16,7 @@ In projects with an established architecture, developers might want to bootstrap
 
 ## Defining a template
 
-To define templates, you can run [`tuist edit`](/guides/develop/projects/editing) and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. Templates need a manifest file, `name_of_template.swift` that describes the template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this:
+To define templates, you can run [`tuist edit`](/ko/guides/develop/projects/editing) and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. Templates need a manifest file, `name_of_template.swift` that describes the template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this:
 
 
 ```swift
@@ -58,11 +58,11 @@ tuist scaffold name_of_template --name Name --platform macos
 > [!NOTE]
 > Since platform is an optional argument, we can also call the command without the `--platform macos` argument.
 
-If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://stencil.fuller.li/en/latest/) templating language via the `.file` case. Besides that, you can also use additional filters defined here.
+If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://stencil.fuller.li/ko/latest/) templating language via the `.file` case. Besides that, you can also use additional filters defined here.
 
 Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }}`. If you'd like to use Stencil filters in the template definition, you can use that interpolation manually and add any filters you like. For example, you might use `{ { name | lowercase } }` instead of `\(nameAttribute)` to get the lowercased value of the name attribute.
 
 You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
 > [!TIP] PROJECT DESCRIPTION HELPERS
-> Templates support the use of [project description helpers](/guides/develop/projects/code-sharing) to reuse code across templates.
+> Templates support the use of [project description helpers](/ko/guides/develop/projects/code-sharing) to reuse code across templates.

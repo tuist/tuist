@@ -10,8 +10,8 @@ At a certain scale, optimizing a project and developers' interactions with them 
 
 While the role of a server is common in other ecosystems, it's not that common in app development. Teams leaned heavily on open source solutions that leveraged the capabilities of CI services to approximate the capabilities of a server. However, as the complexity of the projects and the number of developers working on them increased, the limitations of these solutions became more evident.
 
-We believe teams shouldn't have to worry about setting up and maintaining a server to scale their projects. That's why we built a server that [Tuist](/guides/develop/projects) and [Xcode projects](https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app) can integrate with to scale their projects and teams.
+We believe teams shouldn't have to worry about setting up and maintaining a server to scale their projects. That's why we built a server that [Tuist](/en/guides/develop/projects) and [Xcode projects](https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app) can integrate with to scale their projects and teams.
 
 > [!TIP] GIVING YOUR PROJECTS AND WORKFLOWS SUPERPOWERS
 > A way of thinking about the server is as a superpower that you can give to your projects and workflows.
-Some superpowers like [binary caching](/guides/develop/build/cache) require you to have a [Tuist project](/guides/develop/projects) but others just work with vanilla Xcode projects.
+Some superpowers like [binary caching](/en/guides/develop/build/cache) require you to have a [Tuist project](/en/guides/develop/projects) but others just work with vanilla Xcode projects.

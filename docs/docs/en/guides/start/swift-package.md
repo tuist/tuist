@@ -8,10 +8,10 @@ description: Learn how to use Tuist with a Swift Package.
 Tuist supports using `Package.swift` as a DSL for your projects and it converts your package targets into a native Xcode project and targets.
 
 > [!WARNING]
-> The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like [project description helpers](/guides/develop/projects/code-sharing) to the packages world.
+> The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like [project description helpers](/en/guides/develop/projects/code-sharing) to the packages world.
 
 > [!NOTE] ROOT DIRECTORY
-> Tuist commands expect a certain [directory structure](/guides/develop/projects/directory-structure#standard-tuist-projects) whose root is identified by a `Tuist` or a `.git` directory.
+> Tuist commands expect a certain [directory structure](/en/guides/develop/projects/directory-structure#standard-tuist-projects) whose root is identified by a `Tuist` or a `.git` directory.
 
 ## Using Tuist with a Swift Package
 

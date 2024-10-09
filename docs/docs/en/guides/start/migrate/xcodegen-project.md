@@ -8,7 +8,7 @@ description: Learn how to migrate your projects from XcodeGen to Tuist.
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool that uses YAML as [a configuration format](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) to define Xcode projects. Many organizations **adopted it trying to escape from the frequent Git conflicts that arise when working with Xcode projects.** However, frequent Git conflicts is just one of the many problems that organizations experience. Xcode exposes developers with a lot of intricacies and implicit configurations that make it hard to maintain and optimize projects at scale. XcodeGen falls short there by design because it's a tool that generates Xcode projects, not a project manager. If you need a tool that helps you beyond generating Xcode projects, you might want to consider Tuist.
 
 > [!TIP] SWIFT OVER YAML
-> Many organizations prefer Tuist as a project generation tool too because it uses Swift as a configuration format. Swift is a programming language that developers are familiar with, and that provides them with the convenience of using Xcode's autocompletion, type-checking, and validation features. 
+> Many organizations prefer Tuist as a project generation tool too because it uses Swift as a configuration format. Swift is a programming language that developers are familiar with, and that provides them with the convenience of using Xcode's autocompletion, type-checking, and validation features.
 
 What follows are some considerations and guidelines to help you migrate your projects from XcodeGen to Tuist.
 
@@ -54,7 +54,7 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 
 ## Spec templates
 
-One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named [project description helpers](/guides/develop/projects/code-sharing), which allow reusing code across all your manifest files.
+One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named [project description helpers](/en/guides/develop/projects/code-sharing), which allow reusing code across all your manifest files.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]

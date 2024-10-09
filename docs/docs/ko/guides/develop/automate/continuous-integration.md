@@ -71,7 +71,7 @@ workflows:
 
 ### GitHub Actions
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
 ::: code-group
 ```yaml [Mise]
@@ -116,13 +116,13 @@ We recommend using `mise use --pin` in your Tuist projects to pin the version of
 
 ## Authentication
 
-When using server-side features such as [cache](/guides/develop/build/cache), you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+When using server-side features such as [cache](/ko/guides/develop/build/cache), you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable 
+The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable
 `TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret so it's not exposed.
 
 > [!IMPORTANT] CI ENVIRONMENT DETECTION

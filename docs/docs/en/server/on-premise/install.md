@@ -104,7 +104,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
 
 - **App integration name:** `Tuist`
 - **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
@@ -135,7 +135,7 @@ For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/d
 
 ### Git platform configuration
 
-Tuist can [integrate with Git platforms](/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
+Tuist can [integrate with Git platforms](/en/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub
 
@@ -281,7 +281,7 @@ services:
       - "8080"
       - "443:443"
     environment:
-      # Base Tuist Env - https://docs.tuist.io/guides/dashboard/on-premise/install#base-environment-configuration
+      # Base Tuist Env - https://docs.tuist.io/en/guides/dashboard/on-premise/install#base-environment-configuration
       TUIST_USE_SSL_FOR_DATABASE: "0"
       TUIST_LICENSE:  # ...
       DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
@@ -290,11 +290,11 @@ services:
       WEB_CONCURRENCY: 80
 
       # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#github
+      # GitHub Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#github
       TUIST_GITHUB_OAUTH_ID:
       TUIST_GITHUB_APP_CLIENT_SECRET:
 
-      # Okta Auth - https://docs.tuist.io/guides/dashboard/on-premise/install#okta
+      # Okta Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:
       TUIST_OKTA_CLIENT_ID:
       TUIST_OKTA_CLIENT_SECRET:

@@ -5,7 +5,7 @@ description: Learn how to create a new project with Tuist.
 
 # Create a new project
 
-The most straightforward way to start a new project with Tuist is to use the `tuist init` command. This command generates a new project with a default structure and configuration. 
+The most straightforward way to start a new project with Tuist is to use the `tuist init` command. This command generates a new project with a default structure and configuration.
 
 ## Initializing an application project
 
@@ -27,7 +27,7 @@ tuist init --platform macos
 ```
 :::
 
-The command will initialize the project in the current directory. You can then [edit the project](/guides/develop/projects/editing) running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
+The command will initialize the project in the current directory. You can then [edit the project](/ko/guides/develop/projects/editing) running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
 
 
 ::: code-group
