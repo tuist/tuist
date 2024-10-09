@@ -220,7 +220,7 @@ config :ueberauth, Ueberauth.Strategy.Okta.OAuth,
   client_secret: Tuist.Environment.okta_client_secret(secrets)
 
 # Mailgun configuration
-if Tuist.Environment.mail_configured?(secrets) do
+if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:prod, :can, :stag] do
   base_uri =
     cond do
       env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"

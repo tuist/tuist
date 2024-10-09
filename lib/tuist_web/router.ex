@@ -194,8 +194,14 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
       ]
     )
+  end
 
-    forward "/sent_emails", Bamboo.SentEmailViewerPlug
+  if Tuist.Environment.dev?() do
+    scope "/ops" do
+      pipe_through [:browser_app]
+
+      forward "/sent_emails", Bamboo.SentEmailViewerPlug
+    end
   end
 
   ## Authentication routes

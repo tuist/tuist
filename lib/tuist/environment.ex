@@ -27,6 +27,10 @@ defmodule Tuist.Environment do
     env() == :test
   end
 
+  def dev?() do
+    env() == :dev
+  end
+
   defmacro run_if_error_tracking_enabled(block) do
     enabled = error_tracking_enabled?()
 
