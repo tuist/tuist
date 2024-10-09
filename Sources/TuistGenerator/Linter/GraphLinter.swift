@@ -255,8 +255,9 @@ public class GraphLinter: GraphLinting {
         for project in rootProjects {
             let rootProjectConfigurations = Set(project.settings.configurations.keys)
             let sortedRootProjectConfigurations = rootProjectConfigurations.sorted()
+            let rootProjectTargets = Array(graphTraverser.targets(at: project.path))
 
-            for dependency in graphTraverser.allProjectTargetDependencies(path: project.path) {
+            for dependency in graphTraverser.allTargetDependencies(traversingFromTargets: rootProjectTargets) {
                 let configurations = Set(dependency.project.settings.configurations.keys)
 
                 if !rootProjectConfigurations.isSubset(of: configurations) {

@@ -868,61 +868,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_allProjectTargetDependencies() {
-        // Given
-        // Project1: App1 -> StaticLibraryA, StaticLibraryB
-        // Project2: App2 -> StaticLibraryB
-        // StaticLibraryB -> StaticLibraryC
-        let app1 = Target.test(name: "App1", product: .app)
-        let app2 = Target.test(name: "App2", product: .app)
-        let staticLibraryA = Target.test(name: "StaticLibraryA", product: .staticLibrary, productName: "StaticLibraryA")
-        let staticLibraryB = Target.test(name: "StaticLibraryB", product: .staticLibrary, productName: "StaticLibraryB")
-        let staticLibraryC = Target.test(name: "StaticLibraryC", product: .staticLibrary, productName: "StaticLibraryC")
-        let project1 = Project.test(
-            path: try! AbsolutePath(validating: "/Project/App1"),
-            targets: [app1, staticLibraryA, staticLibraryB, staticLibraryC]
-        )
-        let project2 = Project.test(path: try! AbsolutePath(validating: "/Project/App2"), targets: [app2])
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app1.name, path: project1.path): Set([
-                .target(name: staticLibraryA.name, path: project1.path),
-                .target(name: staticLibraryB.name, path: project1.path),
-            ]),
-            .target(name: app2.name, path: project2.path): Set([.target(name: staticLibraryB.name, path: project1.path)]),
-            .target(name: staticLibraryB.name, path: project1.path): Set([.target(
-                name: staticLibraryC.name,
-                path: project1.path
-            )]),
-            .target(name: staticLibraryA.name, path: project1.path): Set([]),
-            .target(name: staticLibraryC.name, path: project1.path): Set([]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            projects: [project1.path: project1, project2.path: project2],
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got1 = subject.allProjectTargetDependencies(path: project1.path).sorted()
-        let got2 = subject.allProjectTargetDependencies(path: project2.path).sorted()
-
-        // Then
-        XCTAssertEqual(Set(got1), Set([
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: app1, project: project1),
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: staticLibraryA, project: project1),
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: staticLibraryB, project: project1),
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: staticLibraryC, project: project1),
-        ]))
-        XCTAssertEqual(Set(got2), Set([
-            .test(path: try! AbsolutePath(validating: "/Project/App2"), target: app2, project: project2),
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: staticLibraryB, project: project1),
-            .test(path: try! AbsolutePath(validating: "/Project/App1"), target: staticLibraryC, project: project1),
-        ]))
-    }
-
     func test_filterDependencies_skips_branches() {
         // Given
         // App -> StaticLibrary -> Bundle
