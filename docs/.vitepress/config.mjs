@@ -11,6 +11,10 @@ import { loadData as loadCLIData } from "./data/cli";
 
 import { server04Icon, bookOpen01Icon, codeBrowserIcon } from "./icons.mjs";
 
+import { fileURLToPath } from "node:url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const paths = path.join(__dirname, "../../paths.txt");
+
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
@@ -195,6 +199,8 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /documentation/tuist/* / 301
+
+${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), { encoding: "utf-8" })}
     `;
     fs.writeFile(redirectsPath, redirects);
   },
