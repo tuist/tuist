@@ -122,4 +122,18 @@ final class GlobTests: TuistTestCase {
         let result = temporaryDirectory.glob("**/dir2/**/*").map { $0.relative(to: temporaryDirectory).pathString }
         XCTAssertEqual(result, expected)
     }
+    
+    func testGlobstarWithOtherGlobPatterns() async throws {
+        let files = [
+            "dir1/vDirectory/dir3/foo.swift",
+            "dir1/aDirectory/dir3/foo.swift"
+        ]
+        try await createFiles(files, content: "")
+        let expected: [String] = [
+            "dir1/vDirectory/dir3/foo.swift"
+        ]
+        
+        let result = temporaryDirectory.glob("dir1/[u-zU-Z]*/**/*.swift").map { $0.relative(to: temporaryDirectory).pathString }
+        XCTAssertEqual(result, expected)
+    }
 }
