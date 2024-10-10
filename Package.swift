@@ -302,6 +302,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistCache",
+            "TuistAutomation",
             "FileSystem",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),

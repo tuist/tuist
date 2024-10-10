@@ -11,7 +11,7 @@ public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "share",
-            abstract: "Generate a link to share your app. Only simulator builds supported."
+            abstract: "Generate a link to share your app."
         )
     }
 
@@ -23,7 +23,7 @@ public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters {
     var path: String?
 
     @Argument(
-        help: "The app names to be looked up in the built products directory or the paths to the app bundles.",
+        help: "The app names to be looked up in the built products directory or the paths to the app bundles or application zip archives.",
         envKey: .shareApp
     )
     var apps: [String] = []

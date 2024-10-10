@@ -2250,8 +2250,20 @@ paths:
           application/json:
             schema:
               properties:
+                app_id:
+                  description: The identifier of the app. In the case of apps for Apple platforms, this is the bundle identifier.
+                  type: string
                 display_name:
                   description: The display name of the preview.
+                  type: string
+                type:
+                  description: The type of the preview to upload.
+                  enum:
+                    - bundle
+                    - archive
+                  type: string
+                version:
+                  description: The version of the app. In the case of apps for Apple platforms, this is the bundle version.
                   type: string
               type: object
         description: Preview upload request params
