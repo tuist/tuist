@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.29.1 - 2024-10-10
+
+### Tuist
+
+#### Fixed
+
+- Fix missing `.package.resolved` for project with only transitive remote dependencies [#6823](https://github.com/tuist/tuist/pull/6823) by [@aim2120](https://github.com/aim2120)
+- Fix tuist generate failing due to too many files being opened [#6840](https://github.com/tuist/tuist/pull/6840) by [@anlaital-oura](https://github.com/anlaital-oura)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.28.1 - 2024-09-26
 
 ### Tuist
