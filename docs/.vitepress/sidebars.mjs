@@ -178,6 +178,14 @@ export const serverSidebar = [
     text: "API Documentation",
     link: "https://cloud.tuist.io/api/docs",
   },
+  {
+    text: "Status",
+    link: "https://status.tuist.io",
+  },
+  {
+    text: "Metrics Dashboard",
+    link: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
+  },
 ];
 
 export const guidesSidebar = [

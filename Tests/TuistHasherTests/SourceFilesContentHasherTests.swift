@@ -14,12 +14,10 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
     private var sourceFile1Path: AbsolutePath!
     private var sourceFile2Path: AbsolutePath!
-    private var fileSystem: FileSystem!
 
     override func setUp() async throws {
         try await super.setUp()
         let contentHasher = ContentHasher()
-        fileSystem = FileSystem()
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         subject = SourceFilesContentHasher(
             contentHasher: contentHasher,
@@ -33,20 +31,19 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
     override func tearDown() {
         sourceFile1Path = nil
         sourceFile2Path = nil
-        fileSystem = nil
         subject = nil
         super.tearDown()
     }
 
     // MARK: - Tests
 
-    func test_hash_when_sourcesHaveAHashSet() throws {
+    func test_hash_when_sourcesHaveAHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
         let sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(node, MerkleNode(
@@ -83,7 +80,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         try await fileSystem.writeText("sourceFile2", at: sourceFile2Path)
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(node, MerkleNode(

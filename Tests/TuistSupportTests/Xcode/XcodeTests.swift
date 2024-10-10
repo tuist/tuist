@@ -30,7 +30,7 @@ final class XcodeTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_read() throws {
+    func test_read() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
@@ -41,20 +41,20 @@ final class XcodeTests: TuistUnitTestCase {
         try infoPlistData.write(to: infoPlistPath.url)
 
         // When
-        let xcode = try Xcode.read(path: temporaryPath)
+        let xcode = try await Xcode.read(path: temporaryPath)
 
         // Then
         XCTAssertEqual(xcode.infoPlist.version, "3.2.1")
         XCTAssertEqual(xcode.path, temporaryPath)
     }
 
-    func test_read_when_infoPlist_doesnt_exist() throws {
+    func test_read_when_infoPlist_doesnt_exist() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
 
         // When
-        XCTAssertThrowsSpecific(try Xcode.read(path: temporaryPath), XcodeError.infoPlistNotFound(infoPlistPath))
+        await XCTAssertThrowsSpecific(try await Xcode.read(path: temporaryPath), XcodeError.infoPlistNotFound(infoPlistPath))
     }
 }

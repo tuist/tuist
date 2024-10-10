@@ -15,14 +15,14 @@ extension XcodeGraph.Workspace {
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
         manifestLoader: ManifestLoading
-    ) throws -> XcodeGraph.Workspace {
-        func globProjects(_ path: Path) throws -> [AbsolutePath] {
+    ) async throws -> XcodeGraph.Workspace {
+        func globProjects(_ path: Path) async throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
+            let projects = try await FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
                 .filter(FileHandler.shared.isFolder)
                 .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
-                .filter {
-                    manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
+                .concurrentFilter {
+                    try await manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
                 }
 
             if projects.isEmpty {
@@ -35,11 +35,15 @@ extension XcodeGraph.Workspace {
             return Array(projects)
         }
 
-        let additionalFiles = try manifest.additionalFiles.flatMap {
-            try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
-        }
+        let additionalFiles = try await manifest.additionalFiles
+            .concurrentFlatMap {
+                try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+            }
 
-        let schemes = try manifest.schemes.map { try XcodeGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
 
         let generationOptions: GenerationOptions = try .from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
 
@@ -50,7 +54,7 @@ extension XcodeGraph.Workspace {
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,
-            projects: try manifest.projects.flatMap(globProjects),
+            projects: try await manifest.projects.concurrentFlatMap(globProjects),
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,

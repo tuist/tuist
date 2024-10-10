@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -1954,12 +1955,16 @@ final class GraphTraverserTests: TuistUnitTestCase {
     }
 
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
-    ) throws {
+    ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> Static XCFramework (B)
 
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
+        let staticFrameworkAPath = try temporaryPath()
+            .appending(component: "StaticFrameworkA.xcframework")
+        let staticFrameworkBPath = try temporaryPath()
+            .appending(component: "StaticFrameworkB.xcframework")
 
         // Given: Value Graph
         let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
@@ -1967,12 +1972,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic
         )
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
-            path: "/test/StaticFrameworkA.xcframework",
+            path: staticFrameworkAPath,
             linking: .static
         )
+        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
+        try await fileSystem.touch(
+            staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule")
+        )
         let dependencyStaticXCFrameworkB = GraphDependency.testXCFramework(
-            path: "/test/StaticFrameworkB.xcframework",
+            path: staticFrameworkBPath,
             linking: .static
+        )
+        try await fileSystem.makeDirectory(at: staticFrameworkBPath)
+        try await fileSystem.touch(
+            staticFrameworkBPath.appending(component: "StaticFrameworkB.swiftmodule")
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2005,8 +2018,51 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    ) async throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let staticFrameworkAPath = try temporaryPath()
+            .appending(component: "StaticFrameworkA.xcframework")
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: staticFrameworkAPath,
+            linking: .static
+        )
+        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
+        try await fileSystem.touch(
+            staticFrameworkAPath.appending(component: "StaticFrameworkB.modulemap")
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            GraphDependencyReference(dependencyDynamicXCFramework),
+        ])
+    }
+
     func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
-    ) throws {
+    ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
 
         // Given
@@ -2018,9 +2074,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: "/test/DynamicFramework.xcframework",
             linking: .dynamic
         )
+        let staticFrameworkAPath = try temporaryPath()
+            .appending(component: "StaticFrameworkA.xcframework")
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
-            path: "/test/StaticFrameworkA.xcframework",
+            path: staticFrameworkAPath,
             linking: .static
+        )
+        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
+        try await fileSystem.touch(
+            staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule")
         )
         let dependencyLibCpp = GraphDependency.testSDK(
             name: "libc++.tbd",
@@ -4630,6 +4692,59 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
+    func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let directPackageProduct = Target.test(
+            name: "DirectPackage",
+            destinations: [.iPhone],
+            product: .app
+        )
+        let packageProject = Project.test(
+            path: try! AbsolutePath(validating: "/Package"),
+            name: "Package",
+            targets: [directPackageProduct],
+            isExternal: true
+        )
+        let directPackageProductDependency = GraphDependency.target(
+            name: directPackageProduct.name,
+            path: packageProject.path
+        )
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project, packageProject.path: packageProject],
+            dependencies: [
+                appDependency: Set([directPackageProductDependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: appDependency,
+                    to: directPackageProductDependency
+                ): try XCTUnwrap(.when([.macos])),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            Set(
+                [
+                    GraphTarget(
+                        path: packageProject.path,
+                        target: directPackageProduct,
+                        project: packageProject
+                    ),
+                ]
+            )
+        )
+    }
+
     func test_targetsWithExternalDependencies() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -5047,6 +5162,95 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [
             "\(precompiledMacroPath.pathString)#\(precompiledMacroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
+    }
+
+    func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    ) async throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let staticFrameworkAPath = try temporaryPath()
+            .appending(component: "StaticFrameworkA.xcframework")
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: staticFrameworkAPath,
+            linking: .static
+        )
+        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
+        try await fileSystem.touch(
+            staticFrameworkAPath.appending(component: "StaticFrameworkB.modulemap")
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: project.path, name: target.name)
+            .sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .testXCFramework(
+                path: staticFrameworkAPath,
+                linking: .static
+            ),
+        ])
+    }
+
+    func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
+    ) async throws {
+        // App ---(depends on)---> Dynamic XCFramework ----> Static Swift XCFramework (A)
+
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let staticFrameworkAPath = try temporaryPath()
+            .appending(component: "StaticFrameworkA.xcframework")
+
+        // Given: Value Graph
+        let dependencyDynamicXCFramework = GraphDependency.testXCFramework(
+            path: "/test/DynamicFramework.xcframework",
+            linking: .dynamic
+        )
+        let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
+            path: staticFrameworkAPath,
+            linking: .static
+        )
+        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
+        try await fileSystem.touch(
+            staticFrameworkAPath.appending(component: "StaticFrameworkB.swiftmodule")
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: dependencyDynamicXCFramework),
+            dependencyDynamicXCFramework: Set(arrayLiteral: dependencyStaticXCFrameworkA),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: project.path, name: target.name)
+            .sorted()
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     // MARK: - Helpers

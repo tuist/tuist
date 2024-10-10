@@ -50,6 +50,9 @@ public protocol GitControlling {
 
     /// - Returns: `true` if we recognize that we're in a `git` repository
     func isInGitRepository(workingDirectory: AbsolutePath) -> Bool
+
+    /// - Returns: `true` if there are commits in the current branch.
+    func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool
 }
 
 /// An implementation of `GitControlling`.
@@ -104,6 +107,15 @@ public final class GitController: GitControlling {
     public func isInGitRepository(workingDirectory: AbsolutePath) -> Bool {
         do {
             try run(command: "git", "-C", workingDirectory.pathString, "rev-parse")
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool {
+        do {
+            try run(command: "git", "-C", workingDirectory.pathString, "log", "-1")
             return true
         } catch {
             return false

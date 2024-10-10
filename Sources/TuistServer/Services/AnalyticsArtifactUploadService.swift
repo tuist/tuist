@@ -81,7 +81,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             serverURL: serverURL
         )
 
-        let invocationRecordString = try xcresultToolController.resultBundleObject(resultBundle)
+        let invocationRecordString = try await xcresultToolController.resultBundleObject(resultBundle)
         let invocationRecordPath = resultBundle.parentDirectory.appending(component: "invocation_record.json")
         try fileHandler.write(invocationRecordString, path: invocationRecordPath, atomically: true)
 
@@ -91,7 +91,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             .filter({ $0.schemeCommandName._value == "Test" })
         {
             guard let id = testActionRecord.actionResult.testsRef?.id._value else { continue }
-            let resultBundleObjectString = try xcresultToolController.resultBundleObject(
+            let resultBundleObjectString = try await xcresultToolController.resultBundleObject(
                 resultBundle,
                 id: id
             )
@@ -146,7 +146,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
         switch artifact.type {
         case .resultBundle:
-            artifactPath = try fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+            artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
                 .zip(name: passedArtifactPath.basenameWithoutExt)
         case .invocationRecord, .resultBundleObject:
             artifactPath = passedArtifactPath

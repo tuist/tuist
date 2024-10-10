@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -36,5 +37,16 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
 
     public func cacheDirectory() -> Path.AbsolutePath {
         environment.cacheDirectory
+    }
+
+    public static func bootstrap() async throws {
+        let fileSystem = FileSystem()
+        let provider = CacheDirectoriesProvider()
+        for category in CacheCategory.allCases {
+            let directory = try provider.cacheDirectory(for: category)
+            if try await !fileSystem.exists(directory) {
+                try await fileSystem.makeDirectory(at: directory)
+            }
+        }
     }
 }

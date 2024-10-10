@@ -462,23 +462,17 @@ public class GraphTraverser: GraphTraversing {
         }
         references.formUnion(directSystemLibrariesAndFrameworks)
 
-        // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
-            .lazy
-            .filter(\.isPrecompiled)
-
-        let precompiledDependencies =
-            precompiled
-                .flatMap { filterDependencies(from: $0) }
-
-        let precompiledDynamicLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
-            .filter(\.isPrecompiledDynamicAndLinkable)
+        let precompiledDynamicLibrariesAndFrameworks = precompiledDynamicLibrariesAndFrameworks(
+            path: path,
+            name: name
+        )
 
         let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
-            from: Set(precompiledDynamicLibrariesAndFrameworks).filter {
-                $0.xcframeworkDependency != nil
+            from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == false
             },
-            test: { $0.xcframeworkDependency?.linking == .static },
             skip: { $0.xcframeworkDependency == nil }
         )
 
@@ -569,9 +563,43 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
-    public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<
-        GraphDependencyReference
-    > {
+    private func precompiledDynamicLibrariesAndFrameworks(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> [GraphDependency] {
+        // Precompiled libraries and frameworks
+        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+            .lazy
+            .filter(\.isPrecompiled)
+
+        let precompiledDependencies = precompiled
+            .flatMap { filterDependencies(from: $0) }
+
+        return Set(precompiled + precompiledDependencies)
+            .filter(\.isPrecompiledDynamicAndLinkable)
+    }
+
+    public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency> {
+        filterDependencies(
+            from: Set(
+                precompiledDynamicLibrariesAndFrameworks(
+                    path: path,
+                    name: name
+                )
+            ).filter { $0.xcframeworkDependency != nil },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == true &&
+                    $0.xcframeworkDependency?.path.glob("**/*.modulemap").isEmpty == false
+            },
+            skip: { $0.xcframeworkDependency == nil }
+        )
+    }
+
+    public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = target(path: path, name: name) else { return Set() }
 
         var dependencies = Set<GraphDependencyReference>()
@@ -891,6 +919,8 @@ public class GraphTraverser: GraphTraversing {
                 .map { GraphDependency.target(name: $0.target.name, path: $0.project.path) }
         )
 
+        let externalTargetSupportedPlatforms = externalTargetSupportedPlatforms()
+
         let allTargetExternalDependendedUponTargets = filterDependencies(
             from: graphDependenciesWithExternalDependencies
         )
@@ -901,7 +931,14 @@ public class GraphTraverser: GraphTraversing {
                 else {
                     return nil
                 }
-                return GraphTarget(path: path, target: target, project: project)
+                let graphTarget = GraphTarget(path: path, target: target, project: project)
+
+                if externalTargetSupportedPlatforms[graphTarget]?.isEmpty == false {
+                    return graphTarget
+                } else {
+                    return nil
+                }
+
             } else {
                 return nil
             }

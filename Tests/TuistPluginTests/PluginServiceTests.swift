@@ -19,7 +19,6 @@ final class PluginServiceTests: TuistUnitTestCase {
     private var gitController: MockGitControlling!
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
-    private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactoring!
     private var fileUnarchiver: MockFileUnarchiving!
     private var fileClient: MockFileClient!
 
@@ -33,10 +32,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         given(cacheDirectoriesProvider)
             .cacheDirectory()
             .willReturn(try! temporaryPath())
-        cacheDirectoryProviderFactory = .init()
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
+        cacheDirectoriesProvider = .init()
         fileUnarchiver = MockFileUnarchiving()
         let fileArchivingFactory = MockFileArchivingFactorying()
 
@@ -48,7 +44,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
             gitController: gitController,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             fileArchivingFactory: fileArchivingFactory,
             fileClient: fileClient
         )
@@ -59,14 +55,14 @@ final class PluginServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator = nil
         gitController = nil
         cacheDirectoriesProvider = nil
-        cacheDirectoryProviderFactory = nil
+        cacheDirectoriesProvider = nil
         fileUnarchiver = nil
         fileClient = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_remotePluginPaths() throws {
+    func test_remotePluginPaths() async throws {
         // Given
         let pluginAGitURL = "https://url/to/repo/a.git"
         let pluginAGitSha = "abc"
@@ -98,7 +94,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
 
         // When
-        let remotePluginPaths = try subject.remotePluginPaths(using: config)
+        let remotePluginPaths = try await subject.remotePluginPaths(using: config)
 
         // Then
         XCTAssertEqual(

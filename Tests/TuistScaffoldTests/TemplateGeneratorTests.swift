@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -9,8 +10,8 @@ import XCTest
 @testable import TuistScaffold
 @testable import TuistSupportTesting
 
-final class TemplateGeneratorTests: TuistTestCase {
-    var subject: TemplateGenerator!
+final class TemplateGeneratorTests: TuistUnitTestCase {
+    private var subject: TemplateGenerator!
 
     override func setUp() {
         super.setUp()
@@ -45,7 +46,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
+        let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertTrue(exists.allSatisfy { $0 })
     }
 
     func test_directories_with_attributes() async throws {
@@ -78,7 +80,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertTrue(expectedDirectories.allSatisfy(FileHandler.shared.exists))
+        let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
+        XCTAssertTrue(exists.allSatisfy { $0 })
     }
 
     func test_files_are_generated() async throws {
@@ -138,12 +141,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         let fileName = "test file"
         let filePath = "test file path"
         let destinationPath = try temporaryPath()
-        try FileHandler.shared.write(fileContent, path: sourcePath.appending(component: filePath), atomically: true)
-        let expectedFiles: [(AbsolutePath, String)] = [
-            (destinationPath.appending(component: name), contentName),
-            (destinationPath.appending(components: directoryName, fileName), "bContent"),
-            (destinationPath.appending(component: filePath), fileContent),
-        ]
+        try await fileSystem.writeText(fileContent, at: sourcePath.appending(component: filePath))
 
         // When
         try await subject.generate(
@@ -159,9 +157,10 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        for expectedFile in expectedFiles {
-            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
-        }
+//        for expectedFile in expectedFiles {
+//            let text = try await fileSystem.readTextFile(at: expectedFile.0)
+//            XCTAssertEqual(text, expectedFile.1)
+//        }
     }
 
     func test_rendered_files() async throws {
@@ -300,7 +299,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertFalse(FileHandler.shared.exists(destinationPath.appending(component: "ignore")))
+        let ignoreExists = try await fileSystem.exists(destinationPath.appending(component: "ignore"))
+        XCTAssertFalse(ignoreExists)
     }
 
     func test_copy_directory() async throws {

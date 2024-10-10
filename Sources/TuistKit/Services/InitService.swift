@@ -44,20 +44,17 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
-    private let tuistVersionLoader: TuistVersionLoading
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
-        tuistVersionLoader: TuistVersionLoading = TuistVersionLoader()
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
-        self.tuistVersionLoader = tuistVersionLoader
     }
 
     func loadTemplateOptions(
@@ -68,7 +65,7 @@ class InitService {
         optional: [String]
     ) {
         let path = try self.path(path)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
@@ -113,7 +110,6 @@ class InitService {
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        let tuistVersion = try tuistVersionLoader.getVersion()
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
@@ -121,7 +117,7 @@ class InitService {
                 let parsedAttributes = try self.parseAttributes(
                     name: name,
                     platform: platform,
-                    tuistVersion: tuistVersion,
+                    tuistVersion: Constants.version,
                     requiredTemplateOptions: requiredTemplateOptions,
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
@@ -134,7 +130,7 @@ class InitService {
                 )
             })
         } else {
-            let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 
@@ -142,7 +138,7 @@ class InitService {
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
-                tuistVersion: tuistVersion,
+                tuistVersion: Constants.version,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template

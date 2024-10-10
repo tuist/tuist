@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import XCTest
 
@@ -8,6 +9,7 @@ open class TuistUnitTestCase: TuistTestCase {
     public var developerEnvironment: MockDeveloperEnvironment!
     public var xcodeController: MockXcodeControlling!
     public var swiftVersionProvider: MockSwiftVersionProviding!
+    public var fileSystem: FileSysteming!
 
     override open func setUp() {
         super.setUp()
@@ -25,6 +27,8 @@ open class TuistUnitTestCase: TuistTestCase {
         // Developer environment
         developerEnvironment = MockDeveloperEnvironment()
         DeveloperEnvironment._shared.mutate { $0 = developerEnvironment }
+
+        fileSystem = FileSystem()
     }
 
     override open func tearDown() {
@@ -46,6 +50,8 @@ open class TuistUnitTestCase: TuistTestCase {
         // Developer environment
         developerEnvironment = nil
         DeveloperEnvironment._shared.mutate { $0 = DeveloperEnvironment() }
+
+        fileSystem = nil
 
         super.tearDown()
     }

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import PathKit
@@ -11,7 +12,7 @@ public protocol SettingsToXCConfigExtracting {
     ///   - xcodeprojPath: Path to the .xcodeproj file.
     ///   - targetName: Name of the target. When nil, it extracts the settings of the project.
     ///   - xcconfigPath: Path to the .xcconfig where the build settings will be extracted.
-    func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) throws
+    func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) async throws
 }
 
 public enum SettingsToXCConfigExtractorError: FatalError, Equatable {
@@ -39,11 +40,17 @@ public enum SettingsToXCConfigExtractorError: FatalError, Equatable {
     }
 }
 
-public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
-    public init() {}
+public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
+    private let fileSystem: FileSysteming
 
-    public func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) throws {
-        guard FileHandler.shared.exists(xcodeprojPath)
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
+
+    public func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) async throws {
+        guard try await fileSystem.exists(xcodeprojPath)
         else { throw SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
@@ -84,7 +91,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             }
         }
 
-        if !FileHandler.shared.exists(xcconfigPath.parentDirectory) {
+        if try await !fileSystem.exists(xcconfigPath.parentDirectory) {
             try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
         }
         let buildSettingsContent = [

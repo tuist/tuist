@@ -14,7 +14,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let createCommandEventService: CreateCommandEventServicing
     private let fileHandler: FileHandling
     private let ciChecker: CIChecking
-    private let cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSystem
 
@@ -28,7 +28,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             createCommandEventService: CreateCommandEventService(),
             fileHandler: FileHandler.shared,
             ciChecker: CIChecker(),
-            cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactory(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
             analyticsArtifactUploadService: AnalyticsArtifactUploadService(),
             fileSystem: FileSystem()
         )
@@ -40,7 +40,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         createCommandEventService: CreateCommandEventServicing,
         fileHandler: FileHandling,
         ciChecker: CIChecking,
-        cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring,
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing,
         fileSystem: FileSystem
     ) {
@@ -49,7 +49,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         self.createCommandEventService = createCommandEventService
         self.fileHandler = fileHandler
         self.ciChecker = ciChecker
-        self.cacheDirectoriesProviderFactory = cacheDirectoriesProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
     }
@@ -61,14 +61,14 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             serverURL: url
         )
 
-        let runDirectory = try cacheDirectoriesProviderFactory.cacheDirectories()
+        let runDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .runs)
             .appending(component: commandEvent.runId)
 
         let resultBundle = runDirectory
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
-        if fileHandler.exists(resultBundle),
+        if try await fileSystem.exists(resultBundle),
            let targetHashes = commandEvent.targetHashes,
            let graphPath = commandEvent.graphPath
         {
@@ -81,7 +81,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             )
         }
 
-        if fileHandler.exists(runDirectory) {
+        if try await fileSystem.exists(runDirectory) {
             try await fileSystem.remove(runDirectory)
         }
 

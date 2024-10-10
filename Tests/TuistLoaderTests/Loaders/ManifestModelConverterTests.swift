@@ -24,18 +24,25 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     typealias ArgumentsManifest = ProjectDescription.Arguments
 
     private var manifestLinter: MockManifestLinter!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
         manifestLinter = MockManifestLinter()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
     }
 
     override func tearDown() {
         manifestLinter = nil
+        rootDirectoryLocator = nil
         super.tearDown()
     }
 
-    func test_loadProject() throws {
+    func test_loadProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let manifest = ProjectManifest.test(name: "SomeProject")
@@ -45,7 +52,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(
+        let model = try await subject.convert(
             manifest: manifest,
             path: temporaryPath,
             plugins: .none,
@@ -57,10 +64,14 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         XCTAssertEqual(model.name, "SomeProject")
     }
 
-    func test_loadProject_withTargets() throws {
+    func test_loadProject_withTargets() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let targetA = TargetManifest.test(name: "A", sources: [], resources: [])
         let targetB = TargetManifest.test(name: "B", sources: [], resources: [])
         let manifest = ProjectManifest.test(
@@ -76,7 +87,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(
+        let model = try await subject.convert(
             manifest: manifest,
             path: temporaryPath,
             plugins: .none,
@@ -100,10 +111,10 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         )
     }
 
-    func test_loadProject_withAdditionalFiles() throws {
+    func test_loadProject_withAdditionalFiles() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let files = try createFiles([
+        let files = try await createFiles([
             "Documentation/README.md",
             "Documentation/guide.md",
         ])
@@ -119,7 +130,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(
+        let model = try await subject.convert(
             manifest: manifest,
             path: temporaryPath,
             plugins: .none,
@@ -131,7 +142,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
     }
 
-    func test_loadProject_withFolderReferences() throws {
+    func test_loadProject_withFolderReferences() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let files = try createFolders([
@@ -149,7 +160,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(
+        let model = try await subject.convert(
             manifest: manifest,
             path: temporaryPath,
             plugins: .none,
@@ -161,7 +172,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
     }
 
-    func test_loadProject_withCustomOrganizationName() throws {
+    func test_loadProject_withCustomOrganizationName() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let manifest = ProjectManifest.test(
@@ -177,7 +188,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(
+        let model = try await subject.convert(
             manifest: manifest,
             path: temporaryPath,
             plugins: .none,
@@ -189,7 +200,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         XCTAssertEqual(model.organizationName, "SomeOrganization")
     }
 
-    func test_loadWorkspace() throws {
+    func test_loadWorkspace() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace")
@@ -199,14 +210,14 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.projects, [])
     }
 
-    func test_loadWorkspace_withProjects() throws {
+    func test_loadWorkspace_withProjects() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let projects = try createFolders([
@@ -223,16 +234,16 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.projects, projects)
     }
 
-    func test_loadWorkspace_withAdditionalFiles() throws {
+    func test_loadWorkspace_withAdditionalFiles() async throws {
         let temporaryPath = try temporaryPath()
-        let files = try createFiles([
+        let files = try await createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
             "Playground.playground",
@@ -254,16 +265,16 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
     }
 
-    func test_loadWorkspace_withFolderReferences() throws {
+    func test_loadWorkspace_withFolderReferences() async throws {
         let temporaryPath = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
         ])
@@ -280,7 +291,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
@@ -289,7 +300,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_withInvalidProjectsPaths() throws {
+    func test_loadWorkspace_withInvalidProjectsPaths() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
@@ -299,13 +310,11 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        No projects found at: A
-        No projects found at: B
-        """)
+        XCTAssertPrinterOutputContains("No projects found at: A")
+        XCTAssertPrinterOutputContains("No projects found at: B")
         XCTAssertEqual(model.projects, [])
     }
 
@@ -313,7 +322,8 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 

@@ -80,7 +80,7 @@ final class AuthService: AuthServicing {
             serverURL: serverURL
         )
 
-        try serverCredentialsStore.store(
+        try await serverCredentialsStore.store(
             credentials: ServerCredentials(
                 token: nil,
                 accessToken: authenticationTokens.accessToken,

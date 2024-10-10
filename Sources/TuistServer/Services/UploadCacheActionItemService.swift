@@ -83,6 +83,11 @@ public final class UploadCacheActionItemService: UploadCacheActionItemServicing 
             case let .json(cacheActionItem):
                 return ServerCacheActionItem(cacheActionItem)
             }
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(cacheActionItem):
+                return ServerCacheActionItem(cacheActionItem)
+            }
         case let .paymentRequired(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):

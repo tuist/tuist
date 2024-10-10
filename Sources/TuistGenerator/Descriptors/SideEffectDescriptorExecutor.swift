@@ -52,11 +52,11 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private func process(directory: DirectoryDescriptor) async throws {
         switch directory.state {
         case .present:
-            if !FileHandler.shared.exists(directory.path) {
-                try FileHandler.shared.createFolder(directory.path)
+            if try await !fileSystem.exists(directory.path) {
+                try await fileSystem.makeDirectory(at: directory.path)
             }
         case .absent:
-            if FileHandler.shared.exists(directory.path) {
+            if try await fileSystem.exists(directory.path) {
                 try await fileSystem.remove(directory.path)
             }
         }

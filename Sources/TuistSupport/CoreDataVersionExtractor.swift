@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 
@@ -8,9 +9,8 @@ public enum CoreDataVersionExtractor {
     /// - Parameter path: absolute path to Model.xcdatamodel
     ///
     /// - Returns: Whether or not the xcdatamodel has versions
-    public static func isVersioned(at path: AbsolutePath) -> Bool {
-        // swiftlint:disable:next force_try
-        FileHandler.shared.exists(path.appending(try! RelativePath(validating: ".xccurrentversion")))
+    public static func isVersioned(at path: AbsolutePath) async throws -> Bool {
+        try await FileSystem().exists(path.appending(component: ".xccurrentversion"))
     }
 
     /// Extract version from .xccurrentversion file

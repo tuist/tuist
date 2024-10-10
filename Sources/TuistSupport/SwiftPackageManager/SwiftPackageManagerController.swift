@@ -1,8 +1,11 @@
+import FileSystem
 import Foundation
+import Mockable
 import Path
 import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
+@Mockable
 public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameters:
@@ -39,16 +42,19 @@ public protocol SwiftPackageManagerControlling {
         product: String,
         buildPath: AbsolutePath,
         outputPath: AbsolutePath
-    ) throws
+    ) async throws
 }
 
 public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
-    let system: Systeming
-    let fileHandler: FileHandling
+    private let system: Systeming
+    private let fileSystem: FileSysteming
 
-    public init(system: Systeming, fileHandler: FileHandling) {
+    public init(
+        system: Systeming,
+        fileSystem: FileSysteming
+    ) {
         self.system = system
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
@@ -95,7 +101,7 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         product: String,
         buildPath: AbsolutePath,
         outputPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let buildCommand: [String] = [
             "swift", "build",
             "--configuration", "release",
@@ -119,8 +125,8 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             ]
         )
 
-        if !fileHandler.exists(outputPath) {
-            try fileHandler.createFolder(outputPath)
+        if try await !fileSystem.exists(outputPath) {
+            try await fileSystem.makeDirectory(at: outputPath)
         }
 
         try system.run([

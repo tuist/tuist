@@ -15,7 +15,7 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
 
         subject = PackageInfoLoader(
             system: system,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
     }
 

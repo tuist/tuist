@@ -15,22 +15,23 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecking!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
     override func setUp() {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
     override func tearDown() {
         subject = nil
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         super.tearDown()
     }
@@ -45,7 +46,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: FileSystem()
         )
@@ -75,12 +76,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
                 serverURL: .value(url)
             )
             .willReturn(())
-
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))

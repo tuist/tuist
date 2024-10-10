@@ -31,8 +31,12 @@ extension TuistCore.Config {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistCore.Config {
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+    static func from(
+        manifest: ProjectDescription.Config,
+        rootDirectory: AbsolutePath,
+        at path: AbsolutePath
+    ) async throws -> TuistCore.Config {
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
         var generationOptions = try TuistCore.Config.GenerationOptions.from(
             manifest: manifest.generationOptions,
             generatorPaths: generatorPaths

@@ -108,7 +108,7 @@ final class CleanService {
             FileHandler.shared.currentPath
         }
 
-        let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
+        let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
             let directory: AbsolutePath?
@@ -121,9 +121,10 @@ final class CleanService {
                 )
             }
             if let directory,
-               fileHandler.exists(directory)
+               try await fileSystem.exists(directory)
             {
                 try await fileSystem.remove(directory)
+                try await fileSystem.makeDirectory(at: directory)
                 logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             } else {
                 logger.notice("There's nothing to clean for \(category.defaultValueDescription)")

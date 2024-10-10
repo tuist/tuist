@@ -3,6 +3,7 @@ import Foundation
 import OpenAPIRuntime
 import Path
 import TuistAnalytics
+import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -82,6 +83,8 @@ public struct TuistCommand: AsyncParsableCommand {
             let dispatcher = TuistAnalyticsDispatcher(backend: backend)
             try TuistAnalytics.bootstrap(dispatcher: dispatcher)
         }
+
+        try await CacheDirectoriesProvider.bootstrap()
 
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
