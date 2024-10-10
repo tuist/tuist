@@ -904,7 +904,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectA = Project.empty(
             path: projectAPath,
             name: "ProjectA",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetA]
         )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
@@ -912,12 +913,18 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectB = Project.empty(
             path: projectBPath,
             name: "ProjectB",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetB]
         )
 
         let targetC = Target.empty(name: "TargetC", product: .framework)
         let projectCPath: AbsolutePath = "/path/to/c"
-        let projectC = Project.empty(path: "/path/to/c", name: "ProjectC", settings: .default)
+        let projectC = Project.empty(
+            path: "/path/to/c",
+            name: "ProjectC",
+            settings: .default,
+            targets: [targetC]
+        )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: targetA.name, path: projectAPath): Set([.target(name: targetB.name, path: projectBPath)]),
@@ -963,7 +970,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectA = Project.empty(
             path: projectAPath,
             name: "ProjectA",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetA]
         )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
@@ -971,7 +979,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectB = Project.empty(
             path: projectBPath,
             name: "ProjectB",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetB]
         )
 
         let mismatchingConfigurations: [BuildConfiguration: Configuration?] = [
@@ -985,7 +994,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectC = Project.empty(
             path: projectCPath,
             name: "ProjectC",
-            settings: Settings(configurations: mismatchingConfigurations)
+            settings: Settings(configurations: mismatchingConfigurations),
+            targets: [targetC]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -1035,7 +1045,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectA = Project.empty(
             path: projectAPath,
             name: "ProjectA",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetA]
         )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
@@ -1043,7 +1054,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectB = Project.empty(
             path: projectBPath,
             name: "ProjectB",
-            settings: Settings(configurations: customConfigurations)
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetB]
         )
 
         let additionalConfigurations: [BuildConfiguration: Configuration?] = [
@@ -1057,13 +1069,85 @@ final class GraphLinterTests: TuistUnitTestCase {
         let projectC = Project.empty(
             path: projectCPath,
             name: "ProjectC",
-            settings: Settings(configurations: additionalConfigurations)
+            settings: Settings(configurations: additionalConfigurations),
+            targets: [targetC]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: targetA.name, path: projectAPath): Set([.target(name: targetB.name, path: projectBPath)]),
             .target(name: targetB.name, path: projectBPath): Set([.target(name: targetC.name, path: projectCPath)]),
             .target(name: targetC.name, path: projectCPath): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [projectAPath, projectBPath]),
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+                projectCPath: projectC,
+            ],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(result, [])
+    }
+
+    func test_lint_doesNotFlagDependenciesWithLessConfigurations() async throws {
+        // If a dependency is used by multiple projects, project are allowed to have less configurations
+        // as long as the dependency has them.
+        // For example: a dependency has configurations Debug, Testing, Beta, Release.
+        // It can therefore be used in all projects that have any subset of these configurations.
+
+        // Given
+        let path: AbsolutePath = "/project"
+        let customConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .debug("Testing"): nil,
+            .release("Beta"): nil,
+            .release("Release"): nil,
+        ]
+        let targetA = Target.empty(name: "TargetA", product: .framework)
+        let projectAPath: AbsolutePath = "/path/to/a"
+        let projectA = Project.empty(
+            path: projectAPath,
+            name: "ProjectA",
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetA]
+        )
+
+        let targetB = Target.empty(name: "TargetB", product: .framework)
+        let projectBPath: AbsolutePath = "/path/to/b"
+        let projectB = Project.empty(
+            path: projectBPath,
+            name: "ProjectB",
+            settings: Settings(configurations: customConfigurations),
+            targets: [targetB]
+        )
+
+        let reducedConfigurations: [BuildConfiguration: Configuration?] = [
+            .debug("Debug"): nil,
+            .release("Release"): nil,
+        ]
+        let targetC = Target.empty(name: "TargetC", product: .framework)
+        let projectCPath: AbsolutePath = "/path/to/c"
+        let projectC = Project.empty(
+            path: projectCPath,
+            name: "ProjectC",
+            settings: Settings(configurations: reducedConfigurations),
+            targets: [targetC]
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: targetA.name, path: projectAPath): Set([.target(name: targetB.name, path: projectBPath)]),
+            .target(name: targetB.name, path: projectBPath): Set([]),
+            .target(name: targetC.name, path: projectCPath): Set([.target(name: targetB.name, path: projectBPath)]),
         ]
 
         let graph = Graph.test(
