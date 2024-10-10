@@ -199,7 +199,6 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /documentation/tuist/* / 301
-
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), { encoding: "utf-8" })}
     `;
     fs.writeFile(redirectsPath, redirects);
