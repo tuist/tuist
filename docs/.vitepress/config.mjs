@@ -6,9 +6,14 @@ import {
   contributorsSidebar,
   referencesSidebar,
   serverSidebar,
-  cliSidebar,
 } from "./sidebars.mjs";
+import { loadData as loadCLIData } from "./data/cli";
+
 import { server04Icon, bookOpen01Icon, codeBrowserIcon } from "./icons.mjs";
+
+import { fileURLToPath } from "node:url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const paths = path.join(__dirname, "../../paths.txt");
 
 export default defineConfig({
   title: "Tuist",
@@ -17,9 +22,89 @@ export default defineConfig({
   srcDir: "docs",
   lastUpdated: true,
   locales: {
-    root: {
+    en: {
       label: "English",
-      lange: "en",
+      lang: "en",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/en/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/en/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/en/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/en/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/en/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/en/contributors": contributorsSidebar("en"),
+          "/en/guides/": guidesSidebar("en"),
+          "/en/server/": serverSidebar("en"),
+          "/en/": guidesSidebar("en"),
+          "/en/cli/": await loadCLIData("en"),
+          "/en/references/": await referencesSidebar("en"),
+        },
+      },
+    },
+    ko: {
+      label: "Korean",
+      lang: "ko",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/ko/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/ko/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/ko/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/ko/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/ko/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/ko/contributors": contributorsSidebar("ko"),
+          "/ko/guides/": guidesSidebar("ko"),
+          "/ko/server/": serverSidebar("ko"),
+          "/ko/": guidesSidebar("ko"),
+          "/ko/cli/": await loadCLIData("ko"),
+          "/ko/references/": await referencesSidebar("ko"),
+        },
+      },
     },
   },
   cleanUrls: true,
@@ -114,6 +199,8 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /documentation/tuist/* / 301
+
+${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), { encoding: "utf-8" })}
     `;
     fs.writeFile(redirectsPath, redirects);
   },
@@ -122,44 +209,8 @@ export default defineConfig({
     search: {
       provider: "local",
     },
-    nav: [
-      {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
-        link: "/",
-      },
-      {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
-        link: "/cli/auth",
-      },
-      {
-        text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
-        link: "/server/introduction/why-a-server",
-      },
-      {
-        text: "Resources",
-        items: [
-          {
-            text: "References",
-            link: "/references/project-description/structs/project",
-          },
-          { text: "Contributors", link: "/contributors/get-started" },
-          {
-            text: "Changelog",
-            link: "https://github.com/tuist/tuist/releases",
-          },
-        ],
-      },
-    ],
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
-    },
-    sidebar: {
-      "/cli/": cliSidebar,
-      "/contributors": contributorsSidebar,
-      "/guides/": guidesSidebar,
-      "/server/": serverSidebar,
-      "/": guidesSidebar,
-      "/references/": referencesSidebar,
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
