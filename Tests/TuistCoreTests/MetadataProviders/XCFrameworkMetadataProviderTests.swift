@@ -21,7 +21,8 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
     func test_libraries_when_frameworkIsPresent() async throws {
         // Given
         let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyFramework.xcframework"))
+            path: try RelativePath(validating: "MyFramework.xcframework")
+        )
         let infoPlist = try await subject.infoPlist(xcframeworkPath: frameworkPath)
 
         // Then
@@ -42,19 +43,17 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                     platform: .iOS,
                     architectures: [.arm64]
                 ),
-            ])
+            ]
+        )
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
-    func test_libraries_when_staticLibraryIsPresent() throws {
+    func test_libraries_when_staticLibraryIsPresent() async throws {
         // Given
         let xcframeworkPath = fixturePath(
-            path: try RelativePath(validating: "DylibXCFramework.xcframework"))
+            path: try RelativePath(validating: "DylibXCFramework.xcframework")
+        )
         let infoPlist = try await subject.infoPlist(xcframeworkPath: xcframeworkPath)
-
-        // When
-        let binaryPath = try await subject.binaryPath(
-            xcframeworkPath: xcframeworkPath, libraries: infoPlist.libraries)
 
         // Then
         XCTAssertEqual(
@@ -74,14 +73,16 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                     platform: .iOS,
                     architectures: [.arm64]
                 ),
-            ])
+            ]
+        )
         infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "libMyStaticLibrary") }
     }
 
-    func test_loadMetadata_dynamicLibrary() throws {
+    func test_loadMetadata_dynamicLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyFramework.xcframework"))
+            path: try RelativePath(validating: "MyFramework.xcframework")
+        )
 
         // When
         let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
@@ -106,9 +107,11 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
 
         let expectedBinaryPath =
             frameworkPath
-            .appending(
-                try RelativePath(
-                    validating: "ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+                .appending(
+                    try RelativePath(
+                        validating: "ios-x86_64-simulator/MyFramework.framework/MyFramework"
+                    )
+                )
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -118,13 +121,15 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 mergeable: false,
                 status: .required,
                 macroPath: nil
-            ))
+            )
+        )
     }
 
     func test_loadMetadata_mergeableDynamicLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyMergeableFramework.xcframework"))
+            path: try RelativePath(validating: "MyMergeableFramework.xcframework")
+        )
 
         // When
         let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
@@ -149,7 +154,8 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         let relativePath =
             try RelativePath(
                 validating:
-                    "ios-x86_64-simulator/MyMergeableFramework.framework/MyMergeableFramework")
+                "ios-x86_64-simulator/MyMergeableFramework.framework/MyMergeableFramework"
+            )
         let expectedBinaryPath = frameworkPath.appending(relativePath)
         XCTAssertEqual(
             metadata,
@@ -160,13 +166,15 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 mergeable: true,
                 status: .required,
                 macroPath: nil
-            ))
+            )
+        )
     }
 
     func test_loadMetadata_staticLibrary() async throws {
         // Given
         let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
+            path: try RelativePath(validating: "MyStaticLibrary.xcframework")
+        )
 
         // When
         let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
@@ -190,7 +198,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         ])
         let expectedBinaryPath =
             frameworkPath
-            .appending(try RelativePath(validating: "ios-x86_64-simulator/libMyStaticLibrary.a"))
+                .appending(try RelativePath(validating: "ios-x86_64-simulator/libMyStaticLibrary.a"))
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -200,13 +208,15 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 mergeable: false,
                 status: .required,
                 macroPath: nil
-            ))
+            )
+        )
     }
 
     func test_loadMetadata_frameworkMissingArchitecture() async throws {
         // Given
         let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework"))
+            path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework")
+        )
 
         // When
         let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
@@ -214,7 +224,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
             XCFrameworkInfoPlist.Library(
-                identifier: "ios-x86_64-simulator",  // Not present on disk
+                identifier: "ios-x86_64-simulator", // Not present on disk
                 path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
                 mergeable: false,
                 platform: .iOS,
@@ -230,10 +240,11 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         ])
         let expectedBinaryPath =
             frameworkPath
-            .appending(
-                try RelativePath(
-                    validating: "ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch")
-            )
+                .appending(
+                    try RelativePath(
+                        validating: "ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch"
+                    )
+                )
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -243,12 +254,14 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 mergeable: false,
                 status: .required,
                 macroPath: nil
-            ))
+            )
+        )
 
         XCTAssertPrinterOutputContains(
             """
             MyFrameworkMissingArch.xcframework is missing architecture ios-x86_64-simulator/MyFrameworkMissingArch.framework/MyFrameworkMissingArch defined in the Info.plist
-            """)
+            """
+        )
     }
 
     func test_loadMetadata_when_containsMacros() async throws {
@@ -274,12 +287,12 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)
     }
 
-    func test_loadMetadataXCFrameworkDylibBinary() throws {
+    func test_loadMetadataXCFrameworkDylibBinary() async throws {
         // Given
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -317,6 +330,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 mergeable: false,
                 status: .required,
                 macroPath: nil
-            ))
+            )
+        )
     }
 }
