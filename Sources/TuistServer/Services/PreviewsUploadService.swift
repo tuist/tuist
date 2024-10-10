@@ -3,29 +3,34 @@ import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
+import TuistAutomation
+import FileSystem
 
 @Mockable
 public protocol PreviewsUploadServicing {
     func uploadPreviews(
         displayName: String,
+        version: String?,
+        appId: String?,
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview
 }
 
-public final class PreviewsUploadService: PreviewsUploadServicing {
-    private let fileHandler: FileHandling
+public struct PreviewsUploadService: PreviewsUploadServicing {
+    private let fileSystem: FileSysteming
     private let fileArchiver: FileArchivingFactorying
     private let retryProvider: RetryProviding
     private let multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing
     private let multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+    private let appBundleLoader: AppBundleLoading
 
-    public convenience init() {
+    public init() {
         self.init(
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             fileArchiver: FileArchivingFactory(),
             retryProvider: RetryProvider(),
             multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
@@ -33,39 +38,55 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
             MultipartUploadGenerateURLPreviewsService(),
             multipartUploadArtifactService: MultipartUploadArtifactService(),
             multipartUploadCompletePreviewsService:
-            MultipartUploadCompletePreviewsService()
+            MultipartUploadCompletePreviewsService(),
+            appBundleLoader: AppBundleLoader()
         )
     }
 
     init(
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         fileArchiver: FileArchivingFactorying,
         retryProvider: RetryProviding,
         multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
         multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
-        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+        appBundleLoader: AppBundleLoading
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.fileArchiver = fileArchiver
         self.retryProvider = retryProvider
         self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
         self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
         self.multipartUploadArtifactService = multipartUploadArtifactService
         self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+        self.appBundleLoader = appBundleLoader
     }
 
     public func uploadPreviews(
         displayName: String,
+        version: String?,
+        appId: String?,
         previewPaths: [AbsolutePath],
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview {
-        let buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+        let buildPath: AbsolutePath
+        let previewType: PreviewType
+        if previewPaths.count == 1, previewPaths[0].extension == "ipa" {
+            buildPath = previewPaths[0]
+            previewType = .archive
+        } else {
+            buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+            previewType = .bundle
+        }
 
-        return try await retryProvider.runWithRetries { [self] in
+        return try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
+                type: previewType,
                 displayName: displayName,
+                version: version,
+                appId: appId,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )

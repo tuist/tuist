@@ -2,10 +2,18 @@ import Foundation
 import Mockable
 import TuistSupport
 
+public enum PreviewType {
+    case archive
+    case bundle
+}
+
 @Mockable
 public protocol MultipartUploadStartPreviewsServicing {
     func startPreviewsMultipartUpload(
+        type: PreviewType,
         displayName: String,
+        version: String?,
+        appId: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload
@@ -52,12 +60,22 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
     }
 
     public func startPreviewsMultipartUpload(
+        type: PreviewType,
         displayName: String,
+        version: String?,
+        appId: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
+        let type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload
+            ._typePayload = switch type {
+            case .archive:
+                    .archive
+            case .bundle:
+                    .bundle
+            }
         let response = try await client.startPreviewsMultipartUpload(
             .init(
                 path: .init(
@@ -65,7 +83,12 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                     project_handle: handles.projectHandle
                 ),
                 body: .json(
-                    .init(display_name: displayName)
+                    .init(
+                        app_id: appId,
+                        display_name: displayName,
+                        _type: type,
+                        version: version
+                    )
                 )
             )
         )

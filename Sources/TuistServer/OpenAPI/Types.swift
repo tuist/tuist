@@ -8266,18 +8266,75 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json`.
                 public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The identifier of the app. In the case of apps for Apple platforms, this is the bundle identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/app_id`.
+                    public var app_id: Swift.String?
                     /// The display name of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/display_name`.
                     public var display_name: Swift.String?
+                    /// The type of the preview to upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/type`.
+                    @frozen
+                    public enum _typePayload: RawRepresentable, Codable, Equatable, Hashable,
+                        Sendable, _AutoLosslessStringConvertible, CaseIterable
+                    {
+                        case bundle
+                        case archive
+                        /// Parsed a raw value that was not defined in the OpenAPI document.
+                        case undocumented(String)
+                        public init?(rawValue: String) {
+                            switch rawValue {
+                            case "bundle": self = .bundle
+                            case "archive": self = .archive
+                            default: self = .undocumented(rawValue)
+                            }
+                        }
+                        public var rawValue: String {
+                            switch self {
+                            case let .undocumented(string): return string
+                            case .bundle: return "bundle"
+                            case .archive: return "archive"
+                            }
+                        }
+                        public static var allCases: [_typePayload] { [.bundle, .archive] }
+                    }
+                    /// The type of the preview to upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/type`.
+                    public var _type:
+                        Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload?
+                    /// The version of the app. In the case of apps for Apple platforms, this is the bundle version.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/json/version`.
+                    public var version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - app_id: The identifier of the app. In the case of apps for Apple platforms, this is the bundle identifier.
                     ///   - display_name: The display name of the preview.
-                    public init(display_name: Swift.String? = nil) {
+                    ///   - _type: The type of the preview to upload.
+                    ///   - version: The version of the app. In the case of apps for Apple platforms, this is the bundle version.
+                    public init(
+                        app_id: Swift.String? = nil,
+                        display_name: Swift.String? = nil,
+                        _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload
+                            ._typePayload? = nil,
+                        version: Swift.String? = nil
+                    ) {
+                        self.app_id = app_id
                         self.display_name = display_name
+                        self._type = _type
+                        self.version = version
                     }
-                    public enum CodingKeys: String, CodingKey { case display_name }
+                    public enum CodingKeys: String, CodingKey {
+                        case app_id
+                        case display_name
+                        case _type = "type"
+                        case version
+                    }
                 }
                 case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
             }
