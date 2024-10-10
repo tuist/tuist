@@ -85,6 +85,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
         ])
+
+        XCTAssertEqual(resourcesTarget.infoPlist, .extendingDefault(with: [
+            "CFBundleExecutable": "",
+        ]))
     }
 
     func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() throws {
