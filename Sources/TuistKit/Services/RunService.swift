@@ -189,10 +189,13 @@ final class RunService {
 
         try await fileSystem.remove(archivePath)
 
-        let apps = try await fileHandler.glob(unarchivedDirectory, glob: "*.app")
-            .concurrentMap {
-                try await self.appBundleLoader.load($0)
-            }
+        let apps = try await (
+            fileHandler.glob(unarchivedDirectory, glob: "*.app") + fileHandler
+                .glob(unarchivedDirectory, glob: "*/*.app")
+        )
+        .concurrentMap {
+            try await self.appBundleLoader.load($0)
+        }
 
         try await appRunner.runApp(
             apps,

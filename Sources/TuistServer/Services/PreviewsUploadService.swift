@@ -1,21 +1,29 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
 
+public enum PreviewUploadType: Equatable {
+    case ipa(AbsolutePath)
+    case appBundle([AbsolutePath])
+}
+
 @Mockable
 public protocol PreviewsUploadServicing {
     func uploadPreviews(
+        _ previewUploadType: PreviewUploadType,
         displayName: String,
-        previewPaths: [AbsolutePath],
+        version: String?,
+        bundleIdentifier: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview
 }
 
-public final class PreviewsUploadService: PreviewsUploadServicing {
-    private let fileHandler: FileHandling
+public struct PreviewsUploadService: PreviewsUploadServicing {
+    private let fileSystem: FileSysteming
     private let fileArchiver: FileArchivingFactorying
     private let retryProvider: RetryProviding
     private let multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing
@@ -23,9 +31,9 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
 
-    public convenience init() {
+    public init() {
         self.init(
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             fileArchiver: FileArchivingFactory(),
             retryProvider: RetryProvider(),
             multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
@@ -38,7 +46,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
     }
 
     init(
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         fileArchiver: FileArchivingFactorying,
         retryProvider: RetryProviding,
         multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
@@ -46,7 +54,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
         multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.fileArchiver = fileArchiver
         self.retryProvider = retryProvider
         self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
@@ -56,16 +64,30 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
     }
 
     public func uploadPreviews(
+        _ previewUploadType: PreviewUploadType,
         displayName: String,
-        previewPaths: [AbsolutePath],
+        version: String?,
+        bundleIdentifier: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview {
-        let buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+        let previewType: PreviewType
+        let buildPath: AbsolutePath
+        switch previewUploadType {
+        case let .ipa(ipaPath):
+            buildPath = ipaPath
+            previewType = .ipa
+        case let .appBundle(previewPaths):
+            buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+            previewType = .appBundle
+        }
 
-        return try await retryProvider.runWithRetries { [self] in
+        return try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
+                type: previewType,
                 displayName: displayName,
+                version: version,
+                bundleIdentifier: bundleIdentifier,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
@@ -73,7 +95,7 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: buildPath,
                 generateUploadURL: { partNumber in
-                    try await self.multipartUploadGenerateURLPreviewsService.uploadPreviews(
+                    try await multipartUploadGenerateURLPreviewsService.uploadPreviews(
                         previewUpload.previewId,
                         partNumber: partNumber,
                         uploadId: previewUpload.uploadId,

@@ -22,6 +22,8 @@ final class ShareServiceTests: TuistUnitTestCase {
     private var userInputReader: MockUserInputReading!
     private var defaultConfigurationFetcher: MockDefaultConfigurationFetching!
     private var appBundleLoader: MockAppBundleLoading!
+    private var fileUnarchiver: MockFileUnarchiving!
+    private let shareURL: URL = .test()
 
     override func setUp() {
         super.setUp()
@@ -36,6 +38,13 @@ final class ShareServiceTests: TuistUnitTestCase {
         userInputReader = .init()
         defaultConfigurationFetcher = .init()
         appBundleLoader = .init()
+        fileUnarchiver = .init()
+
+        let fileArchiverFactory = MockFileArchivingFactorying()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
         subject = ShareService(
             fileHandler: fileHandler,
             fileSystem: fileSystem,
@@ -48,12 +57,24 @@ final class ShareServiceTests: TuistUnitTestCase {
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
             defaultConfigurationFetcher: defaultConfigurationFetcher,
-            appBundleLoader: appBundleLoader
+            appBundleLoader: appBundleLoader,
+            fileArchiverFactory: fileArchiverFactory
         )
 
         given(serverURLService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
+
+        given(previewsUploadService)
+            .uploadPreviews(
+                .any,
+                displayName: .any,
+                version: .any,
+                bundleIdentifier: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(url: shareURL))
 
         Matcher.register([GraphTarget].self)
     }
@@ -194,16 +215,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath().appending(component: "visionOS"))
         try fileHandler.touch(visionOSPath.appending(component: "App.app"))
 
-        let shareURL: URL = .test()
-        given(previewsUploadService)
-            .uploadPreviews(
-                displayName: .any,
-                previewPaths: .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn(.test(url: shareURL))
-
         // When
         try await subject.run(
             path: nil,
@@ -216,8 +227,10 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
+                .any,
                 displayName: .any,
-                previewPaths: .any,
+                version: .any,
+                bundleIdentifier: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -383,16 +396,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
 
-        let shareURL: URL = .test()
-        given(previewsUploadService)
-            .uploadPreviews(
-                displayName: .any,
-                previewPaths: .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn(.test(url: shareURL))
-
         // When
         try await subject.run(
             path: nil,
@@ -405,8 +408,10 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
+                .any,
                 displayName: .any,
-                previewPaths: .any,
+                version: .any,
+                bundleIdentifier: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -544,16 +549,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "App.app"))
 
-        let shareURL: URL = .test()
-        given(previewsUploadService)
-            .uploadPreviews(
-                displayName: .any,
-                previewPaths: .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn(.test(url: shareURL))
-
         // When
         try await subject.run(
             path: path.pathString,
@@ -566,8 +561,10 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
+                .any,
                 displayName: .any,
-                previewPaths: .any,
+                version: .any,
+                bundleIdentifier: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -586,6 +583,8 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         let appOne = try temporaryPath().appending(component: "AppOne.app")
         let appTwo = try temporaryPath().appending(component: "AppTwo.app")
+        try await fileSystem.makeDirectory(at: appOne)
+        try await fileSystem.makeDirectory(at: appTwo)
 
         given(appBundleLoader)
             .load(.value(appOne))
@@ -611,7 +610,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_share_apps() async throws {
+    func test_share_app_bundles() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -619,6 +618,8 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
         let visionOSApp = try temporaryPath().appending(components: "visionOs", "App.app")
+        try await fileSystem.makeDirectory(at: iosApp)
+        try await fileSystem.makeDirectory(at: visionOSApp)
 
         given(appBundleLoader)
             .load(.value(iosApp))
@@ -627,16 +628,6 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(appBundleLoader)
             .load(.value(visionOSApp))
             .willReturn(.test(infoPlist: .test(name: "App")))
-
-        let shareURL: URL = .test()
-        given(previewsUploadService)
-            .uploadPreviews(
-                displayName: .any,
-                previewPaths: .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn(.test(url: shareURL))
 
         // When
         try await subject.run(
@@ -653,8 +644,10 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
+                .value(.appBundle([iosApp, visionOSApp])),
                 displayName: .value("App"),
-                previewPaths: .value([iosApp, visionOSApp]),
+                version: .any,
+                bundleIdentifier: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -662,6 +655,118 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         XCTAssertStandardOutput(
             pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
+        )
+    }
+
+    func test_share_ipa() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let ipaPath = try temporaryPath().appending(components: "App.ipa")
+        let payloadPath = try temporaryPath().appending(components: "Payload")
+        let appBundlePath = payloadPath.appending(components: "App.app")
+        try await fileSystem.makeDirectory(at: ipaPath)
+        try await fileSystem.makeDirectory(at: payloadPath)
+        try await fileSystem.makeDirectory(at: appBundlePath)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(payloadPath)
+
+        given(appBundleLoader)
+            .load(.value(appBundlePath))
+            .willReturn(
+                .test(
+                    infoPlist: .test(
+                        version: Version(1, 0, 0),
+                        name: "App",
+                        bundleId: "com.tuist.app"
+                    )
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [
+                ipaPath.pathString,
+            ],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreviews(
+                .value(.ipa(ipaPath)),
+                displayName: .value("App"),
+                version: .value("1.0.0"),
+                bundleIdentifier: .value("com.tuist.app"),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production)
+            )
+            .called(1)
+
+        XCTAssertStandardOutput(
+            pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
+        )
+    }
+
+    func test_share_ipa_when_it_does_not_contain_any_app_bundle() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let ipaPath = try temporaryPath().appending(components: "App.ipa")
+        let payloadPath = try temporaryPath().appending(components: "Payload")
+        try await fileSystem.makeDirectory(at: ipaPath)
+        try await fileSystem.makeDirectory(at: payloadPath)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(payloadPath)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                path: nil,
+                apps: [
+                    ipaPath.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil
+            ),
+            ShareServiceError.appBundleInIPANotFound(ipaPath)
+        )
+    }
+
+    func test_share_multiple_ipas() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let ipaPath = try temporaryPath().appending(components: "App.ipa")
+        let watchOSIpaPath = try temporaryPath().appending(component: "WatchOSApp.ipa")
+        try await fileSystem.makeDirectory(at: ipaPath)
+        try await fileSystem.makeDirectory(at: watchOSIpaPath)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                path: nil,
+                apps: [
+                    ipaPath.pathString,
+                    watchOSIpaPath.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil
+            ),
+            ShareServiceError.multipleAppsSpecified([ipaPath.pathString, watchOSIpaPath.pathString])
         )
     }
 }
