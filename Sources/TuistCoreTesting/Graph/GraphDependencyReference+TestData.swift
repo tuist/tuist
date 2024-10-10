@@ -95,4 +95,14 @@ extension GraphDependencyReference {
             condition: condition
         )
     }
+
+    public static func testPackageProduct(
+        product: String = "Product",
+        condition: PlatformCondition? = nil
+    ) -> GraphDependencyReference {
+        GraphDependencyReference.packageProduct(
+            product: product,
+            condition: condition
+        )
+    }
 }
