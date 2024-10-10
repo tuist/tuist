@@ -65,8 +65,6 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
@@ -74,6 +72,18 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+
+### Database configuration
+
+The following environment variables are used to configure the database connection:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
+| `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
+| `TUIST_DATABASE_QUEUE_TARGET` | The interval for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
 
 ### Authentication environment configuration
 
@@ -127,10 +137,7 @@ Once the app is created you'll need to set the following environment variables:
 
 The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
 
-> [!NOTE] RUST SDK
-> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used.
-
-### Google Cloud Storage
+#### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
 ### Git platform configuration
