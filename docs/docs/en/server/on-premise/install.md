@@ -72,6 +72,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+| `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
 
 ### Database configuration
 
@@ -135,7 +136,22 @@ Once the app is created you'll need to set the following environment variables:
 
 #### S3-compliant storages
 
-The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
+You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
+| `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `AWS_REGION` | The region where the bucket is located | Yes | | `us-west-2` |
+| `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
+| `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
+| `TUIST_S3_REQUEST_TIMEOUT` | The timeout (in seconds) for requests to the storage provider | No | `30` | `30` |
+| `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
+| `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
+| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
+
+> [!NOTE] AWS authentication with Web Identity Token from environment variables
+> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
 #### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
@@ -323,3 +339,13 @@ volumes:
   db:
     driver: local
 ```
+
+## Operations
+
+Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
+
+> [!IMPORTANT] Authorization
+> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+
+- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
+- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
