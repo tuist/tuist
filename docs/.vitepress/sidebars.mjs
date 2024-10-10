@@ -222,7 +222,7 @@ export function guidesSidebar(locale) {
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${code02Icon()}</span>`,
           collapsed: true,
-          link: `/${locale}/guides/develop/projects/${locale}`,
+          link: `/${locale}/guides/develop/projects`,
           items: [
             {
               text: "Manifests",
