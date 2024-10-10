@@ -85,8 +85,8 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
 
         // Per-configuration build settings
         for configuration in buildConfigurations {
-            configuration.buildSettings.forEach { key, value in
-                if commonBuildSettings.contains(key) { return }
+            for (key, value) in configuration.buildSettings {
+                if commonBuildSettings.contains(key) { continue }
                 buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(flattenedValue(from: value))")
             }
         }
