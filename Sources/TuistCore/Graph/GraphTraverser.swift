@@ -102,9 +102,9 @@ public class GraphTraverser: GraphTraversing {
     public func targets(product: Product) -> Set<GraphTarget> {
         var filteredTargets: Set<GraphTarget> = Set()
         for (path, projectTargets) in targets() {
-            projectTargets.values.forEach { target in
-                guard target.product == product else { return }
-                guard let project = projects[path] else { return }
+            for target in projectTargets.values {
+                guard target.product == product else { continue }
+                guard let project = projects[path] else { continue }
                 filteredTargets.formUnion([
                     GraphTarget(path: path, target: target, project: project),
                 ])
