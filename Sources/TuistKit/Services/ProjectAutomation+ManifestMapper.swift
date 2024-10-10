@@ -92,6 +92,8 @@ extension ProjectAutomation.Target {
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .framework(path: path.pathString, status: frameworkStatus)
         case let .xcframework(path, status, _):
@@ -101,6 +103,8 @@ extension ProjectAutomation.Target {
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .xcframework(path: path.pathString, status: frameworkStatus)
         case let .library(path, publicHeaders, swiftModuleMap, _):
@@ -125,6 +129,8 @@ extension ProjectAutomation.Target {
                 projectAutomationStatus = .optional
             case .required:
                 projectAutomationStatus = .required
+            case .none:
+                projectAutomationStatus = .none
             }
             return .sdk(name: name, status: projectAutomationStatus)
         case .xctest:

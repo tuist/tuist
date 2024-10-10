@@ -33,7 +33,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound,
-            .fileTypeNotRecognised:
+             .fileTypeNotRecognised:
             return .abort
         }
     }
@@ -77,7 +77,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
         let infoPlist = try await infoPlist(xcframeworkPath: path)
-        let linking = try linking(
+        let linking = try await linking(
             xcframeworkPath: path,
             libraries: infoPlist.libraries
         )
@@ -97,9 +97,8 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
      x86_64 and arm64.
      */
     public func macroPath(xcframeworkPath: AbsolutePath) throws -> AbsolutePath? {
-        guard
-            let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted()
-                .first
+        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted()
+            .first
         else { return nil }
         guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else {
             return nil
@@ -117,14 +116,14 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
     }
 
     private func linking(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library])
-        throws -> BinaryLinking
+        async throws -> BinaryLinking
     {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
 
         for library in libraries {
             let hasValidArchitectures = !library.architectures.filter(archs.contains).isEmpty
             guard hasValidArchitectures,
-                let linking = try? linking(for: library, xcframeworkPath: xcframeworkPath)
+                  let linking = try? await linking(for: library, xcframeworkPath: xcframeworkPath)
             else {
                 continue
             }
@@ -133,13 +132,14 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
         }
 
         throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(
-            xcframeworkPath)
+            xcframeworkPath
+        )
     }
 
     private func linking(
         for library: XCFrameworkInfoPlist.Library,
         xcframeworkPath: AbsolutePath
-    ) throws -> BinaryLinking {
+    ) async throws -> BinaryLinking {
         let (binaryPath, linking): (AbsolutePath, BinaryLinking?)
 
         switch library.path.extension {
@@ -169,16 +169,18 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             )
         }
 
-        guard fileHandler.exists(binaryPath), let linking else {
+        guard try await fileSystem.exists(binaryPath), let linking else {
             // The missing slice relative to the XCFramework folder. e.g ios-x86_64-simulator/Alamofire.framework/Alamofire
             let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(
-                separator: "/")
+                separator: "/"
+            )
             logger
                 .warning(
                     "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
                 )
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(
-                binaryPath)
+                binaryPath
+            )
         }
 
         return linking

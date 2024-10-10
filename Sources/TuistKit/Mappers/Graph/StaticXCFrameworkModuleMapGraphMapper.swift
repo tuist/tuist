@@ -76,8 +76,14 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
                 settings["FRAMEWORK_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
-                        .map {
-                            "\"$(SRCROOT)/\($0.primaryBinaryPath.parentDirectory.parentDirectory.relative(to: project.path).pathString)\""
+                        .compactMap {
+                            if let libraryPath = $0.infoPlist.libraries
+                                .first(where: { target.supportedPlatforms.contains($0.platform.graphPlatform) })?.path
+                            {
+                                return "\"$(SRCROOT)/\($0.path.appending(libraryPath).parentDirectory.parentDirectory.relative(to: project.path).pathString)\""
+                            } else {
+                                return nil
+                            }
                         }
                 )
             }
@@ -208,6 +214,18 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             return project
         }
         return graph
+    }
+}
+
+extension XCFrameworkInfoPlist.Library.Platform {
+    fileprivate var graphPlatform: XcodeGraph.Platform {
+        switch self {
+        case .iOS: return .iOS
+        case .macOS: return .macOS
+        case .tvOS: return .tvOS
+        case .watchOS: return .watchOS
+        case .visionOS: return .visionOS
+        }
     }
 }
 
