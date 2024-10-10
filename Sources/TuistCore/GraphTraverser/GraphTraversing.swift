@@ -155,6 +155,14 @@ public protocol GraphTraversing {
     ///   - name: Target name
     func copyProductDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
+    /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy
+    /// executables build phase
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name
+    func copyExecutableDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
+
     /// Given a project directory and a target name, it returns the list of header folders that should be exposed to the target.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
