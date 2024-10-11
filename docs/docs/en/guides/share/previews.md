@@ -31,6 +31,7 @@ tuist share App
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
+tuist share App.ipa # Share an existing .ipa file
 ```
 :::
 
@@ -38,8 +39,11 @@ The command will generate a link that you can share with anyone to run the app â
 
 ```bash
 tuist run {url}
-tuist run {url} --device "My iPhone" # Run the app on a specific device
+tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
+
+When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
+The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
 
 > [!IMPORTANT] PREVIEWS' VISIBILITY
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.

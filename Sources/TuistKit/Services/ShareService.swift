@@ -241,8 +241,7 @@ struct ShareService {
         let appBundle = try await appBundleLoader.load(appBundlePath)
         let displayName = appBundle.infoPlist.name
 
-        logger.notice("Uploading \(displayName)...")
-        let preview = try await previewsUploadService.uploadPreviews(
+        try await uploadPreviews(
             .ipa(ipaPath),
             displayName: displayName,
             version: appBundle.infoPlist.version.description,
@@ -250,10 +249,6 @@ struct ShareService {
             fullHandle: fullHandle,
             serverURL: serverURL
         )
-        logger
-            .notice(
-                "\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)"
-            )
     }
 
     private func shareAppBundles(
@@ -271,8 +266,7 @@ struct ShareService {
               appPaths.allSatisfy({ $0.extension == "app" })
         else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
-        logger.notice("Uploading \(appName)...")
-        let preview = try await previewsUploadService.uploadPreviews(
+        try await uploadPreviews(
             .appBundles(appPaths),
             displayName: appName,
             version: appBundles.compactMap(\.infoPlist.version.description).first,
@@ -280,7 +274,6 @@ struct ShareService {
             fullHandle: fullHandle,
             serverURL: serverURL
         )
-        logger.notice("\(appName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
     }
 
     private func copyAppBundle(
@@ -350,8 +343,7 @@ struct ShareService {
                 throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
             }
 
-            logger.notice("Uploading \(app)...")
-            let preview = try await previewsUploadService.uploadPreviews(
+            try await uploadPreviews(
                 .appBundles(appPaths),
                 displayName: app,
                 version: nil,
@@ -359,13 +351,32 @@ struct ShareService {
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
-            logger.notice("\(app) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
-
-            ShareCommand.analyticsDelegate?.addParameters(
-                [
-                    "preview_id": "\(preview.id)",
-                ]
-            )
         }
+    }
+
+    private func uploadPreviews(
+        _ previewUploadType: PreviewUploadType,
+        displayName: String,
+        version: String?,
+        bundleIdentifier: String?,
+        fullHandle: String,
+        serverURL: URL
+    ) async throws {
+        logger.notice("Uploading \(displayName)...")
+        let preview = try await previewsUploadService.uploadPreviews(
+            previewUploadType,
+            displayName: displayName,
+            version: nil,
+            bundleIdentifier: nil,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        logger.notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+
+        ShareCommand.analyticsDelegate?.addParameters(
+            [
+                "preview_id": "\(preview.id)",
+            ]
+        )
     }
 }
