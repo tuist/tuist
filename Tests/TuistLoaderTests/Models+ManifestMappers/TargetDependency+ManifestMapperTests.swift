@@ -117,7 +117,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             product: "RuntimeEmbeddedPackageProduct",
             type: .runtimeEmbedded
         )
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
         let got = try XcodeGraph.TargetDependency.from(
