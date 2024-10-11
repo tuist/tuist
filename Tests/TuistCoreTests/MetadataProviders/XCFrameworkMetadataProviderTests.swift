@@ -51,7 +51,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
     func test_libraries_when_staticLibraryIsPresent() async throws {
         // Given
         let xcframeworkPath = fixturePath(
-            path: try RelativePath(validating: "DylibXCFramework.xcframework")
+            path: try RelativePath(validating: "MyStaticLibrary.xcframework")
         )
         let infoPlist = try await subject.infoPlist(xcframeworkPath: xcframeworkPath)
 
