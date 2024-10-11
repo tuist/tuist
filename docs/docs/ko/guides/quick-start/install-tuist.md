@@ -47,8 +47,7 @@ brew install --formula tuist@x.y.z
 
 Tuist를 **시스템 전체**(global installation)에 설치했다면, Bash와 Zsh의 명령어 및 옵션 자동 완성을 사용할 수 있도록 shell completions을 설치할 수 있습니다.
 
-::: warning What is a global installation
-Global installation란?
+::: warning Global installation란?
 Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다.
 :::
 
