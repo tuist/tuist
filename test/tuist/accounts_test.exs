@@ -14,6 +14,8 @@ defmodule Tuist.AccountsTest do
 
   use Mimic
 
+  @icon_url "https://tuist.io/icon.png"
+
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given
@@ -1070,8 +1072,12 @@ defmodule Tuist.AccountsTest do
 
     test "sends token through notification", %{user: user} do
       token =
-        extract_user_token(fn url ->
-          Accounts.deliver_user_confirmation_instructions(user, url)
+        extract_user_token(fn confirmation_url ->
+          Accounts.deliver_user_confirmation_instructions(%{
+            user: user,
+            confirmation_url: confirmation_url,
+            icon_url: @icon_url
+          })
         end)
 
       {:ok, token} = Base.url_decode64(token, padding: false)
@@ -1090,8 +1096,12 @@ defmodule Tuist.AccountsTest do
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
-        extract_user_token(fn url ->
-          Accounts.deliver_user_confirmation_instructions(user, url)
+        extract_user_token(fn confirmation_url ->
+          Accounts.deliver_user_confirmation_instructions(%{
+            user: user,
+            confirmation_url: confirmation_url,
+            icon_url: @icon_url
+          })
         end)
 
       %{user: user, token: token}
@@ -1129,8 +1139,12 @@ defmodule Tuist.AccountsTest do
 
     test "sends token through notification", %{user: user} do
       token =
-        extract_user_token(fn url ->
-          Accounts.deliver_user_reset_password_instructions(user, url)
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url,
+            icon_url: @icon_url
+          })
         end)
 
       {:ok, token} = Base.url_decode64(token, padding: false)
@@ -1149,8 +1163,12 @@ defmodule Tuist.AccountsTest do
       |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
-        extract_user_token(fn url ->
-          Accounts.deliver_user_reset_password_instructions(user, url)
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url,
+            icon_url: @icon_url
+          })
         end)
 
       %{user: user, token: token}

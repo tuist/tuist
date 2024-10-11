@@ -13,7 +13,11 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
 
     token =
       extract_user_token(fn url ->
-        Accounts.deliver_user_reset_password_instructions(user, url)
+        Accounts.deliver_user_reset_password_instructions(%{
+          user: user,
+          reset_password_url: url,
+          icon_url: "https://tuist.io/icon.png"
+        })
       end)
 
     %{token: token, user: user}

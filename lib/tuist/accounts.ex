@@ -939,14 +939,23 @@ defmodule Tuist.Accounts do
       {:error, :already_confirmed}
 
   """
-  def deliver_user_confirmation_instructions(user, confirmation_url_fun)
-      when is_function(confirmation_url_fun, 1) do
+  def deliver_user_confirmation_instructions(%{
+        user: user,
+        confirmation_url: confirmation_url,
+        icon_url: icon_url
+      })
+      when is_function(confirmation_url, 1) do
     if user.confirmed_at do
       {:error, :already_confirmed}
     else
       {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
       Repo.insert!(user_token)
-      UserNotifier.deliver_confirmation_instructions(user, confirmation_url_fun.(encoded_token))
+
+      UserNotifier.deliver_confirmation_instructions(%{
+        user: user,
+        confirmation_url: confirmation_url.(encoded_token),
+        icon_url: icon_url
+      })
     end
   end
 
@@ -983,11 +992,20 @@ defmodule Tuist.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
-  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun)
-      when is_function(reset_password_url_fun, 1) do
+  def deliver_user_reset_password_instructions(%{
+        user: %User{} = user,
+        reset_password_url: reset_password_url,
+        icon_url: icon_url
+      })
+      when is_function(reset_password_url, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
     Repo.insert!(user_token)
-    UserNotifier.deliver_reset_password_instructions(user, reset_password_url_fun.(encoded_token))
+
+    UserNotifier.deliver_reset_password_instructions(%{
+      user: user,
+      reset_password_url: reset_password_url.(encoded_token),
+      icon_url: icon_url
+    })
   end
 
   @doc """
