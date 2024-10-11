@@ -13,7 +13,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
     private var subject: DevicesViewModel!
     private var simulatorController: MockSimulatorControlling!
     private var downloadPreviewService: MockDownloadPreviewServicing!
-    private var fileArchiverFactory: MockFileArchivingFactorying!
+    private var fileUnarchiver: MockFileUnarchiving!
     private var remoteArtifactDownloader: MockRemoteArtifactDownloading!
     private var appBundleLoader: MockAppBundleLoading!
     private var appStorage: MockAppStoring!
@@ -48,11 +48,22 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         simulatorController = .init()
         downloadPreviewService = .init()
-        fileArchiverFactory = .init()
+        let fileArchiverFactory = MockFileArchivingFactorying()
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
         appStorage = .init()
         deviceController = .init()
+
+        subject = DevicesViewModel(
+            deviceController: deviceController,
+            simulatorController: simulatorController,
+            downloadPreviewService: downloadPreviewService,
+            fileArchiverFactory: fileArchiverFactory,
+            remoteArtifactDownloader: remoteArtifactDownloader,
+            fileHandler: fileHandler,
+            appBundleLoader: appBundleLoader,
+            appStorage: appStorage
+        )
 
         given(deviceController)
             .findAvailableDevices()
@@ -80,16 +91,21 @@ final class DevicesViewModelTests: TuistUnitTestCase {
                 ]
             )
 
-        subject = DevicesViewModel(
-            deviceController: deviceController,
-            simulatorController: simulatorController,
-            downloadPreviewService: downloadPreviewService,
-            fileArchiverFactory: fileArchiverFactory,
-            remoteArtifactDownloader: remoteArtifactDownloader,
-            fileHandler: fileHandler,
-            appBundleLoader: appBundleLoader,
-            appStorage: appStorage
-        )
+        given(deviceController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+
+        given(deviceController)
+            .launchApp(
+                bundleId: .any,
+                device: .any
+            )
+            .willReturn()
+
+        fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
 
         Matcher.register(SimulatorDeviceAndRuntime?.self)
         Matcher.register([SimulatorDeviceAndRuntime].self)
@@ -99,7 +115,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
     override func tearDown() {
         simulatorController = nil
         downloadPreviewService = nil
-        fileArchiverFactory = nil
+        fileUnarchiver = nil
         remoteArtifactDownloader = nil
         appBundleLoader = nil
         appStorage = nil
@@ -333,11 +349,6 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .download(url: .any)
             .willReturn(downloadedArchive)
 
-        let fileUnarchiver = MockFileUnarchiving()
-        given(fileArchiverFactory)
-            .makeFileUnarchiver(for: .any)
-            .willReturn(fileUnarchiver)
-
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
 
         given(fileUnarchiver)
@@ -417,11 +428,6 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .download(url: .any)
             .willReturn(downloadedArchive)
 
-        let fileUnarchiver = MockFileUnarchiving()
-        given(fileArchiverFactory)
-            .makeFileUnarchiver(for: .any)
-            .willReturn(fileUnarchiver)
-
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
 
         given(fileUnarchiver)
@@ -462,16 +468,89 @@ final class DevicesViewModelTests: TuistUnitTestCase {
                 )
             )
 
-        given(deviceController)
-            .installApp(at: .any, device: .any)
-            .willReturn()
+        // When
+        try await subject.onChangeOfURL(previewURL)
 
-        given(deviceController)
-            .launchApp(
-                bundleId: .any,
-                device: .any
+        // Then
+        verify(deviceController)
+            .installApp(
+                at: .value(appPath),
+                device: .value(myiPhone)
             )
-            .willReturn()
+            .called(1)
+        verify(deviceController)
+            .launchApp(
+                bundleId: .value("tuist.app"),
+                device: .value(myiPhone)
+            )
+            .called(1)
+    }
+
+    func test_onChangeOfURL_when_physical_device_selected_and_preview_is_ipa() async throws {
+        // Given
+        let myiPhone: PhysicalDevice = .test()
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([myiPhone])
+
+        try await subject.onAppear()
+
+        subject.selectPhysicalDevice(myiPhone)
+
+        given(downloadPreviewService)
+            .downloadPreview(
+                .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
+                fullHandle: .value("tuist/ios_app_with_frameworks"),
+                serverURL: .value(Constants.URLs.production)
+            )
+            .willReturn("https://tuist.io/download-link")
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        let payloadPath = unarchivedPath.appending(component: "Payload")
+        let appPath = payloadPath.appending(component: "iphoneos-App.app")
+        try await fileSystem.makeDirectory(at: appPath)
+
+        given(appBundleLoader)
+            .load(.value(appPath))
+            .willReturn(
+                .test(
+                    path: appPath,
+                    infoPlist: .test(
+                        bundleId: "tuist.app",
+                        supportedPlatforms: [
+                            .device(.iOS),
+                        ]
+                    )
+                )
+            )
+
+        let appSimulatorPath = unarchivedPath.appending(component: "iphonesimulator-App.app")
+        try fileHandler.touch(appSimulatorPath)
+
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(
+                .test(
+                    path: appSimulatorPath,
+                    infoPlist: .test(
+                        bundleId: "tuist.app",
+                        supportedPlatforms: [
+                            .simulator(.iOS),
+                        ]
+                    )
+                )
+            )
 
         // When
         try await subject.onChangeOfURL(previewURL)
@@ -547,11 +626,6 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         given(remoteArtifactDownloader)
             .download(url: .any)
             .willReturn(downloadedArchive)
-
-        let fileUnarchiver = MockFileUnarchiving()
-        given(fileArchiverFactory)
-            .makeFileUnarchiver(for: .any)
-            .willReturn(fileUnarchiver)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
 

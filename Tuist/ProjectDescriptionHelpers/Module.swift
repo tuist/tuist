@@ -800,6 +800,7 @@ public enum Module: String, CaseIterable {
         }
 
         let settings = Settings.settings(
+            base: settings.base,
             configurations: [
                 .debug(
                     name: "Debug",

@@ -167,7 +167,10 @@ final class DevicesViewModel: Sendable {
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        let apps = try await fileHandler.glob(unarchivedDirectory, glob: "*.app").concurrentMap {
+        let apps = try await (
+            fileHandler.glob(unarchivedDirectory, glob: "*.app") + fileHandler
+                .glob(unarchivedDirectory, glob: "*/*.app")
+        ).concurrentMap {
             try await self.appBundleLoader.load($0)
         }
 

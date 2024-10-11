@@ -367,6 +367,62 @@ final class RunServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_share_link_runs_ipa() async throws {
+        // Given
+        given(downloadPreviewService)
+            .downloadPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        // The `.app` bundle is nested in an `Payload` directory in the `.ipa` archive
+        try fileHandler.touch(unarchivedPath.appending(components: "Payload", "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
+
+        // When
+        try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!))
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value(nil),
+                device: .value(nil)
+            )
+            .called(1)
+    }
+
     func test_run_share_link_runs_with_destination_and_version() async throws {
         // Given
         given(downloadPreviewService)
