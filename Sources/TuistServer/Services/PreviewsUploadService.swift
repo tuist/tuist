@@ -7,7 +7,7 @@ import XcodeGraph
 
 public enum PreviewUploadType: Equatable {
     case ipa(AbsolutePath)
-    case appBundle([AbsolutePath])
+    case appBundles([AbsolutePath])
 }
 
 @Mockable
@@ -77,7 +77,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         case let .ipa(ipaPath):
             buildPath = ipaPath
             previewType = .ipa
-        case let .appBundle(previewPaths):
+        case let .appBundles(previewPaths):
             buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
             previewType = .appBundle
         }

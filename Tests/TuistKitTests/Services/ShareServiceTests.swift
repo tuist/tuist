@@ -61,6 +61,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             fileArchiverFactory: fileArchiverFactory
         )
 
+        given(manifestLoader)
+            .hasRootManifest(at: .any)
+            .willReturn(true)
+
         given(serverURLService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
@@ -102,10 +106,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(true)
-
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(
@@ -124,10 +124,6 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(true)
 
         let projectPath = try temporaryPath()
         let appTarget: Target = .test(
@@ -247,10 +243,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(true)
-
         let projectPath = try temporaryPath()
         let appTarget: Target = .test(
             name: "AppTarget",
@@ -329,10 +321,6 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(true)
 
         let projectPath = try temporaryPath()
         let appTarget: Target = .test(
@@ -610,6 +598,31 @@ final class ShareServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_share_ipa_and_app_target_name() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let ipaPath = try temporaryPath().appending(component: "App.ipa")
+        try await fileSystem.makeDirectory(at: ipaPath)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                path: nil,
+                apps: [
+                    ipaPath.pathString,
+                    "AppTarget",
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil
+            ),
+            ShareServiceError.multipleAppsSpecified([ipaPath.pathString, "AppTarget"])
+        )
+    }
+
     func test_share_app_bundles() async throws {
         // Given
         given(configLoader)
@@ -644,7 +657,7 @@ final class ShareServiceTests: TuistUnitTestCase {
         // Then
         verify(previewsUploadService)
             .uploadPreviews(
-                .value(.appBundle([iosApp, visionOSApp])),
+                .value(.appBundles([iosApp, visionOSApp])),
                 displayName: .value("App"),
                 version: .any,
                 bundleIdentifier: .any,

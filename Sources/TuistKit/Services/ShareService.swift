@@ -141,7 +141,7 @@ struct ShareService {
         let appPaths = try await apps.concurrentMap {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: try await fileSystem.currentWorkingDirectory()
+                relativeTo: path
             )
         }
         if !apps.isEmpty, try await appPaths
@@ -247,6 +247,7 @@ struct ShareService {
         let appBundle = try await appBundleLoader.load(appBundlePath)
         let displayName = appBundle.infoPlist.name
 
+        logger.notice("Uploading \(displayName)...")
         let preview = try await previewsUploadService.uploadPreviews(
             .ipa(ipaPath),
             displayName: displayName,
@@ -274,8 +275,9 @@ struct ShareService {
         guard appNames.count == 1,
               let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
+        logger.notice("Uploading \(appName)...")
         let preview = try await previewsUploadService.uploadPreviews(
-            .appBundle(appPaths),
+            .appBundles(appPaths),
             displayName: appName,
             version: appBundles.compactMap(\.infoPlist.version.description).first,
             bundleIdentifier: appBundles.compactMap(\.infoPlist.bundleId).first,
@@ -352,8 +354,9 @@ struct ShareService {
                 throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
             }
 
+            logger.notice("Uploading \(app)...")
             let preview = try await previewsUploadService.uploadPreviews(
-                .appBundle(appPaths),
+                .appBundles(appPaths),
                 displayName: app,
                 version: nil,
                 bundleIdentifier: nil,

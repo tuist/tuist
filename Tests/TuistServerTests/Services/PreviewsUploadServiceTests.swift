@@ -101,7 +101,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
 
         // When
         let got = try await subject.uploadPreviews(
-            .appBundle([preview]),
+            .appBundles([preview]),
             displayName: "App",
             version: nil,
             bundleIdentifier: nil,
