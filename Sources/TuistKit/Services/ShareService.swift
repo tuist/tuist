@@ -144,24 +144,18 @@ struct ShareService {
                 relativeTo: path
             )
         }
-        if !apps.isEmpty, try await appPaths
-            .concurrentMap({ try await fileSystem.exists($0) })
-            .allSatisfy({ $0 })
-        {
-            if appPaths.contains(where: { $0.extension == "ipa" }) {
-                try await shareIPA(
-                    appPaths,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                )
-            } else {
-                try await shareAppBundles(
-                    appPaths,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                )
-            }
-
+        if appPaths.contains(where: { $0.extension == "ipa" }) {
+            try await shareIPA(
+                appPaths,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        } else if appPaths.contains(where: { $0.extension == "app" }) {
+            try await shareAppBundles(
+                appPaths,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
         } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
@@ -273,7 +267,9 @@ struct ShareService {
 
         let appNames = appBundles.map(\.infoPlist.name).uniqued()
         guard appNames.count == 1,
-              let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
+              let appName = appNames.first,
+              appPaths.allSatisfy({ $0.extension == "app" })
+        else { throw ShareServiceError.multipleAppsSpecified(appNames) }
 
         logger.notice("Uploading \(appName)...")
         let preview = try await previewsUploadService.uploadPreviews(

@@ -416,6 +416,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
+        manifestLoader.reset()
+
         given(manifestLoader)
             .hasRootManifest(at: .any)
             .willReturn(false)
@@ -438,6 +440,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        manifestLoader.reset()
 
         given(manifestLoader)
             .hasRootManifest(at: .any)
@@ -462,6 +466,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
+        manifestLoader.reset()
+
         given(manifestLoader)
             .hasRootManifest(at: .any)
             .willReturn(false)
@@ -484,6 +490,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        manifestLoader.reset()
 
         given(manifestLoader)
             .hasRootManifest(at: .any)
@@ -509,6 +517,8 @@ final class ShareServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        manifestLoader.reset()
 
         given(manifestLoader)
             .hasRootManifest(at: .any)
@@ -604,13 +614,14 @@ final class ShareServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let ipaPath = try temporaryPath().appending(component: "App.ipa")
+        let currentPath = try temporaryPath()
+        let ipaPath = currentPath.appending(component: "App.ipa")
         try await fileSystem.makeDirectory(at: ipaPath)
 
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(
-                path: nil,
+                path: currentPath.pathString,
                 apps: [
                     ipaPath.pathString,
                     "AppTarget",
@@ -619,7 +630,10 @@ final class ShareServiceTests: TuistUnitTestCase {
                 platforms: [],
                 derivedDataPath: nil
             ),
-            ShareServiceError.multipleAppsSpecified([ipaPath.pathString, "AppTarget"])
+            ShareServiceError.multipleAppsSpecified([
+                ipaPath.pathString,
+                currentPath.appending(component: "AppTarget").pathString,
+            ])
         )
     }
 
