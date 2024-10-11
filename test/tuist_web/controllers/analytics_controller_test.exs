@@ -1,6 +1,6 @@
 defmodule TuistWeb.AnalyticsControllerTest do
+  alias Tuist.PreviewsFixtures
   alias Tuist.VCS
-  alias Tuist.Previews
   alias Tuist.Environment
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Repo
@@ -121,7 +121,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      preview = Previews.create_preview(%{project: project, display_name: "App"})
+      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       VCS
       |> expect(:post_vcs_pull_request_comment, fn _ ->

@@ -1,6 +1,7 @@
 defmodule Tuist.VCSTest do
   use ExUnit.Case, async: false
   use Tuist.StubCase, billing: true
+  alias Tuist.PreviewsFixtures
   use Tuist.DataCase
   use Mimic
 
@@ -11,7 +12,6 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS.Comment
   alias Tuist.Environment
   alias Tuist.ProjectsFixtures
-  alias Tuist.Previews
   alias Tuist.CommandEventsFixtures
 
   @default_headers [
@@ -251,7 +251,7 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview_one = Previews.create_preview(%{project: project, display_name: "App"})
+      preview_one = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       _preview_command_event_one =
         CommandEventsFixtures.command_event_fixture(
@@ -263,7 +263,7 @@ defmodule Tuist.VCSTest do
           created_at: ~N[2024-04-30 03:00:00]
         )
 
-      preview_two = Previews.create_preview(%{project: project, display_name: "App"})
+      preview_two = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       _preview_command_event_two =
         CommandEventsFixtures.command_event_fixture(
@@ -275,7 +275,8 @@ defmodule Tuist.VCSTest do
           created_at: ~N[2024-04-30 02:00:00]
         )
 
-      preview_three = Previews.create_preview(%{project: project, display_name: "WatchApp"})
+      preview_three =
+        PreviewsFixtures.preview_fixture(project: project, display_name: "WatchApp")
 
       _preview_command_event_three =
         CommandEventsFixtures.command_event_fixture(
@@ -376,7 +377,7 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = Previews.create_preview(%{project: project, display_name: "App"})
+      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       _preview_command_event =
         CommandEventsFixtures.command_event_fixture(
@@ -422,7 +423,7 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = Previews.create_preview(%{project: project, display_name: "App"})
+      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       _preview_command_event =
         CommandEventsFixtures.command_event_fixture(
@@ -468,7 +469,7 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = Previews.create_preview(%{project: project, display_name: "App"})
+      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
       _preview_command_event =
         CommandEventsFixtures.command_event_fixture(

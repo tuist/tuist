@@ -51,7 +51,21 @@ defmodule TuistWeb.API.PreviewsController do
        %Schema{
          type: :object,
          properties: %{
-           display_name: %Schema{type: :string, description: "The display name of the preview."}
+           display_name: %Schema{type: :string, description: "The display name of the preview."},
+           type: %Schema{
+             enum: ["app_bundle", "ipa"],
+             type: :string,
+             description: "The type of the preview to upload.",
+             default: "app_bundle"
+           },
+           bundle_identifier: %Schema{
+             type: :string,
+             description: "The bundle identifier of the preview."
+           },
+           version: %Schema{
+             type: :string,
+             description: "The version of the preview."
+           }
          }
        }},
     responses: %{
@@ -96,7 +110,10 @@ defmodule TuistWeb.API.PreviewsController do
     %Preview{id: preview_id} =
       Previews.create_preview(%{
         project: project,
-        display_name: Map.get(body_params, :display_name)
+        type: Map.get(body_params, :type) |> String.to_atom(),
+        display_name: Map.get(body_params, :display_name),
+        bundle_identifier: Map.get(body_params, :bundle_identifier),
+        version: Map.get(body_params, :version)
       })
 
     upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
@@ -325,6 +342,10 @@ defmodule TuistWeb.API.PreviewsController do
          } = _conn,
          preview_id
        ) do
-    "#{account_handle}/#{project_handle}/previews/#{preview_id}.zip"
+    Previews.get_storage_key(%{
+      account_handle: account_handle,
+      project_handle: project_handle,
+      preview_id: preview_id
+    })
   end
 end

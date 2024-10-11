@@ -78,6 +78,84 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert Repo.all(Preview) |> hd() |> Map.get(:display_name) == "preview-name"
     end
 
+    test "starts multipart upload of a bundle preview", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      Storage
+      |> expect(:multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "preview-name",
+          type: "app_bundle"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+      preview = Repo.all(Preview) |> hd()
+      assert preview |> Map.get(:display_name) == "preview-name"
+      assert preview |> Map.get(:type) == :app_bundle
+    end
+
+    test "starts multipart upload of an archive preview", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      Storage
+      |> expect(:multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "preview-name",
+          type: "ipa",
+          version: "1.0.0",
+          bundle_identifier: "com.tuist.app"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+      preview = Repo.all(Preview) |> hd()
+      assert preview |> Map.get(:display_name) == "preview-name"
+      assert preview |> Map.get(:type) == :ipa
+      assert preview |> Map.get(:version) == "1.0.0"
+      assert preview |> Map.get(:bundle_identifier) == "com.tuist.app"
+    end
+
     test "returns error when project doesn't exist", %{
       conn: conn,
       user: user,

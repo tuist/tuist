@@ -261,6 +261,20 @@ defmodule TuistWeb.Router do
   end
 
   # Dashboard
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :require_authenticated_user_for_previews,
+      :analytics
+    ]
+
+    get "/manifest.plist", PreviewController, :manifest
+    get "/app.ipa", PreviewController, :download_archive
+    get "/", PreviewController, :preview
+  end
+
   scope "/", TuistWeb do
     pipe_through [
       :open_api,
@@ -271,7 +285,6 @@ defmodule TuistWeb.Router do
     ]
 
     get "/:account_handle/billing/manage", BillingController, :manage
-    get "/:account_handle/:project_handle/previews/:id", PreviewController, :preview
 
     live_session :dashboard,
       layout: {TuistWeb.Layouts, :account},

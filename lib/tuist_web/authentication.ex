@@ -4,6 +4,7 @@ defmodule TuistWeb.Authentication do
   """
   import Plug.Conn
   import Phoenix.Controller
+  alias Tuist.Previews
   alias Tuist.Repo
   alias Tuist.Projects
   alias Phoenix.LiveView
@@ -307,6 +308,28 @@ defmodule TuistWeb.Authentication do
     if is_nil(project) or project.visibility == :private,
       do: require_authenticated_user(conn, opts),
       else: conn
+  end
+
+  def require_authenticated_user_for_previews(
+        %{
+          path_params: %{
+            "id" => preview_id
+          }
+        } = conn,
+        opts
+      ) do
+    preview = Previews.get_preview_by_id(preview_id)
+
+    if is_nil(preview) do
+      raise TuistWeb.Errors.NotFoundError,
+            "Preview not found."
+    end
+
+    case preview.type do
+      :app_bundle -> require_authenticated_user_for_private_projects(conn, opts)
+      :ipa -> conn
+      nil -> conn
+    end
   end
 
   defp put_token_in_session(conn, token) do
