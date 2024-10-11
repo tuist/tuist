@@ -1022,7 +1022,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependency: GraphDependency,
         test: (GraphDependency) -> Bool = { _ in true },
@@ -1036,7 +1036,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependencies from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependencies: Set<GraphDependency>,
         test: (GraphDependency) -> Bool = { _ in true },
