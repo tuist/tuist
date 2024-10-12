@@ -23,7 +23,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles(files)
+        try await createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.resources(
             name: "Copy Fonts",
@@ -60,7 +60,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try createFiles(files)
+        try await createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.sharedSupport(
             name: "Copy Templates",

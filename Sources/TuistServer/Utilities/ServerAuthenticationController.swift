@@ -4,7 +4,7 @@ import TuistSupport
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
 }
 
 public enum AuthenticationToken: CustomStringConvertible, Equatable {
@@ -74,7 +74,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         self.environment = environment
     }
 
-    public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
+    public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         if ciChecker.isCI() {
             if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
                 return .project(configToken)
@@ -88,7 +88,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 return nil
             }
         } else {
-            let credentials = try credentialsStore.read(serverURL: serverURL)
+            let credentials = try await credentialsStore.read(serverURL: serverURL)
             return try credentials.map {
                 if let refreshToken = $0.refreshToken {
                     return .user(

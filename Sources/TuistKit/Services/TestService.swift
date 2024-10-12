@@ -192,7 +192,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
         // Load config
         let config = try await configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let testGenerator = generatorFactory.testing(
             config: config,

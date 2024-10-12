@@ -2250,8 +2250,21 @@ paths:
           application/json:
             schema:
               properties:
+                bundle_identifier:
+                  description: The bundle identifier of the preview.
+                  type: string
                 display_name:
                   description: The display name of the preview.
+                  type: string
+                type:
+                  default: app_bundle
+                  description: The type of the preview to upload.
+                  enum:
+                    - app_bundle
+                    - ipa
+                  type: string
+                version:
+                  description: The version of the preview.
                   type: string
               type: object
         description: Preview upload request params

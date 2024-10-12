@@ -147,7 +147,7 @@ public final class TargetBuilder: TargetBuilding {
         configuration: String
     ) async throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: platform,
+            destinationType: .simulator(platform),
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
             configuration: configuration
@@ -168,7 +168,7 @@ public final class TargetBuilder: TargetBuilding {
                 try await fileSystem.remove(productOutputPath)
             }
 
-            try FileHandler.shared.copy(from: product, to: productOutputPath)
+            try await fileSystem.copy(product, to: productOutputPath)
         }
     }
 }

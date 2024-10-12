@@ -62,7 +62,7 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
             return try await locate(from: path.parentDirectory, source: source)
         } else if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if try await fileSystem.exists(path.appending(component: Constants.tuistDirectoryName)) {
+        } else if try await fileSystem.exists(path.appending(component: Constants.tuistDirectoryName), isDirectory: true) {
             cache(rootDirectory: path, for: source)
             return path
         } else if try await fileSystem.exists(path.appending(component: "Plugin.swift")) {

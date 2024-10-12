@@ -2,10 +2,10 @@ import XCTest
 
 @testable import App
 
-class AppDelegateTests: XCTestCase {
+class MyAppTests: XCTestCase {
     func testHello() {
-        let sut = AppDelegate()
+        let sut = MyApp()
 
-        XCTAssertEqual("AppDelegate.hello()", sut.hello())
+        XCTAssertEqual("MyApp.hello()", sut.hello())
     }
 }

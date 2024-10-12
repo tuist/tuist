@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -38,7 +39,7 @@ public class Generator: Generating {
         configLoader = ConfigLoader(
             manifestLoader: manifestLoader,
             rootDirectoryLocator: RootDirectoryLocator(),
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         )
         self.manifestGraphLoader = manifestGraphLoader
     }

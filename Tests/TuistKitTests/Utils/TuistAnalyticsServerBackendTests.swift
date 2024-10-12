@@ -147,6 +147,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
 
         // Then
         XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
-        XCTAssertFalse(fileHandler.exists(resultBundle))
+        let exists = try await fileSystem.exists(resultBundle)
+        XCTAssertFalse(exists)
     }
 }

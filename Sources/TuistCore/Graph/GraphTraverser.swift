@@ -102,9 +102,9 @@ public class GraphTraverser: GraphTraversing {
     public func targets(product: Product) -> Set<GraphTarget> {
         var filteredTargets: Set<GraphTarget> = Set()
         for (path, projectTargets) in targets() {
-            projectTargets.values.forEach { target in
-                guard target.product == product else { return }
-                guard let project = projects[path] else { return }
+            for target in projectTargets.values {
+                guard target.product == product else { continue }
+                guard let project = projects[path] else { continue }
                 filteredTargets.formUnion([
                     GraphTarget(path: path, target: target, project: project),
                 ])
@@ -919,6 +919,8 @@ public class GraphTraverser: GraphTraversing {
                 .map { GraphDependency.target(name: $0.target.name, path: $0.project.path) }
         )
 
+        let externalTargetSupportedPlatforms = externalTargetSupportedPlatforms()
+
         let allTargetExternalDependendedUponTargets = filterDependencies(
             from: graphDependenciesWithExternalDependencies
         )
@@ -929,7 +931,14 @@ public class GraphTraverser: GraphTraversing {
                 else {
                     return nil
                 }
-                return GraphTarget(path: path, target: target, project: project)
+                let graphTarget = GraphTarget(path: path, target: target, project: project)
+
+                if externalTargetSupportedPlatforms[graphTarget]?.isEmpty == false {
+                    return graphTarget
+                } else {
+                    return nil
+                }
+
             } else {
                 return nil
             }
@@ -1013,7 +1022,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependency: GraphDependency,
         test: (GraphDependency) -> Bool = { _ in true },
@@ -1027,7 +1036,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependencies from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependencies: Set<GraphDependency>,
         test: (GraphDependency) -> Bool = { _ in true },

@@ -26,7 +26,7 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .file(path):
                 return try await contentHasher.hash(path: path)
             case let .dictionary(dictionary), let .extendingDefault(dictionary):
-                var dictionaryString: String = ""
+                var dictionaryString = ""
                 for key in dictionary.keys.sorted() {
                     let value = dictionary[key, default: "nil"]
                     dictionaryString += "\(key)=\(value);"
@@ -42,7 +42,7 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .file(path):
                 return try await contentHasher.hash(path: path)
             case let .dictionary(dictionary):
-                var dictionaryString: String = ""
+                var dictionaryString = ""
                 for key in dictionary.keys.sorted() {
                     let value = dictionary[key, default: "nil"]
                     dictionaryString += "\(key)=\(value);"

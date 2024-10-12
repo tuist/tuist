@@ -10,7 +10,7 @@ public protocol ServerSessionControlling: AnyObject {
 
     /// Prints the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
-    func printSession(serverURL: URL) throws
+    func printSession(serverURL: URL) async throws
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
@@ -82,12 +82,12 @@ public final class ServerSessionController: ServerSessionControlling {
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken
         )
-        try credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
         logger.notice("Credentials stored successfully", metadata: .success)
     }
 
-    public func printSession(serverURL: URL) throws {
-        if let token = try serverAuthenticationController.authenticationToken(serverURL: serverURL) {
+    public func printSession(serverURL: URL) async throws {
+        if let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
             switch token {
             case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: _):
                 logger.notice("""

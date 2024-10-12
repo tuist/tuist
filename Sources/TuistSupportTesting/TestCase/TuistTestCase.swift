@@ -1,4 +1,5 @@
 import Difference
+import FileSystem
 import Foundation
 import Path
 import XCTest
@@ -38,14 +39,6 @@ public final class MockFileHandler: FileHandler {
             return try super.filesAndDirectoriesContained(in: path)
         }
         return stubFilesAndDirectoriesContained(path)
-    }
-
-    public var stubExists: ((AbsolutePath) -> Bool)?
-    override public func exists(_ path: AbsolutePath) -> Bool {
-        guard let stubExists else {
-            return super.exists(path)
-        }
-        return stubExists(path)
     }
 
     public var stubReadFile: ((AbsolutePath) throws -> Data)?
@@ -161,15 +154,22 @@ open class TuistTestCase: XCTestCase {
     }
 
     @discardableResult
-    public func createFiles(_ files: [String], content: String? = nil) throws -> [AbsolutePath] {
+    public func createFiles(_ files: [String], content: String? = nil) async throws -> [AbsolutePath] {
         let temporaryPath = try temporaryPath()
-        let fileHandler = FileHandler()
+        let fileSystem = FileSystem()
         let paths = try files.map { temporaryPath.appending(try RelativePath(validating: $0)) }
 
         for item in paths {
-            try fileHandler.touch(item)
+            if try await !fileSystem.exists(item.parentDirectory, isDirectory: true) {
+                try await fileSystem.makeDirectory(at: item.parentDirectory)
+            }
+            if try await fileSystem.exists(item) {
+                try await fileSystem.remove(item)
+            }
             if let content {
-                try fileHandler.write(content, path: item, atomically: true)
+                try await fileSystem.writeText(content, at: item)
+            } else {
+                try await fileSystem.touch(item)
             }
         }
         return paths
@@ -264,11 +264,11 @@ open class TuistTestCase: XCTestCase {
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
 
-    public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
+    public func temporaryFixture(_ pathString: String) async throws -> AbsolutePath {
         let path = try RelativePath(validating: pathString)
         let fixturePath = fixturePath(path: path)
         let destinationPath = (try temporaryPath()).appending(component: path.basename)
-        try FileHandler.shared.copy(from: fixturePath, to: destinationPath)
+        try await FileSystem().copy(fixturePath, to: destinationPath)
         return destinationPath
     }
 }

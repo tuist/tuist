@@ -47,7 +47,7 @@ workflows:
     name: Build Documentation
     max_build_duration: 60
     environment:
-      xcode: 15.3
+      xcode: 16.0
       groups:
         - tuist
     scripts:
@@ -126,7 +126,7 @@ workflows:
     name: Deploy Documentation
     max_build_duration: 60
     environment:
-      xcode: 15.3
+      xcode: 16.0
       groups:
         - tuist
     scripts:

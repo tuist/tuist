@@ -56,18 +56,18 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_category_cleans_category() async throws {
         // Given
-        let cachePaths = try createFolders(["tuist/Manifests", "tuist/ProjectDescriptionHelpers"])
+        let rootDirectory = try temporaryPath()
+        let cachePaths = try await createFiles(["tuist/Manifests/manifest.json", "tuist/ProjectDescriptionHelpers/File.swift"])
 
-        let cachePath = cachePaths[0].parentDirectory.parentDirectory
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.manifests))
-            .willReturn(cachePaths[0])
+            .willReturn(cachePaths[0].parentDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.projectDescriptionHelpers))
-            .willReturn(cachePaths[1])
+            .willReturn(cachePaths[1].parentDirectory)
         given(rootDirectoryLocator)
             .locate(from: .any)
-            .willReturn(cachePath)
+            .willReturn(rootDirectory)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(nil)
@@ -87,19 +87,20 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_dependencies_cleans_dependencies() async throws {
         // Given
-        let localPaths = try createFolders(["Tuist/.build", "Tuist/ProjectDescriptionHelpers"])
+        let rootDirectory = try temporaryPath()
+        let localPaths = try await createFiles(["Tuist/.build/file", "Tuist/ProjectDescriptionHelpers/File.swift"])
 
         given(rootDirectoryLocator)
             .locate(from: .any)
-            .willReturn(localPaths[0].parentDirectory)
+            .willReturn(rootDirectory)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(
-                localPaths[1].parentDirectory
-                    .appending(component: Constants.SwiftPackageManager.packageSwiftName)
+                rootDirectory
+                    .appending(components: "Tuist", Constants.SwiftPackageManager.packageSwiftName)
             )
 
-        let cachePath = localPaths[0].parentDirectory.parentDirectory
+        let cachePath = rootDirectory
         given(cacheDirectoriesProvider)
             .cacheDirectory()
             .willReturn(cachePath)
@@ -119,15 +120,16 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
-        let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
+        let rootDirectory = try temporaryPath()
+        let localPaths = try await createFiles([".build/file", "Tuist/ProjectDescriptionHelpers/file"])
 
         given(rootDirectoryLocator)
             .locate(from: .any)
-            .willReturn(localPaths[0].parentDirectory)
+            .willReturn(rootDirectory)
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(
-                localPaths[0].parentDirectory
+                rootDirectory
                     .appending(component: Constants.SwiftPackageManager.packageSwiftName)
             )
 
@@ -151,11 +153,11 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_without_category_cleans_all() async throws {
         // Given
-        let cachePaths = try createFolders(["tuist/Manifests"])
+        let cachePaths = try await createFiles(["tuist/Manifests/hash"])
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)
-            .willReturn(cachePaths[0])
+            .willReturn(cachePaths[0].parentDirectory)
 
         let projectPath = try temporaryPath()
         given(rootDirectoryLocator)
@@ -171,6 +173,8 @@ final class CleanServiceTests: TuistUnitTestCase {
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         try fileHandler.createFolder(swiftPackageManagerBuildPath)
+        let swiftPackageManagerBuildFile = swiftPackageManagerBuildPath.appending(component: "file")
+        try await fileSystem.touch(swiftPackageManagerBuildFile)
 
         // When
         try await subject.run(
@@ -182,8 +186,8 @@ final class CleanServiceTests: TuistUnitTestCase {
         // Then
         let cachePathExists = try await fileSystem.exists(cachePaths[0])
         XCTAssertFalse(cachePathExists)
-        let swiftPackageManagerBuildPathExists = try await fileSystem.exists(swiftPackageManagerBuildPath)
-        XCTAssertFalse(swiftPackageManagerBuildPathExists)
+        let swiftPackageManagerBuildFileExists = try await fileSystem.exists(swiftPackageManagerBuildFile)
+        XCTAssertFalse(swiftPackageManagerBuildFileExists)
     }
 
     func test_run_with_remote() async throws {

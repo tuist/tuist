@@ -963,6 +963,22 @@ final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCa
     }
 }
 
+final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: TuistAcceptanceTestCase {
+    func test_app_with_local_spm_module_with_remote_dependencioes() async throws {
+        try await setUpFixture(.appWithLocalSPMModuleWithRemoteDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        let workspacePackageResolved = try workspacePath
+            .appending(RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
+        let fixturePackageResolved = try fixturePath.appending(RelativePath(validating: ".package.resolved"))
+        let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
+        let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
+        XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
