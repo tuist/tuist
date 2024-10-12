@@ -131,7 +131,7 @@ private struct DeviceList: Codable {
 
             struct DeviceProperties: Codable {
                 let name: String
-                let osVersionNumber: String
+                let osVersionNumber: String?
             }
 
             struct HardwareProperties: Codable {
@@ -162,7 +162,7 @@ extension PhysicalDevice {
             id: device.hardwareProperties.udid,
             name: device.deviceProperties.name,
             platform: platform,
-            osVersion: device.deviceProperties.osVersionNumber
+            osVersion: device.deviceProperties.osVersionNumber ?? "Unknown"
         )
     }
 }
