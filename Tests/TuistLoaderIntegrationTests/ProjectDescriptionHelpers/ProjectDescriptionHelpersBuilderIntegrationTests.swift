@@ -59,9 +59,9 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftmodule").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/ProjectDescriptionHelpers.swiftmodule").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/libProjectDescriptionHelpers.dylib").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/ProjectDescriptionHelpers.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
         let exists = try await fileSystem.exists(helpersModule.path)
         XCTAssertTrue(exists)
@@ -95,10 +95,10 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftsourceinfo").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftmodule").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libPlugin.dylib").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftdoc").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftsourceinfo").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftmodule").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/libPlugin.dylib").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
         let exists = try await fileSystem.exists(helpersModule.path)
         XCTAssertTrue(exists)

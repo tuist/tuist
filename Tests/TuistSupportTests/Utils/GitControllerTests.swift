@@ -21,7 +21,7 @@ final class GitControllerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.stubs["git -C \(path.pathString) clone \(url)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand(["git", "-C \(path.pathString)", "clone \(url)"])
 
         XCTAssertNoThrow(try subject.clone(url: url, into: path))
         XCTAssertTrue(system.called(["git", "-C", path.pathString, "clone", url]))
@@ -30,7 +30,7 @@ final class GitControllerTests: TuistUnitTestCase {
     func test_cloneTo() throws {
         let url = "https://some/url/to/repo.git"
 
-        system.stubs["git clone \(url)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand(["git", "clone \(url)"])
 
         XCTAssertNoThrow(try subject.clone(url: url))
         XCTAssertTrue(system.called(["git", "clone", url]))
@@ -40,7 +40,7 @@ final class GitControllerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.stubs["git clone \(url) \(path.pathString)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand(["git", "clone \(url)", path.pathString])
 
         XCTAssertNoThrow(try subject.clone(url: url, to: path))
         XCTAssertTrue(system.called(["git", "clone", url, path.pathString]))
@@ -49,7 +49,7 @@ final class GitControllerTests: TuistUnitTestCase {
     func test_checkout() throws {
         let id = "main"
 
-        system.stubs["git checkout \(id)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand(["git", "checkout \(id)"])
 
         XCTAssertNoThrow(try subject.checkout(id: id, in: nil))
     }
@@ -66,9 +66,9 @@ final class GitControllerTests: TuistUnitTestCase {
             path.pathString,
             "checkout",
             id,
-        ].joined(separator: " ")
+        ]
 
-        system.stubs[expectedCommand] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.succeedCommand(expectedCommand)
 
         XCTAssertNoThrow(try subject.checkout(id: id, in: path))
         XCTAssertTrue(system.called([
@@ -102,7 +102,7 @@ final class GitControllerTests: TuistUnitTestCase {
 
         let expectedResult = [Version(1, 9, 0), Version(1, 52, 0), Version(2, 0, 0)]
 
-        system.stubs[expectedCommand.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
+        system.succeedCommand(expectedCommand, output: output)
 
         let result = try subject.remoteTaggedVersions(url: url)
 
