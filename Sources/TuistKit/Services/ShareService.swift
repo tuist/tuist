@@ -366,8 +366,8 @@ struct ShareService {
         let preview = try await previewsUploadService.uploadPreviews(
             previewUploadType,
             displayName: displayName,
-            version: nil,
-            bundleIdentifier: nil,
+            version: version,
+            bundleIdentifier: bundleIdentifier,
             fullHandle: fullHandle,
             serverURL: serverURL
         )
