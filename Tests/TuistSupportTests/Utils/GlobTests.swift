@@ -14,15 +14,16 @@ final class GlobTests: TuistTestCase {
         super.setUp()
 
         temporaryDirectory = try temporaryPath()
-        try createFiles(temporaryFiles, content: "")
     }
 
-    func testNothingMatches() {
+    func testNothingMatches() async throws {
+        try await createFiles(temporaryFiles, content: "")
         let pattern = "nothing"
         XCTAssertEmpty(temporaryDirectory.glob(pattern))
     }
 
-    func testBraces() {
+    func testBraces() async throws {
+        try await createFiles(temporaryFiles, content: "")
         let pattern = "ba{r,y,z}"
         XCTAssertEqual(
             temporaryDirectory.glob(pattern),
@@ -32,7 +33,8 @@ final class GlobTests: TuistTestCase {
 
     // MARK: - Globstar - Bash v4
 
-    func testGlobstarNoSlash() {
+    func testGlobstarNoSlash() async throws {
+        try await createFiles(temporaryFiles, content: "")
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**"
         let expected: [String] = [
             ".",
@@ -52,7 +54,8 @@ final class GlobTests: TuistTestCase {
         XCTAssertEqual(result, expected)
     }
 
-    func testGlobstarWithSlash() {
+    func testGlobstarWithSlash() async throws {
+        try await createFiles(temporaryFiles, content: "")
         // `**/` is treated as same as `**` with Tuist since it converts pattern string to RelativePath.
         // This is not an expected behavior for bash glob but this should be kept to avoid unexpected source file drops.
         let expected: [String] = [
@@ -73,7 +76,8 @@ final class GlobTests: TuistTestCase {
         XCTAssertEqual(result, expected)
     }
 
-    func testGlobstarWithSlashAndWildcard() {
+    func testGlobstarWithSlashAndWildcard() async throws {
+        try await createFiles(temporaryFiles, content: "")
         // Should be the equivalent of "ls -d -1 /(temporaryDirectory)/**/*"
         let expected: [String] = [
             "bar",
@@ -92,7 +96,8 @@ final class GlobTests: TuistTestCase {
         XCTAssertEqual(result, expected)
     }
 
-    func testPatternEndsWithGlobstar() {
+    func testPatternEndsWithGlobstar() async throws {
+        try await createFiles(temporaryFiles, content: "")
         let expected: [String] = [
             "dir1",
             "dir1/**(_:_:)",
@@ -107,7 +112,8 @@ final class GlobTests: TuistTestCase {
         XCTAssertEqual(result, expected)
     }
 
-    func testDoubleGlobstar() {
+    func testDoubleGlobstar() async throws {
+        try await createFiles(temporaryFiles, content: "")
         let expected: [String] = [
             "dir1/dir2/dir3",
             "dir1/dir2/dir3/file2.ext",

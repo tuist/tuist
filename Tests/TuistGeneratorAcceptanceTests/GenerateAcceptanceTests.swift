@@ -496,6 +496,17 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let sourceFileNames = try target.sourceFiles().compactMap(\.path)
+
+        XCTAssertTrue(
+            sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }),
+            "Expected Documentation to be included in generated project"
+        )
+
         try await XCTAssertProductWithDestinationContainsExtension(
             "App.app",
             destination: "Debug-iphonesimulator",
@@ -949,6 +960,22 @@ final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCa
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: TuistAcceptanceTestCase {
+    func test_app_with_local_spm_module_with_remote_dependencioes() async throws {
+        try await setUpFixture(.appWithLocalSPMModuleWithRemoteDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        let workspacePackageResolved = try workspacePath
+            .appending(RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
+        let fixturePackageResolved = try fixturePath.appending(RelativePath(validating: ".package.resolved"))
+        let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
+        let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
+        XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
     }
 }
 

@@ -16,18 +16,18 @@ public protocol GraphContentHashing {
         for graph: Graph,
         include: @escaping (GraphTarget) -> Bool,
         additionalStrings: [String]
-    ) throws -> [GraphTarget: String]
+    ) async throws -> [GraphTarget: String]
 }
 
 /// `GraphContentHasher`
 /// is responsible for computing an hash that uniquely identifies a Tuist `Graph`.
 /// It considers only targets that are considered cacheable: frameworks without dependencies on XCTest or on non-cacheable targets
-public final class GraphContentHasher: GraphContentHashing {
+public struct GraphContentHasher: GraphContentHashing {
     private let targetContentHasher: TargetContentHashing
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing) {
+    public init(contentHasher: ContentHashing) {
         let targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
         self.init(targetContentHasher: targetContentHasher)
     }
@@ -42,11 +42,11 @@ public final class GraphContentHasher: GraphContentHashing {
         for graph: Graph,
         include: (GraphTarget) -> Bool,
         additionalStrings: [String]
-    ) throws -> [GraphTarget: String] {
+    ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedIsHasheableNodes: [GraphTarget: Bool] = [:]
-        var hashedTargets: [GraphHashedTarget: String] = [:]
-        var hashedPaths: [AbsolutePath: String] = [:]
+        let hashedTargets: ThreadSafe<[GraphHashedTarget: String]> = ThreadSafe([:])
+        let hashedPaths: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
 
@@ -63,20 +63,23 @@ public final class GraphContentHasher: GraphContentHashing {
             }
         }
 
-        let hashes = try hashableTargets.map { (target: GraphTarget) -> String in
-            let hash = try targetContentHasher.contentHash(
+        let hashes = try await hashableTargets.serialMap { (target: GraphTarget) async throws -> String in
+            let hash = try await targetContentHasher.contentHash(
                 for: target,
-                hashedTargets: &hashedTargets,
-                hashedPaths: &hashedPaths,
+                hashedTargets: hashedTargets.value,
+                hashedPaths: hashedPaths.value,
                 additionalStrings: additionalStrings
             )
-            hashedTargets[
-                GraphHashedTarget(
-                    projectPath: target.path,
-                    targetName: target.target.name
-                )
-            ] = hash
-            return hash
+            hashedPaths.mutate { $0 = hash.hashedPaths }
+            hashedTargets.mutate {
+                $0[
+                    GraphHashedTarget(
+                        projectPath: target.path,
+                        targetName: target.target.name
+                    )
+                ] = hash.hash
+            }
+            return hash.hash
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }

@@ -1,7 +1,7 @@
+import Darwin.C
 import Foundation
 import Path
 import TSCBasic
-import TSCLibc
 
 /// A class to create disposable directories using POSIX's mkdtemp() method.
 public final class TemporaryDirectory {
@@ -40,7 +40,7 @@ public final class TemporaryDirectory {
         // which will be the actual path to the temporary directory.
         var template = [UInt8](path.pathString.utf8).map { Int8($0) } + [Int8(0)]
 
-        if TSCLibc.mkdtemp(&template) == nil {
+        if mkdtemp(&template) == nil {
             throw MakeDirectoryError.other(errno)
         }
 

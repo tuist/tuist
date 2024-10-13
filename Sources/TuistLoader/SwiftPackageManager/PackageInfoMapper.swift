@@ -133,7 +133,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         fileSystem: FileSysteming = FileSystem(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         )
     ) {
         self.moduleMapGenerator = moduleMapGenerator
@@ -725,10 +725,10 @@ extension ProjectDescription.DeploymentTargets {
         }
         // maccatalyst and iOS will be the same, this chooses the first one defined, hopefully they dont disagree
         let platformInfos = Dictionary(versionPairs) { first, _ in first }
-        let destinationPlatforms = destinations.platforms
+        let destinationTypes = destinations.platforms
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
-            guard destinationPlatforms.contains(platform) else { return nil }
+            guard destinationTypes.contains(platform) else { return nil }
             return try max(minDeploymentTargets[platform], platformInfos[platform])
         }
 
@@ -870,8 +870,8 @@ extension ProjectDescription.ResourceFileElements {
         {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
-            if try excludedPaths
-                .contains(where: { try FileHandler.shared.resolveSymlinks(absolutePathGlob).isDescendantOfOrEqual(to: $0) })
+            if excludedPaths
+                .contains(where: { absolutePathGlob.isDescendantOfOrEqual(to: $0) })
             {
                 return nil
             }
@@ -927,7 +927,7 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
+            resourceFileElements += try await defaultResourcePaths(from: path) { candidateURL in
                 let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
                 let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
                 return candidateNotInExcludedDirectory

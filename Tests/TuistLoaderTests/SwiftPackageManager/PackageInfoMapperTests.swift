@@ -1251,9 +1251,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 []
             }
         }
-        fileHandler.stubExists = { path in
-            [basePath, sourcesPath, resourcesPath, defaultResourcePath].contains(path)
-        }
         try await fileSystem.makeDirectory(at: resourcesPath)
         try await fileSystem.touch(defaultResourcePath)
 

@@ -258,28 +258,25 @@ public class GraphLinter: GraphLinting {
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let rootProjects = graphTraverser.rootProjects()
 
-        let knownConfigurations = rootProjects.reduce(into: Set()) {
-            $0.formUnion(Set($1.settings.configurations.keys))
+        var reasons = Set<String>()
+        for project in rootProjects {
+            let rootProjectConfigurations = Set(project.settings.configurations.keys)
+            let sortedRootProjectConfigurations = rootProjectConfigurations.sorted()
+            let rootProjectTargets = Array(graphTraverser.targets(at: project.path))
+
+            for dependency in graphTraverser.allTargetDependencies(traversingFromTargets: rootProjectTargets) {
+                let configurations = Set(dependency.project.settings.configurations.keys)
+
+                if !rootProjectConfigurations.isSubset(of: configurations) {
+                    let sortedConfigurations = configurations.sorted()
+                    let reason =
+                        "The project '\(dependency.project.name)' has missing or mismatching configurations. It has \(sortedConfigurations), other projects have \(sortedRootProjectConfigurations)"
+                    reasons.insert(reason)
+                }
+            }
         }
 
-        let projectBuildConfigurations = graphTraverser.projects.compactMap { project in
-            (name: project.value.name, buildConfigurations: Set(project.value.settings.configurations.keys))
-        }
-
-        let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
-            !knownConfigurations.isSubset(of: $0.buildConfigurations)
-        }
-
-        return mismatchingBuildConfigurations.map {
-            let expectedConfigurations = knownConfigurations.sorted()
-            let configurations = $0.buildConfigurations.sorted()
-            let reason =
-                "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
-            return LintingIssue(
-                reason: reason,
-                severity: .warning
-            )
-        }
+        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning) }
     }
 
     /// It verifies setup for packages
@@ -552,6 +549,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .xpc),
             LintableTarget(platform: .macOS, product: .systemExtension),
             LintableTarget(platform: .macOS, product: .macro),
+            LintableTarget(platform: .macOS, product: .extensionKitExtension),
         ],
         LintableTarget(platform: .macOS, product: .bundle): [
             LintableTarget(platform: .iOS, product: .app),
@@ -622,6 +620,14 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .macro),
+        ],
+        LintableTarget(platform: .macOS, product: .extensionKitExtension): [
+            LintableTarget(platform: .macOS, product: .staticLibrary),
+            LintableTarget(platform: .macOS, product: .dynamicLibrary),
+            LintableTarget(platform: .macOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
+            LintableTarget(platform: .macOS, product: .xpc),
         ],
         LintableTarget(platform: .tvOS, product: .app): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),

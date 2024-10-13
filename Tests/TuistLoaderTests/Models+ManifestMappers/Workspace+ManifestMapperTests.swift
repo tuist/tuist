@@ -49,7 +49,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
             path: workspacePath,
             generatorPaths: .init(
                 manifestDirectory: workspacePath,
-                rootDirectoryLocator: rootDirectoryLocator
+                rootDirectory: workspacePath
             ),
             manifestLoader: manifestLoader
         )

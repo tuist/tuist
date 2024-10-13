@@ -13,8 +13,12 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
         ])
@@ -39,8 +43,12 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "README.md",
         ])
 
@@ -57,7 +65,11 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_fileElement_warning_withMissingFolderReference() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
@@ -71,7 +83,11 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_throws_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
             pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,

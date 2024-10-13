@@ -8,9 +8,6 @@ import GoogleMobileAds
 import GoogleSignIn
 import libzstd
 import MarkdownUI
-import NYTPhotoViewer
-import Realm
-import RealmSwift
 import Sentry
 import SVProgressHUD
 import Yams
@@ -36,17 +33,13 @@ public enum AppKit {
         // Use CocoaLumberjack
         _ = DDOSLogger.sharedInstance
 
-        // Use Realm
-        _ = Realm.Configuration()
-
         // Use AppCenter
-        AppCenter.start(withAppSecret: "{Your App Secret}", services: [Analytics.self, Crashes.self])
+        AppCenter.start(
+            withAppSecret: "{Your App Secret}", services: [Analytics.self, Crashes.self]
+        )
 
         // Use libzstd
         _ = ZDICT_isError(0)
-
-        // Use NYTPhotoViewer
-        _ = NYTPhotosOverlayView()
 
         // Use SVProgressHUD
         SVProgressHUD.show()

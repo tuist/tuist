@@ -1,5 +1,6 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 
 struct BenchmarkResult {
     var fixture: String
@@ -16,16 +17,16 @@ struct BenchmarkResult {
 }
 
 final class Benchmark {
-    private let fileHandler: FileHandler
+    private let fileSystem: FileSysteming
     private let binaryPath: AbsolutePath
     private let referenceBinaryPath: AbsolutePath
 
     init(
-        fileHandler: FileHandler,
+        fileSystem: FileSysteming,
         binaryPath: AbsolutePath,
         referenceBinaryPath: AbsolutePath
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.binaryPath = binaryPath
         self.referenceBinaryPath = referenceBinaryPath
     }
@@ -34,12 +35,12 @@ final class Benchmark {
         runs: Int,
         arguments: [String],
         fixturePath: AbsolutePath
-    ) throws -> BenchmarkResult {
-        let a = Measure(fileHandler: fileHandler, binaryPath: binaryPath)
-        let b = Measure(fileHandler: fileHandler, binaryPath: referenceBinaryPath)
+    ) async throws -> BenchmarkResult {
+        let a = Measure(fileSystem: fileSystem, binaryPath: binaryPath)
+        let b = Measure(fileSystem: fileSystem, binaryPath: referenceBinaryPath)
 
-        let results = try a.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
-        let reference = try b.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let results = try await a.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let reference = try await b.measure(runs: runs, arguments: arguments, fixturePath: fixturePath)
 
         return BenchmarkResult(
             fixture: fixturePath.basename,

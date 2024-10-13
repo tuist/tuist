@@ -1,3 +1,21 @@
+## What's Changed in app@0.3.0
+* feat: add support for .ipa in Tuist Previews by @fortmarek in [#6849](https://github.com/tuist/tuist/pull/6849)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.2.0...app@0.3.0
+
+## What's Changed in app@0.2.0
+* feat: add support for device previews by @fortmarek in [#6800](https://github.com/tuist/tuist/pull/6800)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.1.2...app@0.2.0
+
+## What's Changed in app@0.1.2
+* fix: rename macOS app build by @TahaTesser in [#6802](https://github.com/tuist/tuist/pull/6802)
+
+## New Contributors
+* @TahaTesser made their first contribution in [#6802](https://github.com/tuist/tuist/pull/6802)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.1.1...app@0.1.2
+
 ## What's Changed in app@0.1.1
 * ci: switch to using Xcode 16 on CI by @fortmarek in [#6761](https://github.com/tuist/tuist/pull/6761)
 

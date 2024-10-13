@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -127,16 +128,16 @@ final class ProjectEditor: ProjectEditing {
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try await resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(
+        let projectManifests = try await manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let configPath = manifestFilesLocator.locateConfig(at: editingPath)
+        let configPath = try await manifestFilesLocator.locateConfig(at: editingPath)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
-        let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
+        let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
 
         let helpers = try await helpersDirectoryLocator.locate(at: editingPath).map {
             [
@@ -161,7 +162,7 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let editablePluginManifests = try locateEditablePluginManifests(
+        let editablePluginManifests = try await locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
             plugins: plugins,
@@ -215,19 +216,25 @@ final class ProjectEditor: ProjectEditing {
         excluding: [String],
         plugins: Plugins,
         onlyCurrentDirectory: Bool
-    ) throws -> [EditablePluginManifest] {
-        let loadedEditablePluginManifests = try plugins.projectDescriptionHelpers
+    ) async throws -> [EditablePluginManifest] {
+        let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: try FileHandler.shared.resolveSymlinks($0.path.parentDirectory)) }
+            .map {
+                EditablePluginManifest(
+                    name: $0.name,
+                    path: $0.path.parentDirectory
+                )
+            }
 
-        let localEditablePluginManifests = try manifestFilesLocator.locatePluginManifests(
+        let localEditablePluginManifests = try await manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
-        ).map {
+        )
+        .map {
             EditablePluginManifest(
                 name: $0.parentDirectory.basename,
-                path: try FileHandler.shared.resolveSymlinks($0.parentDirectory)
+                path: $0.parentDirectory
             )
         }
 

@@ -3,12 +3,12 @@ import TuistCore
 import XcodeGraph
 
 public protocol CoreDataModelsContentHashing {
-    func hash(coreDataModels: [CoreDataModel]) throws -> String
+    func hash(coreDataModels: [CoreDataModel]) async throws -> String
 }
 
 /// `CoreDataModelsContentHasher`
 /// is responsible for computing a unique hash that identifies a list of CoreData models
-public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
+public struct CoreDataModelsContentHasher: CoreDataModelsContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init
@@ -19,13 +19,14 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
 
     // MARK: - CoreDataModelsContentHashing
 
-    public func hash(coreDataModels: [CoreDataModel]) throws -> String {
+    public func hash(coreDataModels: [CoreDataModel]) async throws -> String {
         var stringsToHash: [String] = []
         for cdModel in coreDataModels {
-            let contentHash = try contentHasher.hash(path: cdModel.path)
+            let contentHash = try await contentHasher.hash(path: cdModel.path)
             let currentVersionHash = try contentHasher.hash([cdModel.currentVersion])
             let cdModelHash = try contentHasher.hash([contentHash, currentVersionHash])
-            let versionsHash = try contentHasher.hash(try cdModel.versions.sorted().map { try contentHasher.hash(path: $0) })
+            let versionsHash = try await contentHasher
+                .hash(try cdModel.versions.sorted().concurrentMap { try await contentHasher.hash(path: $0) })
             stringsToHash.append(cdModelHash)
             stringsToHash.append(versionsHash)
         }

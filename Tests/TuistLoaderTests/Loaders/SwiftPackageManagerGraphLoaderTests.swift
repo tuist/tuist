@@ -21,7 +21,7 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
             swiftPackageManagerController: swiftPackageManagerController,
             packageInfoMapper: packageInfoMapper,
             manifestLoader: manifestLoader,
-            fileHandler: FileHandler.shared
+            fileSystem: fileSystem
         )
     }
 

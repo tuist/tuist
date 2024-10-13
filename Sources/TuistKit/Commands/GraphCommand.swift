@@ -114,7 +114,7 @@ enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
     case dot, json, png, svg
 }
 
-extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {
+extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {
     public static var allValueStrings: [String] {
         [
             LayoutAlgorithm.dot.rawValue,

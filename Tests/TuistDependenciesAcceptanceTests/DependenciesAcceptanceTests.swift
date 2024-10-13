@@ -49,7 +49,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
         try await setUpFixture(.iosAppWithSpmDependenciesForceResolvedVersions)
         try await run(InstallCommand.self)
         let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
         // NB: Should not modify SnapKit version in Package.resolved
         XCTAssertTrue(packageResolvedContents.contains(#""version" : "5.0.0""#))
         try await run(GenerateCommand.self)
@@ -63,7 +63,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
         try await setUpFixture(.iosAppWithSpmDependencies)
         try await run(InstallCommand.self)
         let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-        let packageResolvedContents = try FileHandler.shared.readTextFile(packageResolvedPath)
+        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
         try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
         try await run(GenerateCommand.self)
         XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
@@ -80,5 +80,23 @@ final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAccept
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
+    }
+}
+
+final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
+    func test_app_with_realm() async throws {
+        try await setUpFixture(.appWithRealm)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase {
+    func test_app_with_airship_sdk() async throws {
+        try await setUpFixture(.appWithAirshipSDK)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
     }
 }

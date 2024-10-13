@@ -37,13 +37,13 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_hash_when_sourcesHaveAHashSet() throws {
+    func test_hash_when_sourcesHaveAHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
         let sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(node, MerkleNode(
@@ -80,7 +80,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         try await fileSystem.writeText("sourceFile2", at: sourceFile2Path)
 
         // When
-        let node = try subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
+        let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(node, MerkleNode(

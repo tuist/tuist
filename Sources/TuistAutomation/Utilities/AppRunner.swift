@@ -10,6 +10,7 @@ import XcodeGraph
 enum AppRunnerError: FatalError, Equatable {
     case invalidSimulatorPlatform(String)
     case selectedPlatformNotFound(String)
+    case appNotFoundForPhysicalDevice(PhysicalDevice)
 
     var description: String {
         switch self {
@@ -17,12 +18,14 @@ enum AppRunnerError: FatalError, Equatable {
             "The chosen simulator's platform \(platform) is invalid"
         case let .selectedPlatformNotFound(platform):
             "No app bundle for the selected platform \(platform) was found."
+        case let .appNotFoundForPhysicalDevice(physicalDevice):
+            "No app bundle for the device \(physicalDevice.name) was found."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .invalidSimulatorPlatform:
+        case .invalidSimulatorPlatform, .appNotFoundForPhysicalDevice:
             return .abort
         case .selectedPlatformNotFound:
             return .bug
@@ -41,24 +44,65 @@ public protocol AppRunning {
 
 public final class AppRunner: AppRunning {
     private let simulatorController: SimulatorControlling
+    private let deviceController: DeviceControlling
     private let userInputReader: UserInputReading
 
     public convenience init() {
         self.init(
             simulatorController: SimulatorController(),
+            deviceController: DeviceController(),
             userInputReader: UserInputReader()
         )
     }
 
     init(
         simulatorController: SimulatorControlling,
+        deviceController: DeviceControlling,
         userInputReader: UserInputReading
     ) {
         self.simulatorController = simulatorController
+        self.deviceController = deviceController
         self.userInputReader = userInputReader
     }
 
     public func runApp(
+        _ appBundles: [AppBundle],
+        version: Version?,
+        device: String?
+    ) async throws {
+        if let device, let physicalDevice = try await deviceController.findAvailableDevices()
+            .first(where: { $0.name == device })
+        {
+            try await runApp(
+                on: physicalDevice,
+                appBundles: appBundles
+            )
+        } else {
+            try await runAppOnSimulator(
+                appBundles,
+                version: version,
+                device: device
+            )
+        }
+    }
+
+    private func runApp(
+        on physicalDevice: PhysicalDevice,
+        appBundles: [AppBundle]
+    ) async throws {
+        guard let appBundle = appBundles.first(
+            where: { appBundle in
+                appBundle.infoPlist.supportedPlatforms.contains(.device(physicalDevice.platform))
+            }
+        ) else {
+            throw AppRunnerError.appNotFoundForPhysicalDevice(physicalDevice)
+        }
+
+        try await deviceController.installApp(at: appBundle.path, device: physicalDevice)
+        try await deviceController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: physicalDevice)
+    }
+
+    private func runAppOnSimulator(
         _ appBundles: [AppBundle],
         version: Version?,
         device: String?

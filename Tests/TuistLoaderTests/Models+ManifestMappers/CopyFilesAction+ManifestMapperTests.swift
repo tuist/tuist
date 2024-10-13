@@ -18,8 +18,12 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         ]
 
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles(files)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.resources(
             name: "Copy Fonts",
@@ -51,8 +55,12 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         ]
 
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles(files)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.sharedSupport(
             name: "Copy Templates",

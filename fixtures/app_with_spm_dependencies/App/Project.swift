@@ -14,7 +14,9 @@ let project = Project(
             sources: "Sources/App/**",
             dependencies: [
                 .target(name: "AppKit"),
-                .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
+                .project(
+                    target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")
+                ),
                 .external(name: "Styles"),
                 .external(name: "BrazeKit"),
                 .external(name: "BrazeUI"),
@@ -35,14 +37,11 @@ let project = Project(
                 .external(name: "Yams"),
                 .external(name: "GoogleSignIn"),
                 .external(name: "Sentry"),
-                .external(name: "RealmSwift"),
                 .external(name: "CocoaLumberjackSwift"),
                 .external(name: "AppCenterAnalytics"),
                 .external(name: "AppCenterCrashes"),
                 .external(name: "libzstd"),
-                .external(name: "NYTPhotoViewer"),
                 .external(name: "SVProgressHUD"),
-                .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
                 .external(name: "LookinServer"),

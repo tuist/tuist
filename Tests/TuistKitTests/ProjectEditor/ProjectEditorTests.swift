@@ -240,6 +240,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
             directory.appending(components: "C", "Plugin.swift"),
             directory.appending(components: "D", "Plugin.swift"),
         ]
+        for pluginManifest in pluginManifests {
+            try await fileSystem.makeDirectory(at: pluginManifest.parentDirectory)
+            try await fileSystem.touch(pluginManifest)
+        }
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         // When

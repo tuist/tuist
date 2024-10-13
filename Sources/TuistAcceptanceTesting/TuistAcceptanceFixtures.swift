@@ -1,6 +1,7 @@
 import Foundation
 
 public enum TuistAcceptanceFixtures {
+    case appWithAirshipSDK
     case appWithBuildRules
     case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
@@ -8,8 +9,10 @@ public enum TuistAcceptanceFixtures {
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
+    case appWithRealm
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+    case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
     case appWithTests
     case commandLineToolBasic
@@ -82,6 +85,8 @@ public enum TuistAcceptanceFixtures {
 
     public var path: String {
         switch self {
+        case .appWithAirshipSDK:
+            return "app_with_airship_sdk"
         case .appWithBuildRules:
             return "app_with_build_rules"
         case .appWithComposableArchitecture:
@@ -96,10 +101,14 @@ public enum TuistAcceptanceFixtures {
             return "app_with_plugins"
         case .appWithPreviews:
             return "app_with_previews"
+        case .appWithRealm:
+            return "app_with_realm"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithLocalSPMModuleWithRemoteDependencies:
+            return "app_with_local_spm_module_with_remote_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
         case .appWithTests:

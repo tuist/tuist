@@ -13,8 +13,12 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
         ])
@@ -39,8 +43,12 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "README.md",
         ])
 
@@ -57,7 +65,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_resourceFileElement_warning_withMissingFolderReference() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
 
         // When
@@ -71,7 +83,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_throws_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
             pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
@@ -89,7 +105,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_excluding_file() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try fileHandler.createFolder(resourcesFolder)
@@ -113,7 +133,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_excluding_folder() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
@@ -138,7 +162,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_excluding_glob() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
@@ -163,7 +191,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_excluding_when_pattern_is_file() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         try fileHandler.createFolder(resourcesFolder)
         try fileHandler.write("", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true)

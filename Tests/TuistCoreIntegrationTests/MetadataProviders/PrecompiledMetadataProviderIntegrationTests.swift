@@ -22,7 +22,7 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_architectures() async throws {
         // Given
-        let frameworkPath = try temporaryFixture("xpm.framework")
+        let frameworkPath = try await temporaryFixture("xpm.framework")
 
         // When
         let got = try await subject.architectures(
@@ -36,7 +36,7 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_uuids() async throws {
         // Given
-        let frameworkPath = try temporaryFixture("xpm.framework")
+        let frameworkPath = try await temporaryFixture("xpm.framework")
 
         // When
         let got = try await subject.uuids(

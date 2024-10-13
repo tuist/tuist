@@ -12,13 +12,16 @@ import TuistSupport
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
+    private let swiftVersionProvider: SwiftVersionProviding
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared
     ) {
         self.machineEnvironment = machineEnvironment
         self.gitController = gitController
+        self.swiftVersionProvider = swiftVersionProvider
     }
 
     public func make(
@@ -28,7 +31,9 @@ public final class CommandEventFactory {
     ) throws -> CommandEvent {
         let gitCommitSHA: String?
         let gitRemoteURLOrigin: String?
-        if gitController.isInGitRepository(workingDirectory: path) {
+        if gitController.isInGitRepository(workingDirectory: path),
+           gitController.hasCurrentBranchCommits(workingDirectory: path)
+        {
             gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
             gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
         } else {
@@ -44,7 +49,7 @@ public final class CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: machineEnvironment.swiftVersion,
+            swiftVersion: try swiftVersionProvider.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: machineEnvironment.isCI,

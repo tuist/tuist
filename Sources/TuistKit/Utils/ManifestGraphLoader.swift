@@ -96,7 +96,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
     // swiftlint:disable:next function_body_length large_tuple
     public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
-        try manifestLoader.validateHasRootManifest(at: path)
+        try await manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
@@ -112,7 +112,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let packageSettings: TuistCore.PackageSettings?
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
-        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
+        if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
             let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
@@ -162,7 +162,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
 
         // Apply any registered model mappers
-        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
+        let (updatedModels, modelMapperSideEffects) = try await workspaceMapper.map(
             workspace: .init(workspace: workspaceModels, projects: projectsModels)
         )
 

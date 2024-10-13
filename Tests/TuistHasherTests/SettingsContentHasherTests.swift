@@ -35,7 +35,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() throws {
+    func test_hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(contentHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
@@ -51,7 +51,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(settings: settings)
+        let hash = try await subject.hash(settings: settings)
 
         // Then
         XCTAssertEqual(
@@ -60,7 +60,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         )
     }
 
-    func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() throws {
+    func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(contentHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
@@ -76,7 +76,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(settings: settings)
+        let hash = try await subject.hash(settings: settings)
 
         // Then
         XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")

@@ -61,8 +61,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws -> FrameworkMetadata {
-        let fileHandler = FileHandler.shared
-        guard fileHandler.exists(path) else {
+        guard try await fileSystem.exists(path) else {
             throw FrameworkMetadataProviderError.frameworkNotFound(path)
         }
         let binaryPath = binaryPath(frameworkPath: path)

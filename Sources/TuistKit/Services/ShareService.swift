@@ -1,4 +1,5 @@
 import AnyCodable
+import FileSystem
 import Foundation
 import Path
 import TuistAutomation
@@ -15,6 +16,7 @@ enum ShareServiceError: Equatable, FatalError {
     case multipleAppsSpecified([String])
     case platformsNotSpecified
     case fullHandleNotFound
+    case appBundleInIPANotFound(AbsolutePath)
 
     var description: String {
         switch self {
@@ -30,13 +32,15 @@ enum ShareServiceError: Equatable, FatalError {
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
             return "You are missing full handle in your Config.swift."
+        case let .appBundleInIPANotFound(ipaPath):
+            return "No app found in the in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }
     }
 
     var type: ErrorType {
         switch self {
         case .projectOrWorkspaceNotFound, .noAppsFound, .appNotSpecified, .platformsNotSpecified, .multipleAppsSpecified,
-             .fullHandleNotFound:
+             .fullHandleNotFound, .appBundleInIPANotFound:
             return .abort
         }
     }
@@ -44,6 +48,7 @@ enum ShareServiceError: Equatable, FatalError {
 
 struct ShareService {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let buildGraphInspector: BuildGraphInspecting
     private let previewsUploadService: PreviewsUploadServicing
@@ -54,6 +59,7 @@ struct ShareService {
     private let userInputReader: UserInputReading
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let appBundleLoader: AppBundleLoading
+    private let fileArchiverFactory: FileArchivingFactorying
 
     init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -66,6 +72,7 @@ struct ShareService {
 
         self.init(
             fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
             buildGraphInspector: BuildGraphInspector(),
             previewsUploadService: PreviewsUploadService(),
@@ -75,12 +82,14 @@ struct ShareService {
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: UserInputReader(),
             defaultConfigurationFetcher: DefaultConfigurationFetcher(),
-            appBundleLoader: AppBundleLoader()
+            appBundleLoader: AppBundleLoader(),
+            fileArchiverFactory: FileArchivingFactory()
         )
     }
 
     init(
         fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
         buildGraphInspector: BuildGraphInspecting,
         previewsUploadService: PreviewsUploadServicing,
@@ -90,9 +99,11 @@ struct ShareService {
         manifestGraphLoader: ManifestGraphLoading,
         userInputReader: UserInputReading,
         defaultConfigurationFetcher: DefaultConfigurationFetching,
-        appBundleLoader: AppBundleLoading
+        appBundleLoader: AppBundleLoading,
+        fileArchiverFactory: FileArchivingFactorying
     ) {
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.buildGraphInspector = buildGraphInspector
         self.previewsUploadService = previewsUploadService
@@ -103,6 +114,7 @@ struct ShareService {
         self.userInputReader = userInputReader
         self.defaultConfigurationFetcher = defaultConfigurationFetcher
         self.appBundleLoader = appBundleLoader
+        self.fileArchiverFactory = fileArchiverFactory
     }
 
     func run(
@@ -126,30 +138,25 @@ struct ShareService {
             )
         }
 
-        if !apps.isEmpty, apps.allSatisfy({ $0.hasSuffix(".app") }) {
-            let appPaths = try apps.map {
-                try AbsolutePath(
-                    validating: $0,
-                    relativeTo: fileHandler.currentPath
-                )
-            }
-
-            let appBundles = try await appPaths.concurrentMap {
-                try await appBundleLoader.load($0)
-            }
-
-            let appNames = appBundles.map(\.infoPlist.name).uniqued()
-            guard appNames.count == 1,
-                  let appName = appNames.first else { throw ShareServiceError.multipleAppsSpecified(appNames) }
-
-            let preview = try await previewsUploadService.uploadPreviews(
-                displayName: appName,
-                previewPaths: appPaths,
+        let appPaths = try await apps.concurrentMap {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: path
+            )
+        }
+        if appPaths.contains(where: { $0.extension == "ipa" }) {
+            try await shareIPA(
+                appPaths,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
-            logger.notice("\(appName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
-        } else if manifestLoader.hasRootManifest(at: path) {
+        } else if appPaths.contains(where: { $0.extension == "app" }) {
+            try await shareAppBundles(
+                appPaths,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
             let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
@@ -221,6 +228,90 @@ struct ShareService {
         }
     }
 
+    private func shareIPA(
+        _ appPaths: [AbsolutePath],
+        fullHandle: String,
+        serverURL: URL
+    ) async throws {
+        guard appPaths.count == 1,
+              let ipaPath = appPaths.first else { throw ShareServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
+
+        guard let appBundlePath = try fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip().glob("**/*.app").first
+        else { throw ShareServiceError.appBundleInIPANotFound(ipaPath) }
+        let appBundle = try await appBundleLoader.load(appBundlePath)
+        let displayName = appBundle.infoPlist.name
+
+        logger.notice("Uploading \(displayName)...")
+        let preview = try await previewsUploadService.uploadPreviews(
+            .ipa(ipaPath),
+            displayName: displayName,
+            version: appBundle.infoPlist.version.description,
+            bundleIdentifier: appBundle.infoPlist.bundleId,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        logger
+            .notice(
+                "\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)"
+            )
+    }
+
+    private func shareAppBundles(
+        _ appPaths: [AbsolutePath],
+        fullHandle: String,
+        serverURL: URL
+    ) async throws {
+        let appBundles = try await appPaths.concurrentMap {
+            try await appBundleLoader.load($0)
+        }
+
+        let appNames = appBundles.map(\.infoPlist.name).uniqued()
+        guard appNames.count == 1,
+              let appName = appNames.first,
+              appPaths.allSatisfy({ $0.extension == "app" })
+        else { throw ShareServiceError.multipleAppsSpecified(appNames) }
+
+        logger.notice("Uploading \(appName)...")
+        let preview = try await previewsUploadService.uploadPreviews(
+            .appBundles(appPaths),
+            displayName: appName,
+            version: appBundles.compactMap(\.infoPlist.version.description).first,
+            bundleIdentifier: appBundles.compactMap(\.infoPlist.bundleId).first,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+        logger.notice("\(appName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+    }
+
+    private func copyAppBundle(
+        for destinationType: DestinationType,
+        app: String,
+        projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
+        configuration: String,
+        temporaryPath: AbsolutePath
+    ) async throws -> AbsolutePath? {
+        let appPath = try xcodeProjectBuildDirectoryLocator.locate(
+            destinationType: destinationType,
+            projectPath: projectPath,
+            derivedDataPath: derivedDataPath,
+            configuration: configuration
+        )
+        .appending(component: "\(app).app")
+
+        let newAppPath = temporaryPath.appending(
+            component: "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
+        )
+
+        if try await !fileSystem.exists(appPath) {
+            return nil
+        }
+
+        try await fileSystem.copy(appPath, to: newAppPath)
+
+        return newAppPath
+    }
+
     private func uploadPreviews(
         for platforms: [Platform],
         workspacePath: AbsolutePath,
@@ -231,38 +322,40 @@ struct ShareService {
         serverURL: URL
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
-            let appPaths = try platforms
-                .map { platform in
-                    let sdkPathComponent: String = {
-                        guard platform != .macOS else {
-                            return platform.xcodeDeviceSDK
-                        }
-                        return "\(platform.xcodeSimulatorSDK!)"
-                    }()
-
-                    let appPath = try xcodeProjectBuildDirectoryLocator.locate(
-                        platform: platform,
+            let appPaths = try await platforms
+                .concurrentFlatMap { platform -> [DestinationType] in
+                    switch platform {
+                    case .iOS, .tvOS, .visionOS, .watchOS:
+                        return [
+                            .simulator(platform),
+                            .device(platform),
+                        ]
+                    case .macOS:
+                        return [.device(platform)]
+                    }
+                }
+                .concurrentCompactMap { destinationType in
+                    try await copyAppBundle(
+                        for: destinationType,
+                        app: app,
                         projectPath: workspacePath,
                         derivedDataPath: derivedDataPath,
-                        configuration: configuration
+                        configuration: configuration,
+                        temporaryPath: temporaryPath
                     )
-                    .appending(component: "\(app).app")
-
-                    let newAppPath = temporaryPath.appending(component: "\(sdkPathComponent)-\(app).app")
-
-                    if !fileHandler.exists(appPath) {
-                        throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
-                    }
-
-                    try fileHandler.copy(from: appPath, to: newAppPath)
-
-                    return newAppPath
                 }
                 .uniqued()
 
+            if appPaths.isEmpty {
+                throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
+            }
+
+            logger.notice("Uploading \(app)...")
             let preview = try await previewsUploadService.uploadPreviews(
+                .appBundles(appPaths),
                 displayName: app,
-                previewPaths: appPaths,
+                version: nil,
+                bundleIdentifier: nil,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )

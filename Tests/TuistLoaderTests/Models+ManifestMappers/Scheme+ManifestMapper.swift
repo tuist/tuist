@@ -17,7 +17,11 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             shared: false
         )
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
-        let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
 
         // When
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -37,7 +41,11 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         )
 
         let projectPath = try AbsolutePath(validating: "/somepath")
-        let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
 
         let buildAction = ProjectDescription.BuildAction.test(targets: ["A", "B"])
         let runActions = ProjectDescription.RunAction.test(

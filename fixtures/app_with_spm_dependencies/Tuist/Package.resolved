@@ -1,5 +1,5 @@
 {
-  "originHash" : "1170ded80002837a9500c90d9eb155fe213caaa1677974431118ed8e7b6286b0",
+  "originHash" : "de5a39263681a457f5ae8b66c966e957674db1a5f0df7a4d6b21efe02017a4f2",
   "pins" : [
     {
       "identity" : "alamofire",
@@ -101,15 +101,6 @@
       }
     },
     {
-      "identity" : "ios-library",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/urbanairship/ios-library.git",
-      "state" : {
-        "revision" : "53040c77617a2acc5d9a7b69cf5bbbf36f94ad4b",
-        "version" : "17.7.3"
-      }
-    },
-    {
       "identity" : "lookinserver",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/QMUI/LookinServer",
@@ -137,15 +128,6 @@
       }
     },
     {
-      "identity" : "nytphotoviewer",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/NYTPhotoViewer",
-      "state" : {
-        "branch" : "develop",
-        "revision" : "e4acd0988c43e3df0908fc463104e567098f9dfc"
-      }
-    },
-    {
       "identity" : "plcrashreporter",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/microsoft/PLCrashReporter.git",
@@ -161,24 +143,6 @@
       "state" : {
         "revision" : "a9e6c24033a25e158384d523a556c0b96c44a839",
         "version" : "7.4.0"
-      }
-    },
-    {
-      "identity" : "realm-core",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/realm/realm-core.git",
-      "state" : {
-        "revision" : "a5e87a39cffdcc591f3203c11cfca68100d0b9a6",
-        "version" : "13.26.0"
-      }
-    },
-    {
-      "identity" : "realm-swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/realm/realm-swift",
-      "state" : {
-        "revision" : "eafdd3720a8cc750bdd38bf776082d2c8cf743fc",
-        "version" : "10.46.0"
       }
     },
     {

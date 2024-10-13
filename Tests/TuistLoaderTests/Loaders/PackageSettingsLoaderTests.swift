@@ -17,19 +17,26 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var subject: PackageSettingsLoader!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
 
         manifestLoader = .init()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestFilesLocator = MockManifestFilesLocating()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
+
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
             swiftPackageManagerController: swiftPackageManagerController,
-            fileHandler: fileHandler,
-            manifestFilesLocator: manifestFilesLocator
+            manifestFilesLocator: manifestFilesLocator,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 
@@ -37,6 +44,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         subject = nil
         manifestLoader = nil
         swiftPackageManagerController = nil
+        rootDirectoryLocator = nil
 
         super.tearDown()
     }

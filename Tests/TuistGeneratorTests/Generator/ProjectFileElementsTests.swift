@@ -233,10 +233,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_multiple_files() throws {
+    func test_addElement_lproj_multiple_files() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/App.stringsdict",
             "resources/en.lproj/Extension.strings",
@@ -281,10 +281,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_variant_groups() throws {
+    func test_addElement_lproj_variant_groups() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -335,10 +335,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_knownRegions() throws {
+    func test_addElement_lproj_knownRegions() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
