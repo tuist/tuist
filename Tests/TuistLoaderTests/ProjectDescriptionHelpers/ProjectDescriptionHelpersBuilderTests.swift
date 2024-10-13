@@ -45,7 +45,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         }
         .shuffled()
 
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         system.defaultCaptureStubs = (nil, nil, 0)
