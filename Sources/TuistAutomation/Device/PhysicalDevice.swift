@@ -9,6 +9,12 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
     public let osVersion: String?
 }
 
+extension PhysicalDevice {
+    public var isReachable: Bool {
+        osVersion != nil
+    }
+}
+
 #if DEBUG
     extension PhysicalDevice {
         public static func test(
