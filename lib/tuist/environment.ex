@@ -322,6 +322,11 @@ defmodule Tuist.Environment do
     %{URI.parse(url) | path: path} |> URI.to_string()
   end
 
+  def email_icon_url() do
+    uri = app_url() |> URI.parse()
+    %{uri | path: "/images/tuist_email.png"} |> URI.to_string()
+  end
+
   def app_signal_push_api_key(secrets \\ secrets()) do
     get([:app_signal, :push_api_key], secrets)
   end

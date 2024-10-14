@@ -941,8 +941,7 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_confirmation_instructions(%{
         user: user,
-        confirmation_url: confirmation_url,
-        icon_url: icon_url
+        confirmation_url: confirmation_url
       })
       when is_function(confirmation_url, 1) do
     if user.confirmed_at do
@@ -953,8 +952,7 @@ defmodule Tuist.Accounts do
 
       UserNotifier.deliver_confirmation_instructions(%{
         user: user,
-        confirmation_url: confirmation_url.(encoded_token),
-        icon_url: icon_url
+        confirmation_url: confirmation_url.(encoded_token)
       })
     end
   end
@@ -994,8 +992,7 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{
         user: %User{} = user,
-        reset_password_url: reset_password_url,
-        icon_url: icon_url
+        reset_password_url: reset_password_url
       })
       when is_function(reset_password_url, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
@@ -1003,8 +1000,7 @@ defmodule Tuist.Accounts do
 
     UserNotifier.deliver_reset_password_instructions(%{
       user: user,
-      reset_password_url: reset_password_url.(encoded_token),
-      icon_url: icon_url
+      reset_password_url: reset_password_url.(encoded_token)
     })
   end
 

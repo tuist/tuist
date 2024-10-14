@@ -14,8 +14,6 @@ defmodule Tuist.AccountsTest do
 
   use Mimic
 
-  @icon_url "https://tuist.io/icon.png"
-
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given
@@ -1075,8 +1073,7 @@ defmodule Tuist.AccountsTest do
         extract_user_token(fn confirmation_url ->
           Accounts.deliver_user_confirmation_instructions(%{
             user: user,
-            confirmation_url: confirmation_url,
-            icon_url: @icon_url
+            confirmation_url: confirmation_url
           })
         end)
 
@@ -1099,8 +1096,7 @@ defmodule Tuist.AccountsTest do
         extract_user_token(fn confirmation_url ->
           Accounts.deliver_user_confirmation_instructions(%{
             user: user,
-            confirmation_url: confirmation_url,
-            icon_url: @icon_url
+            confirmation_url: confirmation_url
           })
         end)
 
@@ -1142,8 +1138,7 @@ defmodule Tuist.AccountsTest do
         extract_user_token(fn reset_password_url ->
           Accounts.deliver_user_reset_password_instructions(%{
             user: user,
-            reset_password_url: reset_password_url,
-            icon_url: @icon_url
+            reset_password_url: reset_password_url
           })
         end)
 
@@ -1166,8 +1161,7 @@ defmodule Tuist.AccountsTest do
         extract_user_token(fn reset_password_url ->
           Accounts.deliver_user_reset_password_instructions(%{
             user: user,
-            reset_password_url: reset_password_url,
-            icon_url: @icon_url
+            reset_password_url: reset_password_url
           })
         end)
 

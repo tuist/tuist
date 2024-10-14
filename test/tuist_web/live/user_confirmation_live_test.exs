@@ -24,8 +24,7 @@ defmodule TuistWeb.UserConfirmationLiveTest do
         extract_user_token(fn url ->
           Accounts.deliver_user_confirmation_instructions(%{
             user: user,
-            confirmation_url: url,
-            icon_url: "https://tuist.io/icon.png"
+            confirmation_url: url
           })
         end)
 

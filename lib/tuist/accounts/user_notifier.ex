@@ -97,8 +97,7 @@ defmodule Tuist.Accounts.UserNotifier do
   """
   def deliver_confirmation_instructions(%{
         user: user,
-        confirmation_url: confirmation_url,
-        icon_url: icon_url
+        confirmation_url: confirmation_url
       }) do
     deliver(
       user.email,
@@ -120,7 +119,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 </p>
             </div>
         """,
-        icon_url
+        Tuist.Environment.email_icon_url()
       )
     )
   end
@@ -130,8 +129,7 @@ defmodule Tuist.Accounts.UserNotifier do
   """
   def deliver_reset_password_instructions(%{
         user: user,
-        reset_password_url: reset_password_url,
-        icon_url: icon_url
+        reset_password_url: reset_password_url
       }) do
     user = user |> Repo.preload(:account)
 
@@ -155,7 +153,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 </p>
             </div>
         """,
-        icon_url
+        Tuist.Environment.email_icon_url()
       )
     )
   end
@@ -166,8 +164,7 @@ defmodule Tuist.Accounts.UserNotifier do
   def deliver_invitation(invitee_email, %{
         inviter: %User{email: inviter_email},
         to: %{account: %{name: organization_name}},
-        url: url,
-        icon_url: icon_url
+        url: url
       }) do
     deliver(
       invitee_email,
@@ -184,7 +181,7 @@ defmodule Tuist.Accounts.UserNotifier do
               </p>
             </div>
         """,
-        icon_url
+        Tuist.Environment.email_icon_url()
       )
     )
   end
