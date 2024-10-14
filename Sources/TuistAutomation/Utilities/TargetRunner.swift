@@ -16,6 +16,7 @@ public protocol TargetRunning {
     ///   - version: Specific version, ignored if nil
     ///   - minVersion: Minimum version of the OS
     ///   - deviceName: The name of the simulator device to run the target on, if none provided uses a default device.
+    ///   - derivedDataPath: An optional path for derived data.
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
         _ target: GraphTarget,
@@ -26,6 +27,7 @@ public protocol TargetRunning {
         minVersion: Version?,
         version: Version?,
         deviceName: String?,
+        derivedDataPath: AbsolutePath?,
         arguments: [String]
     ) async throws
 
@@ -87,6 +89,7 @@ public final class TargetRunner: TargetRunning {
         minVersion: Version?,
         version: Version?,
         deviceName: String?,
+        derivedDataPath: AbsolutePath?,
         arguments: [String]
     ) async throws {
         try assertCanRunTarget(target.target)
@@ -96,7 +99,7 @@ public final class TargetRunner: TargetRunning {
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             destinationType: .simulator(platform),
             projectPath: workspacePath,
-            derivedDataPath: nil,
+            derivedDataPath: derivedDataPath,
             configuration: configuration
         )
         let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)
