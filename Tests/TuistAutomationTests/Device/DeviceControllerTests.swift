@@ -29,8 +29,6 @@ final class DeviceControllerTests: TuistUnitTestCase {
 
     func test_findAvailableDevices() async throws {
         // Given
-        var devicesListOutputPath: AbsolutePath?
-
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .willProduce { arguments, _, _ in
@@ -43,22 +41,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
                     arguments.dropLast()
                 )
 
-                devicesListOutputPath = try? arguments.last.map { try AbsolutePath(validating: $0) }
-
-                if let devicesListOutputPath {
-                    let semaphore = DispatchSemaphore(value: 0)
-                    Task {
-                        try await self.fileSystem.writeText(self.devicesOutputJSON, at: devicesListOutputPath)
-                        semaphore.signal()
-                    }
-                    semaphore.wait()
-                }
-
-                return .init(
-                    unfolding: {
-                        nil
-                    }
-                )
+                return self.write(text: self.devicesOutputJSON, at: arguments.last!)
             }
 
         // When
@@ -92,36 +75,10 @@ final class DeviceControllerTests: TuistUnitTestCase {
 
     func test_findAvailableDevices_when_fetching_devices_failed() async throws {
         // Given
-        var devicesListOutputPath: AbsolutePath?
-
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .willProduce { arguments, _, _ in
-                XCTAssertEqual(
-                    [
-                        "/usr/bin/xcrun", "devicectl",
-                        "list", "devices",
-                        "--json-output",
-                    ],
-                    arguments.dropLast()
-                )
-
-                devicesListOutputPath = try? arguments.last.map { try AbsolutePath(validating: $0) }
-
-                if let devicesListOutputPath {
-                    let semaphore = DispatchSemaphore(value: 0)
-                    Task {
-                        try await self.fileSystem.writeText("", at: devicesListOutputPath)
-                        semaphore.signal()
-                    }
-                    semaphore.wait()
-                }
-
-                return .init(
-                    unfolding: {
-                        nil
-                    }
-                )
+                self.write(text: "", at: arguments.last!)
             }
 
         // When / Then
@@ -225,6 +182,18 @@ final class DeviceControllerTests: TuistUnitTestCase {
                 workingDirectory: .any
             )
             .called(1)
+    }
+
+    private func write<Element>(text: String, at path: String) -> AsyncThrowingStream<Element, any Error> {
+        guard let outputPath = try? AbsolutePath(validating: path) else {
+            return .init(unfolding: { nil })
+        }
+        return .init(
+            unfolding: {
+                try await self.fileSystem.writeText(text, at: outputPath)
+                return nil
+            }
+        )
     }
 
     private let devicesOutputJSON = """
