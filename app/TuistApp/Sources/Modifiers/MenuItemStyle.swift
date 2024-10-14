@@ -17,7 +17,7 @@ extension View {
     }
 }
 
-struct MenuItemButtonStyle: ButtonStyle {
+private struct MenuItemButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity, alignment: .leading)
