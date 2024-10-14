@@ -90,6 +90,47 @@ final class DeviceControllerTests: TuistUnitTestCase {
         )
     }
 
+    func test_findAvailableDevices_when_list_decode_failed() async throws {
+        // Given
+        var devicesListOutputPath: AbsolutePath?
+
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willProduce { arguments, _, _ in
+                XCTAssertEqual(
+                    [
+                        "/usr/bin/xcrun", "devicectl",
+                        "list", "devices",
+                        "--json-output",
+                    ],
+                    arguments.dropLast()
+                )
+
+                devicesListOutputPath = try? arguments.last.map { try AbsolutePath(validating: $0) }
+
+                if let devicesListOutputPath {
+                    let semaphore = DispatchSemaphore(value: 0)
+                    Task {
+                        try await self.fileSystem.writeText("", at: devicesListOutputPath)
+                        semaphore.signal()
+                    }
+                    semaphore.wait()
+                }
+
+                return .init(
+                    unfolding: {
+                        nil
+                    }
+                )
+            }
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.findAvailableDevices(),
+            DeviceControllerError.listDecodeFailed
+        )
+    }
+
     func test_installApp() async throws {
         // Given
         given(commandRunner)
