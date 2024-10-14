@@ -90,7 +90,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_findAvailableDevices_when_list_decode_failed() async throws {
+    func test_findAvailableDevices_when_fetching_devices_failed() async throws {
         // Given
         var devicesListOutputPath: AbsolutePath?
 
@@ -127,7 +127,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.findAvailableDevices(),
-            DeviceControllerError.listDecodeFailed
+            DeviceControllerError.fetchingDevicesFailed
         )
     }
 
