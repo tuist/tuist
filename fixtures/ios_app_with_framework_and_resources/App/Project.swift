@@ -17,6 +17,7 @@ let project = Project(
                     "Resources/**/*.txt",
                     "Resources/**/*.strings",
                     "Resources/**/*.stringsdict",
+                    "Resources/**/*.xcstrings",
                     "Resources/**/*.plist",
                     "Resources/**/*.otf",
                     "Resources/resource_without_extension",
