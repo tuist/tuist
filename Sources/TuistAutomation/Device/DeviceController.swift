@@ -170,7 +170,7 @@ extension PhysicalDevice {
             id: device.hardwareProperties.udid,
             name: device.deviceProperties.name,
             platform: platform,
-            osVersion: device.deviceProperties.osVersionNumber ?? "Unknown"
+            osVersion: device.deviceProperties.osVersionNumber
         )
     }
 }

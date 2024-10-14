@@ -45,7 +45,7 @@ struct PhysicalDeviceRow: View {
             VStack(alignment: .leading) {
                 Text(device.name)
                     .font(.title3)
-                Text(device.osVersion)
+                device.osVersion.map { Text($0) }
             }
             Spacer()
         }

@@ -6,7 +6,7 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let platform: Platform
-    public let osVersion: String
+    public let osVersion: String?
 }
 
 #if DEBUG
@@ -15,7 +15,7 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
             id: String = "id",
             name: String = "My iPhone",
             platform: Platform = .iOS,
-            osVersion: String = "17.4.1"
+            osVersion: String? = "17.4.1"
         ) -> Self {
             .init(
                 id: id,
