@@ -8,17 +8,20 @@ import XcodeGraph
 
 enum DeviceControllerError: FatalError {
     case applicationVerificationFailed
+    case listDecodeFailed
 
     var description: String {
         switch self {
         case .applicationVerificationFailed:
             "The app could not be installed because the verification failed. Make sure that your device is registered in your Apple Developer account."
+        case .listDecodeFailed:
+            "Fetching the list of devices failed."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .applicationVerificationFailed:
+        case .applicationVerificationFailed, .listDecodeFailed:
             .abort
         }
     }
@@ -62,10 +65,15 @@ public final class DeviceController: DeviceControlling {
             )
             .concatenatedString()
 
-            let deviceList = try JSONDecoder().decode(
-                DeviceList.self,
-                from: try await fileSystem.readFile(at: devicesListOutputPath)
-            )
+            let deviceList: DeviceList
+            do {
+                deviceList = try JSONDecoder().decode(
+                    DeviceList.self,
+                    from: try await fileSystem.readFile(at: devicesListOutputPath)
+                )
+            } catch {
+                throw DeviceControllerError.listDecodeFailed
+            }
 
             return deviceList.result.devices
                 .map(PhysicalDevice.init)
