@@ -79,6 +79,12 @@ final class DeviceControllerTests: TuistUnitTestCase {
                     platform: .iOS,
                     osVersion: "17.6.1"
                 ),
+                PhysicalDevice(
+                    id: "00008301-F856EAF4350DA92F",
+                    name: "My Watch",
+                    platform: .watchOS,
+                    osVersion: nil
+                ),
             ],
             got
         )
@@ -348,6 +354,50 @@ final class DeviceControllerTests: TuistUnitTestCase {
               "udid" : "00008120-001109881103C01E"
             },
             "identifier" : "E5E85238-76F2-4F59-A60F-0B4D08F33764",
+            "tags" : [
+
+            ],
+            "visibilityClass" : "default"
+          },
+          {
+            "capabilities" : [
+              {
+                "featureIdentifier" : "com.apple.coredevice.feature.unpairdevice",
+                "name" : "Unpair Device"
+              },
+              {
+                "featureIdentifier" : "com.apple.coredevice.feature.connectdevice",
+                "name" : "Connect to Device"
+              },
+              {
+                "featureIdentifier" : "com.apple.coredevice.feature.acquireusageassertion",
+                "name" : "Acquire Usage Assertion"
+              }
+            ],
+            "connectionProperties" : {
+              "authenticationType" : "manualPairing",
+              "isMobileDeviceOnly" : false,
+              "pairingState" : "paired",
+              "potentialHostnames" : [
+                "00008301-F856EAF4350DA92F.coredevice.local",
+                "497621AE-9F6E-0515-BF34-974F61E542E6.coredevice.local"
+              ],
+              "transportType" : "localNetwork",
+              "tunnelState" : "disconnected",
+              "tunnelTransportProtocol" : "tcp"
+            },
+            "deviceProperties" : {
+              "ddiServicesAvailable" : false,
+              "name" : "My Watch"
+            },
+            "hardwareProperties" : {
+              "deviceType" : "appleWatch",
+              "ecid" : 17819358193419324013,
+              "platform" : "watchOS",
+              "productType" : "Watch6,15",
+              "udid" : "00008301-F856EAF4350DA92F"
+            },
+            "identifier" : "497621AE-9F6E-0515-BF34-974F61E542E6",
             "tags" : [
 
             ],
