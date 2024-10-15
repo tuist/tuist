@@ -3,6 +3,7 @@ import Foundation
 public enum LinkingStatus: String, Codable, Sendable {
     case required
     case optional
+    case none
 }
 
 @available(*, deprecated, renamed: "LinkingStatus")

@@ -214,7 +214,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ),
                             ]
                         ),
-                        primaryBinaryPath: googleMapsPrimaryBinaryPath,
                         linking: .static
                     ),
                 ],

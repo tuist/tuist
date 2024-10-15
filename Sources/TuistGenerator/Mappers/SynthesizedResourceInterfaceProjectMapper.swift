@@ -182,7 +182,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     }
                 }
             }()
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files, .stringsCatalog:
             break
         }
 
@@ -217,6 +217,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             throw SynthesizedResourceInterfaceProjectMapperError.defaultTemplateNotAvailable(parser)
         case .files:
             return SynthesizedResourceInterfaceTemplates.filesTemplate
+        case .stringsCatalog:
+            return "WIP on: https://github.com/tuist/tuist/pull/6296"
         }
     }
 
