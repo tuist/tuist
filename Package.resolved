@@ -1,5 +1,5 @@
 {
-  "originHash" : "5248e1130946e9b964bba2f1eb11132015318051fb35328af86d51d4c0d1a489",
+  "originHash" : "9e144d0d1de2dafcdcfbf7d891024288a08c930cc43e97616be00726c8cb48e3",
   "pins" : [
     {
       "identity" : "aexml",
@@ -285,8 +285,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "d7c9ce7df96118aaa56096f4c2b94265c8e28a7c",
-        "version" : "2.5.0"
+        "revision" : "70864e55d30341a6b4bd74c59250ca3672bb2fdb",
+        "version" : "2.12.0"
       }
     },
     {
