@@ -13,6 +13,8 @@ extension XcodeGraph.LinkingStatus {
             return .required
         case .optional:
             return .optional
+        case .none:
+            return .none
         }
     }
 }

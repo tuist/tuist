@@ -398,6 +398,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             condition: PlatformCondition?,
             status: LinkingStatus = .required
         ) throws {
+            guard status != .none else { return }
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
             }
@@ -422,6 +423,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             case .bundle, .macro:
                 break
             case let .product(dependencyTarget, _, status, condition):
+                guard status != .none else { return }
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -431,6 +433,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
             case let .sdk(sdkPath, sdkStatus, _, condition):
+                guard sdkStatus != .none else { return }
                 guard let fileRef = fileElements.sdk(path: sdkPath) else {
                     throw LinkGeneratorError.missingReference(path: sdkPath)
                 }
