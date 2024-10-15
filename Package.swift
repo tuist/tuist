@@ -476,7 +476,8 @@ let package = Package(
             url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.1"),
+        // .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.12.1"),
+        .package(url: "https://github.com/Garfeild/XcodeGraph.git", branch: "feature/embedded-spm-packages"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.4.0")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
     ],
