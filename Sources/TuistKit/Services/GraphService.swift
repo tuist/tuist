@@ -74,7 +74,7 @@ final class GraphService {
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
             let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
-            try outputGraph.export(to: filePath)
+            try graph.export(to: filePath)
         }
 
         logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)

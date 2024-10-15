@@ -6,6 +6,7 @@ let baseSettings: SettingsDictionary = [:]
 func debugSettings() -> SettingsDictionary {
     var settings = baseSettings
     settings["ENABLE_TESTABILITY"] = "YES"
+    settings["OTHER_LDFLAGS"] = ["$(inherited) -ObjC"]
     return settings
 }
 

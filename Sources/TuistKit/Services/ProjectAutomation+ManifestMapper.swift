@@ -32,6 +32,20 @@ extension ProjectAutomation.Graph {
     }
 }
 
+extension XcodeGraph.Graph {
+    func export(to filePath: AbsolutePath) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+        let jsonData = try encoder.encode(self)
+        let jsonString = String(data: jsonData, encoding: .utf8)
+        guard let jsonString else {
+            fatalError()
+//            throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
+        }
+        try FileHandler.shared.write(jsonString, path: filePath, atomically: true)
+    }
+}
+
 extension ProjectAutomation.Project {
     static func from(_ project: XcodeGraph.Project) -> ProjectAutomation.Project {
         let packages = project.packages
