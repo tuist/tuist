@@ -2,6 +2,7 @@ defmodule TuistWeb.PreviewControllerTest do
   use TuistWeb.ConnCase, async: true
   use Mimic
 
+  alias Tuist.PreviewsFixtures
   alias Tuist.Storage
   alias Tuist.Previews
   alias Tuist.ProjectsFixtures
@@ -15,6 +16,32 @@ defmodule TuistWeb.PreviewControllerTest do
       |> log_in_user(user)
 
     %{conn: conn, user: user}
+  end
+
+  describe "download_qr_code_svg/2" do
+    test "renders a QR code", %{conn: conn} do
+      # Given
+      preview =
+        PreviewsFixtures.preview_fixture(type: :ipa)
+
+      QRCode
+      |> stub(:create, fn _ ->
+        "qr-code"
+      end)
+
+      QRCode
+      |> stub(:render, fn _ ->
+        {:ok, "<svg></svg>"}
+      end)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.svg")
+
+      # Then
+      assert response(conn, 200) =~ "<svg"
+    end
   end
 
   describe "preview/2" do

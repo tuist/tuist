@@ -102,7 +102,8 @@ defmodule Tuist.MixProject do
       {:nebulex_adapters_horde, "~> 1.0"},
       {:error_tracker, "~> 0.3.0"},
       {:excellent_migrations, "~> 0.1.8"},
-      {:ex_aws_sts, "~> 2.2"}
+      {:ex_aws_sts, "~> 2.2"},
+      {:qr_code, "~> 3.1.0"}
     ]
   end
 

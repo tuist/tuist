@@ -3,6 +3,24 @@ defmodule TuistWeb.PreviewController do
   alias Tuist.Previews
   use TuistWeb, :controller
 
+  def download_qr_code_svg(
+        conn,
+        %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "id" => preview_id
+        } = _params
+      ) do
+    {:ok, qr_code_image} =
+      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg")
+      |> QRCode.create(:low)
+      |> QRCode.render()
+
+    conn
+    |> put_resp_content_type("image/svg+xml")
+    |> send_resp(200, qr_code_image)
+  end
+
   def download_archive(
         conn,
         %{

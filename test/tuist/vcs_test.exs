@@ -363,6 +363,92 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.io/runs/#{command_event.id}"
+        end
+      })
+    end
+
+    test "creates a comment with ipa previews" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(project: project, type: :ipa, display_name: "App")
+
+      _preview_command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          project_id: project.id,
+          preview_id: preview_one.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(project: project, display_name: "WatchApp")
+
+      _preview_command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          git_ref: @git_ref,
+          project_id: project.id,
+          preview_id: preview_two.id,
+          git_commit_sha: @git_commit_sha,
+          created_at: ~N[2024-04-30 01:00:00]
+        )
+
+      Req
+      |> stub(:get, fn [
+                         headers: @default_headers,
+                         url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                       ] ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tuist Previews 📦
+
+        | App | Commit | Open on device |
+        | - | - | - |
+        | [App](https://tuist.io/previews/#{preview_one.id}) | #{commit_link} | <svg src="https://tuist.io/#{project.name}/previews/#{preview_one.id}/qr-code.svg" /> |
+        | [WatchApp](https://tuist.io/previews/#{preview_two.id}) | #{commit_link} | |
+
+        """
+
+      Req
+      |> expect(:post, fn [
+                            headers: @default_headers,
+                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                            json: %{body: ^expected_body}
+                          ] ->
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        command_name: "share",
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview, project: project} ->
+          "https://tuist.io/#{project.name}/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -409,6 +495,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: "https://tuist@github.com/tuist/tuist",
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -455,6 +544,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: "git@github.com:tuist/tuist.git",
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -519,6 +611,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -547,6 +642,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -575,6 +673,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -606,6 +707,9 @@ defmodule Tuist.VCSTest do
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -630,6 +734,9 @@ defmodule Tuist.VCSTest do
         git_ref: "tags/1.0.0",
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -658,6 +765,9 @@ defmodule Tuist.VCSTest do
         git_commit_sha: @git_commit_sha,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -686,6 +796,9 @@ defmodule Tuist.VCSTest do
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end
@@ -714,6 +827,9 @@ defmodule Tuist.VCSTest do
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         preview_url: fn %{preview: preview} -> "https://tuist.io/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.io/previews/#{preview.id}/qr-code.svg"
+        end,
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.io/runs/#{command_event.id}"
         end

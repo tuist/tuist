@@ -272,6 +272,7 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/", PreviewController, :preview
   end
 

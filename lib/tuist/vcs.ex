@@ -96,6 +96,7 @@ defmodule Tuist.VCS do
         command_name: command_name,
         project: project,
         preview_url: preview_url,
+        preview_qr_code_url: preview_qr_code_url,
         command_run_url: command_run_url
       }) do
     repository_full_handle =
@@ -133,6 +134,7 @@ defmodule Tuist.VCS do
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
+          preview_qr_code_url: preview_qr_code_url,
           command_run_url: command_run_url,
           project: project
         })
@@ -189,6 +191,7 @@ defmodule Tuist.VCS do
          git_ref: git_ref,
          git_remote_url_origin: git_remote_url_origin,
          preview_url: preview_url,
+         preview_qr_code_url: preview_qr_code_url,
          command_run_url: command_run_url,
          project: project
        }) do
@@ -216,6 +219,7 @@ defmodule Tuist.VCS do
         preview_command_events: preview_command_events,
         git_remote_url_origin: git_remote_url_origin,
         preview_url: preview_url,
+        preview_qr_code_url: preview_qr_code_url,
         project: project
       })
 
@@ -285,26 +289,48 @@ defmodule Tuist.VCS do
          preview_command_events: preview_command_events,
          git_remote_url_origin: git_remote_url_origin,
          preview_url: preview_url,
+         preview_qr_code_url: preview_qr_code_url,
          project: project
        }) do
     if Enum.empty?(preview_command_events) do
       nil
     else
+      contains_ipas =
+        Enum.any?(preview_command_events, fn preview_command_event ->
+          preview_command_event.preview.type == :ipa
+        end)
+
       """
 
       #### Tuist Previews 📦
 
-      | App | Commit |
-      | - | - |
+      | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
+      | - | - |#{if contains_ipas, do: " - |", else: ""}
       #{Enum.map(preview_command_events, fn preview_command_event ->
         git_commit_sha = preview_command_event.git_commit_sha
         preview_url = preview_url.(%{project: project, preview: preview_command_event.preview})
+        qr_code_image = get_qr_code_image(%{project: project, preview: preview_command_event.preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview_command_event.preview.display_name}](#{preview_url}) | [#{git_commit_sha |> String.slice(0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        | [#{preview_command_event.preview.display_name}](#{preview_url}) | [#{git_commit_sha |> String.slice(0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
         """
       end)}
       """
+    end
+  end
+
+  defp get_qr_code_image(%{
+         project: project,
+         preview: preview,
+         contains_ipas: contains_ipas,
+         preview_qr_code_url: preview_qr_code_url
+       }) do
+    case preview.type do
+      :app_bundle ->
+        if contains_ipas, do: " |", else: ""
+
+      :ipa ->
+        " <svg src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
     end
   end
 
