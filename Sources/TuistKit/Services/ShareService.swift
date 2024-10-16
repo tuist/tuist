@@ -269,8 +269,8 @@ struct ShareService {
         try await uploadPreviews(
             .appBundles(appPaths),
             displayName: appName,
-            version: appBundles.compactMap(\.infoPlist.version.description).first,
-            bundleIdentifier: appBundles.compactMap(\.infoPlist.bundleId).first,
+            version: appBundles.map(\.infoPlist.version.description).first,
+            bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
             fullHandle: fullHandle,
             serverURL: serverURL
         )
