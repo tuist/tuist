@@ -26,7 +26,7 @@ This section outlines the requirements for hosting the Tuist server on your infr
 
 ### Running Docker-virtualized images
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/ko/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
 
@@ -65,15 +65,27 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
+| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
+| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` or `AWS_REGION` | The region where the bucket is located | Yes | | `us-west-2` |
+| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
+| `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
+| `TUIST_S3_REQUEST_TIMEOUT` | The timeout (in seconds) for requests to the storage provider | No | `30` | `30` |
+| `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
+| `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
+| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
+
+### Database configuration
+
+The following environment variables are used to configure the database connection:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
-| `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
-| `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
-| `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
+| `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
+| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
 
 ### Authentication environment configuration
 
@@ -81,7 +93,7 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
 
 #### GitHub
 
-We recommend authenticating using a [GitHub App](https://docs.github.com/ko/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/ko/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 - In the GitHub app's general settings:
     - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
     - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
@@ -104,7 +116,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/ko/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
 
 - **App integration name:** `Tuist`
 - **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
@@ -125,21 +137,33 @@ Once the app is created you'll need to set the following environment variables:
 
 #### S3-compliant storages
 
-The environment variables required to authenticate against S3-compliant storages aligns with the [conventions set by AWS](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html) (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT`). Additionally, you need to set the `TUIST_S3_BUCKET_NAME` environment variable to indicate the bucket where the artifacts will be stored.
+You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
 
-> [!NOTE] RUST SDK
-> Tuist uses this [Rust SDK](https://github.com/durch/rust-s3), which you can use as a reference to understand how the environment variables are used.
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
+| `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `AWS_REGION` | The region where the bucket is located | Yes | | `us-west-2` |
+| `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
+| `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
+| `TUIST_S3_REQUEST_TIMEOUT` | The timeout (in seconds) for requests to the storage provider | No | `30` | `30` |
+| `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
+| `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
+| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
 
-### Google Cloud Storage
+> [!NOTE] AWS authentication with Web Identity Token from environment variables
+> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+
+#### Google Cloud Storage
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
 ### Git platform configuration
 
-Tuist can [integrate with Git platforms](/ko/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
+Tuist can [integrate with Git platforms](/en/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub
 
-You will need to [create a GitHub app](https://docs.github.com/ko/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
 
 On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
 
@@ -281,7 +305,7 @@ services:
       - "8080"
       - "443:443"
     environment:
-      # Base Tuist Env - https://docs.tuist.io/ko/guides/dashboard/on-premise/install#base-environment-configuration
+      # Base Tuist Env - https://docs.tuist.io/en/guides/dashboard/on-premise/install#base-environment-configuration
       TUIST_USE_SSL_FOR_DATABASE: "0"
       TUIST_LICENSE:  # ...
       DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
@@ -290,11 +314,11 @@ services:
       WEB_CONCURRENCY: 80
 
       # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/ko/guides/dashboard/on-premise/install#github
+      # GitHub Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#github
       TUIST_GITHUB_OAUTH_ID:
       TUIST_GITHUB_APP_CLIENT_SECRET:
 
-      # Okta Auth - https://docs.tuist.io/ko/guides/dashboard/on-premise/install#okta
+      # Okta Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:
       TUIST_OKTA_CLIENT_ID:
       TUIST_OKTA_CLIENT_SECRET:
@@ -316,3 +340,13 @@ volumes:
   db:
     driver: local
 ```
+
+## Operations
+
+Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
+
+> [!IMPORTANT] Authorization
+> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+
+- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
+- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
