@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.30.0 - 2024-10-16
+
+### CLI
+
+#### Fixed
+
+- Fix non-deterministic caching of ProjectDescriptionHelpers [#6599](https://github.com/tuist/tuist/pull/6599) by [@Ernest0-Production](https://github.com/Ernest0-Production)
+- Skip implicit import false positive when import is commented out [#6711](https://github.com/tuist/tuist/pull/6711) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Fix running framework previews with resources [#6865](https://github.com/tuist/tuist/pull/6865) by [@fortmarek](https://github.com/fortmarek)
+- Fix Tuist Previews not posted in the GitHub PR comment [#6861](https://github.com/tuist/tuist/pull/6861) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.29.1 - 2024-10-10
 
 ### Tuist
