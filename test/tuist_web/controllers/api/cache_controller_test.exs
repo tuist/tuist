@@ -276,7 +276,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     |> expect(:multipart_generate_url, fn ^object_key,
                                           ^upload_id,
                                           ^part_number,
-                                          [expires_in: _] ->
+                                          [expires_in: _, content_length: 20] ->
       upload_url
     end)
 
@@ -288,7 +288,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     conn =
       conn
       |> post(
-        ~p"/api/cache/multipart/generate-url?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
+        ~p"/api/cache/multipart/generate-url?hash=#{hash}&content_length=20&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
       )
 
     # Then

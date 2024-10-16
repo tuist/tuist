@@ -448,6 +448,13 @@ defmodule TuistWeb.API.CacheController do
         description:
           "The category of the cache. It's used to differentiate between different types of caches."
       ],
+      content_length: [
+        in: :query,
+        type: :integer,
+        required: false,
+        description:
+          "The size in bytes of the part that will be uploaded. It's used to generate the signed URL."
+      ],
       project_id: [
         in: :query,
         type: :string,
@@ -488,18 +495,20 @@ defmodule TuistWeb.API.CacheController do
 
   def multipart_generate_url(
         %{
-          query_params: %{
-            "hash" => hash,
-            "name" => name,
-            "project_id" => project_slug,
-            "part_number" => part_number,
-            "upload_id" => upload_id,
-            "cache_category" => cache_category
-          }
+          query_params:
+            %{
+              "hash" => hash,
+              "name" => name,
+              "project_id" => project_slug,
+              "part_number" => part_number,
+              "upload_id" => upload_id,
+              "cache_category" => cache_category
+            } = params
         } = conn,
         _params
       ) do
     expires_in = 120
+    content_length = Map.get(params, "content_length")
 
     url =
       Storage.multipart_generate_url(
@@ -511,7 +520,9 @@ defmodule TuistWeb.API.CacheController do
         }),
         upload_id,
         part_number,
-        expires_in: expires_in
+        expires_in: expires_in,
+        content_length:
+          if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
       )
 
     conn |> json(%{status: "success", data: %{url: url}})

@@ -409,7 +409,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       |> expect(:multipart_generate_url, fn ^object_key,
                                             ^upload_id,
                                             ^part_number,
-                                            [expires_in: _] ->
+                                            [expires_in: _, content_length: 100] ->
         upload_url
       end)
 
@@ -424,7 +424,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
         |> post(
           ~p"/api/runs/#{command_event.id}/generate-url",
           command_event_artifact: %{type: "result_bundle"},
-          multipart_upload_part: %{part_number: part_number, upload_id: upload_id}
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
         )
 
       # Then

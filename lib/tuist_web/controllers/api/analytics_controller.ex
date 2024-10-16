@@ -344,22 +344,25 @@ defmodule TuistWeb.API.AnalyticsController do
               %{
                 "type" => type
               } = command_event_artifact,
-            multipart_upload_part: %{
-              "part_number" => part_number,
-              "upload_id" => upload_id
-            }
+            multipart_upload_part:
+              %{
+                "part_number" => part_number,
+                "upload_id" => upload_id
+              } = multipart_upload_part
           }
         } = conn,
         _params
       ) do
     expires_in = 120
+    content_length = Map.get(multipart_upload_part, "content_length")
 
     url =
       Storage.multipart_generate_url(
         get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]}),
         upload_id,
         part_number,
-        expires_in: expires_in
+        expires_in: expires_in,
+        content_length: content_length
       )
 
     conn |> json(%{status: "success", data: %{url: url}})

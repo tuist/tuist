@@ -52,6 +52,57 @@ defmodule Tuist.StorageTest do
                          part_number: ^part_number
                        }}
     end
+
+    test "generates the URL using the ExAws.S3 module and reports the telemetry event when content_length is provided" do
+      # Given
+      url = "https://tuist.io/upload-url"
+
+      event_name =
+        Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      part_number = 1
+      expires_in = 30
+      bucket_name = UUIDv7.generate()
+      ExAws.Config |> stub(:new, fn :s3 -> %{} end)
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+
+      ExAws.S3
+      |> expect(:presigned_url, fn _,
+                                   :put,
+                                   ^bucket_name,
+                                   ^object_key,
+                                   [
+                                     query_params: [
+                                       {"partNumber", ^part_number},
+                                       {"uploadId", ^upload_id}
+                                     ],
+                                     headers: [
+                                       {"Content-Length", "300"}
+                                     ],
+                                     virtual_host: true,
+                                     expires_in: ^expires_in
+                                   ] ->
+        {:ok, url}
+      end)
+
+      # When/Then
+      assert Storage.multipart_generate_url(object_key, upload_id, part_number,
+               expires_in: expires_in,
+               content_length: 300
+             ) == url
+
+      assert_received {^event_name, ^event_ref, %{},
+                       %{
+                         object_key: ^object_key,
+                         upload_id: ^upload_id,
+                         part_number: ^part_number
+                       }}
+    end
   end
 
   describe "multipart_complete_upload/3" do

@@ -8,6 +8,15 @@ defmodule Tuist.Storage do
   require Logger
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
+    content_length = opts |> Keyword.get(:content_length)
+
+    headers =
+      if is_nil(content_length) do
+        []
+      else
+        [{"Content-Length", Integer.to_string(content_length)}]
+      end
+
     {:ok, url} =
       ExAws.Config.new(:s3)
       |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
@@ -15,7 +24,7 @@ defmodule Tuist.Storage do
           {"partNumber", part_number},
           {"uploadId", upload_id}
         ],
-        headers: [],
+        headers: headers,
         virtual_host: true,
         expires_in: opts |> Keyword.get(:expires_in, 3600)
       )

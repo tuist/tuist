@@ -17,6 +17,10 @@ defmodule TuistWeb.API.Schemas.ArtifactMultipartUploadPart do
       upload_id: %OpenApiSpex.Schema{
         description: "The upload ID.",
         type: :string
+      },
+      content_length: %OpenApiSpex.Schema{
+        description: "The content length of the part.",
+        type: :integer
       }
     },
     required: [:part_number, :upload_id]
