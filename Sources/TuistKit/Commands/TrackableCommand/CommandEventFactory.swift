@@ -29,16 +29,16 @@ public final class CommandEventFactory {
         path: AbsolutePath,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> CommandEvent {
-        let gitCommitSHA: String?
-        let gitRemoteURLOrigin: String?
-        if gitController.isInGitRepository(workingDirectory: path),
-           gitController.hasCurrentBranchCommits(workingDirectory: path)
-        {
-            gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
-            gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
-        } else {
-            gitCommitSHA = nil
-            gitRemoteURLOrigin = nil
+        var gitCommitSHA: String?
+        var gitRemoteURLOrigin: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
+            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
+                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
+            }
+
+            if try gitController.hasUrlOrigin(workingDirectory: path) {
+                gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
+            }
         }
         let commandEvent = CommandEvent(
             runId: info.runId,
