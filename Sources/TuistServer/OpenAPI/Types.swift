@@ -3346,6 +3346,7 @@ public enum Operations {
             public var path: Operations.generateCacheArtifactMultipartUploadURL.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
                 public var cache_category: Components.Schemas.CacheCategory?
+                public var content_length: Swift.Int?
                 public var project_id: Swift.String
                 public var hash: Swift.String
                 public var part_number: Swift.Int
@@ -3355,6 +3356,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - cache_category:
+                ///   - content_length:
                 ///   - project_id:
                 ///   - hash:
                 ///   - part_number:
@@ -3362,6 +3364,7 @@ public enum Operations {
                 ///   - name:
                 public init(
                     cache_category: Components.Schemas.CacheCategory? = nil,
+                    content_length: Swift.Int? = nil,
                     project_id: Swift.String,
                     hash: Swift.String,
                     part_number: Swift.Int,
@@ -3369,6 +3372,7 @@ public enum Operations {
                     name: Swift.String
                 ) {
                     self.cache_category = cache_category
+                    self.content_length = content_length
                     self.project_id = project_id
                     self.hash = hash
                     self.part_number = part_number
