@@ -77,6 +77,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             .willReturn("commit-sha")
 
         given(gitController)
+            .hasUrlOrigin(workingDirectory: .value(path))
+            .willReturn(true)
+
+        given(gitController)
             .urlOrigin(workingDirectory: .value(path))
             .willReturn("https://github.com/tuist/tuist")
 
@@ -151,7 +155,54 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.gitRef, nil)
     }
 
-    func test_make_when_is_in_git_repository_and_branch_has_no_commits() throws {
+    func test_make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
+        // Given
+        let path = try temporaryPath()
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "cache",
+            subcommand: "warm",
+            parameters: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
+            durationInMs: 5000,
+            status: .failure("Failed!"),
+            targetHashes: nil,
+            graphPath: nil
+        )
+
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(path))
+            .willReturn("commit-sha")
+
+        given(gitController)
+            .hasCurrentBranchCommits(workingDirectory: .value(path))
+            .willReturn(true)
+
+        given(gitController)
+            .hasUrlOrigin(workingDirectory: .value(path))
+            .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn(nil)
+
+        // When
+        let event = try subject.make(
+            from: info,
+            path: path
+        )
+
+        // Then
+        XCTAssertEqual(event.gitCommitSHA, "commit-sha")
+        XCTAssertEqual(event.gitRemoteURLOrigin, nil)
+        XCTAssertEqual(event.gitRef, nil)
+    }
+
+    func test_make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
         // Given
         let path = try temporaryPath()
         let info = TrackableCommandInfo(
@@ -177,6 +228,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         given(gitController)
             .ref(environment: .any)
             .willReturn(nil)
+
+        given(gitController)
+            .hasUrlOrigin(workingDirectory: .value(path))
+            .willReturn(false)
 
         // When
         let event = try subject.make(

@@ -45,6 +45,9 @@ public protocol GitControlling {
     /// Return the git URL origin
     func urlOrigin(workingDirectory: AbsolutePath) throws -> String
 
+    /// - Returns: `true` if the `git` repository has a remote `origin`.
+    func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool
+
     /// - Returns: A git ref based on the CI environment value. Returns `nil` in non-CI environments.
     func ref(environment: [String: String]) -> String?
 
@@ -93,6 +96,12 @@ public final class GitController: GitControlling {
     public func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String {
         try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool {
+        try capture(command: "git", "-C", workingDirectory.pathString, "remote")
+            .components(separatedBy: .newlines)
+            .contains("origin")
     }
 
     public func urlOrigin(workingDirectory: AbsolutePath) throws -> String {
