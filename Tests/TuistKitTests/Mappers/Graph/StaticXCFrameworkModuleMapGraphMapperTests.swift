@@ -210,6 +210,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         infoPlist: .test(
                             libraries: [
                                 .test(
+                                    identifier: "ios-arm64",
                                     path: try RelativePath(validating: "GoogleMaps.framework/GoogleMaps")
                                 ),
                             ]
@@ -230,7 +231,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         settings: .test(
                             base: [
                                 "FRAMEWORK_SEARCH_PATHS": [
-                                    "\"$(SRCROOT)/../GoogleMaps.xcframework\"",
+                                    "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]
                         )
