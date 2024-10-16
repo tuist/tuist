@@ -77,10 +77,10 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 settings["FRAMEWORK_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
                         .compactMap {
-                            if let libraryPath = $0.infoPlist.libraries
-                                .first(where: { target.supportedPlatforms.contains($0.platform.graphPlatform) })?.path
+                            if let library = $0.infoPlist.libraries
+                                .first(where: { target.supportedPlatforms.contains($0.platform.graphPlatform) })
                             {
-                                return "\"$(SRCROOT)/\($0.path.appending(libraryPath).parentDirectory.parentDirectory.relative(to: project.path).pathString)\""
+                                return "\"$(SRCROOT)/\($0.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
                             } else {
                                 return nil
                             }
