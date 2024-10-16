@@ -9,7 +9,8 @@ public protocol MultipartUploadGenerateURLPreviewsServicing {
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -58,7 +59,8 @@ public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGen
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -71,6 +73,7 @@ public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGen
                 body: .json(
                     .init(
                         multipart_upload_part: .init(
+                            content_length: contentLength,
                             part_number: partNumber,
                             upload_id: uploadId
                         ),

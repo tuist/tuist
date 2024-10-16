@@ -41,7 +41,7 @@ enum MultipartUploadArtifactServiceError: FatalError {
 public protocol MultipartUploadArtifactServicing {
     func multipartUploadArtifact(
         artifactPath: AbsolutePath,
-        generateUploadURL: @escaping (Int) async throws -> String
+        generateUploadURL: @escaping ((partNumber: Int, contentLength: Int)) async throws -> String
     ) async throws -> [(etag: String, partNumber: Int)]
 }
 
@@ -54,7 +54,7 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
     public func multipartUploadArtifact(
         artifactPath: AbsolutePath,
-        generateUploadURL: (Int) async throws -> String
+        generateUploadURL: @escaping ((partNumber: Int, contentLength: Int)) async throws -> String
     ) async throws -> [(etag: String, partNumber: Int)] {
         let partSize = 10 * 1024 * 1024
         guard let inputStream = InputStream(url: artifactPath.url) else {
@@ -72,7 +72,7 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
             if bytesRead > 0 {
                 let partData = Data(bytes: buffer, count: bytesRead)
-                let uploadURLString = try await generateUploadURL(partNumber)
+                let uploadURLString = try await generateUploadURL((partNumber: partNumber, contentLength: bytesRead))
                 guard let url = URL(string: uploadURLString) else {
                     throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                 }

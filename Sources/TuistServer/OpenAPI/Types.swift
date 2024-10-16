@@ -391,6 +391,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
         public struct ArtifactMultipartUploadPart: Codable, Equatable, Hashable, Sendable {
+            /// The content length of the part.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/content_length`.
+            public var content_length: Swift.Int?
             /// The part number of the multipart upload.
             ///
             /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/part_number`.
@@ -402,13 +406,20 @@ public enum Components {
             /// Creates a new `ArtifactMultipartUploadPart`.
             ///
             /// - Parameters:
+            ///   - content_length: The content length of the part.
             ///   - part_number: The part number of the multipart upload.
             ///   - upload_id: The upload ID.
-            public init(part_number: Swift.Int, upload_id: Swift.String) {
+            public init(
+                content_length: Swift.Int? = nil,
+                part_number: Swift.Int,
+                upload_id: Swift.String
+            ) {
+                self.content_length = content_length
                 self.part_number = part_number
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
+                case content_length
                 case part_number
                 case upload_id
             }

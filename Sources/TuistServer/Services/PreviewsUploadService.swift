@@ -94,13 +94,14 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: buildPath,
-                generateUploadURL: { partNumber in
+                generateUploadURL: { partNumber, contentLength in
                     try await multipartUploadGenerateURLPreviewsService.uploadPreviews(
                         previewUpload.previewId,
                         partNumber: partNumber,
                         uploadId: previewUpload.uploadId,
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        contentLength: contentLength
                     )
                 }
             )

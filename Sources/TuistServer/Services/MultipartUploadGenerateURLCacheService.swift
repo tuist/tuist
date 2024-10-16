@@ -13,7 +13,7 @@ public protocol MultipartUploadGenerateURLCacheServicing {
         cacheCategory: RemoteCacheCategory,
         uploadId: String,
         partNumber: Int,
-        contentLength: Int?
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -54,7 +54,7 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
         cacheCategory: RemoteCacheCategory,
         uploadId: String,
         partNumber: Int,
-        contentLength: Int?
+        contentLength: Int
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateCacheArtifactMultipartUploadURL(.init(query: .init(

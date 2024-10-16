@@ -161,13 +161,14 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: artifactPath,
-                generateUploadURL: { partNumber in
+                generateUploadURL: { partNumber, contentLength in
                     try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
                         artifact,
                         commandEventId: commandEventId,
                         partNumber: partNumber,
                         uploadId: uploadId,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        contentLength: contentLength
                     )
                 }
             )

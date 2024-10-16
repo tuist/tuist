@@ -35,6 +35,9 @@ components:
         Represents an multipart upload's part identified by the upload
         id and the part number
       properties:
+        content_length:
+          description: The content length of the part.
+          type: integer
         part_number:
           description: The part number of the multipart upload.
           type: integer
