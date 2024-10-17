@@ -80,10 +80,14 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             )
             .willReturn("upload-id")
 
+        var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .value(artifactArchivePath),
-                generateUploadURL: .any
+                generateUploadURL: .matching { callback in
+                    generateUploadURLCallback = callback
+                    return true
+                }
             )
             .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -147,6 +151,19 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
                 generateUploadURL: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
+        let uploadPartURL = "https://tuist.io/upload-url"
+        given(multipartUploadGenerateURLAnalyticsService)
+            .uploadAnalytics(
+                .value(ServerCommandEvent.Artifact(
+                    type: .resultBundle
+                )),
+                commandEventId: .value(1),
+                partNumber: .value(1),
+                uploadId: .value("upload-id"),
+                serverURL: .value(serverURL),
+                contentLength: .value(20)
+            )
+            .willReturn(uploadPartURL)
 
         // When / Then
         try await subject.uploadResultBundle(
@@ -161,5 +178,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             commandEventId: 1,
             serverURL: serverURL
         )
+
+        let gotUploadPartURL = try await generateUploadURLCallback(.init(number: 1, contentLength: 20))
+        XCTAssertEqual(gotUploadPartURL, uploadPartURL)
     }
 }
