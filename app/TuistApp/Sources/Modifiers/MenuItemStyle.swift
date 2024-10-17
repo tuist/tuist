@@ -4,8 +4,7 @@ import SwiftUI
 private struct MenuItemSyle: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(MenuItemButtonStyle())
             .padding(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
             .hoverStyle()
             .cornerRadius(5.0)
@@ -15,5 +14,13 @@ private struct MenuItemSyle: ViewModifier {
 extension View {
     func menuItemStyle() -> some View {
         modifier(MenuItemSyle())
+    }
+}
+
+private struct MenuItemButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
     }
 }
