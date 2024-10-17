@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import struct TSCUtility.Version
 import TuistSupportTesting
 import XCTest

@@ -1,7 +1,7 @@
 import DOT
 import Foundation
 import GraphViz
-import MockableTest
+import Mockable
 import Path
 import ProjectAutomation
 import TuistCore

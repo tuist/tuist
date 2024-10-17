@@ -353,7 +353,6 @@ let targets: [Target] = [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
-            "MockableTest": .staticFramework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -468,7 +467,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.5.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
-        .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.10"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
         .package(
             url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"
         ),

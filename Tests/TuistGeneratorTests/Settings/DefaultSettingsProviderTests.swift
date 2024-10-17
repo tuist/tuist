@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting

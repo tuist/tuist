@@ -1,7 +1,7 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistAnalytics
 import TuistAsyncQueueTesting

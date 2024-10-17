@@ -1,6 +1,5 @@
 import FileSystem
 import Mockable
-import MockableTest
 import TuistCore
 import TuistServer
 import TuistSupport
