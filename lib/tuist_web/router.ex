@@ -6,6 +6,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.RateLimit
   import Phoenix.LiveDashboard.Router
   use ErrorTracker.Web, :router
+
   @include_marketing_routes false
 
   pipeline :open_api do
@@ -188,12 +189,14 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
       ]
 
-    error_tracker_dashboard("/errors",
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]}
-      ]
-    )
+    if Tuist.Environment.on_premise?() do
+      error_tracker_dashboard("/errors",
+        on_mount: [
+          {TuistWeb.Authentication, :ensure_authenticated},
+          {TuistWeb.Authorization, [:current_user, :read, :ops]}
+        ]
+      )
+    end
   end
 
   if Tuist.Environment.dev?() do

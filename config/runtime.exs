@@ -271,3 +271,8 @@ config :tuist, Tuist.PromEx,
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
   secret_key: Tuist.Environment.secret_key_tokens(secrets)
+
+# Error tracker
+if Tuist.Environment.on_premise?() do
+  config :error_tracker, enabled: true
+end
