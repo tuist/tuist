@@ -134,7 +134,19 @@ private struct DeviceList: Codable {
             let identifier: String
 
             struct ConnectionProperties: Codable {
-                let transportType: String?
+                enum TransportType: String, Codable {
+                    case localNetwork
+                    case wired
+                }
+
+                enum TunnelState: String, Codable {
+                    case connected
+                    case disconnected
+                    case unavailable
+                }
+
+                let transportType: TransportType?
+                let tunnelState: TunnelState
             }
 
             struct DeviceProperties: Codable {
@@ -166,11 +178,24 @@ extension PhysicalDevice {
         case .watchOS: .watchOS
         }
 
+        let transportType: PhysicalDevice.TransportType = switch device.connectionProperties.transportType {
+        case .localNetwork: .wifi
+        case .wired: .usb
+        default: .unknown
+        }
+
+        let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
+        case .connected: .connected
+        default: .disconnected
+        }
+
         self.init(
             id: device.hardwareProperties.udid,
             name: device.deviceProperties.name,
             platform: platform,
-            osVersion: device.deviceProperties.osVersionNumber
+            osVersion: device.deviceProperties.osVersionNumber,
+            transportType: transportType,
+            connectionState: connectionState
         )
     }
 }

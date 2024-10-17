@@ -48,6 +48,12 @@ struct PhysicalDeviceRow: View {
                 device.osVersion.map { Text($0) }
             }
             Spacer()
+
+            if device.transportType == .wifi {
+                Image(systemName: "network")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
         }
         .menuItemStyle()
         .onTapGesture {

@@ -123,7 +123,7 @@ final class DevicesViewModel: Sendable {
     }
 
     func onAppear() async throws {
-        devices = try await deviceController.findAvailableDevices().filter(\.isReachable)
+        devices = try await deviceController.findAvailableDevices()
 
         let simulators = try await simulatorController.devicesAndRuntimes()
             .sorted()
