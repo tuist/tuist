@@ -49,7 +49,9 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.fileHandler = fileHandler
     }
 
-    public func run() async throws {
+    public func run(
+        analyticsEnabled: Bool
+    ) async throws {
         let runId: String
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters & ParsableCommand {
@@ -72,9 +74,23 @@ public class TrackableCommand: TrackableParametersDelegate {
             } else {
                 try command.run()
             }
-            try dispatchCommandEvent(timer: timer, status: .success, runId: runId, path: path)
+            if analyticsEnabled {
+                try dispatchCommandEvent(
+                    timer: timer,
+                    status: .success,
+                    runId: runId,
+                    path: path
+                )
+            }
         } catch {
-            try dispatchCommandEvent(timer: timer, status: .failure("\(error)"), runId: runId, path: path)
+            if analyticsEnabled {
+                try dispatchCommandEvent(
+                    timer: timer,
+                    status: .failure("\(error)"),
+                    runId: runId,
+                    path: path
+                )
+            }
             throw error
         }
     }

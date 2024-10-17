@@ -61,7 +61,7 @@ final class TrackableCommandTests: TuistTestCase {
         let expectedParams: [String: AnyCodable] = ["flag": true]
 
         // When
-        try await subject.run()
+        try await subject.run(analyticsEnabled: true)
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
@@ -75,7 +75,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(flag: false)
         let expectedParams: [String: AnyCodable] = ["flag": false]
         // When
-        try await subject.run()
+        try await subject.run(analyticsEnabled: true)
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
@@ -88,7 +88,7 @@ final class TrackableCommandTests: TuistTestCase {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
-        await XCTAssertThrowsSpecific(try await subject.run(), TestCommand.TestError.commandFailed)
+        await XCTAssertThrowsSpecific(try await subject.run(analyticsEnabled: true), TestCommand.TestError.commandFailed)
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
@@ -102,7 +102,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run()
+        try await subject.run(analyticsEnabled: true)
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
@@ -111,12 +111,26 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
+    func test_whenPathIsInArguments_and_analytics_are_disabled() async throws {
+        // Given
+        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+
+        // When
+        try await subject.run(analyticsEnabled: false)
+
+        // Then
+        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 0)
+        verify(gitController)
+            .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
+            .called(0)
+    }
+
     func test_whenPathIsNotInArguments() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm"])
 
         // When
-        try await subject.run()
+        try await subject.run(analyticsEnabled: true)
 
         // Then
         XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
