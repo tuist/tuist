@@ -7,7 +7,7 @@ defmodule Tuist.Billing.Subscription do
   alias Tuist.Accounts.Account
 
   schema "subscriptions" do
-    field :plan, Ecto.Enum, values: [enterprise: 1, air: 2, pro: 3]
+    field :plan, Ecto.Enum, values: [enterprise: 1, air: 2, pro: 3, open_source: 4]
     field :subscription_id, :string
     field :status, :string
     field :default_payment_method, :string
@@ -36,7 +36,7 @@ defmodule Tuist.Billing.Subscription do
   end
 
   defp validate_plan(changeset) do
-    changeset |> validate_inclusion(:plan, [:enterprise, :air, :pro])
+    changeset |> validate_inclusion(:plan, [:enterprise, :air, :pro, :open_source])
   end
 
   def update_changeset(account, attrs) do

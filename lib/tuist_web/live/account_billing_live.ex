@@ -71,7 +71,7 @@ defmodule TuistWeb.AccountBillingLive do
           subscription.plan
       end
 
-    if not Enum.member?([:air, :pro, :enterprise, :none], plan) do
+    if not Enum.member?([:air, :pro, :enterprise, :open_source, :none], plan) do
       raise TuistWeb.Errors.NotFoundError,
             gettext("Invalid plan")
     end

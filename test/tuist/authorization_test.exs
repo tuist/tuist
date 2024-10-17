@@ -1,4 +1,5 @@
 defmodule Tuist.AuthorizationTest do
+  alias Tuist.BillingFixtures
   alias Tuist.VCS
   alias Tuist.Accounts
   alias Tuist.AccountsFixtures
@@ -72,6 +73,19 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can(user, :update, account, :billing) == true
+  end
+
+  test "can.update.account.billing when the subject is an admin of the account being read, it's not on-premise, and the account has an open_source plan" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+    BillingFixtures.subscription_fixture(plan: :open_source, account_id: account.id)
+    Environment |> stub(:on_premise?, fn -> false end)
+
+    # When
+    assert Authorization.can(user, :update, account, :billing) == false
   end
 
   test "can.update.account.billing when the subject is a user of the account being read and it's on-premise" do
@@ -900,6 +914,18 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can(user, :read, user.account, :billing) == true
+  end
+
+  test "can.read.account.billing when the subject is interacting with its account and the account has an open_source subscription" do
+    # Given
+    user = AccountsFixtures.user_fixture(preloads: [:account])
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :open_source)
+
+    Environment |> stub(:on_premise?, fn -> false end)
+
+    # When
+    assert Authorization.can(user, :read, user.account, :billing) == false
   end
 
   test "can.read.account.organization when the subject is a user that belongs to an organization" do

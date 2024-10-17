@@ -6,6 +6,7 @@ defmodule Tuist.Authorization do
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Accounts
+  alias Tuist.Billing
   alias Tuist.Accounts.{User, Account}
 
   def can(%User{} = user, :read, %Project{visibility: :private} = project, :cache) do
@@ -74,7 +75,10 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :update, %Account{} = account, :billing) do
-    if Environment.on_premise?() do
+    subscription = Billing.get_current_active_subscription(account)
+
+    if Environment.on_premise?() or
+         (not is_nil(subscription) and subscription.plan == :open_source) do
       false
     else
       Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
@@ -82,7 +86,10 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :read, %Account{} = account, :billing) do
-    if Environment.on_premise?() do
+    subscription = Billing.get_current_active_subscription(account)
+
+    if Environment.on_premise?() or
+         (not is_nil(subscription) and subscription.plan == :open_source) do
       false
     else
       Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
