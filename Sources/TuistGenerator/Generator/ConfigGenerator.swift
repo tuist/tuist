@@ -321,6 +321,16 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = [:]
         settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
         if target.product == .unitTests {
+            if let defaultSettings = target.settings?.defaultSettings {
+                switch defaultSettings {
+                case let .essential(excludedKeys), let .recommended(excludedKeys):
+                    if excludedKeys.contains("TEST_HOST") {
+                        return [:]
+                    }
+                case .none:
+                    return [:]
+                }
+            }
             settings["TEST_HOST"] =
                 .string(
                     "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
