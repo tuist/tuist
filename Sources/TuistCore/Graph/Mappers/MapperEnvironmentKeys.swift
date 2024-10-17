@@ -16,6 +16,14 @@ private struct TargetTestHashesKey: MapperEnvironmentKey {
     static var defaultValue: [AbsolutePath: [String: String]] = [:]
 }
 
+private struct CacheableTargetsKey: MapperEnvironmentKey {
+    static var defaultValue: [String] = []
+}
+
+private struct TargetHashesKey: MapperEnvironmentKey {
+    static var defaultValue: [CommandEventGraphTarget: String] = [:]
+}
+
 extension MapperEnvironment {
     /// Target hashes for the `test` action.
     public var targetTestHashes: [AbsolutePath: [String: String]] {
@@ -23,8 +31,18 @@ extension MapperEnvironment {
         set { self[TargetTestHashesKey.self] = newValue }
     }
 
+    public var cacheableTargets: [String] {
+        get { self[CacheableTargetsKey.self] }
+        set { self[CacheableTargetsKey.self] = newValue }
+    }
+
     public var initialGraph: Graph? {
         get { self[InitialGraphKey.self] }
         set { self[InitialGraphKey.self] = newValue }
+    }
+
+    public var targetHashes: [CommandEventGraphTarget: String] {
+        get { self[TargetHashesKey.self] }
+        set { self[TargetHashesKey.self] = newValue }
     }
 }

@@ -22,6 +22,12 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitRemoteURLOrigin: String?
     public let targetHashes: [CommandEventGraphTarget: String]?
     public let graphPath: AbsolutePath?
+    public let cacheableTargets: [String]
+    public let localCacheTargetHits: [String]
+    public let remoteCacheTargetHits: [String]
+    public let testTargets: [String]
+    public let localTestTargetHits: [String]
+    public let remoteTestTargetHits: [String]
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -50,6 +56,12 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case gitRemoteURLOrigin
         case targetHashes
         case graphPath
+        case cacheableTargets
+        case localCacheTargetHits
+        case remoteCacheTargetHits
+        case testTargets
+        case localTestTargetHits
+        case remoteTestTargetHits
     }
 
     public init(
@@ -70,7 +82,13 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitRef: String?,
         gitRemoteURLOrigin: String?,
         targetHashes: [CommandEventGraphTarget: String]?,
-        graphPath: AbsolutePath?
+        graphPath: AbsolutePath?,
+        cacheableTargets: [String],
+        localCacheTargetHits: [String],
+        remoteCacheTargetHits: [String],
+        testTargets: [String],
+        localTestTargetHits: [String],
+        remoteTestTargetHits: [String]
     ) {
         self.runId = runId
         self.name = name
@@ -90,6 +108,12 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.gitRemoteURLOrigin = gitRemoteURLOrigin
         self.targetHashes = targetHashes
         self.graphPath = graphPath
+        self.cacheableTargets = cacheableTargets
+        self.localCacheTargetHits = localCacheTargetHits
+        self.remoteCacheTargetHits = remoteCacheTargetHits
+        self.testTargets = testTargets
+        self.localTestTargetHits = localTestTargetHits
+        self.remoteTestTargetHits = remoteTestTargetHits
     }
 }
 
@@ -112,7 +136,13 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
             targetHashes: [CommandEventGraphTarget: String]? = nil,
-            graphPath: AbsolutePath? = nil
+            graphPath: AbsolutePath? = nil,
+            cacheableTargets: [String] = [],
+            localCacheTargetHits: [String] = [],
+            remoteCacheTargetHits: [String] = [],
+            testTargets: [String] = [],
+            localTestTargetHits: [String] = [],
+            remoteTestTargetHits: [String] = []
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -132,7 +162,13 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 gitRef: gitRef,
                 gitRemoteURLOrigin: gitRemoteURLOrigin,
                 targetHashes: targetHashes,
-                graphPath: graphPath
+                graphPath: graphPath,
+                cacheableTargets: cacheableTargets,
+                localCacheTargetHits: localCacheTargetHits,
+                remoteCacheTargetHits: remoteCacheTargetHits,
+                testTargets: testTargets,
+                localTestTargetHits: localTestTargetHits,
+                remoteTestTargetHits: remoteTestTargetHits
             )
         }
     }

@@ -75,12 +75,12 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                         macos_version: commandEvent.macOSVersion,
                         name: commandEvent.name,
                         params: .init(
-                            cacheable_targets: commandEvent.params["cacheable_targets"]?.value as? [String],
-                            local_cache_target_hits: commandEvent.params["local_cache_target_hits"]?.value as? [String],
-                            local_test_target_hits: commandEvent.params["local_test_target_hits"]?.value as? [String],
-                            remote_cache_target_hits: commandEvent.params["remote_cache_target_hits"]?.value as? [String],
-                            remote_test_target_hits: commandEvent.params["remote_test_target_hits"]?.value as? [String],
-                            test_targets: commandEvent.params["test_targets"]?.value as? [String]
+                            cacheable_targets: commandEvent.cacheableTargets,
+                            local_cache_target_hits: commandEvent.localCacheTargetHits,
+                            local_test_target_hits: commandEvent.localTestTargetHits,
+                            remote_cache_target_hits: commandEvent.remoteCacheTargetHits,
+                            remote_test_target_hits: commandEvent.remoteTestTargetHits,
+                            test_targets: commandEvent.testTargets
                         ),
                         preview_id: commandEvent.params["preview_id"]?.value as? String,
                         status: status,
