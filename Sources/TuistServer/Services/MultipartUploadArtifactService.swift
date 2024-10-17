@@ -77,7 +77,10 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
             if bytesRead > 0 {
                 let partData = Data(bytes: buffer, count: bytesRead)
-                let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(number: partNumber, contentLength: bytesRead))
+                let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
+                    number: partNumber,
+                    contentLength: bytesRead
+                ))
                 guard let url = URL(string: uploadURLString) else {
                     throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                 }
