@@ -1,5 +1,7 @@
 import Foundation
 
+public protocol TargetMetadata: Codable, Equatable, Sendable {}
+
 /// A target of a project.
 public struct Target: Codable, Equatable, Sendable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
@@ -72,6 +74,8 @@ public struct Target: Codable, Equatable, Sendable {
 
     /// The target's tags associated with on demand resources
     public var onDemandResourcesTags: OnDemandResourcesTags?
+    
+    public var metadata: TargetMetadata?
 
     public static func target(
         name: String,
