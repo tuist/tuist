@@ -280,7 +280,7 @@ export function guidesSidebar(locale) {
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</span>`,
-          link: "/guides/develop/build",
+          link: `/${locale}/guides/develop/build`,
           collapsed: true,
           items: [
             {
