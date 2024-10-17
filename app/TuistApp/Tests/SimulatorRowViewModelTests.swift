@@ -1,6 +1,6 @@
 import Command
 import Foundation
-import MockableTest
+import Mockable
 import TuistCore
 import TuistSupport
 import TuistSupportTesting

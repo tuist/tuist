@@ -17,7 +17,7 @@ let project = Project(
     name: "Tuist",
     settings: .settings(
         debug: [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
     ),
     targets: [
@@ -36,7 +36,7 @@ let project = Project(
                                 "CFBundleURLName": "io.tuist.app",
                                 "CFBundleURLSchemes": ["tuist"],
                             ]
-                        )
+                        ),
                     ],
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
