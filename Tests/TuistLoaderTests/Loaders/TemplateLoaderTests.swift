@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport

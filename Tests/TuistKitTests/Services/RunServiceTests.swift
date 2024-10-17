@@ -1,6 +1,6 @@
 import FileSystem
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import struct TSCUtility.Version
 import TuistAutomation

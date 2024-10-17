@@ -1,5 +1,5 @@
 import FileSystem
-import MockableTest
+import Mockable
 import Path
 import ProjectDescription
 import TSCUtility

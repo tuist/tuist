@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import MockableTest
+import Mockable
 import TuistAnalytics
 import TuistCore
 import TuistSupport

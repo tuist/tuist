@@ -1,6 +1,6 @@
 import Command
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistSupportTesting
 import XCTest

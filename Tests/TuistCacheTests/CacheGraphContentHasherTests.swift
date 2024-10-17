@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import MockableTest
 import Path
 import struct TSCUtility.Version
 import TuistCore
