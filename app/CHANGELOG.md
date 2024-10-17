@@ -1,3 +1,8 @@
+## What's Changed in app@0.3.1
+* chore: update Mockable to 0.0.11 by @pepicrft in [#6884](https://github.com/tuist/tuist/pull/6884)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.0...app@0.3.1
+
 ## What's Changed in app@0.3.0
 * feat: add support for .ipa in Tuist Previews by @fortmarek in [#6849](https://github.com/tuist/tuist/pull/6849)
 
