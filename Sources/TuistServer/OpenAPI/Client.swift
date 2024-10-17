@@ -743,6 +743,11 @@ public struct Client: APIProtocol {
                 )
                 try converter.setQueryItemAsText(
                     in: &request,
+                    name: "content_length",
+                    value: input.query.content_length
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
                     name: "project_id",
                     value: input.query.project_id
                 )

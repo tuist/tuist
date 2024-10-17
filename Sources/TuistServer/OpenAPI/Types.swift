@@ -391,6 +391,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
         public struct ArtifactMultipartUploadPart: Codable, Equatable, Hashable, Sendable {
+            /// The content length of the part.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/content_length`.
+            public var content_length: Swift.Int?
             /// The part number of the multipart upload.
             ///
             /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/part_number`.
@@ -402,13 +406,20 @@ public enum Components {
             /// Creates a new `ArtifactMultipartUploadPart`.
             ///
             /// - Parameters:
+            ///   - content_length: The content length of the part.
             ///   - part_number: The part number of the multipart upload.
             ///   - upload_id: The upload ID.
-            public init(part_number: Swift.Int, upload_id: Swift.String) {
+            public init(
+                content_length: Swift.Int? = nil,
+                part_number: Swift.Int,
+                upload_id: Swift.String
+            ) {
+                self.content_length = content_length
                 self.part_number = part_number
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
+                case content_length
                 case part_number
                 case upload_id
             }
@@ -3346,6 +3357,7 @@ public enum Operations {
             public var path: Operations.generateCacheArtifactMultipartUploadURL.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
                 public var cache_category: Components.Schemas.CacheCategory?
+                public var content_length: Swift.Int?
                 public var project_id: Swift.String
                 public var hash: Swift.String
                 public var part_number: Swift.Int
@@ -3355,6 +3367,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - cache_category:
+                ///   - content_length:
                 ///   - project_id:
                 ///   - hash:
                 ///   - part_number:
@@ -3362,6 +3375,7 @@ public enum Operations {
                 ///   - name:
                 public init(
                     cache_category: Components.Schemas.CacheCategory? = nil,
+                    content_length: Swift.Int? = nil,
                     project_id: Swift.String,
                     hash: Swift.String,
                     part_number: Swift.Int,
@@ -3369,6 +3383,7 @@ public enum Operations {
                     name: Swift.String
                 ) {
                     self.cache_category = cache_category
+                    self.content_length = content_length
                     self.project_id = project_id
                     self.hash = hash
                     self.part_number = part_number
