@@ -2,6 +2,7 @@ import Foundation
 import MockableTest
 import Path
 import TuistAutomation
+import TuistCache
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -26,7 +27,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var configLoader: MockConfigLoading!
     private var cacheStorage: MockCacheStoring!
-    private var cacheAnalyticsStore: MockCacheAnalyticsStoring!
+    private var analyticsDelegate: MockTrackableParametersDelegate!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -37,8 +38,7 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
-        cacheAnalyticsStore = .init()
-
+        analyticsDelegate = MockTrackableParametersDelegate()
         cacheStorage = .init()
 
         let cacheStorageFactory = MockCacheStorageFactorying()
@@ -75,8 +75,7 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
-            configLoader: configLoader,
-            cacheAnalyticsStore: cacheAnalyticsStore
+            configLoader: configLoader
         )
 
         given(simulatorController)
@@ -107,6 +106,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testsCacheTemporaryDirectory = nil
         generatorFactory = nil
         contentHasher = nil
+        analyticsDelegate = nil
         subject = nil
         super.tearDown()
     }
@@ -227,7 +227,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.default)
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: path
         )
     }
@@ -279,7 +279,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         // When / Then
-        try await subject.testRun(
+        try await testRun(
             schemeName: "TestScheme",
             path: try temporaryPath(),
             rosetta: true
@@ -336,7 +336,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "TestScheme",
             path: try temporaryPath()
         )
@@ -402,7 +402,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: try temporaryPath()
         )
 
@@ -477,7 +477,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -535,7 +535,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -567,7 +567,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.testRun(
+            try await testRun(
                 schemeName: "ProjectSchemeOne",
                 path: try temporaryPath()
             ),
@@ -611,7 +611,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.testRun(
+            try await testRun(
                 schemeName: "ProjectSchemeOne",
                 path: try temporaryPath()
             ),
@@ -665,7 +665,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -806,7 +806,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: try temporaryPath()
         )
 
@@ -815,14 +815,16 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertStandardOutput(
             pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
         )
-        verify(cacheAnalyticsStore)
-            .testTargets(newValue: .value(["TargetA", "TargetB", "TargetC"]))
-            .setCalled(1)
-        verify(cacheAnalyticsStore)
-            .localTestTargetHits(newValue: .value(["TargetB"]))
-            .setCalled(1)
-        verify(cacheAnalyticsStore)
-            .remoteTestTargetHits(newValue: .value(["TargetC"]))
+        verify(analyticsDelegate)
+            .selectiveTestsAnalytics(
+                newValue: .value(
+                    SelectiveTestsAnalytics(
+                        testTargets: ["TargetA", "TargetB", "TargetC"],
+                        localTestTargetHits: ["TargetB"],
+                        remoteTestTargetHits: ["TargetC"]
+                    )
+                )
+            )
             .setCalled(1)
         verify(cacheStorage)
             .store(
@@ -959,7 +961,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeTwo",
             path: try temporaryPath()
         )
@@ -1039,7 +1041,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOneTests",
             path: try temporaryPath(),
             skipTestTargets: [.init(target: "ProjectSchemeOneTests", class: "TestClass")]
@@ -1100,7 +1102,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // When / Then
         do {
-            try await subject.testRun(
+            try await testRun(
                 path: try temporaryPath()
             )
             XCTFail("Should throw")
@@ -1156,7 +1158,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: try temporaryPath()
         )
 
@@ -1220,7 +1222,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.test())
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
         )
@@ -1275,7 +1277,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.testRun(
+        try await testRun(
             path: try temporaryPath(),
             resultBundlePath: xcresultPath
         )
@@ -1345,7 +1347,7 @@ final class TestServiceTests: TuistUnitTestCase {
         try fileHandler.createFolder(runsCacheDirectory)
 
         // When
-        try await subject.testRun(
+        try await testRun(
             runId: "run-id",
             path: try temporaryPath()
         )
@@ -1411,7 +1413,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.test())
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectScheme2",
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
@@ -1482,7 +1484,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath(),
             retryCount: 3
@@ -1540,7 +1542,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -1631,15 +1633,22 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         var environment = MapperEnvironment()
+        environment.targetCacheItems = [
+            projectPath: [
+                "a": CacheItem.test(
+                    name: "A"
+                ),
+                "b": CacheItem.test(
+                    name: "B"
+                ),
+            ],
+        ]
         environment.initialGraph = graph
         environment.targetTestHashes = [
             projectPath: [
                 "TargetA": "hash-a",
                 "TargetB": "hash-b",
             ],
-        ]
-        environment.targetCacheItems = [
-            projectPath: [:],
         ]
         given(generator)
             .generateWithGraph(path: .any)
@@ -1694,7 +1703,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await subject.testRun(
+        try await testRun(
             schemeName: "TestScheme",
             path: try temporaryPath(),
             testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan)
@@ -1712,14 +1721,19 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
-        verify(cacheAnalyticsStore)
-            .testTargets(newValue: .value(["TargetA"]))
+        verify(analyticsDelegate)
+            .selectiveTestsAnalytics(
+                newValue: .value(
+                    SelectiveTestsAnalytics(
+                        testTargets: ["TargetA"],
+                        localTestTargetHits: [],
+                        remoteTestTargetHits: []
+                    )
+                )
+            )
             .setCalled(1)
-        verify(cacheAnalyticsStore)
-            .localTestTargetHits(newValue: .value([]))
-            .setCalled(1)
-        verify(cacheAnalyticsStore)
-            .remoteTestTargetHits(newValue: .value([]))
+        verify(analyticsDelegate)
+            .cacheItems()
             .setCalled(1)
     }
 
@@ -1780,7 +1794,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let notDefinedTestPlan = "NotDefined"
         do {
             // When
-            try await subject.testRun(
+            try await testRun(
                 schemeName: "TestScheme",
                 path: try temporaryPath(),
                 testPlanConfiguration: TestPlanConfiguration(testPlan: notDefinedTestPlan)
@@ -1809,9 +1823,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
             .willReturn(generator)
     }
-}
 
-extension TestService {
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
@@ -1832,7 +1844,7 @@ extension TestService {
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = []
     ) async throws {
-        try await run(
+        try await subject.run(
             runId: runId,
             schemeName: schemeName,
             clean: clean,
@@ -1852,7 +1864,8 @@ extension TestService {
             ignoreBinaryCache: false,
             ignoreSelectiveTesting: false,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            analyticsDelegate: analyticsDelegate
         )
     }
 }

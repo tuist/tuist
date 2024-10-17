@@ -58,7 +58,17 @@ public final class CommandEventFactory {
             gitRef: gitController.ref(environment: environment),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             targetHashes: info.targetHashes,
-            graphPath: info.graphPath
+            graphPath: info.graphPath,
+            cacheableTargets: info.cacheableTargets,
+            localCacheTargetHits: info.cacheItems
+                .filter { $0.source == .local && $0.cacheCategory == .binaries }
+                .map(\.name),
+            remoteCacheTargetHits: info.cacheItems
+                .filter { $0.source == .remote && $0.cacheCategory == .binaries }
+                .map(\.name),
+            testTargets: info.selectiveTestsAnalytics?.testTargets ?? [],
+            localTestTargetHits: info.selectiveTestsAnalytics?.localTestTargetHits ?? [],
+            remoteTestTargetHits: info.selectiveTestsAnalytics?.remoteTestTargetHits ?? []
         )
         return commandEvent
     }

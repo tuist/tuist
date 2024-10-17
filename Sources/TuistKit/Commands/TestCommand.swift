@@ -223,15 +223,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 "no_binary_cache": AnyCodable(!binaryCache),
                 "no_selective_testing": AnyCodable(!selectiveTesting),
             ]
-            parameters["cacheable_targets"] = AnyCodable(CacheAnalyticsStore.shared.cacheableTargets)
-            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits)
-            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits)
-            parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
-            parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
-            parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
 
-            TestCommand.analyticsDelegate?.targetHashes = CacheAnalyticsStore.shared.targetHashes
-            TestCommand.analyticsDelegate?.graphPath = CacheAnalyticsStore.shared.graphPath
             TestCommand.analyticsDelegate?.addParameters(
                 parameters
             )
@@ -272,7 +264,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            analyticsDelegate: TestCommand.analyticsDelegate
         )
     }
 }
