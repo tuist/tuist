@@ -66,11 +66,18 @@ enum SelectedDevice: Codable, Equatable {
 
 @Observable
 final class DevicesViewModel: Sendable {
-    private(set) var devices: [PhysicalDevice] = []
+    private(set) var devices: [PhysicalDevice] = [] {
+        didSet { categorizeDevices() }
+    }
+
+    private(set) var connectedDevices: [PhysicalDevice] = []
+    private(set) var disconnectedDevices: [PhysicalDevice] = []
 
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
     private(set) var unpinnedSimulators: [SimulatorDeviceAndRuntime] = []
     private(set) var selectedDevice: SelectedDevice?
+
+    private(set) var isRefreshing: Bool = false
 
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
@@ -120,6 +127,19 @@ final class DevicesViewModel: Sendable {
             unpinnedSimulators = (unpinnedSimulators + [simulator]).sorted()
         }
         try? appStorage.set(PinnedSimulatorsKey.self, value: pinnedSimulators)
+    }
+
+    func refreshDevices() async throws {
+        isRefreshing = true
+
+        do {
+            try await onAppear()
+        } catch {
+            isRefreshing = false
+            throw error
+        }
+
+        isRefreshing = false
     }
 
     func onAppear() async throws {
@@ -221,6 +241,20 @@ final class DevicesViewModel: Sendable {
             try await deviceController.installApp(at: app.path, device: device)
             try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
         }
+    }
+
+    private func categorizeDevices() {
+        (connectedDevices, disconnectedDevices) = devices
+            .reduce(
+                into: (connected: [PhysicalDevice](), disconnected: [PhysicalDevice]())
+            ) { partialResult, device in
+                switch device.connectionState {
+                case .connected:
+                    partialResult.connected.append(device)
+                case .disconnected:
+                    partialResult.disconnected.append(device)
+                }
+            }
     }
 }
 
