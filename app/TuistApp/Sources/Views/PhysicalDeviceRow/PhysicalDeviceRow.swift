@@ -49,11 +49,16 @@ struct PhysicalDeviceRow: View {
             }
             Spacer()
 
-            if device.transportType == .wifi {
-                Image(systemName: "network")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+            Group {
+                switch device.transportType {
+                case .wifi:
+                    Image(systemName: "network")
+                case .usb, .unknown:
+                    EmptyView()
+                }
             }
+            .font(.title3)
+            .foregroundStyle(.secondary)
         }
         .menuItemStyle()
         .onTapGesture {

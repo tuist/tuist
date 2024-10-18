@@ -231,6 +231,87 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         XCTAssertEqual(subject.unpinnedSimulators, [iPhone15Pro])
     }
 
+    func test_refreshDevices() async throws {
+        // Given
+        appStorage.reset()
+        deviceController.reset()
+        simulatorController.reset()
+
+        given(appStorage)
+            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
+            .willReturn([])
+
+        given(appStorage)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(nil)
+
+        given(simulatorController)
+            .devicesAndRuntimes()
+            .willReturn([])
+
+        var iPhone11 = PhysicalDevice.test(
+            name: "iPhone 11",
+            transportType: .wifi,
+            connectionState: .disconnected
+        )
+
+        var iPhone12 = PhysicalDevice.test(
+            name: "iPhone 12",
+            transportType: .wifi,
+            connectionState: .connected
+        )
+
+        var watchS9 = PhysicalDevice.test(
+            name: "Watch S9",
+            transportType: .unknown,
+            connectionState: .disconnected
+        )
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([iPhone11, iPhone12, watchS9])
+
+        // When
+        try await subject.onAppear()
+
+        // Then
+        XCTAssertEqual(subject.connectedDevices, [iPhone12])
+        XCTAssertEqual(subject.disconnectedDevices, [iPhone11, watchS9])
+
+        // Given
+        deviceController.reset([.given])
+
+        iPhone11 = iPhone11.modified(
+            transportType: .usb,
+            connectionState: .connected
+        )
+
+        iPhone12 = iPhone12.modified(
+            transportType: .wifi,
+            connectionState: .disconnected
+        )
+
+        watchS9 = watchS9.modified(
+            transportType: .wifi,
+            connectionState: .connected
+        )
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([iPhone11, iPhone12, watchS9])
+
+        given(appStorage)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(nil)
+
+        // When
+        try await subject.refreshDevices()
+
+        // Then
+        XCTAssertEqual(subject.connectedDevices, [iPhone11, watchS9])
+        XCTAssertEqual(subject.disconnectedDevices, [iPhone12])
+    }
+
     func test_selectSimulator() async throws {
         // Given
         try await subject.onAppear()

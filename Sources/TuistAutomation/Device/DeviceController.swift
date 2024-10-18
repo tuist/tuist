@@ -181,12 +181,12 @@ extension PhysicalDevice {
         let transportType: PhysicalDevice.TransportType = switch device.connectionProperties.transportType {
         case .localNetwork: .wifi
         case .wired: .usb
-        default: .unknown
+        case .none: .unknown
         }
 
         let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
         case .connected: .connected
-        default: .disconnected
+        case .disconnected, .unavailable: .disconnected
         }
 
         self.init(

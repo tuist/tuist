@@ -41,5 +41,21 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
                 connectionState: connectionState
             )
         }
+
+        public func modified(
+            name: String? = nil,
+            osVersion: String? = nil,
+            transportType: TransportType? = nil,
+            connectionState: ConnectionState? = nil
+        ) -> PhysicalDevice {
+            .init(
+                id: id,
+                name: name ?? self.name,
+                platform: platform,
+                osVersion: osVersion ?? self.osVersion,
+                transportType: transportType ?? self.transportType,
+                connectionState: connectionState ?? self.connectionState
+            )
+        }
     }
 #endif

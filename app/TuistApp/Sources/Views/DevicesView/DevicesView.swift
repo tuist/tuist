@@ -9,8 +9,18 @@ import TuistSupport
 struct DevicesView: View, ErrorViewHandling {
     @State var viewModel = DevicesViewModel()
     @EnvironmentObject var errorHandling: ErrorHandling
-    @State var isRefreshing = false
+
     @State var isExpanded = false
+
+    @State private var rotationDegrees = 0.0
+    @State private var isRefreshing = false {
+        didSet {
+            if isRefreshing {
+                refreshControlNextTurn()
+            }
+        }
+    }
+
     private var cancellables = Set<AnyCancellable>()
 
     init(appDelegate: AppDelegate) {
@@ -75,47 +85,35 @@ struct DevicesView: View, ErrorViewHandling {
                 Text("Devices")
                     .font(.headline)
                     .fontWeight(.medium)
-                    .padding(.leading, 4)
 
                 Spacer()
 
                 Button {
-                    withAnimation(.linear(duration: 0.8)) {
-                        isRefreshing = true
-                        Task {
-                            try await viewModel.onAppear()
-                            await MainActor.run {
-                                isRefreshing = false
-                            }
+                    isRefreshing = true
+                    Task {
+                        do {
+                            try await viewModel.refreshDevices()
+                        } catch {
+                            errorHandling.handle(error: error)
                         }
                     }
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.headline)
                         .fontWeight(.medium)
-                        .rotationEffect(isRefreshing ? .degrees(360) : .zero)
+                        .frame(width: 20, height: 20)
+                        .rotationEffect(.degrees(rotationDegrees))
                 }
                 .buttonStyle(.borderless)
                 .disabled(isRefreshing)
             }
+            .padding(.horizontal, 4)
 
             Divider()
 
-            let (connectedDevices, disconnectedDevices) = viewModel.devices
-                .reduce(
-                    into: (connected: [PhysicalDevice](), disconnected: [PhysicalDevice]())
-                ) { partialResult, device in
-                    switch device.connectionState {
-                    case .connected:
-                        partialResult.connected.append(device)
-                    case .disconnected:
-                        partialResult.disconnected.append(device)
-                    }
-                }
-
             VStack(alignment: .leading, spacing: 0) {
-                deviceList("Connected", devices: connectedDevices)
-                deviceList("Disconnected", devices: disconnectedDevices)
+                deviceList("Connected", devices: viewModel.connectedDevices)
+                deviceList("Disconnected", devices: viewModel.disconnectedDevices)
 
                 if !viewModel.pinnedSimulators.isEmpty {
                     Text("Simulators")
@@ -173,6 +171,19 @@ struct DevicesView: View, ErrorViewHandling {
                 viewModel.selectSimulator(simulator)
             } onPinned: { simulator, pinned in
                 viewModel.simulatorPinned(simulator, pinned: pinned)
+            }
+        }
+    }
+
+    private func refreshControlNextTurn() {
+        withAnimation(.linear(duration: 0.8)) {
+            rotationDegrees += 360
+        } completion: {
+            if viewModel.isRefreshing {
+                refreshControlNextTurn()
+            } else {
+                isRefreshing = false
+                rotationDegrees = .zero
             }
         }
     }
