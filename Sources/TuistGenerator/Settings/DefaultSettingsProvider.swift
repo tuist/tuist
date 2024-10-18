@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -14,7 +15,8 @@ public protocol DefaultSettingsProviding {
     func targetSettings(
         target: Target,
         project: Project,
-        buildConfiguration: BuildConfiguration
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
     ) async throws -> SettingsDictionary
 }
 
@@ -124,7 +126,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     public func targetSettings(
         target: Target,
         project: Project,
-        buildConfiguration: BuildConfiguration
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
     ) async throws -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         if target.isMultiplatform {
@@ -134,7 +137,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                     target: target,
                     project: project,
                     platform: platform,
-                    buildConfiguration: buildConfiguration
+                    buildConfiguration: buildConfiguration,
+                    graphTraverser: graphTraverser
                 )
 
                 let filteredSettings = platformSetting
@@ -147,7 +151,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 target: target,
                 project: project,
                 platform: platform,
-                buildConfiguration: buildConfiguration
+                buildConfiguration: buildConfiguration,
+                graphTraverser: graphTraverser
             )
         }
 
@@ -158,7 +163,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         target: Target,
         project: Project,
         platform: Platform,
-        buildConfiguration: BuildConfiguration
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
     ) async throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
@@ -190,6 +196,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: mergeableSettings)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
+        settingsHelper.extend(
+            buildSettings: &settings,
+            with: testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)
+        )
         return settings.filter(filter)
     }
 
@@ -260,6 +270,35 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         } else {
             return [:]
         }
+    }
+
+    private func testBundleTargetDerivedSettings(
+        target: Target,
+        graphTraverser: GraphTraversing,
+        projectPath: AbsolutePath
+    ) -> SettingsDictionary {
+        guard target.product.testsBundle else {
+            return [:]
+        }
+
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
+        let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
+
+        guard let app = appDependency else {
+            return [:]
+        }
+
+        var settings: SettingsDictionary = [:]
+        settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
+        if target.product == .unitTests {
+            settings["TEST_HOST"] =
+                .string(
+                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
+                )
+            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+        }
+
+        return settings
     }
 }
 

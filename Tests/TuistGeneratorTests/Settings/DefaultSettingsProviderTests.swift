@@ -240,7 +240,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -262,7 +263,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -283,7 +285,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -304,7 +307,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -326,7 +330,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -353,7 +358,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -379,7 +385,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -405,7 +412,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -529,7 +537,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -550,7 +559,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: .debug
+            buildConfiguration: .debug,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -576,7 +586,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -601,7 +612,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -627,7 +639,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -659,7 +672,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -685,7 +699,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -707,7 +722,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -732,7 +748,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -759,7 +776,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -786,7 +804,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -813,7 +832,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -835,7 +855,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -861,7 +882,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -887,7 +909,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -913,7 +936,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -939,7 +963,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -969,11 +994,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
         XCTAssertEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
+    }
+
+    private func graphTraverser(project: Project) -> GraphTraverser {
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        return graphTraverser
     }
 }
 
@@ -1028,7 +1060,8 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
@@ -1054,11 +1087,18 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser(project: project)
         )
 
         // Then
         XCTAssertEqual(got, macroTargetEssentialReleaseSettings)
+    }
+
+    private func graphTraverser(project: Project) -> GraphTraverser {
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        return graphTraverser
     }
 }
 

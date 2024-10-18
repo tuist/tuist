@@ -166,7 +166,8 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = try await defaultSettingsProvider.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser
         )
 
         updateTargetDerived(
