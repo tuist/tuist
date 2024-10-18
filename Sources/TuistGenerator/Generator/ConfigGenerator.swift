@@ -166,7 +166,8 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = try await defaultSettingsProvider.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser
         )
 
         updateTargetDerived(
@@ -222,10 +223,6 @@ final class ConfigGenerator: ConfigGenerating {
                 project: project
             )
         ) { $1 }
-        settings
-            .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
-                $1
-            }
         settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
@@ -297,35 +294,6 @@ final class ConfigGenerator: ConfigGenerating {
             settings["MERGED_BINARY_TYPE"] = .string("automatic")
         case .manual:
             settings["MERGED_BINARY_TYPE"] = .string("manual")
-        }
-
-        return settings
-    }
-
-    private func testBundleTargetDerivedSettings(
-        target: Target,
-        graphTraverser: GraphTraversing,
-        projectPath: AbsolutePath
-    ) -> SettingsDictionary {
-        guard target.product.testsBundle else {
-            return [:]
-        }
-
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
-        let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
-
-        guard let app = appDependency else {
-            return [:]
-        }
-
-        var settings: SettingsDictionary = [:]
-        settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
-        if target.product == .unitTests {
-            settings["TEST_HOST"] =
-                .string(
-                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
-                )
-            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
         }
 
         return settings
