@@ -465,7 +465,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.19.0"),
-        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.12.0")),
+        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.13.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
         .package(
