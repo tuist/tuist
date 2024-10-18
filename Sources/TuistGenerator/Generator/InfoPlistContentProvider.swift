@@ -130,17 +130,29 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     }
 
     func bundleExecutable(_ target: Target) -> [String: Any] {
-        // Bundles on iOS, tvOS, and watchOS do not support sources so we exclude `CFBundleExecutable`
-        let shouldIncludeBundleExecutableKey = target
-            .product != .bundle || (target.product == .bundle && target.isExclusiveTo(.macOS))
-
-        if shouldIncludeBundleExecutableKey {
+        if shouldIncludeBundleExecutable(for: target) {
             return [
                 "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             ]
         } else {
             return [:]
         }
+    }
+
+    private func shouldIncludeBundleExecutable(for target: Target) -> Bool {
+        // Bundles on iOS, tvOS, and watchOS do not support sources so we exclude `CFBundleExecutable`
+        if target.product != .bundle {
+            return true
+        }
+
+        if !target.isExclusiveTo(.macOS) {
+            return false
+        }
+
+        // For macOS, we should additionally check if there are sources in it
+        let hasSources = !target.sources.isEmpty
+
+        return hasSources
     }
 
     /// Returns the default Info.plist content that iOS apps should have.
