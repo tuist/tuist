@@ -5,7 +5,7 @@ description: Learn how to gather insights about your project.
 
 # Gather insights
 
-Tuist can integrate with a server to extend its capabilities. One of those capabilities is gathering insights about your project and builds. All you need is to have an account with a project in the server. 
+Tuist can integrate with a server to extend its capabilities. One of those capabilities is gathering insights about your project and builds. All you need is to have an account with a project in the server.
 
 First of all, you'll need to authenticate by running:
 
@@ -39,7 +39,6 @@ Voilà! You're now ready to gather insights about your project and builds. Run `
 
 > [!NOTE]
 > Tuist enqueues the results locally and tries to send them without blocking the command. Therefore, they might not be sent immediately after the command finishes. In CI, the results are sent immediately.
-
 
 ![An image that shows a list of runs in the server](./images/runs.png)
 
