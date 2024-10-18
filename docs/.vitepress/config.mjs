@@ -106,6 +106,48 @@ export default defineConfig({
         },
       },
     },
+    ja: {
+      label: "Korean",
+      lang: "ja",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/ja/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/ja/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/ja/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/ja/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/ja/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/ja/contributors": contributorsSidebar("ja"),
+          "/ja/guides/": guidesSidebar("ja"),
+          "/ja/server/": serverSidebar("ja"),
+          "/ja/": guidesSidebar("ja"),
+          "/ja/cli/": await loadCLIData("ja"),
+          "/ja/references/": await referencesSidebar("ja"),
+        },
+      },
+    },
   },
   cleanUrls: true,
   head: [

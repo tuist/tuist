@@ -18,4 +18,4 @@ When running tests with [`tuist test`](/ko/guides/develop/test), Tuist persists 
 
 In the project dashboard, you can see a list of flaky tests along with the test runs whose result bundles you can download to investigate the flakiness. For example, the image below shows a test case, `test_create_list_and_revoke_project_token`, that has been flagged as flaky:
 
-<img src="./images/flaky-test-case.png" alt="An image that shows the Tuist dashboard where one can see a test case named test_create_list_and_revoke_project_token and all their test runs where one of them shows as failing."/>
+<img src="/images/guides/develop/test/flaky-test-case.png" alt="An image that shows the Tuist dashboard where one can see a test case named test_create_list_and_revoke_project_token and all their test runs where one of them shows as failing."/>
