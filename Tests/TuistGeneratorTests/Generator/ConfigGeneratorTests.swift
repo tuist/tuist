@@ -998,8 +998,35 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateTargetConfig_when_defaultSettingsIsRecommendedWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
-        let settings = Settings.test(defaultSettings: .essential(excluding: ["TEST_HOST"]))
-        try await generateTestTargetConfigTestHostSettings(settings)
+        // Given
+        let settings = Settings.test(defaultSettings: .recommended(excluding: ["TEST_HOST"]))
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
         let targetSettingsResult = try pbxTarget
             .buildConfigurationList?
             .buildConfigurations
@@ -1010,9 +1037,35 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateTargetConfig_when_defaultSettingsIsEssentialWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+        // Given
         let settings = Settings.test(defaultSettings: .essential(excluding: ["TEST_HOST"]))
-        try await generateTestTargetConfigTestHostSettings(settings)
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
 
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
         let targetSettingsResult = try pbxTarget
             .buildConfigurationList?
             .buildConfigurations
@@ -1023,9 +1076,35 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateTargetConfig_when_defaultSettingsIsNoneWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+        // Given
         let settings = Settings.test(defaultSettings: .none)
-        try await generateTestTargetConfigTestHostSettings(settings)
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
 
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
         let targetSettingsResult = try pbxTarget
             .buildConfigurationList?
             .buildConfigurations
@@ -1165,34 +1244,6 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             fileElements: .init(),
             graphTraverser: graphTraverser,
             sourceRootPath: dir
-        )
-    }
-
-    private func generateTestTargetConfigTestHostSettings(_ settings: Settings) async throws {
-        let appTarget = Target.test(name: "App", product: .app)
-        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
-        let project = Project.test(name: "Project", targets: [target, appTarget])
-
-        let graph = Graph.test(
-            name: project.name,
-            path: project.path,
-            projects: [project.path: project],
-            dependencies: [
-                GraphDependency
-                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
-            ]
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        _ = try await subject.generateTargetConfig(
-            target,
-            project: project,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            projectSettings: project.settings,
-            fileElements: .init(),
-            graphTraverser: graphTraverser,
-            sourceRootPath: try AbsolutePath(validating: "/project")
         )
     }
 
