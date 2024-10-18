@@ -1,12 +1,12 @@
 ---
 title: Issue reporting
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: ':title - Contribute to Tuist'
 description: Learn how to contribute to Tuist by reporting bugs
 ---
 
 # Issue reporting
 
-As user of Tuist, you might come across bugs or unexpected behaviors.
+As user of Tuist, you might come across bugs or unexpected behaviors. 
 If you do, we encourage you to report them so that we can fix them.
 
 ## GitHub issues is our ticketing platform

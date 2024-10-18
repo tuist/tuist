@@ -34,7 +34,7 @@ Tuist provides commands for the most common tasks you'll need to perform on your
 tuist build
 ```
 
-Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features.
+Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features. 
 
 ## Test the app
 

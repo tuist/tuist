@@ -1,6 +1,6 @@
 ---
 title: Dependencies
-titleTemplate: :title | Projects | Tuist
+titleTemplate: ":title | Projects | Tuist"
 description: Learn how to declare dependencies in your Tuist project.
 ---
 
@@ -52,12 +52,10 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 
 > [!TIP] ENFORCING EXPLICIT DEPENDENCIES
 > We have an experimental feature to enforce explicit dependencies in Xcode. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
->
 > ```swift
 > import ProjectDescription
 > let config = Config(generationOptions: .options(enforceExplicitDependencies: true))
 > ```
-
 <!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
 
 ## External dependencies
@@ -74,14 +72,13 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like [caching](/en/guides/develop/build/cache) and [smart test runs](/en/guides/develop/test/smart-runner).
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like [caching](/ko/guides/develop/build/cache) and [smart test runs](/ko/guides/develop/test/smart-runner).
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
 To add external dependencies, you'll have to create a `Package.swift` either under `Tuist/` or at the root of the project.
 
 ::: code-group
-
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -106,7 +103,6 @@ let package = Package(
     ]
 )
 ```
-
 :::
 
 > [!TIP] PACKAGE SETTINGS
@@ -125,7 +121,6 @@ As you might have noticed, we take an approach similar to [CocoaPods](https://co
 From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
 
 ::: code-group
-
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -148,7 +143,6 @@ let project = Project(
     ]
 )
 ```
-
 :::
 
 > [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
@@ -259,7 +253,7 @@ The **general rule of thumb** is that you want as many things as possible to be 
 
 The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
 
-Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes [bundle accessors](/en/guides/develop/projects/synthesized-files#bundle-accessors) that are standard across linking types. In combination with [dynamic configurations via environment variables](/en/guides/develop/projects/dynamic-configuration), you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
+Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes [bundle accessors](/ko/guides/develop/projects/synthesized-files#bundle-accessors) that are standard across linking types. In combination with [dynamic configurations via environment variables](/ko/guides/develop/projects/dynamic-configuration), you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -272,7 +266,7 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist [does not default to convenience through implicit configuration due to its costs](/en/guides/develop/projects/cost-of-convenience). What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
+Note that Tuist [does not default to convenience through implicit configuration due to its costs](/ko/guides/develop/projects/cost-of-convenience). What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
 > [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
 > A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.

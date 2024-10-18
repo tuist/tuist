@@ -16,14 +16,13 @@ Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that wou
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
-
 :::
 
 > [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
 > If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
 
 > [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the [installation guide](/en/guides/quick-start/install-tuist#alternative-homebrew).
+> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the [installation guide](/ko/guides/quick-start/install-tuist#alternative-homebrew).
 
 ### Dropped `init` constructors from `ProjectDescription` models
 
@@ -42,11 +41,12 @@ We renamed the `tuist fetch` command to `tuist install` to align with the indust
 
 ### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862)
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies [here](/en/guides/develop/projects/dependencies#swift-packages)
+Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies [here](/ko/guides/develop/projects/dependencies#swift-packages)
 
 ### Renamed `tuist cache warm` to `tuist cache`
 
 For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
+
 
 ### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes`
 
@@ -69,15 +69,13 @@ tuist generate --skip-cache Foo
 ```bash [After]
 tuist generate Foo
 ```
-
 :::
 
 ### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716)
 
 Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
-
-- A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
-- A script that can take an existing profiles and certificates and encrypt them.
+  - A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
+  - A script that can take an existing profiles and certificates and encrypt them.
 
 > [!TIP] SIGNING REQUIREMENTS
 > Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.

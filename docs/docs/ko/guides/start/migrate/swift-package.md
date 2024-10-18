@@ -11,7 +11,7 @@ Swift Package Manager emerged as a dependency manager for Swift code that uninen
 
 We often come across developers and organizations that challenge the need for Tuist considering that Swift Package Manager can take a similar project management role. Some venture into a migration to later on realize that their developer experience has degraded signicantly. For instance, the rename of a file might take up to 15 seconds to re-index. 15 seconds!
 
-**Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which [as you might know,](/en/guides/develop/projects/cost-of-convenience) is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
+**Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which [as you might know,](/ko/guides/develop/projects/cost-of-convenience) is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
 
 > [!TIP] SPM AS JUST A DEPENDENCY MANAGER
 > Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that.
@@ -53,11 +53,11 @@ import ProjectDescription
 let config = Config()
 ```
 
-The `Config.swift` contains the configuration for your project and its directory, `Tuist`, serves as a reference to determine the root of your project. You can check out the [directory structure](/en/guides/develop/projects/directory-structure) document to learn more about the structure of Tuist projects.
+The `Config.swift` contains the configuration for your project and its directory, `Tuist`, serves as a reference to determine the root of your project. You can check out the [directory structure](/ko/guides/develop/projects/directory-structure) document to learn more about the structure of Tuist projects.
 
 ## Editing the project
 
-You can use [`tuist edit`](/en/guides/develop/projects/editing) to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
+You can use [`tuist edit`](/ko/guides/develop/projects/editing) to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
 
 ```bash
 tuist edit

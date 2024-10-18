@@ -1,6 +1,6 @@
 ---
 title: Code reviews
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: ':title - Contribute to Tuist'
 description: Learn how to contribute to Tuist by reviewing code
 ---
 

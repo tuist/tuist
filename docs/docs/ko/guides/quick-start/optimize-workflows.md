@@ -49,7 +49,7 @@ And they'll suddenly get a project with the dependencies as binaries.
 
 ## Optimizations on CI
 
-If want to access those optimizations on CI,
+If want to access those optimizations on CI, 
 you'll have to generate a project-scoped token to authenticate requests in the CI environment.
 
 ```bash

@@ -1,6 +1,6 @@
 ---
 title: Principles
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: ':title - Contribute to Tuist'
 description: This document describes the principles that guide the development of Tuist.
 ---
 
@@ -18,7 +18,7 @@ The reason why we default to conventions is that the more decision we can make o
 
 ## Manifests are the source of truth
 
-Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the `.xcodeproj` directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. _How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?_
+Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the `.xcodeproj` directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. *How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?*
 
 We can simplify this by having a single source of truth, the manifest files. Those files provide Tuist with the information that it needs to generate Xcode projects that developers can use to edit their files. Moreover, it allows having standard commands for building projects from a local or CI environment.
 
@@ -43,13 +43,13 @@ One of the main challenges when scaling Xcode projects comes from the fact that 
 
 Xcode is a great tool, but so many years of improvements, new platforms, and programming languages, are reflected on their surface, which struggled to remain simple.
 
-Tuist should take the opportunity to keep things simple because working on simple things is fun and motivates us. No one wants to spend time trying to debug an error that happens at the very end of the compilation process, or understanding why they are not able to run the app on their devices. Xcode delegates the tasks to its underlying build system and in some cases it does a very poor job translating errors into actionable items. Have you ever got a _“framework X not found”_ error and you didn’t know what to do? Imagine if we got a list of potential root causes for the bug.
+Tuist should take the opportunity to keep things simple because working on simple things is fun and motivates us. No one wants to spend time trying to debug an error that happens at the very end of the compilation process, or understanding why they are not able to run the app on their devices. Xcode delegates the tasks to its underlying build system and in some cases it does a very poor job translating errors into actionable items. Have you ever got a *“framework X not found”* error and you didn’t know what to do? Imagine if we got a list of potential root causes for the bug.
 
 ## Start from the developer’s experience
 
 Part of the reason why there is a lack of innovation around Xcode, or put differently, not as much as in other programming environments, is because **we often start analyzing problems from existing solutions.** As a consequence, most of the solutions that we find nowadays revolve around the same ideas and workflows. While it’s good to include existing solutions in the equations, we should not let them constrain our creativity.
 
-We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in [this podcast](https://tom.preston-werner.com/): _“Most things can be achieved, whatever you have in your head you can probably pull off with code as long as is possible within the constrains of the universe”._ If **we imagine how we’d like the developer experience to be**, it’s just a matter of time to pull it off — by starting to analyze the problems from the developer experience gives us a unique point of view that will lead us to solutions that users will love to use.
+We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in [this podcast](https://tom.preston-werner.com/): *“Most things can be achieved, whatever you have in your head you can probably pull off with code as long as is possible within the constrains of the universe”.* If **we imagine how we’d like the developer experience to be**, it’s just a matter of time to pull it off — by starting to analyze the problems from the developer experience gives us a unique point of view that will lead us to solutions that users will love to use.
 
 We might feel tempted to follow what everyone is doing, even if that means sticking with the inconveniences that everyone continues to complain about. Let’s not do that. How do I imagine archiving my app? How would I love code signing to be? What processes can I help streamline with Tuist? For example, adding support for [Fastlane](https://fastlane.tools/) is a solution to a problem that we need to understand first. We can get to the root of the problem by asking “why” questions. Once we narrow down where the motivation comes from, we can think of how Tuist can help them best. Maybe the solution is integrating with Fastlane, but it’s important we don’t disregard other equally valid solutions that we can put on the table before making trade-offs.
 
