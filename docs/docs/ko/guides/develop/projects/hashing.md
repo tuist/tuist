@@ -1,12 +1,12 @@
 ---
 title: Hashing
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built.
 ---
 
 # Hashing
 
-Features like [caching](/ko/guides/develop/build/cache) or smart test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
+Features like [caching](/en/guides/develop/build/cache) or smart test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
 
 - The target's attributes (e.g., name, platform, product, etc.)
 - The target's files
@@ -14,7 +14,7 @@ Features like [caching](/ko/guides/develop/build/cache) or smart test execution 
 
 ### Cache attributes
 
-Additionally, when calculating the hash for [caching](/ko/guides/develop/build/cache), we also hash the following attributes.
+Additionally, when calculating the hash for [caching](/en/guides/develop/build/cache), we also hash the following attributes.
 
 #### Swift version
 
@@ -24,7 +24,6 @@ We hash the Swift version obtained from running the command `/usr/bin/xcrun swif
 > Previous versions of binary caching relied on the `BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support) and enable using binaries with any compiler version. However, it caused compilation issues in projects with targets that don't support module stability. Generated binaries are bound to the Swift version used to compile them, and the Swift version must match the one used to compile the project.
 
 #### Configuration
-
 
 The idea behind this flag was to ensure debug binaries were not used in release builds and viceversa. However, we are still missing a mechanism to remove the other configurations from the projects to prevent them from being used.
 
