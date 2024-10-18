@@ -13,16 +13,16 @@ To use the server, you'll need an account. There are two types of accounts:
 - **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
 - **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a *handle* that's used when constructing URLs.
+If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a _handle_ that's used when constructing URLs.
 
 > [!NOTE] CLI-FIRST
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
-You can manage the organization through the subcommands under [`tuist organization`](/ko/cli/organization).
+You can manage the organization through the subcommands under [`tuist organization`](/en/cli/organization).
 
 ## Projects
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the [`tuist project`](/ko/cli/project) to create and manage projects.
+Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the [`tuist project`](/en/cli/project) to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
@@ -33,6 +33,6 @@ let config = Config(fullHandle: "{account-handle}/{project-handle}") // e.g. tui
 ```
 
 > [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
-> Note that there are some features like [binary caching](/ko/guides/develop/build/cache) that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+> Note that there are some features like [binary caching](/en/guides/develop/build/cache) that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
 
 Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist), where `tuist/tuist` is the project's full handle.
