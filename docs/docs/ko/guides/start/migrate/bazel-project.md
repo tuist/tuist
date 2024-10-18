@@ -15,6 +15,7 @@ description: Learn how to migrate your projects from Bazel to Tuist.
 Bazel uses rules to define how to build and test software. The rules are written in [Starlark](https://github.com/bazelbuild/starlark), a Python-like language. Tuist uses Swift as a configuration language, which provides developers with the convenience of using Xcode's autocompletion, type-checking, and validation features. For example, the following rule describes how to build a Swift library in Bazel:
 
 ::: code-group
+
 ```starlark [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
@@ -31,11 +32,13 @@ let project = Project(
     ]
 )
 ```
+
 :::
 
 Here's another example but compating how to define unit tests in Bazel and Tuist:
 
 :::code-group
+
 ```starlark [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
@@ -46,6 +49,7 @@ ios_unit_test(
 )
 
 ```
+
 ```swift [Project.swift (Tuist)]
 let project = Project(
     // ...
@@ -63,8 +67,8 @@ let project = Project(
     ]
 )
 ```
-:::
 
+:::
 
 ## Swift Package Manager dependencies
 
