@@ -1280,6 +1280,41 @@ defmodule Tuist.CommandEventsTest do
 
       assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
     end
+
+    test "creates test case runs when module hashes are missing" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      CommandEvents.create_test_cases(%{
+        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        command_event: command_event
+      })
+
+      test_case =
+        CommandEvents.get_test_case_by_identifier(
+          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+        )
+
+      CommandEventsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        status: :failure,
+        flaky: false
+      )
+
+      # When
+      CommandEvents.create_test_case_runs(%{
+        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        command_event: command_event,
+        modules: %{}
+      })
+
+      # The
+      test_case_runs =
+        from(t in TestCaseRun, where: t.command_event_id == ^command_event.id)
+        |> Repo.all()
+
+      assert length(test_case_runs) == 5
+    end
   end
 
   describe "get_command_events_by_name_git_ref_and_remote/1" do

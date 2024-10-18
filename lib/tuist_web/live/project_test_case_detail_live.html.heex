@@ -36,7 +36,9 @@
         <.command_event_ran_by_badge command_event={test_case_run.command_event} />
       </:col>
       <:col :let={test_case_run} label={gettext("Module hash")}>
-        <%= test_case_run.module_hash %>
+        <%= if is_nil(test_case_run.module_hash),
+          do: gettext("Unknown"),
+          else: test_case_run.module_hash %>
       </:col>
       <:col :let={test_case_run} label={gettext("Ran at")}>
         <%= Timex.from_now(test_case_run.inserted_at) %>

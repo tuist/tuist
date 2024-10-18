@@ -35,7 +35,6 @@ defmodule Tuist.CommandEvents.TestCaseRun do
       :inserted_at
     ])
     |> validate_required([
-      :module_hash,
       :status,
       :command_event_id,
       :test_case_id

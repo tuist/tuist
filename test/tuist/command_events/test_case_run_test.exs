@@ -21,13 +21,12 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       assert "can't be blank" in errors_on(got).test_case_id
     end
 
-    test "changeset is not valid if module_hash is not specified" do
+    test "changeset is valid if module_hash is not specified" do
       # When
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(module_hash: nil))
 
       # Then
-      assert got.valid? == false
-      assert "can't be blank" in errors_on(got).module_hash
+      assert got.valid? == true
     end
 
     test "changeset is not valid if status is not specified" do
