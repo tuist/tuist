@@ -1,24 +1,24 @@
 ---
-title: Tuist란?
-description: Apple의 기본 도구를 확장하여 더 나은 앱을 효과적으로 개발하세요.
+title: What is Tuist?
+description: Extend your Apple native tooling to better apps at scale.
 ---
 
-# Tuist  
+# Tuist
 
-앱 개발의 세계에서, 특히 Apple과 같은 플랫폼의 경우 조직은 종종 **생산성 장애물**에 부딪히게 됩니다. 여기에는 느린 컴파일 시간, 신뢰할 수 없는 테스트, 리소스를 소모하는 복잡한 자동화 워크플로우 등이 포함됩니다. 이러한 문제를 해결하기 위해 기업은 보통 플랫폼 전담 팀을 운영합니다. 이 팀의 전문가는 코드베이스의 상태와 무결성을 유지하여 다른 개발자가 기능 개발에 집중할 수 있도록 합니다. 하지만 이러한 접근 방식은 핵심 팀원이 이탈하면 생산성에 심각한 영향을 미칠 수 있기 때문에 비용이 많이 들고 위험할 수 있습니다.  
+In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
 
-**Tuist는 앱 개발을 가속화하고 향상시키기 위해 설계된 툴체인입니다.** Tuist는 공식 도구 및 시스템과 원활하게 통합되어  개발자들이 익숙한 환경에서 작업할 수 있도록 돕습니다. 이를 통해 도구와 시스템 통합의 복잡함을 줄여주고, 팀이 기능 개발과 전반적인 개발자 경험 개선에 더 많은 에너지를 쏟을 수 있도록 지원합니다. 본질적으로 Tuist는 가상의 플랫폼 팀의 역할을 합니다. 앱 아이디어의 구상 단계부터 사용자에게 출시되는 전 과정에서 발생하는 문제를 해결해줍니다.
+**Tuist is a toolchain designed to accelerate and enhance app development.** We integrate seamlessly with official tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the overall developer experience. In essence, Tuist serves as your virtual platform team. We're with you every step of the way - from the spark of an app idea to its user launch - tackling challenges as they arise.
 
-Tuist는 개발자를 위한 주요 진입점인 [**CLI와**](https://github.com/tuist/tuist) CLI가 상태를 유지하고 다른 외부 서비스와 통합될 수 있도록 지원하는 서버로 구성되어 있습니다. 서버에 관련된 기능들은 구독이 필요할 수 있습니다.
-  
-## 왜 Tuist를 사용해야 하나요?
+Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
 
-왜 Tuist를 선택해야 할까요? 다음과 같은 강력한 이유가 있습니다:  
+## Why would I use Tuist?
 
-- **모듈화 간소화:** 프로젝트가 성장하고 여러 플랫폼에 걸쳐 확장됨에 따라 모듈화가 중요해집니다. Tuist는 이러한 복잡성을 간소화하여 프로젝트 구조를 최적화하고 더 잘 이해할 수 있는 도구를 제공합니다.
-- **워크플로우 최적화**: Tuist는 프로젝트 정보를 활용하여 선택적 테스트 실행 및 빌드 간 결정론적 바이너리(Deterministic Binary) 재사용을 통해 효율성을 향상시킵니다.
-- **건강한 프로젝트 진화 촉진**: 프로젝트의 동향을 파악하고, 정보에 근거한 의사 결정을 위한 전문가의 가이드를 제공합니다. 이러한 접근 방식은 개발자의 이탈과 비즈니스 목표 누락으로 이어질 수 있는 건강하지 않은 프로젝트와 관련된 좌절감과 생산성 손실을 방지합니다.
-- **비용이 많이 드는 플랫폼 팀을 교체하세요**: 비용이 많이 들고 잠재적으로 위험할 수 있는 사내 플랫폼 팀에 투자하는 대신 Tuist를 가상 전문가로 활용하세요. 핵심 개인에게 의존하는 취약점 없이 일관된 지원을 제공합니다.
-- **사일로 해체**: 플랫폼별 에코시스템(예: Xcode의 폐쇄적인 환경)과 달리 Tuist는 웹 중심 환경을 제공하며 Slack, Prometheus, GitHub와 같은 인기 도구와 원활하게 통합되어 도구 간 협업을 강화합니다.  
+Why choose Tuist? Here are compelling reasons:
 
-Tuist와 프로젝트, 회사에 대해 더 자세히 알고 싶으시다면 당사의 비전, 가치, 팀에 대한 자세한 정보가 담긴 [핸드북](https://handbook.tuist.io/) 을 확인해보세요.
+- **Simplify modularization:** As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
+- **Optimize workflows:** Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds.
+- **Foster healthy project evolution:** We provide insights into your project's dynamics and expert guidance for informed decision-making. This approach prevents the frustration and productivity loss associated with unhealthy projects, which can lead to developer attrition and missed business goals.
+- **Replace costly platform teams:** Instead of investing in expensive, potentially risky in-house platform teams, let Tuist be your virtual expert. We offer consistent support without the vulnerabilities of relying on key individuals.
+- **Break down silos:** Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
+
+If you want to know more about Tuist, the project, and the company, you can check out our [handbook](https://handbook.tuist.io/), which contains detailed information about our vision, values, and the team behind Tuist.
