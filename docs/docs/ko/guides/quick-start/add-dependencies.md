@@ -11,7 +11,7 @@ It's common for projects to depend on third-party libraries to provide additiona
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the 
+An Xcode project will open containing your project files. Edit the `Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
