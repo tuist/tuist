@@ -61,6 +61,7 @@ final class GenerateService {
         let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
         analyticsDelegate?.cacheableTargets = environment.cacheableTargets
         analyticsDelegate?.cacheItems = environment.targetCacheItems.values.flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
