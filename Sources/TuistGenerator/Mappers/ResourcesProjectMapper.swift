@@ -51,7 +51,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 productName: bundleName,
                 bundleId: "\(target.bundleId).resources",
                 deploymentTargets: target.deploymentTargets,
-                infoPlist: .extendingDefault(with: [:]),
+
+                // This is only for cases where the resources target does not contain actual code.
+                // By default, `CFBundleExecutable` is set to `BundleName`
+                // But setting a non-empty executable without providing actual code will result in a validation failure
+                // when submitting to the App Store.
+                infoPlist: .extendingDefault(with: [
+                    "CFBundleExecutable": "",
+                ]),
                 settings: Settings(
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
