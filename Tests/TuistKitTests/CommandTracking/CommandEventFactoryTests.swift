@@ -50,7 +50,30 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             targetHashes: nil,
-            graphPath: path
+            graphPath: path,
+            cacheableTargets: ["A", "B", "C"],
+            cacheItems: [
+                .test(
+                    name: "A",
+                    source: .local,
+                    cacheCategory: .binaries
+                ),
+                .test(
+                    name: "A",
+                    source: .local,
+                    cacheCategory: .selectiveTests
+                ),
+                .test(
+                    name: "B",
+                    source: .remote,
+                    cacheCategory: .binaries
+                ),
+            ],
+            selectiveTestsAnalytics: SelectiveTestsAnalytics(
+                testTargets: ["ATests", "BTests", "CTests"],
+                localTestTargetHits: ["ATests"],
+                remoteTestTargetHits: ["BTests"]
+            )
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -70,7 +93,13 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             gitRef: "github-ref",
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
             targetHashes: nil,
-            graphPath: path
+            graphPath: path,
+            cacheableTargets: ["A", "B", "C"],
+            localCacheTargetHits: ["A"],
+            remoteCacheTargetHits: ["B"],
+            testTargets: ["ATests", "BTests", "CTests"],
+            localTestTargetHits: ["ATests"],
+            remoteTestTargetHits: ["BTests"]
         )
         given(gitController)
             .currentCommitSHA(workingDirectory: .value(path))
@@ -118,6 +147,12 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.gitRef, expectedEvent.gitRef)
         XCTAssertEqual(event.targetHashes, expectedEvent.targetHashes)
         XCTAssertEqual(event.graphPath, expectedEvent.graphPath)
+        XCTAssertEqual(event.cacheableTargets, expectedEvent.cacheableTargets)
+        XCTAssertEqual(event.localCacheTargetHits, expectedEvent.localCacheTargetHits)
+        XCTAssertEqual(event.remoteCacheTargetHits, expectedEvent.remoteCacheTargetHits)
+        XCTAssertEqual(event.testTargets, expectedEvent.testTargets)
+        XCTAssertEqual(event.localTestTargetHits, expectedEvent.localTestTargetHits)
+        XCTAssertEqual(event.remoteTestTargetHits, expectedEvent.remoteTestTargetHits)
     }
 
     func test_make_when_is_not_in_git_repository() throws {
@@ -132,7 +167,14 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             targetHashes: nil,
-            graphPath: nil
+            graphPath: nil,
+            cacheableTargets: [],
+            cacheItems: [],
+            selectiveTestsAnalytics: SelectiveTestsAnalytics(
+                testTargets: [],
+                localTestTargetHits: [],
+                remoteTestTargetHits: []
+            )
         )
 
         given(gitController)
@@ -167,7 +209,14 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             targetHashes: nil,
-            graphPath: nil
+            graphPath: nil,
+            cacheableTargets: [],
+            cacheItems: [],
+            selectiveTestsAnalytics: SelectiveTestsAnalytics(
+                testTargets: [],
+                localTestTargetHits: [],
+                remoteTestTargetHits: []
+            )
         )
 
         given(gitController)
@@ -214,7 +263,14 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             targetHashes: nil,
-            graphPath: nil
+            graphPath: nil,
+            cacheableTargets: [],
+            cacheItems: [],
+            selectiveTestsAnalytics: SelectiveTestsAnalytics(
+                testTargets: [],
+                localTestTargetHits: [],
+                remoteTestTargetHits: []
+            )
         )
 
         given(gitController)

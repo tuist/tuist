@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistCache
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -43,7 +44,8 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool
+        ignoreBinaryCache: Bool,
+        analyticsDelegate: TrackableParametersDelegate?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
@@ -56,7 +58,10 @@ final class GenerateService {
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        let workspacePath = try await generator.generate(path: path)
+        let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
+        analyticsDelegate?.cacheableTargets = environment.cacheableTargets
+        analyticsDelegate?.cacheItems = environment.targetCacheItems.values.flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
         if !noOpen {
             try await opener.open(path: workspacePath)
         }

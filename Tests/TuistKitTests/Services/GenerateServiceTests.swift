@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistCache
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -20,6 +21,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var clock: StubClock!
+    private var analyticsDelegate: MockTrackableParametersDelegate!
 
     override func setUp() {
         super.setUp()
@@ -40,6 +42,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             .cacheStorage(config: .any)
             .willReturn(MockCacheStoring())
         clock = StubClock()
+        analyticsDelegate = MockTrackableParametersDelegate()
         subject = GenerateService(
             cacheStorageFactory: cacheStorageFactory,
             generatorFactory: generatorFactory,
@@ -54,6 +57,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         generatorFactory = nil
         cacheStorageFactory = nil
         clock = nil
+        analyticsDelegate = nil
         subject = nil
         super.tearDown()
     }
@@ -61,7 +65,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
         given(generator)
-            .generate(path: .any)
+            .generateWithGraph(path: .any)
             .willThrow(expectedError)
 
         do {
@@ -71,7 +75,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
                     sources: [],
                     noOpen: true,
                     configuration: nil,
-                    ignoreBinaryCache: false
+                    ignoreBinaryCache: false,
+                    analyticsDelegate: analyticsDelegate
                 )
             XCTFail("Must throw")
         } catch {
@@ -82,10 +87,27 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-
+        var environment = MapperEnvironment()
+        environment.cacheableTargets = ["A", "B", "C"]
+        environment.targetCacheItems = [
+            workspacePath: [
+                "a": CacheItem.test(
+                    name: "A"
+                ),
+                "b": CacheItem.test(
+                    name: "B"
+                ),
+            ],
+        ]
         given(generator)
-            .generate(path: .any)
-            .willReturn(workspacePath)
+            .generateWithGraph(path: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
 
         given(opener)
             .open(path: .any)
@@ -97,13 +119,28 @@ final class GenerateServiceTests: TuistUnitTestCase {
             sources: [],
             noOpen: false,
             configuration: nil,
-            ignoreBinaryCache: false
+            ignoreBinaryCache: false,
+            analyticsDelegate: analyticsDelegate
         )
 
         // Then
         verify(opener)
             .open(path: .value(workspacePath))
             .called(1)
+
+        verify(analyticsDelegate)
+            .cacheableTargets(newValue: .value(["A", "B", "C"]))
+            .setCalled(1)
+        verify(analyticsDelegate)
+            .cacheItems(
+                newValue: .value(
+                    [
+                        CacheItem.test(name: "A"),
+                        CacheItem.test(name: "B"),
+                    ]
+                )
+            )
+            .setCalled(1)
     }
 
     func test_run_timeIsPrinted() async throws {
@@ -115,8 +152,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
             .willReturn()
 
         given(generator)
-            .generate(path: .any)
-            .willReturn(workspacePath)
+            .generateWithGraph(path: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
@@ -128,7 +165,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
             sources: [],
             noOpen: false,
             configuration: nil,
-            ignoreBinaryCache: false
+            ignoreBinaryCache: false,
+            analyticsDelegate: analyticsDelegate
         )
 
         // Then

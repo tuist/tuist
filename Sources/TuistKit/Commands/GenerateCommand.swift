@@ -62,12 +62,6 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
                     "no_open": AnyCodable(!open),
                     "no_binary_cache": AnyCodable(!binaryCache),
                     "n_targets": AnyCodable(sources.count),
-                    "cacheable_targets": AnyCodable(CacheAnalyticsStore.shared.cacheableTargets),
-                    "local_cache_target_hits": AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits),
-                    "remote_cache_target_hits": AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits),
-                    "test_targets": AnyCodable(CacheAnalyticsStore.shared.testTargets),
-                    "local_test_target_hits": AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits),
-                    "remote_test_target_hits": AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits),
                 ]
             )
         }
@@ -79,7 +73,8 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             sources: Set(sources),
             noOpen: !open,
             configuration: configuration,
-            ignoreBinaryCache: !binaryCache
+            ignoreBinaryCache: !binaryCache,
+            analyticsDelegate: GenerateCommand.analyticsDelegate
         )
     }
 }
