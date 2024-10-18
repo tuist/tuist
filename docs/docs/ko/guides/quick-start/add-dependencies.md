@@ -11,7 +11,7 @@ It's common for projects to depend on third-party libraries to provide additiona
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the 
+An Xcode project will open containing your project files. Edit the `Package.swift` and add the
 
 ```swift
 // swift-tools-version: 5.9
@@ -23,7 +23,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
         // Default is .staticFramework
-        // productTypes: ["Alamofire": .framework,] 
+        // productTypes: ["Alamofire": .framework,]
         productTypes: [:]
     )
 #endif
@@ -92,7 +92,7 @@ tuist graph
 
 The command will output and open a `graph.png` file in the project's directory:
 
-![Project graph](./images/graph.png)
+![Project graph](/images/guides/quick-start/graph.png)
 
 ## Use the dependency
 

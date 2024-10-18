@@ -35,7 +35,7 @@ tuist generate
 
 You'll notice your project groups includes a new group `Cache` containing the binaries from the cache.
 
-<img src="./images/cache.png" alt="An screenshot of a project group structure where you can see XCFrameworks in a cache group" style="max-width: 300px;"/>
+<img src="/images/guides/quick-start/cache.png" alt="An screenshot of a project group structure where you can see XCFrameworks in a cache group" style="max-width: 300px;"/>
 
 If you push your changes upstream to a remote repository, other developers can clone the project, and run the following commands:
 

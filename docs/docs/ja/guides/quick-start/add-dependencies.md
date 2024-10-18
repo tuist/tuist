@@ -23,7 +23,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
         // Default is .staticFramework
-        // productTypes: ["Alamofire": .framework,] 
+        // productTypes: ["Alamofire": .framework,]
         productTypes: [:]
     )
 #endif
@@ -92,7 +92,7 @@ tuist graph
 
 The command will output and open a `graph.png` file in the project's directory:
 
-![Project graph](./images/graph.png)
+![Project graph](/images/guides/quick-start/graph.png)
 
 ## Use the dependency
 
