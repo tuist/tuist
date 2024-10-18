@@ -5,7 +5,7 @@ description: Learn how to migrate an Xcode project to a Tuist project.
 
 # Migrate an Xcode project
 
-Unless you [create a new project using Tuist](/ko/guides/start/new-project), in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
+Unless you [create a new project using Tuist](/en/guides/start/new-project), in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
 
 As you probably know, Xcode projects can become messy and complex over time: groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some). All that accumulated complexity makes it hard for us to provide a command that reliably migrates project.
 
@@ -62,6 +62,7 @@ let package = Package(
     ]
 )
 ```
+
 :::
 
 `Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Config.swift` file is where you can define project-scoped Tuist settings for your project.
@@ -82,7 +83,6 @@ tuist build -- ...{xcodebuild flags} # or tuist test
 ## Extract the project build settings into `.xcconfig` files
 
 Extract the build settings from the project into an `.xcconfig` file to make the project leaner and easier to migrate. You can use the following command to extract the build settings from the project into an `.xcconfig` file:
-
 
 ```bash
 mkdir -p xcconfigs/
@@ -145,7 +145,6 @@ let package = Package(
 > [!TIP] PRODUCT TYPES
 > You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
 
-
 ## Determine the migration order
 
 We recommend migrating the targets from the one that is the most dependent upon to the least. You can use the following command to list the targets of a project, sorted by the number of dependencies:
@@ -155,7 +154,6 @@ tuist migration list-targets -p Project.xcodeproj
 ```
 
 Start migrating the targets from the top of the list, as they are the ones that are the most depended upon.
-
 
 ## Migrate targets
 
