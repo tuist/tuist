@@ -258,9 +258,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
+            let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
             var candidates = [
                 Bundle.main.resourceURL,
-                Bundle(for: BundleFinder.self).resourceURL,
+                bundleFinderResourceURL,
+                bundleFinderResourceURL?.appendingPathComponent(".."),
                 Bundle.main.bundleURL,
             ]
             // This is a fix to make Previews work with bundled resources.
