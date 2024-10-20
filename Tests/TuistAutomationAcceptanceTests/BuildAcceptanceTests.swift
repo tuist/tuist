@@ -176,3 +176,40 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
+
+final class BuildAcceptanceTestFrameworkWithSPMBundle: TuistAcceptanceTestCase {
+    func test() async throws {
+        try await setUpFixture(.frameworkWithSPMBundle)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(
+            BuildCommand.self,
+            "--configuration",
+            "debug",
+            "--build-output-path",
+            fixturePath.appending(component: "Builds").pathString
+        )
+
+        let featureFramework = fixturePath.appending(
+            try RelativePath(validating: "Builds/debug-iphonesimulator")
+        )
+        .appending(component: "Feature.framework")
+
+        try XCTAssertDirectoryContentEqual(
+            featureFramework,
+            [
+                "Feature",
+                "Headers",
+                "Info.plist",
+                "Modules",
+                "_CodeSignature",
+                "Stripe_Stripe.bundle",
+                "Stripe_Stripe3DS2.bundle",
+                "Stripe_StripeCore.bundle",
+                "Stripe_StripePayments.bundle",
+                "Stripe_StripePaymentsUI.bundle",
+                "Stripe_StripeUICore.bundle"
+            ]
+        )
+    }
+}
