@@ -12,7 +12,7 @@ let project = Project(
             infoPlist: .default,
             sources: "Sources/**",
             dependencies: [
-              .project(target: "SharedUI", path: "../SharedUI"),
+                .project(target: "SharedUI", path: "../SharedUI"),
             ]
         ),
         .target(
@@ -24,7 +24,7 @@ let project = Project(
             infoPlist: .default,
             sources: "Tests/**",
             dependencies: [
-              .target(name: "Feature")
+                .target(name: "Feature"),
             ]
         ),
     ]
