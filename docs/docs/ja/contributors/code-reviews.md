@@ -1,14 +1,14 @@
 ---
-title: Code reviews
-titleTemplate: :title - Contribute to Tuist
+title: コードレビュー
+titleTemplate: :title - Tuist に貢献する
 description: Learn how to contribute to Tuist by reviewing code
 ---
 
-# Code reviews
+# コードレビュー
 
-Reviewing pull requests is a common type of contribution. Despite continuous integration (CI) ensuring the code does what’s supposed to do, it’s not enough. There are contribution traits that can’t be automated: design, code structure & architecture, tests quality, or typos. The following sections represent different aspects of the code review process.
+プルリクエストのレビューはよくある貢献の形です。 継続的インテグレーション (CI) によってコードが期待通りに動作することが保証されていても、それだけでは十分ではありません。 設計、コードの構造・アーキテクチャ、テストの品質、タイポなど、自動化できない貢献要素が存在します。 以下の項では、コードレビューのプロセスに関するさまざまな観点を取り上げます。
 
-## Readability
+## 可読性
 
 Does the code express its intention clearly? **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. Alternative, and as a last resource, they can add a comment explaining the reasoning behind it. Ask yourself if you’d be able to understand the code in a near future, without any surrounding context like the pull request description.
 
