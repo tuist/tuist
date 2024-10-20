@@ -10,22 +10,22 @@ description: Tuistへの貢献を、コードレビューを通じて学ぶ
 
 ## 可読性
 
-そのコードは意図を明確に示していますか？ **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. Alternative, and as a last resource, they can add a comment explaining the reasoning behind it. Ask yourself if you’d be able to understand the code in a near future, without any surrounding context like the pull request description.
+そのコードは意図を明確に示していますか？ **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. 代替案として、そして最終手段として、レビュイーはコードの背後にある理由を説明するコメントを追加することができます。 プルリクエストの説明などの文脈がなくても、近い将来にそのコードを理解できるかどうか、自分自身に問いかけてみてください。
 
-## Small pull requests
+## 最小単位のプルリクエスト
 
-Large pull requests are hard to review and it’s easier to miss out details. If a pull request becomes too large and unmanageable, suggest the author to break it down.
+巨大なプルリクエストはレビューが難しく、詳細を見逃しやすくなります。 プルリクエストが大きくなりすぎて管理が難しくなった場合は、作成者に分割するよう提案してください。
 
-> [!NOTE] EXCEPTIONS
-> There are few scenarios where splitting up the pull request is not possible, like when the changes are tightly coupled and can’t be split. In those cases, the author should provide a clear explanation of the changes and the reasoning behind them.
+> [!NOTE] 例外
+> 変更が密接に結びついていて分割できない場合など、プルリクエストを分割できないケースがいくつかあります。 そのような場合、作成者は変更内容とその理由について明確に説明する必要があります。
 
 ## 整合性
 
-It’s important that the changes are consistent with the rest of the project. Inconsistencies complicate maintenance, and therefore we should avoid them. If there’s an approach to output messages to the user, or report errors, we should stick to that. If the author disagrees with the project’s standards, suggest them to open an issue where we can discuss them further.
+変更がプロジェクト全体と整合性を保っていることが重要です。 整合性の欠如はメンテナンスを複雑にするため、避けるべきです。 ユーザーへのメッセージ出力やエラー報告の方法が既に決まっている場合は、それに従うべきです。 もし作成者がプロジェクトの標準に異議を唱えている場合は、議論を深めるために Issue を作成するよう提案してください。
 
 ## テスト
 
-Tests allow changing code with confidence. The code on pull requests should be tested, and all tests should pass. A good test is a test that consistently produces the same result and that it’s easy to understand and maintain. Reviewers spend most of the review time in the implementation code, but tests are equally important because they are code too.
+テストは、安心してコードを変更できるようにしてくれます。 プルリクエストのコードはすべてテストされ、すべてのテストが通っている必要があります。 良いテストとは、一貫して同じ結果を生み出し、理解しやすく、保守しやすいテストのことです。 レビュワーは実装コードのレビューに多くの時間を費やしますが、テストもコードである以上同様に重要です。
 
 ## 破壊的な変更
 
