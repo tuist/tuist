@@ -66,12 +66,15 @@ enum SelectedDevice: Codable, Equatable {
 
 @Observable
 final class DevicesViewModel: Sendable {
-    private(set) var devices: [PhysicalDevice] = [] {
-        didSet { categorizeDevices() }
+    private(set) var devices: [PhysicalDevice] = []
+
+    var connectedDevices: [PhysicalDevice] {
+        devices.filter { $0.connectionState == .connected }
     }
 
-    private(set) var connectedDevices: [PhysicalDevice] = []
-    private(set) var disconnectedDevices: [PhysicalDevice] = []
+    var disconnectedDevices: [PhysicalDevice] {
+        devices.filter { $0.connectionState == .disconnected }
+    }
 
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
     private(set) var unpinnedSimulators: [SimulatorDeviceAndRuntime] = []
@@ -241,20 +244,6 @@ final class DevicesViewModel: Sendable {
             try await deviceController.installApp(at: app.path, device: device)
             try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
         }
-    }
-
-    private func categorizeDevices() {
-        (connectedDevices, disconnectedDevices) = devices
-            .reduce(
-                into: (connected: [PhysicalDevice](), disconnected: [PhysicalDevice]())
-            ) { partialResult, device in
-                switch device.connectionState {
-                case .connected:
-                    partialResult.connected.append(device)
-                case .disconnected:
-                    partialResult.disconnected.append(device)
-                }
-            }
     }
 }
 
