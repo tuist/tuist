@@ -305,7 +305,7 @@ let targets: [Target] = [
             "FileSystem",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-            "HTTPTypes",
+            .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         exclude: ["OpenAPI/server.yml"],
@@ -471,6 +471,9 @@ let package = Package(
         .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
         .package(
             url: "https://github.com/apple/swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
+        ),
+        .package(
+            url: "https://github.com/apple/swift-http-types", .upToNextMajor(from: "1.3.0")
         ),
         .package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
