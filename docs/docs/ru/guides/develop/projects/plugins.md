@@ -8,10 +8,10 @@ description: Learn how to create and use plugins in Tuist to extend its function
 
 Plugins are a tool to share and reuse Tuist artifacts across multiple projects. The following artifacts are supported:
 
-- [Project description helpers](/ru/guides/develop/projects/code-sharing) across multiple projects.
-- [Templates](/ru/guides/develop/projects/templates) across multiple projects.
+- [Project description helpers](/en/guides/develop/projects/code-sharing) across multiple projects.
+- [Templates](/en/guides/develop/projects/templates) across multiple projects.
 - Tasks across multiple projects.
-- [Resource accessor](/ru/guides/develop/projects/synthesized-files) template across multiple projects
+- [Resource accessor](/en/guides/develop/projects/synthesized-files) template across multiple projects
 
 Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
 
@@ -50,7 +50,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Resource accessor templates plugin
 
-If you need to share [synthesized resource accessors](/ru/guides/develop/projects/synthesized-files#resource-accessors) you can use
+If you need to share [synthesized resource accessors](/en/guides/develop/projects/synthesized-files#resource-accessors) you can use
 this type of plugin. The plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ResourceSynthesizers` directory containing the resource accessor template files.
 
 ::: code-group
@@ -108,7 +108,7 @@ If you were using Tuist for distributing tasks, we recommend building your
 
 ## Using plugins
 
-To use a plugin, you'll have to add it to your project's [`Config.swift`](/ru/references/project-description/structs/config) manifest file:
+To use a plugin, you'll have to add it to your project's [`Config.swift`](/en/references/project-description/structs/config) manifest file:
 
 ```swift
 import ProjectDescription

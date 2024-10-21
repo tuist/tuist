@@ -6,7 +6,7 @@ description: Learn about Tuist's hashing logic upon which features like binary c
 
 # Hashing
 
-Features like [caching](/ru/guides/develop/build/cache) or smart test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
+Features like [caching](/en/guides/develop/build/cache) or smart test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
 
 - The target's attributes (e.g., name, platform, product, etc.)
 - The target's files
@@ -14,7 +14,7 @@ Features like [caching](/ru/guides/develop/build/cache) or smart test execution 
 
 ### Cache attributes
 
-Additionally, when calculating the hash for [caching](/ru/guides/develop/build/cache), we also hash the following attributes.
+Additionally, when calculating the hash for [caching](/en/guides/develop/build/cache), we also hash the following attributes.
 
 #### Swift version
 
